@@ -32,6 +32,7 @@ import { fetchWithTimeout } from "../_shared/fetchTimeout.ts";
 import { GPU_JOB_CAP_USD, gpuActualUsd } from "../_shared/gpuJob.ts";
 import {
   TARGET_GPU_ID,
+  VIDEO_CLOCK_SECONDS,
   WATCHDOG_SECONDS,
   admitGeneration,
   buildAudioMuxPayload,
@@ -175,6 +176,50 @@ async function setJob(admin: AnyClient, id: string, patch: Record<string, unknow
   if (error) console.error("[gpu-video] row update failed", error.message);
 }
 
+// ------------------------------------------- finished-video-time ledger
+// The customer unit (owner directive 2026-08-27): one clip reserves its
+// fixed clock up front and settles at the MEASURED finished duration; a
+// generation that delivers nothing usable releases the whole reservation.
+// The RPCs are idempotent per job, so a duplicate settle or a settle racing
+// a release charges nothing twice. A ledger error never breaks job-state
+// writes — it is logged evidence, not a crash.
+const CLIP_RESERVE_MS = Math.ceil(VIDEO_CLOCK_SECONDS * 1000);
+
+async function reserveTime(
+  admin: AnyClient,
+  userId: string,
+  jobId: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const { data, error } = await admin.rpc("reserve_video_time", {
+    _user: userId,
+    _job_id: jobId,
+    _ms: CLIP_RESERVE_MS,
+  });
+  if (error) {
+    console.error("[gpu-video] reserve failed", error.message);
+    // Fail closed: no reservation, no generation.
+    return { ok: false, reason: "ledger-unavailable" };
+  }
+  return (data ?? { ok: false, reason: "ledger-unavailable" }) as {
+    ok: boolean;
+    reason?: string;
+  };
+}
+
+async function settleTime(admin: AnyClient, jobId: string, videoSeconds: unknown): Promise<void> {
+  const ms = Math.round(Number(videoSeconds) * 1000);
+  // A delivered clip with no measured duration settles at the reservation —
+  // never more (the RPC clamps), never silently free.
+  const actual = Number.isFinite(ms) && ms > 0 ? ms : CLIP_RESERVE_MS;
+  const { error } = await admin.rpc("settle_video_time", { _job_id: jobId, _actual_ms: actual });
+  if (error) console.error("[gpu-video] settle failed", jobId, error.message);
+}
+
+async function releaseTime(admin: AnyClient, jobId: string): Promise<void> {
+  const { error } = await admin.rpc("release_video_time", { _job_id: jobId });
+  if (error) console.error("[gpu-video] release failed", jobId, error.message);
+}
+
 /**
  * Fetch one artifact from R2 by its server-owned reference, verify it is
  * the exact object the worker measured, and put the custody copy where
@@ -229,6 +274,8 @@ async function salvageSilent(
       error: null,
       completed_at: new Date().toISOString(),
     });
+    // A silent video was DELIVERED: the finished duration is charged.
+    await settleTime(admin, job.id as string, job.video_seconds);
   } catch (e) {
     await setJob(admin, job.id as string, {
       status: "failed",
@@ -237,6 +284,8 @@ async function salvageSilent(
       error: `artifact:${(e as Error).message.slice(0, 140)}`,
       completed_at: new Date().toISOString(),
     });
+    // Nothing reached the user: full refund of the reservation.
+    await releaseTime(admin, job.id as string);
   }
 }
 
@@ -355,6 +404,12 @@ async function pollAudioRun(admin: AnyClient, job: Record<string, unknown>): Pro
       error: null,
       completed_at: new Date().toISOString(),
     });
+    // The voiced final is delivered: charge the measured finished duration.
+    await settleTime(
+      admin,
+      job.id as string,
+      typeof out.video_seconds === "number" ? out.video_seconds : job.video_seconds,
+    );
   } catch (e) {
     // The voiced final could not reach custody; the silent source still can.
     await salvageSilent(
@@ -431,6 +486,15 @@ async function submitGeneration(
     throw new Error("a generation is already running — one at a time");
   }
 
+  // --- the watermark entitlement OF RECORD, derived server-side ------------
+  // Read at submit and burned onto the row: the export layer reads THIS,
+  // never a client flag. (Clip exports do not carry a burned mark yet; the
+  // column is the entitlement the burn capability will honor.)
+  const { data: cleanFlag } = await admin.rpc("has_entitlement", {
+    _user: userId,
+    _key: "no_watermark",
+  });
+
   // --- the row exists before the money moves -------------------------------
   const { data: row, error: insertErr } = await admin
     .from("gpu_video_jobs")
@@ -447,6 +511,7 @@ async function submitGeneration(
       gpu_type: TARGET_GPU_ID,
       audio_mode: request.audio,
       narration_text: request.audio === "narration" ? request.narrationText : null,
+      no_watermark: cleanFlag === true,
     })
     .select("id")
     .single();
@@ -464,6 +529,23 @@ async function submitGeneration(
   const jobId = row.id as string;
   await setJob(admin, jobId, { output_ref: outputRefFor(jobId) });
 
+  // --- finished-video-time reservation, fail closed ------------------------
+  // Owner directive 2026-08-27: entitlement is determined and the allowance
+  // atomically reserved BEFORE any provider money moves. A refusal here has
+  // spent nothing anywhere — provider or customer.
+  const reserved = await reserveTime(admin, userId, jobId);
+  if (!reserved.ok) {
+    await setJob(admin, jobId, {
+      status: "failed",
+      error: `entitlement:${reserved.reason ?? "refused"}`,
+    });
+    throw new Error(
+      reserved.reason === "exhausted"
+        ? "You are out of video time."
+        : "Video time could not be reserved — nothing was generated.",
+    );
+  }
+
   // --- live quote + admission, fail closed ---------------------------------
   let price: number | null = null;
   try {
@@ -474,6 +556,7 @@ async function submitGeneration(
   const admission = admitGeneration(price);
   if (!admission.ok) {
     await setJob(admin, jobId, { status: "failed", error: `admission:${admission.reason}` });
+    await releaseTime(admin, jobId);
     throw new Error(`generation refused: ${admission.reason}`);
   }
   await setJob(admin, jobId, {
@@ -496,6 +579,8 @@ async function submitGeneration(
       status: "failed",
       error: `submit:${(e as Error).message.slice(0, 160)}`,
     });
+    // No provider job exists, so no artifact ever will: full refund.
+    await releaseTime(admin, jobId);
     throw e;
   }
 }
@@ -538,6 +623,8 @@ async function pollGenerations(
         error: `watchdog: exceeded ${WATCHDOG_SECONDS}s wall clock`,
         completed_at: new Date().toISOString(),
       });
+      // Nothing usable was delivered: the customer's reservation goes back.
+      await releaseTime(admin, job.id);
       continue;
     }
     if (job.status === "audio_generating") {
@@ -569,6 +656,7 @@ async function pollGenerations(
         error: `worker:${code}`.slice(0, 160),
         completed_at: new Date().toISOString(),
       });
+      await releaseTime(admin, job.id);
       continue;
     }
     if (mapped !== "uploading") continue; // unknown provider vocabulary: leave it
@@ -581,6 +669,7 @@ async function pollGenerations(
         error: `proof:${verdict.reason}`,
         completed_at: new Date().toISOString(),
       });
+      await releaseTime(admin, job.id);
       continue;
     }
     const out = state.output as Record<string, unknown>;
@@ -625,6 +714,7 @@ async function pollGenerations(
         error: `artifact:${(e as Error).message.slice(0, 140)}`,
         completed_at: new Date().toISOString(),
       });
+      await releaseTime(admin, job.id);
       continue;
     }
     await setJob(admin, job.id, {
@@ -634,6 +724,8 @@ async function pollGenerations(
       error: null,
       completed_at: new Date().toISOString(),
     });
+    // Delivered: charge the MEASURED finished duration, refund the rest.
+    await settleTime(admin, job.id, out.video_seconds);
   }
   return { checked: jobs?.length ?? 0 };
 }

@@ -19,6 +19,7 @@ const WRITER = stripComments(read("src/components/stories/StoryWriter.tsx"));
 const BUILDER = stripComments(read("src/components/stories/CharacterBuilder.tsx"));
 const STUDIO = stripComments(read("src/components/stories/StoryStudio.tsx"));
 const CLIPS = stripComments(read("src/components/stories/VideoClips.tsx"));
+const PLANS = stripComments(read("src/components/stories/VideoPlans.tsx"));
 const JOBS_CLIENT = stripComments(read("src/components/stories/storyJobsClient.ts"));
 const PLOT_FN = stripComments(read("supabase/functions/story-plot/index.ts"));
 const STILL_FN = stripComments(read("supabase/functions/story-still/index.ts"));
@@ -127,6 +128,42 @@ describe("Generate video → the ONE user door into GPU generation", () => {
     // The one "retry" the file may mention is the idempotency comment; in
     // executable text the only path back is the explicit Try-again button.
     expect(CLIPS).toContain("Try again");
+  });
+});
+
+describe("Video time → buying never generates, generating never buys", () => {
+  it("the plans panel can pay and read balances — nothing that generates", () => {
+    expect(PLANS).toContain('rpc("video_time_status"');
+    expect(PLANS).toMatch(/rpc\(\s*"start_free_video_month"/);
+    expect(PLANS).toContain("payForVideoMinutes");
+    for (const generator of [
+      'invoke("gpu-video"',
+      "story-plot",
+      "story-still",
+      "claim_story_seconds",
+      "story_jobs",
+      "runpod",
+    ]) {
+      expect(PLANS, generator).not.toContain(generator);
+    }
+  });
+
+  it("the clips panel reads its balance and never touches the payment rail", () => {
+    expect(CLIPS).toContain('rpc("video_time_status"');
+    for (const pay of ["razorpay", "payFor", "start_free_video_month", "create_video_purchase"]) {
+      expect(CLIPS, pay).not.toContain(pay);
+    }
+  });
+
+  it("the studio mounts the catalogue beside the clips panel", () => {
+    expect(STUDIO).toContain("<VideoPlans />");
+  });
+
+  it("the panels stay independent", () => {
+    expect(PLANS).not.toContain("VideoClips");
+    expect(CLIPS).not.toContain("VideoPlans");
+    expect(WRITER).not.toContain("VideoPlans");
+    expect(BUILDER).not.toContain("VideoPlans");
   });
 });
 

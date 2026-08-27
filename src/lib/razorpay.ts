@@ -344,10 +344,49 @@ export async function payForPlan(opts: {
   return out;
 }
 
-export type WatermarkPayResult =
-  | { status: "paid" }
+export type VideoPayResult =
+  | { status: "paid"; seconds: number }
   | { status: "dismissed" }
   | { status: "failed"; message: string };
+
+/**
+ * Buy finished video time, pay-as-you-go (owner directive 2026-08-27). WEB
+ * PAGES ONLY, exactly like Story seconds — the native build links out.
+ *
+ * THE PRICE IS NOT SENT. Only the minute count goes up; the server prices it
+ * from `video_sale_config` under the row that becomes the receipt. On
+ * "paid", `seconds` is what `credit_video_purchase` actually credited.
+ */
+export async function payForVideoMinutes(opts: {
+  minutes: number;
+  origin?: "web" | "native-handoff";
+  prefill?: PayOptions["prefill"];
+}): Promise<VideoPayResult> {
+  const { data, error } = await supabase.functions.invoke("razorpay-order", {
+    body: { videoMinutes: opts.minutes, origin: opts.origin ?? "web" },
+  });
+  const start = (data ?? {}) as OrderStart;
+  const problem = startProblem(error, start);
+  if (problem) return { status: "failed", message: problem };
+
+  const out = await collectPayment(
+    start as { keyId: string; providerOrderId: string; amountMinor?: number; currency?: string },
+    { description: start.label ?? "Video time", prefill: opts.prefill },
+  );
+  if (out.status === "verified") {
+    return {
+      status: "paid",
+      seconds:
+        typeof out.payload.seconds === "number" && out.payload.seconds > 0
+          ? out.payload.seconds
+          : opts.minutes * 60,
+    };
+  }
+  return out;
+}
+
+export type WatermarkPayResult =
+  { status: "paid" } | { status: "dismissed" } | { status: "failed"; message: string };
 
 /**
  * The flat watermark-removal addon. Same rails as Story seconds: the server

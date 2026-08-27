@@ -54,6 +54,7 @@ import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputRep
 import { CharacterBuilder } from "@/components/stories/CharacterBuilder";
 import { StoryWriter } from "@/components/stories/StoryWriter";
 import { VideoClips, type ClipSeed } from "@/components/stories/VideoClips";
+import { VideoPlans } from "@/components/stories/VideoPlans";
 import { openInApp } from "@/lib/miniapps";
 import { MAX_PROMPT_CHARS, packNarrations, verbatimFits } from "@/lib/verbatimNarration";
 import {
@@ -916,6 +917,11 @@ export function StoryStudio() {
           directive 2026-08-27). Its own explicit Generate press is the only
           thing that submits; a shot handed over above only fills the form. */}
       <VideoClips seed={clipSeed} />
+
+      {/* VIDEO TIME — the finished-video-time catalogue (owner directive
+          2026-08-27). Display and explicit purchase only: nothing here can
+          start a generation, and the server prices every purchase itself. */}
+      <VideoPlans />
 
       {/*
         THE DISCLAIMER SITS ABOVE THE BUTTON, not below it and not behind a

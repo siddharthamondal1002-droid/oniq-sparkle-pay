@@ -97,6 +97,39 @@ describe("the financial gates did not move", () => {
   });
 });
 
+describe("finished-video-time accounting (owner directive 2026-08-27)", () => {
+  it("the reservation sits after the row and before any provider money", () => {
+    const submitFn = EDGE.slice(
+      EDGE.indexOf("async function submitGeneration"),
+      EDGE.indexOf("async function pollGenerations"),
+    );
+    const reserve = submitFn.indexOf("await reserveTime(admin, userId, jobId)");
+    const admit = submitFn.indexOf("const admission = admitGeneration(price)");
+    const submit = submitFn.indexOf("await runpodSubmit(");
+    expect(reserve).toBeGreaterThan(-1);
+    expect(reserve).toBeLessThan(admit);
+    expect(admit).toBeLessThan(submit);
+  });
+
+  it("every delivery settles and every dead end releases", () => {
+    // Three deliveries: the silent completion, the salvage-to-silent, and
+    // the voiced final. Seven dead ends: admission refusal, submit failure,
+    // watchdog, provider failure, proof failure, custody failure, and the
+    // salvage that could not even store the silent source.
+    expect(EDGE.match(/await settleTime\(/g)).toHaveLength(3);
+    expect(EDGE.match(/await releaseTime\(/g)).toHaveLength(7);
+  });
+
+  it("the reservation is the fixed clip clock — customer time, not GPU time", () => {
+    expect(EDGE).toContain("const CLIP_RESERVE_MS = Math.ceil(VIDEO_CLOCK_SECONDS * 1000)");
+  });
+
+  it("the watermark entitlement of record is derived server-side at submit", () => {
+    expect(EDGE).toContain('_key: "no_watermark"');
+    expect(EDGE).toContain("no_watermark: cleanFlag === true");
+  });
+});
+
 describe("no new egress rode in with the rollout", () => {
   it("every external call still goes through the timed fetch, five call sites", () => {
     expect(EDGE.match(/fetchWithTimeout\(/g)).toHaveLength(5);
