@@ -60,6 +60,10 @@ import {
 } from "./motionProvider.ts";
 import { selectMotionLevel, type MotionLevel } from "./motionCost.ts";
 import type { RawImage } from "./sheetPanel.ts";
+// The gate lives in the shared core so the app and the edge functions
+// cannot judge a film by two different lines. Imported as well as
+// re-exported: it is a default parameter below, which needs the name here.
+import { CLIP_ALIVENESS_MIN } from "../../supabase/functions/_shared/motionGate.ts";
 
 /**
  * The clip-stage mode for one run, from `STORY_MOVIE`:
@@ -75,13 +79,7 @@ import type { RawImage } from "./sheetPanel.ts";
 export type ClipStageMode = "off" | "on" | "select";
 
 export type MotionStatus =
-  | "NOT_REQUESTED"
-  | "REQUESTED"
-  | "GENERATING"
-  | "GENERATED"
-  | "VALIDATED"
-  | "FAILED"
-  | "FALLBACK";
+  "NOT_REQUESTED" | "REQUESTED" | "GENERATING" | "GENERATED" | "VALIDATED" | "FAILED" | "FALLBACK";
 
 export type ShotMotionPlan = {
   motionClass: MotionClass;
@@ -150,7 +148,12 @@ export function resolveShotMotion(
   }
   if (plan.attemptClip && result.clipError) {
     // Tried and lost — the still path carried the shot instead.
-    return { status: "FAILED", source: result.hasRig ? "rig" : "none", provider: null, fallbackReason: result.clipError };
+    return {
+      status: "FAILED",
+      source: result.hasRig ? "rig" : "none",
+      provider: null,
+      fallbackReason: result.clipError,
+    };
   }
   if (result.hasRig) {
     // The deterministic puppet renders this character at composition time.
@@ -202,7 +205,7 @@ export function summarizeShotMotion(outcomes: ShotMotionOutcome[]): FilmMotionSu
  * cannot. A discarded clip costs its generation fee but never poisons the
  * film with fake "motion"; the still + parallax path takes the shot.
  */
-export const CLIP_ALIVENESS_MIN = 0.75;
+export { CLIP_ALIVENESS_MIN };
 
 /**
  * Mean absolute luminance difference between two same-sized RGBA frames,
@@ -248,4 +251,137 @@ export function temporalAliveness(frames: RawImage[]): number {
 
 export function clipTemporallyAlive(score: number, min: number = CLIP_ALIVENESS_MIN): boolean {
   return Number.isFinite(score) && score >= min;
+}
+
+// ── SUBJECT MOTION — is the SCENE moving, or only the camera? ────────────────
+
+/**
+ * How far a global camera move is searched for, in pixels per axis.
+ *
+ * A push-in or pan shifts nearly every pixel, so `temporalAliveness` scores
+ * it high — correctly, because the frame IS changing. But a shot that asked
+ * for "she turns toward the camera" and delivered a static figure under a
+ * slow pan is a FAILED shot wearing motion's clothes, and the ONIQ Director
+ * has to tell those apart before it accepts the take (owner directive
+ * 2026-08-27, the film reviewer). Compensating the dominant translation and
+ * re-measuring what is LEFT separates them: a pure camera move leaves almost
+ * nothing behind, a moving subject leaves itself.
+ */
+export const GLOBAL_MOTION_SEARCH_PX = 6;
+
+/** Luminance of a sampled pixel — the same weights frameLuminanceDiff uses. */
+function lumaAt(img: RawImage, x: number, y: number): number {
+  const i = (y * img.width + x) * 4;
+  return 0.2126 * img.data[i] + 0.7152 * img.data[i + 1] + 0.0722 * img.data[i + 2];
+}
+
+/**
+ * Mean absolute luminance difference between two frames after shifting the
+ * second by (dx, dy). Only the overlapping region is compared, sampled on a
+ * coarse grid — this runs per frame pair on a runner, not on the GPU.
+ */
+export function shiftedLuminanceDiff(
+  a: RawImage,
+  b: RawImage,
+  dx: number,
+  dy: number,
+  step = 4,
+): number {
+  if (a.width !== b.width || a.height !== b.height) return Number.NaN;
+  const x0 = Math.max(0, -dx);
+  const x1 = Math.min(a.width, a.width - dx);
+  const y0 = Math.max(0, -dy);
+  const y1 = Math.min(a.height, a.height - dy);
+  if (x1 - x0 < step || y1 - y0 < step) return Number.NaN;
+  let sum = 0;
+  let n = 0;
+  for (let y = y0; y < y1; y += step) {
+    for (let x = x0; x < x1; x += step) {
+      sum += Math.abs(lumaAt(a, x, y) - lumaAt(b, x + dx, y + dy));
+      n++;
+    }
+  }
+  return n === 0 ? Number.NaN : sum / n;
+}
+
+export type MotionSplit = {
+  /** Total change, the existing aliveness measure. */
+  total: number;
+  /** What remains once the dominant camera translation is removed. */
+  residual: number;
+  /** The translation that best explained the change, in pixels. */
+  shift: { dx: number; dy: number };
+};
+
+/**
+ * Split a clip's movement into "the camera moved" and "something in the
+ * scene moved". Fewer than two frames, or an unmeasurable pair, scores 0 for
+ * both — an unmeasurable clip is never credited with motion, the same
+ * fail-closed rule aliveness already follows.
+ */
+export function splitMotion(
+  frames: RawImage[],
+  searchPx: number = GLOBAL_MOTION_SEARCH_PX,
+): MotionSplit {
+  const zero = { total: 0, residual: 0, shift: { dx: 0, dy: 0 } };
+  if (frames.length < 2) return zero;
+  let totalSum = 0;
+  let residualSum = 0;
+  let sumDx = 0;
+  let sumDy = 0;
+  for (let i = 1; i < frames.length; i++) {
+    const a = frames[i - 1];
+    const b = frames[i];
+    const plain = frameLuminanceDiff(a, b);
+    if (!Number.isFinite(plain)) return zero;
+    let best = Number.POSITIVE_INFINITY;
+    let bestDx = 0;
+    let bestDy = 0;
+    for (let dy = -searchPx; dy <= searchPx; dy++) {
+      for (let dx = -searchPx; dx <= searchPx; dx++) {
+        const d = shiftedLuminanceDiff(a, b, dx, dy);
+        if (Number.isFinite(d) && d < best) {
+          best = d;
+          bestDx = dx;
+          bestDy = dy;
+        }
+      }
+    }
+    if (!Number.isFinite(best)) return zero;
+    totalSum += plain;
+    residualSum += best;
+    sumDx += bestDx;
+    sumDy += bestDy;
+  }
+  const pairs = frames.length - 1;
+  return {
+    total: totalSum / pairs,
+    residual: residualSum / pairs,
+    shift: { dx: sumDx / pairs, dy: sumDy / pairs },
+  };
+}
+
+/**
+ * The share of a clip's movement that the camera does NOT explain.
+ *
+ * 1 means everything that changed was the scene; 0 means a perfectly
+ * explained camera move over a frozen scene. A clip with no measurable
+ * movement at all scores 0 rather than dividing by nothing.
+ *
+ * ADVISORY, AND DELIBERATELY NOT A GATE. Measured over synthetic clips
+ * while building this: the ratio separates a moving subject on a locked
+ * camera (~0.98) from a pure pan (~0.37) cleanly, but a subject moving
+ * DURING a pan lands at ~0.51 and a one-pixel drift at ~0.76 — the bands
+ * overlap, and no real generated clip has been measured to place a line
+ * between them. `residual` is the number that behaved: it stays with the
+ * subject through a pan (~5) and collapses on a frozen scene (0).
+ *
+ * So the Director REPORTS these and gates on CLIP_ALIVENESS_MIN, which
+ * was calibrated on real ep3-era clips. Turning either of these into a
+ * pass/fail line needs real clips first; a threshold invented here would
+ * spend GPU money on repairs it could not justify.
+ */
+export function subjectMotionRatio(split: MotionSplit): number {
+  if (!(split.total > 0)) return 0;
+  return Math.max(0, Math.min(1, split.residual / split.total));
 }

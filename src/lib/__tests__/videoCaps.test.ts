@@ -90,8 +90,16 @@ describe("the three VIDEO caps are spend ceilings", () => {
     ]) {
       expect(src, cls).toMatch(new RegExp(`"${cls}"`));
     }
-    // The one liveness floor stays a liveness floor.
-    expect(read("src/lib/motionRuntime.ts")).toMatch(/CLIP_ALIVENESS_MIN = 0\.75/);
+    // The one liveness floor stays a liveness floor, and stays ONE.
+    // It moved to the shared core (2026-08-27, the ONIQ Director) so the
+    // app's motion runtime and the Director's shot reviewer cannot judge a
+    // film by two different lines; the number itself is unchanged, and the
+    // app now re-exports it rather than declaring a second copy.
+    expect(read("supabase/functions/_shared/motionGate.ts")).toMatch(
+      /CLIP_ALIVENESS_MIN = 0\.75/,
+    );
+    expect(read("src/lib/motionRuntime.ts")).not.toMatch(/CLIP_ALIVENESS_MIN = [\d.]/);
+    expect(read("src/lib/motionRuntime.ts")).toMatch(/motionGate\.ts/);
   });
 });
 
