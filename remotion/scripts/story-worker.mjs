@@ -315,6 +315,34 @@ async function edge(fn, body) {
  *   is the film's clock; dialogue gets two before its existing skip.
  */
 const VOICE_GAP_MS = 6_500;
+
+/**
+ * HOW MANY TIMES ONE ASK MAY BE PUT TO THE STILL ENGINE, and how long to
+ * wait between tries.
+ *
+ * MEASURED, 2026-08-28. Story job 1481d262 died on shot 1 when
+ * image_generate returned FAILED on both of its two attempts, five
+ * seconds apart. The endpoint's own health that minute read 53 completed
+ * / 20 failed with zero unhealthy, zero throttled and an empty queue —
+ * a 27% failure rate against hardware that is provably fine. At that
+ * rate two attempts leave a 7% chance of losing a shot, and a 17-shot
+ * film then has a better-than-even chance of dying somewhere. Three
+ * attempts take one shot to 2% and the film to roughly a third of what
+ * it was.
+ *
+ * The gap matters as much as the count. Five seconds is the same instant
+ * as far as a container that has just fallen over is concerned; run #132
+ * survived precisely because its failure landed on shot 6, where the
+ * retry met a worker already warmed by five successful stills. Widening
+ * the second gap to twenty seconds makes the last attempt an actually
+ * independent sample rather than a second look at the same moment.
+ *
+ * Bounded on purpose, and small: every attempt is a paid GPU job. Three
+ * is the ceiling, there is no escalation beyond it, and a failure that
+ * the engine calls non-retryable never reaches this table at all.
+ */
+const STILL_BACKOFF_MS = [5_000, 20_000];
+const STILL_ATTEMPTS = STILL_BACKOFF_MS.length + 1;
 let lastVoiceAt = 0;
 async function voiceWithRetry(payload, attempts) {
   for (let a = 1; ; a++) {
@@ -1716,11 +1744,27 @@ if (offline) {
     // what the tier's price buys that classic never renders.
     const cinematic = job.grade === 'movie';
     if (job.grade === 'movie') {
-      console.log(movie
-        ? '  movie grade: RENTED clip experiment on (STORY_MOVIE=on)'
-        : clipStage === 'select'
-          ? '  movie grade: RENTED clip experiment on, motion-selected shots only (STORY_MOVIE=select)'
-          : '  movie grade: in-house engine');
+      // SAY WHICH ENGINE WILL ACTUALLY BE CALLED. This line used to read
+      // "RENTED clip experiment on" whenever the clip stage opened, wording
+      // from 2026-08-13 when renting was the only way to animate anything.
+      // It survived the in-house engine landing, so job 1481d262 announced
+      // a rented experiment while routeMotion was routing every shot to
+      // ONIQ's own LTX and generateClip's in-house branch was calling
+      // story-motion with no provider fallback beneath it. A log that names
+      // the wrong payer is worse than no log: it cost a review of the whole
+      // spend path to establish that nothing was being rented.
+      //
+      // Two switches, so the line reports both. STORY_MOVIE says WHETHER
+      // the clip stage runs; IN_HOUSE_MOTION says WHICH engine answers.
+      const inHouse = process.env.IN_HOUSE_MOTION === 'on';
+      console.log(
+        clipStage === 'off'
+          ? '  movie grade: MOTION_STAGE=off — stills and camera only (STORY_MOVIE unset)'
+          : `  movie grade: MOTION_STAGE=${clipStage} (${
+              clipStage === 'select' ? 'motion-selected shots only' : 'every shot'
+            }), engine ${inHouse ? "ONIQ's own LTX" : 'external video provider'} ` +
+              `(IN_HOUSE_MOTION=${inHouse ? 'on' : 'off'})`,
+      );
     }
 
     // One voice for the whole film. A narrator that changes between shots is
@@ -2057,7 +2101,7 @@ if (offline) {
         // scenery rung, whose content cannot be the problem. One same-ask
         // repeat before it counts as a refusal; a named refusal
         // (PROHIBITED_CONTENT) steps straight down.
-        for (let t = 0; t < 2; t++) {
+        for (let t = 0; t < STILL_ATTEMPTS; t++) {
           try {
             // The reference conditions only the CHARACTER rungs (0, 1); rung 2
             // is people-less scenery by construction, so it never carries a face.
@@ -2085,15 +2129,32 @@ if (offline) {
             //   anything else       — a real failure: throw.
             const steppable =
               /story-still: 422/.test(msg) || /story-still: 400 .*too long/i.test(msg);
-            const transient = /story-still: (5\d\d|429)/.test(msg);
+            // THE ENGINE'S OWN VERDICT WHEN IT OFFERS ONE. story-still now
+            // returns `retryable` alongside the message, because every
+            // EngineError leaves it as a 502 and the status code alone
+            // cannot separate "the container hiccuped" from "that output
+            // was not a png". The status-code guess stays as the fallback
+            // for a worker and a function deployed out of step.
+            const said = /"retryable"\s*:\s*(true|false)/.exec(msg);
+            const transient = said
+              ? said[1] === 'true'
+              : /story-still: (5\d\d|429)/.test(msg);
             if (!steppable && !transient) throw err;
             if (transient) {
-              if (t === 0) {
-                console.log(`  still ${i + 1}: transient (${msg.slice(0, 80)}) — once more in 5s`);
-                await new Promise((r) => setTimeout(r, 5_000));
-                continue;
+              const delay = STILL_BACKOFF_MS[t];
+              if (delay === undefined) {
+                console.log(
+                  `  still ${i + 1}: attempt ${t + 1}/${STILL_ATTEMPTS} failed ` +
+                    `(${msg.slice(0, 100)}) — no attempts left`,
+                );
+                throw err;
               }
-              throw err;
+              console.log(
+                `  still ${i + 1}: attempt ${t + 1}/${STILL_ATTEMPTS} transient ` +
+                  `(${msg.slice(0, 100)}) — again in ${delay / 1000}s`,
+              );
+              await new Promise((r) => setTimeout(r, delay));
+              continue;
             }
             if (/NO_IMAGE/.test(msg) && t === 0) {
               console.log(`  still ${i + 1}: empty reply — same ask once more`);

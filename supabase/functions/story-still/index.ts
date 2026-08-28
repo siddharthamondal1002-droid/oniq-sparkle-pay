@@ -32,7 +32,7 @@
 // create files nothing is tracking.
 
 import { verifyJobToken } from "../_shared/jobToken.ts";
-import { generateStill } from "../_shared/oniqImage.ts";
+import { EngineError, generateStill } from "../_shared/oniqImage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,20 +41,15 @@ const corsHeaders = {
 };
 
 /**
- * Gemini's image model. Separate constant from the text model deliberately:
- * they move on different schedules and pointing image generation at a text
- * model fails with a message about modalities that reads like a bug in this
- * file rather than a wrong model name.
- */
-/** Same underlying model as before the reroute, addressed by gateway id. */
-
-/**
- * Portrait, matching the episode pipeline. The gateway's OpenRouter-shaped
- * request has no imageConfig, so the aspect rides IN THE PROMPT and the
- * composition's objectFit: cover crops any drift rather than breaking.
- * KNOWN REGRESSION, accepted with the reroute: the Google-path 2K
- * imageSize field has no gateway equivalent, so stills return at the
- * model's default resolution until the gateway grows a size control.
+ * Portrait, matching the episode pipeline. The aspect rides IN THE PROMPT
+ * rather than in a request field, and the composition's objectFit: cover
+ * crops any drift rather than breaking.
+ *
+ * Two doc comments stood here describing a model constant and a gateway id
+ * that the 2026-08-27 in-house directive deleted. Nothing referenced them;
+ * they only left the name of a provider this file must never call sitting
+ * in the file. Removed 2026-08-28, alongside the worker's "RENTED clip
+ * experiment" line, which had gone stale the same way.
  */
 const ASPECT_SUFFIX = "\n\nVertical 9:16 portrait composition, full-bleed.";
 
@@ -146,12 +141,21 @@ Deno.serve(async (req) => {
       );
       return json({ configured: true, mime: still.mime, data: still.data });
     } catch (err) {
-      // Named plainly, and NEVER converted into a cloud call. The caller's
-      // ladder reads 5xx as "the service hiccuped" and retries once, which
-      // is the right verdict for a cold worker or a busy endpoint.
+      // Named plainly, and NEVER converted into a cloud call. There is no
+      // provider behind this except ONIQ's own engine, and a failure here
+      // stays a failure.
+      //
+      // `retryable` is the engine's own verdict, carried out to the worker
+      // so its ladder stops guessing from an HTTP code. Every EngineError
+      // arrives as 502 today, so "the container hiccuped" and "that output
+      // was not a png" are indistinguishable to the caller and both get
+      // retried — one of those is money spent to be told the same thing.
+      // Absent the flag (an older worker reading a newer function, or the
+      // reverse) the caller falls back to its previous behaviour.
       const why = err instanceof Error ? err.message : String(err);
-      console.error("story-still in-house engine", why.slice(0, 300));
-      return json({ error: `Could not draw that frame: ${why}` }, 502);
+      const retryable = err instanceof EngineError ? err.retryable : false;
+      console.error("story-still in-house engine", `retryable=${retryable}`, why.slice(0, 300));
+      return json({ error: `Could not draw that frame: ${why}`, retryable }, 502);
     }
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") {
