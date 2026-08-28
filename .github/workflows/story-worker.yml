@@ -215,6 +215,26 @@ jobs:
           # deliberately no manual input for this: the every-shot 'on'
           # experiment must never become reachable from a dispatch form.
           STORY_MOVIE: ${{ github.event.client_payload.story_movie || '' }}
+          # WHICH ENGINE ANIMATES A FILM. generateClip() calls motionRoute(),
+          # which reads exactly these three names — and until 2026-08-28 this
+          # step passed none of them. All three read undefined, routeMotion
+          # returned `premium`, and every user film went to Veo on the metered
+          # Google key. The routing module, its tests and the renderer's
+          # in-house branch were all correct and all unreachable: the switch
+          # had no wire attached, which looks exactly like the feature being
+          # off and is far harder to notice.
+          #
+          # Repository variables, unset by default. Unset resolves to '' and
+          # routeMotion returns `premium` exactly as it does today, so this
+          # wiring changes nothing by itself — turning ONIQ's own GPU on stays
+          # a deliberate act by the owner, now a variable rather than a deploy.
+          #
+          # All three are required together and routeMotion refuses on any one
+          # of them: a healthy endpoint is not a deployed worker, and an empty
+          # template accepts jobs it can never run (job eb1b3f45, 2026-08-28).
+          IN_HOUSE_MOTION: ${{ vars.IN_HOUSE_MOTION }}
+          ONIQ_GPU_HEALTHY: ${{ vars.ONIQ_GPU_HEALTHY }}
+          ONIQ_WORKER_IMAGE: ${{ vars.ONIQ_WORKER_IMAGE }}
           # Present only on a repository_dispatch. The token IS the credential:
           # it names one job, expires in an hour, and story-callback checks it
           # before touching the database on this runner's behalf.
