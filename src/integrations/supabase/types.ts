@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -4385,6 +4385,7 @@ export type Database = {
           id: boolean
           max_story_seconds: number
           min_story_seconds: number
+          motion_select: boolean
           updated_at: string
         }
         Insert: {
@@ -4395,6 +4396,7 @@ export type Database = {
           id?: boolean
           max_story_seconds?: number
           min_story_seconds?: number
+          motion_select?: boolean
           updated_at?: string
         }
         Update: {
@@ -4405,6 +4407,7 @@ export type Database = {
           id?: boolean
           max_story_seconds?: number
           min_story_seconds?: number
+          motion_select?: boolean
           updated_at?: string
         }
         Relationships: []
