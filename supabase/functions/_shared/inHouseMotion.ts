@@ -1,0 +1,283 @@
+// inHouseMotion — the film pipeline's LEVEL 4 motion stage, on ONIQ's own GPU.
+//
+// WHAT WAS MISSING, precisely. src/lib/motionCost.ts declares six motion
+// levels; 0-3 are in-house CPU and 5 is PREMIUM (Veo, direct Google). Level 4
+// DIFFUSION has always been declared and NEVER executed — nothing in the story
+// pipeline calls the in-house GPU, so every film's motion has been Google's.
+// Its documented engine was Wan2.1-VACE, which the owner has ruled out.
+//
+// Meanwhile the in-house GPU path is real and finished: gpuVideoCore validates,
+// builds, polls, verifies, watermarks and de-duplicates a single LTX clip on
+// the A5000, and gpu_video_jobs accounts for it. It was simply never reachable
+// from a film. This module is the bridge, and ONLY the bridge.
+//
+// ONE FENCE HAD TO MOVE, and it is the reason this is a module rather than a
+// call. gpuVideoCore.buildWorkerPayload resolves its starting frame through
+// STAGED_REFERENCES — a closed set of pre-staged images. That is right for the
+// standalone clip tool, where an arbitrary bucket path from a browser would be
+// an SSRF-shaped hole. A film's starting frame is different in kind: it is a
+// still THIS PIPELINE just generated, named by a server-owned R2 key that no
+// client ever supplies. So the fence is not removed, it is replaced with one
+// that fits: the key must match the server's own still namespace, and anything
+// else is refused. A client-supplied path can never reach here.
+//
+// NO PROVIDER FALLBACK (owner directive, 2026-08-28). A refusal here is a
+// refusal. It never silently becomes a Veo call: that would spend Google's
+// metered key on a request the owner routed to hardware they already pay for,
+// which is exactly the provider-substitution CLAUDE.md exists to prevent.
+//
+// PURE. No network, no Deno APIs, no clock. Every decision is a function of its
+// arguments so the whole stage is testable without a GPU — the planOrchestrator
+// discipline, for the same reason: this path spends money when it is wrong.
+
+import { VIDEO_CLOCK_SECONDS, MAX_PROMPT_CHARS } from "./gpuVideoCore.ts";
+import { composeVideoPrompt, type MovieShot } from "./movieGrammar.ts";
+
+/** The still namespace the film pipeline writes into. Server-owned. */
+export const STILL_PREFIX = "media/story/";
+
+/** Where a film's in-house clips live. Server-owned, per §16q's shape. */
+export const CLIP_PREFIX = "media/film/";
+
+/**
+ * The in-house clip is a FIXED 97 frames at 24fps. It cannot be asked for a
+ * different length — the worker contract pins it and the owner's standing
+ * rule is that clip length does not move to improve economics. So a shot
+ * longer than one clip is COVERED BY SEVERAL, and the last one is trimmed at
+ * assembly. Rounding down instead would silently shorten the film.
+ */
+export const CLIP_SECONDS = VIDEO_CLOCK_SECONDS;
+
+/** A shot no longer than this is one clip. Above it, more. */
+export function clipsForShot(shotSeconds: number): number {
+  if (!Number.isFinite(shotSeconds) || shotSeconds <= 0) return 0;
+  return Math.ceil(shotSeconds / CLIP_SECONDS);
+}
+
+export type ClipUnit = {
+  /** Deterministic logical identity — see unitKey. */
+  key: string;
+  sceneId: string;
+  shotId: string;
+  /** 0-based index of this clip WITHIN its shot. */
+  index: number;
+  /** The R2 key of the still this clip animates. */
+  stillKey: string;
+  /** Server-owned destination. Derived from key, never supplied. */
+  outputKey: string;
+  /** Seconds of this clip the film actually uses (the last one is short). */
+  usedSeconds: number;
+};
+
+/**
+ * THE LOGICAL GENERATION UNIT (§7). project + scene + shot + version + index.
+ *
+ * A retry must not create duplicate GPU work, so identity cannot involve a
+ * timestamp, a random id, or anything else that changes between attempts.
+ * Bumping `version` is the ONLY way to ask for the same shot again — which is
+ * what a deliberate re-generation is, and what an accidental double-submit
+ * is not.
+ */
+export function unitKey(
+  projectId: string,
+  sceneId: string,
+  shotId: string,
+  version: number,
+  index: number,
+): string {
+  return `${projectId}/${sceneId}/${shotId}/v${version}/${index}`;
+}
+
+export function outputKeyFor(key: string): string {
+  return `${CLIP_PREFIX}${key}/ltx-001.mp4`;
+}
+
+export type PlanRefusal =
+  | "no-shots"
+  | "still-not-server-owned"
+  | "still-missing"
+  | "shot-duration-invalid"
+  | "prompt-too-long"
+  | "version-invalid";
+
+export type ShotInput = {
+  sceneId: string;
+  shotId: string;
+  /** The generated still's R2 key. Server-owned; never client-supplied. */
+  stillKey: string;
+  /** Seconds this shot occupies in the film — narration is the clock. */
+  seconds: number;
+  shot: MovieShot;
+};
+
+export type MotionPlan =
+  | { ok: true; units: ClipUnit[]; gpuJobs: number; gpuSeconds: number }
+  | { ok: false; refusal: PlanRefusal; detail: string };
+
+/** Measured on the A5000, 2026-08-27: one in-house clip's billed GPU seconds. */
+export const GPU_SECONDS_PER_CLIP = 38.87;
+
+/**
+ * Plan every in-house clip a film needs. Refuses rather than guessing.
+ *
+ * The still key check is the security boundary: only the server's own still
+ * namespace is animatable, so a path that arrived from a browser — or a
+ * traversal dressed as one — cannot become an input_key on the worker.
+ */
+export function planMotion(
+  projectId: string,
+  shots: readonly ShotInput[],
+  version: number,
+): MotionPlan {
+  if (!Number.isInteger(version) || version < 1) {
+    return { ok: false, refusal: "version-invalid", detail: `version ${version}` };
+  }
+  if (!shots.length) {
+    return { ok: false, refusal: "no-shots", detail: "a film needs at least one shot" };
+  }
+
+  const units: ClipUnit[] = [];
+  for (const s of shots) {
+    if (!s.stillKey) {
+      return { ok: false, refusal: "still-missing", detail: `${s.sceneId}/${s.shotId}` };
+    }
+    if (!s.stillKey.startsWith(STILL_PREFIX) || s.stillKey.includes("..")) {
+      return {
+        ok: false,
+        refusal: "still-not-server-owned",
+        detail: `${s.stillKey} is not under ${STILL_PREFIX}`,
+      };
+    }
+    const count = clipsForShot(s.seconds);
+    if (count < 1) {
+      return {
+        ok: false,
+        refusal: "shot-duration-invalid",
+        detail: `${s.sceneId}/${s.shotId} is ${s.seconds}s`,
+      };
+    }
+    if (composeVideoPrompt(s.shot).length > MAX_PROMPT_CHARS) {
+      return {
+        ok: false,
+        refusal: "prompt-too-long",
+        detail: `${s.sceneId}/${s.shotId}`,
+      };
+    }
+    let remaining = s.seconds;
+    for (let i = 0; i < count; i++) {
+      const key = unitKey(projectId, s.sceneId, s.shotId, version, i);
+      units.push({
+        key,
+        sceneId: s.sceneId,
+        shotId: s.shotId,
+        index: i,
+        stillKey: s.stillKey,
+        outputKey: outputKeyFor(key),
+        usedSeconds: Math.min(CLIP_SECONDS, remaining),
+      });
+      remaining -= CLIP_SECONDS;
+    }
+  }
+
+  return {
+    ok: true,
+    units,
+    gpuJobs: units.length,
+    gpuSeconds: units.length * GPU_SECONDS_PER_CLIP,
+  };
+}
+
+/**
+ * The worker payload for one unit. Mirrors gpuVideoCore.buildWorkerPayload's
+ * shape exactly — same op, same param names — so the worker contract has one
+ * meaning, not two. The only difference is where the starting frame comes
+ * from, which is the whole reason this module exists.
+ */
+export function buildClipPayload(unit: ClipUnit, shot: MovieShot, noWatermark: boolean) {
+  return {
+    input: {
+      op: "video_generate",
+      input_key: unit.stillKey,
+      output_key: unit.outputKey,
+      params: { prompt: composeVideoPrompt(shot), watermark: !noWatermark },
+    },
+  };
+}
+
+/**
+ * Which units still need GPU work (§7: never blindly regenerate the film).
+ *
+ * `done` is the set of unit keys whose output is present AND verified. A unit
+ * already done is skipped; everything else is retried. Note what this does NOT
+ * do: it never widens to "the shot failed so redo the scene".
+ */
+export function pendingUnits(units: readonly ClipUnit[], done: ReadonlySet<string>): ClipUnit[] {
+  return units.filter((u) => !done.has(u.key));
+}
+
+/**
+ * Progress from COMPLETED LOGICAL WORK, never a timer (§12).
+ * Returns 0..1 over the motion stage.
+ */
+export function motionProgress(units: readonly ClipUnit[], done: ReadonlySet<string>): number {
+  if (!units.length) return 0;
+  let n = 0;
+  for (const u of units) if (done.has(u.key)) n++;
+  return n / units.length;
+}
+
+/**
+ * GPU work vs CPU work (§8). Only the clip generation occupies the single GPU
+ * slot; assembly is CPU and must not be counted against GPU capacity, or a
+ * long film's concat tree eats the daily cap it never used.
+ */
+export function gpuJobCount(plan: MotionPlan): number {
+  return plan.ok ? plan.gpuJobs : 0;
+}
+
+// ---------------------------------------------------------------- routing
+/**
+ * WHICH ENGINE ANIMATES A FILM, and what happens when it cannot.
+ *
+ * Owner directive 2026-08-28: the user-facing generator is to run on ONIQ's
+ * own LTX/A5000 hardware, with NO cloud fallback. That is a provider-and-
+ * payment decision (CLAUDE.md), so it is recorded here next to the code that
+ * enforces it rather than left implicit in a call site.
+ *
+ * DEFAULT OFF. `IN_HOUSE_MOTION=on` in the edge environment is what turns the
+ * in-house stage on. Until it is set, films route exactly as they do today
+ * and nothing about production changes — the switch exists so the rollout is
+ * a deliberate act with a deploy behind it, not a side effect of this merge.
+ * §15's rule, applied to the engine instead of the price list.
+ *
+ * THE REFUSAL IS THE POINT. When in-house is selected and the GPU is not
+ * usable, the answer is `blocked`, never `premium`. Falling back would spend
+ * the metered Google key on work the owner routed to hardware they already
+ * pay for — silently, and at a different price per second. A film that cannot
+ * be made in-house today is a film that waits.
+ */
+export type MotionRoute =
+  | { engine: "in-house"; level: 4 }
+  | { engine: "premium"; level: 5 }
+  | { engine: "blocked"; reason: "gpu-unavailable" | "worker-image-missing" };
+
+export type MotionConditions = {
+  /** IN_HOUSE_MOTION === "on". */
+  inHouseEnabled: boolean;
+  /** The endpoint is reachable, A5000-only, min 0 / max 1. */
+  gpuHealthy: boolean;
+  /**
+   * The RunPod template actually carries a model-bearing image. Measured, never
+   * assumed: an endpoint version is not image identity, and an empty template
+   * accepts jobs it can never run — which is how one LTX request sat until the
+   * 1800s watchdog killed it (job eb1b3f45, 2026-08-28).
+   */
+  workerImagePresent: boolean;
+};
+
+export function routeMotion(c: MotionConditions): MotionRoute {
+  if (!c.inHouseEnabled) return { engine: "premium", level: 5 };
+  if (!c.workerImagePresent) return { engine: "blocked", reason: "worker-image-missing" };
+  if (!c.gpuHealthy) return { engine: "blocked", reason: "gpu-unavailable" };
+  return { engine: "in-house", level: 4 };
+}
