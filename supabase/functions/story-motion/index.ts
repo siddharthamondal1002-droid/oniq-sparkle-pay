@@ -18,14 +18,16 @@
 // metered key on work the owner routed to hardware ONIQ already pays for.
 
 import { verifyJobToken } from "../_shared/jobToken.ts";
-import { generateMotionClip, MotionEngineError } from "../_shared/oniqMotion.ts";
-import {
-  assertSafeId,
-  outputKeyFor,
-  stillKeyFor,
-  unitKey,
-} from "../_shared/inHouseMotion.ts";
+import { generateMotionClip } from "../_shared/oniqMotion.ts";
+import { assertSafeId, outputKeyFor, stillKeyFor, unitKey } from "../_shared/inHouseMotion.ts";
 import { MAX_PROMPT_CHARS } from "../_shared/gpuVideoCore.ts";
+import { runBilledUnit } from "../_shared/inHouseMotion.ts";
+import {
+  admitProviderSpend,
+  refusalMessage,
+  serviceRoleRpc,
+  settleProviderSpend,
+} from "../_shared/financialLedger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -92,11 +94,14 @@ Deno.serve(async (req) => {
     let stillKey: string;
     let outputKey: string;
     let logicalKey: string;
+    let sceneId = "";
+    let shotId = "";
+    let index = 0;
     try {
-      const sceneId = assertSafeId("sceneId", String(body?.sceneId ?? ""));
-      const shotId = assertSafeId("shotId", String(body?.shotId ?? ""));
+      sceneId = assertSafeId("sceneId", String(body?.sceneId ?? ""));
+      shotId = assertSafeId("shotId", String(body?.shotId ?? ""));
       const version = Number(body?.version ?? 1);
-      const index = Number(body?.index ?? 0);
+      index = Number(body?.index ?? 0);
       if (!Number.isInteger(version) || version < 1) throw new Error("bad version");
       if (!Number.isInteger(index) || index < 0) throw new Error("bad index");
       stillKey = stillKeyFor(verified.jobId, sceneId, shotId);
@@ -111,34 +116,63 @@ Deno.serve(async (req) => {
     // watermark verdict is proved against the worker's own report downstream.
     const watermark = body?.noWatermark !== true;
 
-    try {
-      const clip = await generateMotionClip(
-        { prompt, inputKey: stillKey, outputKey, watermark },
-        { apiKey, endpointId, publicBase },
-        {
-          fetchImpl: fetch,
-          now: () => Date.now(),
-          sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-        },
+    // RESERVE → GENERATE → SETTLE. The order lives in inHouseMotion so it can
+    // be proved against fakes; this function only supplies the real I/O.
+    const rpc = serviceRoleRpc();
+    if (!rpc) return json({ error: "Spend ledger unavailable", unit: logicalKey }, 503);
+
+    const outcome = await runBilledUnit(
+      { key: logicalKey, sceneId, shotId, index },
+      verified.jobId,
+      {
+        admit: (request) => admitProviderSpend(rpc, request),
+        generate: () =>
+          generateMotionClip(
+            { prompt, inputKey: stillKey, outputKey, watermark },
+            { apiKey, endpointId, publicBase },
+            {
+              fetchImpl: fetch,
+              now: () => Date.now(),
+              sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+            },
+          ),
+        settle: (requestId, settlement) => settleProviderSpend(rpc, requestId, settlement),
+      },
+      { stillKey, outputKey },
+    );
+
+    if (!outcome.ok) {
+      if (outcome.stage === "admission") {
+        return json(
+          {
+            error: refusalMessage(outcome.reason as never),
+            blocked: outcome.reason,
+            unit: logicalKey,
+          },
+          402,
+        );
+      }
+      console.error("story-motion in-house engine", outcome.reason.slice(0, 300));
+      return json(
+        { error: `Could not animate that frame: ${outcome.reason}`, unit: logicalKey },
+        502,
       );
-      return json({
-        configured: true,
-        done: true,
-        mime: clip.mime,
-        data: clip.data,
-        bytes: clip.bytes,
-        // Observability (§17): which unit, which GPU job, which key.
-        unit: logicalKey,
-        gpuJobId: clip.gpuJobId,
-        outputKey: clip.key,
-        stillKey,
-        engine: "oniq-ltx-a5000",
-      });
-    } catch (err) {
-      const why = err instanceof MotionEngineError ? err.message : String(err);
-      console.error("story-motion in-house engine", why.slice(0, 300));
-      return json({ error: `Could not animate that frame: ${why}`, unit: logicalKey }, 502);
     }
+
+    const clip = outcome.result;
+    return json({
+      configured: true,
+      done: true,
+      mime: clip.mime,
+      data: clip.data,
+      bytes: clip.bytes,
+      // Observability (§17): which unit, which GPU job, which key.
+      unit: logicalKey,
+      gpuJobId: clip.gpuJobId,
+      outputKey: clip.key,
+      stillKey,
+      engine: "oniq-ltx-a5000",
+    });
   } catch {
     return json({ error: "Something went sideways — try again" }, 500);
   }
