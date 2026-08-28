@@ -36,10 +36,17 @@
 // discipline, for the same reason: this path spends money when it is wrong.
 
 import { VIDEO_CLOCK_SECONDS, MAX_PROMPT_CHARS } from "./gpuVideoCore.ts";
+import { stillKeyFor as oniqStillKeyFor } from "./oniqImage.ts";
 import { composeVideoPrompt, type MovieShot } from "./movieGrammar.ts";
 
-/** The still namespace the film pipeline writes into. Server-owned. */
-export const STILL_PREFIX = "media/story/";
+/**
+ * ONE STILL KEY SCHEME, IMPORTED. oniqImage already names every still the GPU
+ * worker draws (`story/still/<id>.png`), and the worker has already written
+ * this file there — the film's motion stage does not stage anything, it names
+ * a still that exists. Restating the scheme here would be the storygen defect
+ * again: two copies, one of them eventually wrong.
+ */
+export const STILL_PREFIX = "story/still/";
 
 /**
  * The only characters an identifier may contribute to a key. No dot, so `..`
@@ -58,18 +65,27 @@ export function assertSafeId(kind: string, value: string): string {
 }
 
 /**
- * The still's key, DERIVED. There is deliberately no overload taking a key.
+ * The still's ID, derived from the shot it belongs to. Deterministic so the
+ * motion stage can recompute it instead of being handed a path, and so a
+ * redrawn shot overwrites its own still rather than orphaning one.
  */
-export function stillKeyFor(jobId: string, sceneId: string, shotId: string): string {
+export function stillIdFor(jobId: string, sceneId: string, shotId: string): string {
   return (
-    STILL_PREFIX +
-    `${assertSafeId("jobId", jobId)}/` +
-    `${assertSafeId("sceneId", sceneId)}-${assertSafeId("shotId", shotId)}.png`
+    `${assertSafeId("jobId", jobId)}-` +
+    `${assertSafeId("sceneId", sceneId)}-${assertSafeId("shotId", shotId)}`
   );
 }
 
-/** Where a film's in-house clips live. Server-owned, per §16q's shape. */
-export const CLIP_PREFIX = "media/film/";
+/**
+ * The still's key, DERIVED, through oniqImage's own function so the two can
+ * never drift. There is deliberately no overload taking a key.
+ */
+export function stillKeyFor(jobId: string, sceneId: string, shotId: string): string {
+  return oniqStillKeyFor(stillIdFor(jobId, sceneId, shotId));
+}
+
+/** Where a film's in-house clips live — beside the stills they animate. */
+export const CLIP_PREFIX = "story/clip/";
 
 /**
  * The in-house clip is a FIXED 97 frames at 24fps. It cannot be asked for a

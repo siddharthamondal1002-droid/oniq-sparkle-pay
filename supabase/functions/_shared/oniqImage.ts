@@ -89,12 +89,17 @@ export async function generateStill(
   prompt: string,
   env: EngineEnv,
   deps: EngineDeps,
-  opts: { deadlineMs?: number; pollMs?: number } = {},
-): Promise<{ mime: string; data: string; bytes: number }> {
+  opts: { deadlineMs?: number; pollMs?: number; id?: string } = {},
+): Promise<{ mime: string; data: string; bytes: number; key: string }> {
   const deadlineMs = opts.deadlineMs ?? 120_000;
   const pollMs = opts.pollMs ?? 2_000;
   const started = deps.now();
-  const key = stillKeyFor(deps.newId());
+  // A caller may supply a DERIVED id so the still's key can be recomputed
+  // later without being carried around — the film's motion stage needs to
+  // name this still as its source without anyone passing a bucket path.
+  // Absent one, a random id as before. This engine's own request stays
+  // text-only either way; the id names the DESTINATION, never an input.
+  const key = stillKeyFor(opts.id ?? deps.newId());
   const headers = {
     Authorization: `Bearer ${env.apiKey}`,
     "content-type": "application/json",
@@ -149,5 +154,5 @@ export async function generateStill(
 
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);
-  return { mime: STILL_MIME, data: btoa(binary), bytes: bytes.byteLength };
+  return { mime: STILL_MIME, data: btoa(binary), bytes: bytes.byteLength, key };
 }

@@ -87,7 +87,7 @@ describe("logical identity is deterministic", () => {
   });
 
   it("the output key is derived from the identity, never supplied", () => {
-    expect(outputKeyFor("p/s/sh/v1/0")).toBe("media/film/p/s/sh/v1/0/ltx-001.mp4");
+    expect(outputKeyFor("p/s/sh/v1/0")).toBe("story/clip/p/s/sh/v1/0/ltx-001.mp4");
   });
 
   it("a replanned film reuses the same keys, so a retry cannot double-spend", () => {
@@ -103,7 +103,7 @@ describe("logical identity is deterministic", () => {
 
 describe("the still fence is derive-only", () => {
   it("derives the key from identifiers under the server's namespace", () => {
-    expect(stillKeyFor("job1", "s1", "sh1")).toBe(`${STILL_PREFIX}job1/s1-sh1.png`);
+    expect(stillKeyFor("job1", "s1", "sh1")).toBe(`${STILL_PREFIX}job1-s1-sh1.png`);
     const plan = planMotion("p", [shot()], 1);
     expect(plan.ok).toBe(true);
     if (plan.ok) expect(plan.units[0].stillKey.startsWith(STILL_PREFIX)).toBe(true);
