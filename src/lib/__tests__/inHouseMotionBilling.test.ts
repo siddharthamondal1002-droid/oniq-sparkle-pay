@@ -241,3 +241,86 @@ describe("long video keeps its requested duration", () => {
     expect(covered).toBeCloseTo(20, 6);
   });
 });
+
+describe("ownership is enforced by the key, not by a check", () => {
+  // The job id reaching story-motion comes from the TOKEN. These prove the
+  // consequence: every address a film can produce is scoped to its own job,
+  // so a token for film A cannot name film B's still, clip or reservation
+  // however the request body is shaped.
+  const A = planMotion("jobA", [shot()], 1);
+  const B = planMotion("jobB", [shot()], 1);
+  if (!A.ok || !B.ok) throw new Error("expected plans");
+
+  it("two films asking for the same scene and shot get different stills", () => {
+    expect(A.units[0].stillKey).not.toBe(B.units[0].stillKey);
+    expect(A.units[0].stillKey).toContain("jobA");
+    expect(B.units[0].stillKey).toContain("jobB");
+  });
+
+  it("...different clip outputs", () => {
+    expect(A.units[0].outputKey).not.toBe(B.units[0].outputKey);
+  });
+
+  it("...and different reservations, so one film cannot spend another's", () => {
+    const ra = spendRequestFor(A.units[0], "jobA");
+    const rb = spendRequestFor(B.units[0], "jobB");
+    expect(ra.requestId).not.toBe(rb.requestId);
+    expect(ra.jobId).toBe("jobA");
+    expect(rb.jobId).toBe("jobB");
+  });
+
+  it("a film cannot reach outside its own namespace by naming a sibling", () => {
+    // The only lever a caller has is sceneId/shotId, and neither can carry a
+    // separator, so no combination reaches another job's prefix.
+    expect(() => planMotion("jobA", [shot({ sceneId: "../jobB/s1" })], 1)).not.toThrow();
+    const escaped = planMotion("jobA", [shot({ sceneId: "../jobB/s1" })], 1);
+    expect(escaped.ok).toBe(false);
+    if (!escaped.ok) expect(escaped.refusal).toBe("still-not-server-owned");
+  });
+});
+
+describe("a reservation cannot be stranded", () => {
+  it("every admitted unit either settles or throws out of the sequence", async () => {
+    // Phase 3's orphan case: admitted, but nothing consumed it and nothing
+    // settled it. There must be no such path — between admit and generate
+    // nothing runs that could return early.
+    for (const outcome of ["ok", "throw"] as const) {
+      const settles: string[] = [];
+      const deps: BilledDeps<{ gpuJobId: string; key: string; output: unknown }> = {
+        admit: async () => ({ ok: true }),
+        generate: async () => {
+          if (outcome === "throw") throw new Error("boom");
+          return { gpuJobId: "g", key: "k", output: {} };
+        },
+        settle: async (id) => void settles.push(id),
+      };
+      await runBilledUnit(
+        { key: "jobA/s1/sh1/v1/0", sceneId: "s1", shotId: "sh1", index: 0 },
+        "jobA",
+        deps,
+      );
+      expect(settles, outcome).toHaveLength(1);
+    }
+  });
+
+  it("a REFUSED admission strands nothing, because nothing was reserved", async () => {
+    const settles: string[] = [];
+    let generated = false;
+    const deps: BilledDeps<{ gpuJobId: string; key: string; output: unknown }> = {
+      admit: async () => ({ ok: false, reason: "job-cap" }),
+      generate: async () => {
+        generated = true;
+        return { gpuJobId: "g", key: "k", output: {} };
+      },
+      settle: async (id) => void settles.push(id),
+    };
+    const out = await runBilledUnit(
+      { key: "jobA/s1/sh1/v1/0", sceneId: "s1", shotId: "sh1", index: 0 },
+      "jobA",
+      deps,
+    );
+    expect(out).toEqual({ ok: false, stage: "admission", reason: "job-cap" });
+    expect(generated).toBe(false);
+    expect(settles).toHaveLength(0);
+  });
+});
