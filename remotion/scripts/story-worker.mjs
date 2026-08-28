@@ -78,6 +78,7 @@ import { emotionFor } from '../../src/lib/expressionGrammar.ts';
 import { ambienceFor, ambienceGraph, scoreFor, scoreGraph } from '../../src/lib/soundStage.ts';
 import { packNarrations, verbatimFits } from '../../src/lib/verbatimNarration.ts';
 import { validateFilmMotion } from '../../src/lib/motionValidate.ts';
+import { routeMotion } from '../../supabase/functions/_shared/inHouseMotion.ts';
 import {
   CLIP_ALIVENESS_MIN,
   clipTemporallyAlive,
@@ -884,7 +885,48 @@ function audioPlanFor(shot) {
   });
 }
 
+/**
+ * WHICH ENGINE ANIMATES THIS FILM (owner directive, 2026-08-28).
+ *
+ * Read once per process, from the environment, and FAIL CLOSED. All three
+ * signals must be explicitly true for the in-house path to be taken:
+ *
+ *   IN_HOUSE_MOTION=on        the owner has chosen ONIQ's own GPU
+ *   ONIQ_GPU_HEALTHY=on       the endpoint is A5000-only, min 0 / max 1
+ *   ONIQ_WORKER_IMAGE=on      the RunPod template CARRIES a model-bearing image
+ *
+ * The third is separate from the second on purpose. An endpoint can be
+ * perfectly healthy and still hold an EMPTY template — which is the live
+ * state of hhhdwtjw0y today, and is how one LTX request sat until the 1800s
+ * watchdog killed it (job eb1b3f45). A healthy endpoint is not a deployed
+ * worker, and an endpoint version is not image identity.
+ *
+ * Turning IN_HOUSE_MOTION on without the other two does NOT quietly fall back
+ * to Veo: routeMotion answers `blocked` and the shot steps down to its still,
+ * exactly as a refused clip already does. Spending Google's metered key on
+ * work the owner routed to hardware they already pay for is the one outcome
+ * this must never produce.
+ */
+function motionRoute() {
+  return routeMotion({
+    inHouseEnabled: process.env.IN_HOUSE_MOTION === 'on',
+    gpuHealthy: process.env.ONIQ_GPU_HEALTHY === 'on',
+    workerImagePresent: process.env.ONIQ_WORKER_IMAGE === 'on',
+  });
+}
+
 async function generateClip(shot, stillFile, shotSeconds, shotId) {
+  const route = motionRoute();
+  if (route.engine === 'blocked') {
+    // Honest in-house failure. The caller already treats a thrown clip as
+    // "this shot carries as a still", so the film still completes.
+    throw new Error(`in-house motion unavailable (${route.reason}) — no provider fallback`);
+  }
+  if (route.engine === 'in-house') {
+    throw new Error(
+      'in-house motion transport not yet wired (gpu-video film-clip action) — no provider fallback',
+    );
+  }
   const prompt = composeVideoPrompt(shot).slice(0, 1900);
   const imageBase64 = fs.readFileSync(stillFile).toString('base64');
   // Veo's menu is 4, 6 or 8 seconds — no 10, no extend. Ask for the longest

@@ -11,15 +11,20 @@
 // the A5000, and gpu_video_jobs accounts for it. It was simply never reachable
 // from a film. This module is the bridge, and ONLY the bridge.
 //
-// ONE FENCE HAD TO MOVE, and it is the reason this is a module rather than a
-// call. gpuVideoCore.buildWorkerPayload resolves its starting frame through
+// THE STILL FENCE IS DERIVE-ONLY, which is stronger than the check it replaced.
+// gpuVideoCore.buildWorkerPayload resolves its starting frame through
 // STAGED_REFERENCES — a closed set of pre-staged images. That is right for the
 // standalone clip tool, where an arbitrary bucket path from a browser would be
-// an SSRF-shaped hole. A film's starting frame is different in kind: it is a
-// still THIS PIPELINE just generated, named by a server-owned R2 key that no
-// client ever supplies. So the fence is not removed, it is replaced with one
-// that fits: the key must match the server's own still namespace, and anything
-// else is refused. A client-supplied path can never reach here.
+// an SSRF-shaped hole. A film's frames cannot be a closed enum: they are
+// stills THIS PIPELINE generates, one per shot, per job.
+//
+// So the property is preserved by construction instead of by validation. This
+// module NEVER ACCEPTS A KEY. It accepts identifiers — job, scene, shot — and
+// DERIVES the key itself, from a fixed prefix and a character class that
+// cannot express a traversal or a scheme. A caller holding an arbitrary bucket
+// path has nowhere to put it: there is no parameter for it. Validating a
+// supplied key would leave the question "did we validate it correctly?"; not
+// having the parameter removes the question.
 //
 // NO PROVIDER FALLBACK (owner directive, 2026-08-28). A refusal here is a
 // refusal. It never silently becomes a Veo call: that would spend Google's
@@ -35,6 +40,33 @@ import { composeVideoPrompt, type MovieShot } from "./movieGrammar.ts";
 
 /** The still namespace the film pipeline writes into. Server-owned. */
 export const STILL_PREFIX = "media/story/";
+
+/**
+ * The only characters an identifier may contribute to a key. No dot, so `..`
+ * is unconstructable; no slash, so a segment cannot open a new path level; no
+ * colon, so no scheme. A rejected identifier throws rather than being
+ * sanitised — silently rewriting a caller's id would make two different shots
+ * share one key, and sharing a key means sharing a clip.
+ */
+const SAFE_ID = /^[A-Za-z0-9_-]{1,120}$/;
+
+export function assertSafeId(kind: string, value: string): string {
+  if (!SAFE_ID.test(value)) {
+    throw new Error(`inHouseMotion: unsafe ${kind} ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
+/**
+ * The still's key, DERIVED. There is deliberately no overload taking a key.
+ */
+export function stillKeyFor(jobId: string, sceneId: string, shotId: string): string {
+  return (
+    STILL_PREFIX +
+    `${assertSafeId("jobId", jobId)}/` +
+    `${assertSafeId("sceneId", sceneId)}-${assertSafeId("shotId", shotId)}.png`
+  );
+}
 
 /** Where a film's in-house clips live. Server-owned, per §16q's shape. */
 export const CLIP_PREFIX = "media/film/";
@@ -103,8 +135,6 @@ export type PlanRefusal =
 export type ShotInput = {
   sceneId: string;
   shotId: string;
-  /** The generated still's R2 key. Server-owned; never client-supplied. */
-  stillKey: string;
   /** Seconds this shot occupies in the film — narration is the clock. */
   seconds: number;
   shot: MovieShot;
@@ -129,6 +159,11 @@ export function planMotion(
   shots: readonly ShotInput[],
   version: number,
 ): MotionPlan {
+  try {
+    assertSafeId("projectId", projectId);
+  } catch (err) {
+    return { ok: false, refusal: "still-not-server-owned", detail: String(err) };
+  }
   if (!Number.isInteger(version) || version < 1) {
     return { ok: false, refusal: "version-invalid", detail: `version ${version}` };
   }
@@ -138,15 +173,11 @@ export function planMotion(
 
   const units: ClipUnit[] = [];
   for (const s of shots) {
-    if (!s.stillKey) {
-      return { ok: false, refusal: "still-missing", detail: `${s.sceneId}/${s.shotId}` };
-    }
-    if (!s.stillKey.startsWith(STILL_PREFIX) || s.stillKey.includes("..")) {
-      return {
-        ok: false,
-        refusal: "still-not-server-owned",
-        detail: `${s.stillKey} is not under ${STILL_PREFIX}`,
-      };
+    let stillKey: string;
+    try {
+      stillKey = stillKeyFor(projectId, s.sceneId, s.shotId);
+    } catch (err) {
+      return { ok: false, refusal: "still-not-server-owned", detail: String(err) };
     }
     const count = clipsForShot(s.seconds);
     if (count < 1) {
@@ -171,7 +202,7 @@ export function planMotion(
         sceneId: s.sceneId,
         shotId: s.shotId,
         index: i,
-        stillKey: s.stillKey,
+        stillKey,
         outputKey: outputKeyFor(key),
         usedSeconds: Math.min(CLIP_SECONDS, remaining),
       });
@@ -280,4 +311,165 @@ export function routeMotion(c: MotionConditions): MotionRoute {
   if (!c.workerImagePresent) return { engine: "blocked", reason: "worker-image-missing" };
   if (!c.gpuHealthy) return { engine: "blocked", reason: "gpu-unavailable" };
   return { engine: "in-house", level: 4 };
+}
+
+// ------------------------------------------------------- measured economics
+/**
+ * THE IN-HOUSE RATE, MEASURED — not a price list.
+ *
+ * Job e010372d (2026-08-27) billed 38.87 GPU-seconds at the A5000's live
+ * $0.27/hr and recorded actual_cost_usd 0.0029 for one clip. That clip is
+ * 97 frames at 24fps, so the per-video-second figure is derived from those
+ * two measurements rather than quoted.
+ *
+ * It is deliberately NOT called a price. It is what one clip cost on one
+ * measured day; the live rate is re-quoted before every job by the existing
+ * admission path, and this constant exists to ESTIMATE a reservation before
+ * any of that runs. `measuredOn` is part of the value so a stale figure is
+ * visible rather than authoritative — the same discipline videoRouting.ts
+ * applies to Veo's published table.
+ */
+export const IN_HOUSE_CLIP_COST = {
+  usdPerClip: 0.0029,
+  gpuSecondsPerClip: GPU_SECONDS_PER_CLIP,
+  clipSeconds: CLIP_SECONDS,
+  measuredOn: "2026-08-27",
+  source: "gpu_video_jobs e010372d, 38.87s billed at $0.27/hr on the A5000",
+} as const;
+
+export function estimateMotionUsd(units: number): number {
+  return Math.round(units * IN_HOUSE_CLIP_COST.usdPerClip * 1e6) / 1e6;
+}
+
+// --------------------------------------------------------- the submit path
+/**
+ * One logical motion unit's trip through the GPU, with every side effect
+ * INJECTED so the whole path is testable without a worker (the
+ * planOrchestrator discipline — this path spends money when it is wrong).
+ *
+ * The invariants it exists to hold:
+ *   - a unit already done is SKIPPED, so a retry re-spends nothing (§7);
+ *   - attempts are BOUNDED, so a failing unit cannot bill forever (§18);
+ *   - a failure is a failure — there is no branch that reaches another
+ *     provider from here (§18, and no import that could);
+ *   - a unit never ends `running`: every exit writes a terminal state (§3).
+ */
+export type UnitOutcome =
+  | { state: "reused"; outputKey: string }
+  | { state: "completed"; outputKey: string; gpuJobId: string; attempts: number }
+  | { state: "failed"; reason: string; attempts: number };
+
+export type SubmitDeps = {
+  /** A previously completed unit's output, by logical key. */
+  findCompleted(key: string): Promise<string | null>;
+  /** Create the gpu_video_jobs row and submit. Returns the provider job id. */
+  submit(unit: ClipUnit, payload: ReturnType<typeof buildClipPayload>): Promise<string>;
+  /** Terminal poll: resolve once the provider job stops moving. */
+  awaitTerminal(gpuJobId: string): Promise<{ ok: boolean; reason?: string }>;
+  /** Record the unit's terminal state against the film. */
+  record(row: {
+    key: string;
+    sceneId: string;
+    shotId: string;
+    index: number;
+    gpuJobId: string | null;
+    status: "completed" | "failed";
+    reason: string | null;
+  }): Promise<void>;
+};
+
+/** Bounded (§18). Two attempts: one blip forgiven, then the truth. */
+export const MAX_UNIT_ATTEMPTS = 2;
+
+export async function runUnit(
+  unit: ClipUnit,
+  shot: MovieShot,
+  noWatermark: boolean,
+  deps: SubmitDeps,
+): Promise<UnitOutcome> {
+  const already = await deps.findCompleted(unit.key);
+  if (already) return { state: "reused", outputKey: already };
+
+  let lastReason = "unknown";
+  for (let attempt = 1; attempt <= MAX_UNIT_ATTEMPTS; attempt++) {
+    const payload = buildClipPayload(unit, shot, noWatermark);
+    let gpuJobId: string | null = null;
+    try {
+      gpuJobId = await deps.submit(unit, payload);
+      const terminal = await deps.awaitTerminal(gpuJobId);
+      if (terminal.ok) {
+        await deps.record({
+          key: unit.key,
+          sceneId: unit.sceneId,
+          shotId: unit.shotId,
+          index: unit.index,
+          gpuJobId,
+          status: "completed",
+          reason: null,
+        });
+        return { state: "completed", outputKey: unit.outputKey, gpuJobId, attempts: attempt };
+      }
+      lastReason = terminal.reason ?? "gpu-job-failed";
+    } catch (err) {
+      lastReason = String((err as Error)?.message ?? err);
+    }
+    if (attempt === MAX_UNIT_ATTEMPTS) {
+      // Terminal, and WRITTEN. A unit that stops here must not be left
+      // `running` for a reconciler to find hours later.
+      await deps.record({
+        key: unit.key,
+        sceneId: unit.sceneId,
+        shotId: unit.shotId,
+        index: unit.index,
+        gpuJobId,
+        status: "failed",
+        reason: lastReason,
+      });
+    }
+  }
+  return { state: "failed", reason: lastReason, attempts: MAX_UNIT_ATTEMPTS };
+}
+
+/**
+ * Every unit of a film, in order. Serialized because workersMax = 1: firing
+ * them together would queue behind one another anyway and make the failure
+ * accounting harder to read.
+ *
+ * It does NOT stop the film on the first failure — the caller decides whether
+ * a missing clip is fatal or steps down to the still — but it does return
+ * exactly which units failed, so nothing has to be re-derived by guesswork.
+ */
+export async function runUnits(
+  units: readonly ClipUnit[],
+  shotFor: (unit: ClipUnit) => MovieShot,
+  noWatermark: boolean,
+  deps: SubmitDeps,
+): Promise<{ outcomes: Map<string, UnitOutcome>; failed: string[]; submitted: number }> {
+  const outcomes = new Map<string, UnitOutcome>();
+  const failed: string[] = [];
+  let submitted = 0;
+  for (const unit of units) {
+    const outcome = await runUnit(unit, shotFor(unit), noWatermark, deps);
+    outcomes.set(unit.key, outcome);
+    if (outcome.state === "completed") submitted++;
+    if (outcome.state === "failed") failed.push(unit.key);
+  }
+  return { outcomes, failed, submitted };
+}
+
+/**
+ * The bridge to motionCost.selectMotionLevel: a route becomes a policy.
+ *
+ * L4 is allowed only when the route actually resolved in-house, and premium is
+ * withdrawn at the same moment — otherwise the level ladder would quietly
+ * escalate an in-house film to Veo on a QC miss, which is the fallback this
+ * whole loop exists to prevent, arriving through the back door.
+ */
+export function policyFromRoute(route: MotionRoute): {
+  allowDiffusion: boolean;
+  allowPremium: boolean;
+} {
+  if (route.engine === "in-house") return { allowDiffusion: true, allowPremium: false };
+  if (route.engine === "premium") return { allowDiffusion: false, allowPremium: true };
+  return { allowDiffusion: false, allowPremium: false };
 }
