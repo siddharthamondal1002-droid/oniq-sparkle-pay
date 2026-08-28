@@ -489,3 +489,143 @@ export function policyFromRoute(route: MotionRoute): {
   if (route.engine === "premium") return { allowDiffusion: false, allowPremium: true };
   return { allowDiffusion: false, allowPremium: false };
 }
+
+// --------------------------------------------------------------- the ledger
+/**
+ * THE IN-HOUSE MOTION SPEND, in the ledger ONIQ already keeps.
+ *
+ * There is no second billing system here and no new user price. What the USER
+ * pays for a film is film SECONDS, reserved against video_time_reservations
+ * when the job is priced — that is untouched, and moving a film's motion
+ * in-house must not change it. What changes is ONIQ'S OWN COST, which
+ * financialLedger records per provider call: story-clip admits and settles
+ * every Veo clip through it, and an in-house clip is the same kind of event
+ * with a different provider and a much smaller number.
+ *
+ * GPU is its own capability on purpose — it is time-billed from boot to
+ * termination whether it computes or wedges, so its ceiling moves
+ * independently of the metered APIs'.
+ *
+ * IDEMPOTENCE COMES FROM THE KEY, NOT A FLAG. The requestId IS the logical
+ * unit key, so a retried unit re-admits the SAME reservation row rather than
+ * opening a second one. Nothing in this module remembers anything between
+ * calls; the persistence is the ledger's.
+ */
+export const IN_HOUSE_PROVIDER = "oniq-gpu";
+export const IN_HOUSE_MODEL = "LTX_VIDEO_2B";
+
+export function spendRequestFor(
+  ref: { key: string; sceneId: string; shotId: string; index: number },
+  jobId: string,
+  detail: Record<string, unknown> = {},
+) {
+  return {
+    requestId: ref.key,
+    capability: "GPU" as const,
+    provider: IN_HOUSE_PROVIDER,
+    model: IN_HOUSE_MODEL,
+    unit: "video_seconds" as const,
+    units: CLIP_SECONDS,
+    estimatedUsd: IN_HOUSE_CLIP_COST.usdPerClip,
+    jobId,
+    detail: { sceneId: ref.sceneId, shotId: ref.shotId, index: ref.index, ...detail },
+  };
+}
+
+/**
+ * What the clip actually cost, from the GPU time the worker reported.
+ *
+ * The basis is the measured pair in IN_HOUSE_CLIP_COST — $/clip over
+ * GPU-seconds/clip — applied to THIS job's seconds. It is an application of a
+ * measurement, not a quote, which is why the constant carries its date: a run
+ * on a different card or a re-priced endpoint makes this figure stale, and a
+ * stale figure should be visible rather than authoritative.
+ *
+ * Undefined when the worker reported no usable time. The ledger treats that
+ * as "the provider did not report a cost" and the ESTIMATE stands, which
+ * over-counts rather than under-counts — the safe direction.
+ */
+export function actualUsdFor(gpuSeconds: number | null | undefined): number | undefined {
+  if (typeof gpuSeconds !== "number" || !Number.isFinite(gpuSeconds) || gpuSeconds <= 0) {
+    return undefined;
+  }
+  const usdPerGpuSecond = IN_HOUSE_CLIP_COST.usdPerClip / IN_HOUSE_CLIP_COST.gpuSecondsPerClip;
+  return Math.round(gpuSeconds * usdPerGpuSecond * 1e6) / 1e6;
+}
+
+/** The worker's reported wall time for one clip, in seconds, or null. */
+export function gpuSecondsFrom(output: unknown): number | null {
+  if (!output || typeof output !== "object") return null;
+  const o = output as Record<string, unknown>;
+  const load = typeof o.model_load_ms === "number" ? o.model_load_ms : 0;
+  const infer = typeof o.inference_ms === "number" ? o.inference_ms : 0;
+  const total = load + infer;
+  return total > 0 ? total / 1000 : null;
+}
+
+/**
+ * RESERVE → GENERATE → SETTLE, as one testable sequence.
+ *
+ * story-motion is the transport; this is the order of operations, and the
+ * order is the part that matters financially:
+ *
+ *   - a refused admission returns BEFORE `generate` is ever called, so a
+ *     film that cannot be paid for never touches the GPU;
+ *   - once generate HAS been called the exit always SETTLES, never releases —
+ *     the card may have been held before the failure, and pretending it was
+ *     not under-counts spend;
+ *   - the requestId is the logical unit key, so a retry re-admits the same
+ *     reservation instead of opening a second one.
+ *
+ * Keeping it here rather than inline in the edge function means those three
+ * can be proved against fakes instead of asserted about source text.
+ */
+export type BilledDeps<T> = {
+  admit(request: ReturnType<typeof spendRequestFor>): Promise<{ ok: boolean; reason?: string }>;
+  generate(): Promise<T>;
+  settle(
+    requestId: string,
+    settlement: {
+      outcome: "ACCEPTED" | "FAILED";
+      actualUsd?: number;
+      unitsActual?: number;
+      detail?: Record<string, unknown>;
+    },
+  ): Promise<void>;
+};
+
+export type BilledOutcome<T> =
+  { ok: true; result: T } | { ok: false; stage: "admission" | "generation"; reason: string };
+
+export async function runBilledUnit<T extends { gpuJobId: string; key: string; output: unknown }>(
+  ref: { key: string; sceneId: string; shotId: string; index: number },
+  jobId: string,
+  deps: BilledDeps<T>,
+  detail: Record<string, unknown> = {},
+): Promise<BilledOutcome<T>> {
+  const admission = await deps.admit(spendRequestFor(ref, jobId, detail));
+  if (!admission.ok) {
+    // NOT CALLED. No settle, because nothing was spent — the ledger's own
+    // release path owns an unused reservation, not this function.
+    return { ok: false, stage: "admission", reason: admission.reason ?? "unknown" };
+  }
+
+  try {
+    const result = await deps.generate();
+    await deps.settle(ref.key, {
+      outcome: "ACCEPTED",
+      actualUsd: actualUsdFor(gpuSecondsFrom(result.output)),
+      unitsActual: CLIP_SECONDS,
+      detail: { gpuJobId: result.gpuJobId, outputKey: result.key },
+    });
+    return { ok: true, result };
+  } catch (err) {
+    const reason = String((err as Error)?.message ?? err);
+    await deps.settle(ref.key, {
+      outcome: "FAILED",
+      unitsActual: 0,
+      detail: { reason: reason.slice(0, 300) },
+    });
+    return { ok: false, stage: "generation", reason };
+  }
+}

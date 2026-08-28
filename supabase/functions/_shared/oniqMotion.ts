@@ -51,7 +51,14 @@ export async function generateMotionClip(
   env: MotionEnv,
   deps: MotionDeps,
   opts: { deadlineMs?: number; pollMs?: number } = {},
-): Promise<{ mime: string; data: string; bytes: number; gpuJobId: string; key: string }> {
+): Promise<{
+  mime: string;
+  data: string;
+  bytes: number;
+  gpuJobId: string;
+  key: string;
+  output: unknown;
+}> {
   const deadlineMs = opts.deadlineMs ?? 600_000;
   const pollMs = opts.pollMs ?? 3_000;
   const started = deps.now();
@@ -108,9 +115,7 @@ export async function generateMotionClip(
   const verdict = verifyWorkerOutput(output);
   if (verdict.ok !== true) throw new MotionEngineError(`${verdict.reason} (gpu job ${id})`);
 
-  const artifact = await deps.fetchImpl(
-    `${env.publicBase.replace(/\/$/, "")}/${args.outputKey}`,
-  );
+  const artifact = await deps.fetchImpl(`${env.publicBase.replace(/\/$/, "")}/${args.outputKey}`);
   if (!artifact.ok) {
     throw new MotionEngineError(`artifact fetch ${artifact.status} (gpu job ${id})`);
   }
@@ -133,5 +138,8 @@ export async function generateMotionClip(
     bytes: bytes.byteLength,
     gpuJobId: id,
     key: args.outputKey,
+    // The worker's own report travels back so the caller can settle the
+    // ledger on MEASURED time rather than the estimate.
+    output,
   };
 }

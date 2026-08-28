@@ -75,4 +75,24 @@ describe("the production renderer routes its motion", () => {
     // matches, and a word-level assertion would forbid the explanation.
     expect(inHouse).not.toContain("edge('story-clip'");
   });
+
+  it("the in-house reply is consumed by the SAME assembly path as Veo's", () => {
+    // Both branches of generateClip return an object carrying `data`, and the
+    // ONE call site writes that to the clip file the aliveness/trim/assembly
+    // stages read. So there is no second clip representation and no second
+    // concat: the in-house clip enters exactly where a Veo clip did.
+    const callSite = RENDERER.slice(RENDERER.indexOf("const got = await generateClip("));
+    expect(callSite).toMatch(/fs\.writeFileSync\(clipFile, Buffer\.from\(got\.data, 'base64'\)\)/);
+    expect(callSite.slice(0, 2000)).toContain("clipAlivenessScore");
+
+    const fn = RENDERER.slice(
+      RENDERER.indexOf("async function generateClip("),
+      RENDERER.indexOf("Temporal-aliveness score"),
+    );
+    // Exactly one place produces a clip for that call site.
+    expect(RENDERER.match(/await generateClip\(/g) ?? []).toHaveLength(1);
+    // Both branches hand back the same envelope.
+    expect(fn).toMatch(/return \{ \.\.\.got, audioRouting/g);
+    expect((fn.match(/return \{ \.\.\.got, audioRouting/g) ?? []).length).toBe(2);
+  });
 });

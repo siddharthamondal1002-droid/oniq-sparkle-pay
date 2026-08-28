@@ -9,7 +9,10 @@ import { readFileSync } from "node:fs";
 
 import { describe, it, expect } from "vitest";
 
-import { generateMotionClip, MotionEngineError } from "../../../supabase/functions/_shared/oniqMotion";
+import {
+  generateMotionClip,
+  MotionEngineError,
+} from "../../../supabase/functions/_shared/oniqMotion";
 import { stillKeyFor } from "../../../supabase/functions/_shared/inHouseMotion";
 import { stillKeyFor as oniqStillKeyFor } from "../../../supabase/functions/_shared/oniqImage";
 
@@ -68,7 +71,12 @@ describe("the motion engine", () => {
     }) as unknown as typeof fetch;
 
     const out = await generateMotionClip(
-      { prompt: "push in", inputKey: "story/still/a.png", outputKey: "story/clip/a.mp4", watermark: true },
+      {
+        prompt: "push in",
+        inputKey: "story/still/a.png",
+        outputKey: "story/clip/a.mp4",
+        watermark: true,
+      },
       ENV,
       deps({ fetchImpl: spy }),
     );
@@ -95,7 +103,12 @@ describe("the motion engine", () => {
     }) as unknown as typeof fetch;
     await expect(
       generateMotionClip(
-        { prompt: "p", inputKey: "story/still/a.png", outputKey: "story/clip/a.mp4", watermark: true },
+        {
+          prompt: "p",
+          inputKey: "story/still/a.png",
+          outputKey: "story/clip/a.mp4",
+          watermark: true,
+        },
         ENV,
         deps({ fetchImpl: notMp4 }),
       ),
@@ -109,7 +122,12 @@ describe("the motion engine", () => {
     }) as unknown as typeof fetch;
     await expect(
       generateMotionClip(
-        { prompt: "p", inputKey: "story/still/a.png", outputKey: "story/clip/a.mp4", watermark: true },
+        {
+          prompt: "p",
+          inputKey: "story/still/a.png",
+          outputKey: "story/clip/a.mp4",
+          watermark: true,
+        },
         ENV,
         deps({ fetchImpl: failed }),
       ),
@@ -124,7 +142,12 @@ describe("the motion engine", () => {
     }) as unknown as typeof fetch;
     await expect(
       generateMotionClip(
-        { prompt: "p", inputKey: "story/still/a.png", outputKey: "story/clip/a.mp4", watermark: true },
+        {
+          prompt: "p",
+          inputKey: "story/still/a.png",
+          outputKey: "story/clip/a.mp4",
+          watermark: true,
+        },
         ENV,
         deps({ fetchImpl: slow, now: () => (t += 400_000) }),
         { deadlineMs: 1000, pollMs: 0 },
@@ -136,7 +159,12 @@ describe("the motion engine", () => {
     const rejected = (async () => new Response("no", { status: 429 })) as unknown as typeof fetch;
     await expect(
       generateMotionClip(
-        { prompt: "p", inputKey: "story/still/a.png", outputKey: "story/clip/a.mp4", watermark: true },
+        {
+          prompt: "p",
+          inputKey: "story/still/a.png",
+          outputKey: "story/clip/a.mp4",
+          watermark: true,
+        },
         ENV,
         deps({ fetchImpl: rejected }),
       ),
@@ -191,7 +219,10 @@ describe("the renderer's in-house branch", () => {
     new URL("../../../remotion/scripts/story-worker.mjs", import.meta.url),
     "utf-8",
   );
-  const FN = R.slice(R.indexOf("async function generateClip("), R.indexOf("Temporal-aliveness score"));
+  const FN = R.slice(
+    R.indexOf("async function generateClip("),
+    R.indexOf("Temporal-aliveness score"),
+  );
 
   it("calls story-motion", () => {
     expect(FN).toContain("edge('story-motion'");

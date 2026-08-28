@@ -117,7 +117,10 @@ describe("the still fence is derive-only", () => {
       new URL("../../../supabase/functions/_shared/inHouseMotion.ts", import.meta.url),
       "utf-8",
     );
-    const shotInput = src.slice(src.indexOf("export type ShotInput"), src.indexOf("export type MotionPlan"));
+    const shotInput = src.slice(
+      src.indexOf("export type ShotInput"),
+      src.indexOf("export type MotionPlan"),
+    );
     expect(shotInput).not.toContain("stillKey");
     expect(shotInput).not.toContain("url");
     expect(shotInput).not.toContain("path");
@@ -406,8 +409,9 @@ describe("a route becomes a level policy, and cannot leak to Veo", () => {
   });
 
   it("blocked allows nothing at all", () => {
-    expect(
-      policyFromRoute({ engine: "blocked", reason: "worker-image-missing" }),
-    ).toEqual({ allowDiffusion: false, allowPremium: false });
+    expect(policyFromRoute({ engine: "blocked", reason: "worker-image-missing" })).toEqual({
+      allowDiffusion: false,
+      allowPremium: false,
+    });
   });
 });
