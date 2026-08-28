@@ -22,7 +22,33 @@ export const TERMINAL_BAD = ["FAILED", "CANCELLED", "TIMED_OUT"];
 /** The engine's own contract, mirrored: png at the video canvas. */
 export const STILL_MIME = "image/png";
 
-export type StillVerdict = { ok: true; bytes: number } | { ok: false; reason: string };
+export type StillVerdict =
+  | { ok: true; bytes: number }
+  | { ok: false; reason: string; retryable?: boolean };
+
+/**
+ * Engine refusal codes that are infrastructure, not a verdict on the ask.
+ *
+ * The worker catches every Python exception and returns {ok:false, code}
+ * as a COMPLETED job, so these arrive looking exactly like "your prompt
+ * was refused" — and two of them are nothing of the sort. A container
+ * that came up without a GPU says cuda-unavailable, and the next
+ * container may well have one; a bucket that throttled or 500'd says so
+ * in R2's own vocabulary. Both are worth one more ask.
+ *
+ * An ALLOWLIST, deliberately. An unrecognised code stays non-retryable,
+ * so a refusal added to the worker later cannot start costing GPU
+ * seconds here without somebody deciding that it should.
+ */
+export const TRANSIENT_ENGINE_CODES = new Set([
+  "cuda-unavailable",
+  "InternalError",
+  "ServiceUnavailable",
+  "SlowDown",
+  "RequestTimeout",
+  "RequestTimeTooSkewed",
+  "ThrottlingException",
+]);
 
 /**
  * The worker's success evidence, checked before an artifact is trusted.
@@ -35,7 +61,12 @@ export function verifyStillOutput(output: unknown): StillVerdict {
   }
   const o = output as Record<string, unknown>;
   if (o.ok !== true) {
-    return { ok: false, reason: `engine refused: ${String(o.code ?? "unknown")}` };
+    const code = String(o.code ?? "unknown");
+    return {
+      ok: false,
+      reason: `engine refused: ${code}`,
+      retryable: TRANSIENT_ENGINE_CODES.has(code),
+    };
   }
   if (o.op !== "image_generate") {
     return { ok: false, reason: `wrong op: ${String(o.op)}` };
@@ -201,7 +232,7 @@ export async function generateStill(
   }
 
   const verdict = verifyStillOutput(output);
-  if (verdict.ok !== true) throw new EngineError(verdict.reason);
+  if (verdict.ok !== true) throw new EngineError(verdict.reason, verdict.retryable === true);
 
   const artifact = await deps.fetchImpl(`${env.publicBase.replace(/\/$/, "")}/${key}`);
   // A 404 moments after the engine reported the write is the bucket
