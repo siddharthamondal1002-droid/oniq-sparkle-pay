@@ -96,3 +96,56 @@ describe("the production renderer routes its motion", () => {
     expect((fn.match(/return \{ \.\.\.got, audioRouting/g) ?? []).length).toBe(2);
   });
 });
+
+/**
+ * THE OTHER END OF THE SAME WIRE, and the half that was missing.
+ *
+ * Everything above proves the renderer asks routeMotion before it calls a
+ * provider. None of it proves the runner ever gives routeMotion an answer.
+ * Until 2026-08-28 the workflow that runs this renderer passed none of the
+ * three names it reads, so all three were undefined, every route came back
+ * `premium`, and every user film went to Veo on the metered Google key —
+ * with the module, its tests and the in-house branch all correct and all
+ * unreachable.
+ *
+ * A switch with no wire looks exactly like a switch that is off. That is
+ * why this asserts the wiring rather than the value: the workflow must
+ * PASS the three signals; whether they are set to 'on' is the owner's.
+ */
+const STORY_WORKER = readFileSync(
+  new URL("../../../.github/workflows/story-worker.yml", import.meta.url),
+  "utf-8",
+);
+
+describe("the runner passes the signals the renderer reads", () => {
+  const SIGNALS = ["IN_HOUSE_MOTION", "ONIQ_GPU_HEALTHY", "ONIQ_WORKER_IMAGE"] as const;
+
+  it.each(SIGNALS)("passes %s to the render step", (name) => {
+    expect(STORY_WORKER).toMatch(new RegExp(`^\\s+${name}:\\s*\\$\\{\\{`, "m"));
+  });
+
+  it("reads every signal the renderer reads — no name can drift apart", () => {
+    const read = new Set(
+      [...RENDERER.matchAll(/process\.env\.(IN_HOUSE_MOTION|ONIQ_[A-Z_]+)/g)].map((m) => m[1]),
+    );
+    for (const name of read) {
+      expect(STORY_WORKER).toContain(`${name}:`);
+    }
+  });
+
+  it("sources them from repository variables, so turning the GPU on needs no deploy", () => {
+    for (const name of SIGNALS) {
+      expect(STORY_WORKER).toMatch(new RegExp(`${name}: \\$\\{\\{ vars\\.${name} \\}\\}`));
+    }
+  });
+
+  it("defaults to OFF — an unset variable must never enable in-house motion", () => {
+    // `vars.X` unset resolves to '', and the renderer compares === 'on'.
+    // No `|| 'on'` fallback anywhere near these, which would turn the GPU on
+    // for every user the moment this merged.
+    for (const name of SIGNALS) {
+      const line = STORY_WORKER.split("\n").find((l) => l.includes(`${name}:`)) ?? "";
+      expect(line).not.toContain("'on'");
+    }
+  });
+});

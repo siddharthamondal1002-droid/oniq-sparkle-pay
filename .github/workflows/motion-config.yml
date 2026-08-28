@@ -1,0 +1,79 @@
+name: motion config
+
+# WHAT THE RUNNER ACTUALLY SEES, before anything is spent.
+#
+# story-worker.mjs routes a film with three comparisons, and every one of
+# them is against the literal string 'on':
+#
+#   inHouseEnabled:     process.env.IN_HOUSE_MOTION   === 'on'
+#   gpuHealthy:         process.env.ONIQ_GPU_HEALTHY  === 'on'
+#   workerImagePresent: process.env.ONIQ_WORKER_IMAGE === 'on'
+#
+# So 'true' is off. 'ON' is off. A digest is off. An unset variable is off.
+# Every one of those spellings routes to `premium` or `blocked` while
+# looking, from the settings page, exactly like the feature is enabled —
+# and the only place the difference shows up is a film that silently comes
+# back as stills. Reading the settings page cannot tell you which you have;
+# this job can, because it resolves the same `vars.` context the renderer's
+# workflow does.
+#
+# Read-only and free: no job is dispatched, no GPU starts, nothing is
+# written. It exists to be run BEFORE the first real generation and after
+# any change to the three variables.
+#
+# These are flags, not credentials, and the activation directive
+# (2026-08-28) forbids putting credentials in them. Even so, an
+# unrecognised value is reported by LENGTH and never echoed, so a mistake
+# cannot become a leak in a public log.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: "the three routing signals, as the renderer will read them, $0"
+    runs-on: ubuntu-latest
+    env:
+      IN_HOUSE_MOTION: ${{ vars.IN_HOUSE_MOTION }}
+      ONIQ_GPU_HEALTHY: ${{ vars.ONIQ_GPU_HEALTHY }}
+      ONIQ_WORKER_IMAGE: ${{ vars.ONIQ_WORKER_IMAGE }}
+    steps:
+      - name: "Resolve each signal exactly as story-worker.mjs does"
+        run: |
+          set -euo pipefail
+          fail=0
+          for name in IN_HOUSE_MOTION ONIQ_GPU_HEALTHY ONIQ_WORKER_IMAGE; do
+            value="${!name-}"
+            if [ "${value}" = "on" ]; then
+              echo "${name}: on  -> routes in-house"
+              continue
+            fi
+            fail=1
+            if [ -z "${value}" ]; then
+              shown="(unset or empty)"
+            elif [ "${value}" = "off" ] || [ "${value}" = "true" ] \
+              || [ "${value}" = "false" ] || [ "${value}" = "ON" ]; then
+              shown="'${value}'"
+            else
+              # Never echo an unrecognised value: the directive says these
+              # carry no credential, and a log is the wrong place to find
+              # out that one does.
+              shown="(unrecognised, ${#value} chars)"
+            fi
+            echo "${name}: ${shown}  -> NOT 'on', so this signal reads FALSE"
+          done
+
+          echo ""
+          if [ "${fail}" -ne 0 ]; then
+            echo "NOT ACTIVATED: at least one signal is not exactly 'on'."
+            echo "routeMotion would answer premium (if IN_HOUSE_MOTION is off)"
+            echo "or blocked (if it is on and another signal is not), and a"
+            echo "film would come back with no motion at all."
+            exit 1
+          fi
+          echo "ACTIVATED: all three resolve to 'on'; routeMotion answers in-house L4."
+          echo "This says nothing about whether the GPU or R2 actually work —"
+          echo "only a real generation proves those."
