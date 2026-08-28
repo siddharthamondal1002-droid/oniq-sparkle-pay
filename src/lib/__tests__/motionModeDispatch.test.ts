@@ -24,14 +24,8 @@ const dispatch = readFileSync(
   join(process.cwd(), "supabase/functions/story-dispatch/index.ts"),
   "utf8",
 );
-const workflow = readFileSync(
-  join(process.cwd(), ".github/workflows/story-worker.yml"),
-  "utf8",
-);
-const worker = readFileSync(
-  join(process.cwd(), "remotion/scripts/story-worker.mjs"),
-  "utf8",
-);
+const workflow = readFileSync(join(process.cwd(), ".github/workflows/story-worker.yml"), "utf8");
+const worker = readFileSync(join(process.cwd(), "remotion/scripts/story-worker.mjs"), "utf8");
 const migration = readFileSync(
   join(process.cwd(), "supabase/migrations/20260822153000_story_jobs_motion_mode.sql"),
   "utf8",
@@ -66,12 +60,78 @@ describe("per-job motion mode (Veo select validation plumbing)", () => {
   });
 
   it("the worker keeps its landed gating — 'on'/'select' only, plan-routed", () => {
-    expect(worker).toMatch(/process\.env\.STORY_MOVIE === 'on' \|\| process\.env\.STORY_MOVIE === 'select'/);
+    expect(worker).toMatch(
+      /process\.env\.STORY_MOVIE === 'on' \|\| process\.env\.STORY_MOVIE === 'select'/,
+    );
     expect(worker).toMatch(/if \(motionPlan\?\.attemptClip\)/);
   });
 
   it("the column admits NULL or 'select' and nothing else", () => {
     expect(migration).toMatch(/add column if not exists motion_mode text/);
     expect(migration).toMatch(/check \(motion_mode is null or motion_mode = 'select'\)/);
+  });
+});
+
+/**
+ * TWO GATES, NOT ONE — measured on the live run of 2026-08-28.
+ *
+ * Story job e377f793 rendered on the merged wiring with IN_HOUSE_MOTION=on.
+ * The route resolved ("movie grade: in-house engine") and the film still came
+ * back nine shots of stills:
+ *
+ *   STORY_MOVIE:
+ *   IN_HOUSE_MOTION: on
+ *   MOTION_CONTRACT: 9x no motion provider enabled (owner-gated)
+ *
+ * IN_HOUSE_MOTION chooses WHICH engine animates. STORY_MOVIE decides WHETHER
+ * the clip stage runs at all. Turning the first on says nothing about the
+ * second, and the reasonable-sounding assumption that it does is what made a
+ * correctly-routed film arrive with no motion in it. These assert the two are
+ * independent, so nobody has to learn it from an output again.
+ */
+describe("the clip stage has its own gate, independent of the engine choice", () => {
+  it("IN_HOUSE_MOTION does not appear anywhere in the clip-stage condition", () => {
+    const condition = worker.slice(
+      worker.indexOf("const clipStage ="),
+      worker.indexOf("const cinematic ="),
+    );
+    expect(condition).toContain("process.env.STORY_MOVIE");
+    // The engine switch must not leak into the whether-to-clip decision.
+    expect(condition).not.toContain("IN_HOUSE_MOTION");
+  });
+
+  it("the engine route is decided without consulting STORY_MOVIE", () => {
+    const route = worker.slice(
+      worker.indexOf("function motionRoute()"),
+      worker.indexOf("async function generateClip("),
+    );
+    expect(route).toContain("IN_HOUSE_MOTION");
+    expect(route).not.toContain("STORY_MOVIE");
+  });
+
+  it("an unset motion_mode sends no story_movie, so STORY_MOVIE resolves to ''", () => {
+    // The production default. NULL is not 'select', the spread contributes
+    // nothing, and the workflow's `|| ''` leaves the clip stage off.
+    expect(dispatch).toMatch(
+      /const motionMode = rows\[0\]\.motion_mode === "select" \? "select" : null;/,
+    );
+    expect(dispatch).toMatch(/\.\.\.\(motionMode \? \{ story_movie: motionMode \} : \{\}\)/);
+    expect(workflow).toMatch(/client_payload\.story_movie \|\| ''/);
+  });
+
+  it("only 'select' makes generateClip reachable — the clip stage is what calls it", () => {
+    // clipStage !== 'off' is the gate; the motion plan built from it is what
+    // decides per shot, and `attemptClip` is the only door to generateClip.
+    expect(worker).toMatch(/if \(motionPlan\?\.attemptClip\)/);
+    const call = worker.slice(worker.indexOf("if (motionPlan?.attemptClip)"));
+    expect(call.slice(0, 600)).toMatch(/await generateClip\(/);
+  });
+
+  it("the clip stage cannot be reached with the grade alone", () => {
+    // grade === 'movie' is necessary and NOT sufficient: job e377f793 was
+    // movie grade and still rendered still-only.
+    expect(worker).toMatch(
+      /job\.grade === 'movie' && \(process\.env\.STORY_MOVIE === 'on' \|\| process\.env\.STORY_MOVIE === 'select'\)/,
+    );
   });
 });
