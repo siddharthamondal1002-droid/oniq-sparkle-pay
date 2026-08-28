@@ -167,6 +167,37 @@ describe("B — a failure says whether asking again could help", () => {
   it("the default is not-retryable, so a new throw never becomes spend by accident", () => {
     expect(new EngineError("something new").retryable).toBe(false);
   });
+
+  it("a refusal that is really infrastructure is retried — a GPU-less worker most of all", async () => {
+    // The worker catches every Python exception and returns {ok:false,code}
+    // as a COMPLETED job, so cuda-unavailable arrives shaped exactly like a
+    // refusal of the prompt. It is not one: the next container may have a
+    // GPU. Same for a bucket that throttled.
+    for (const code of ["cuda-unavailable", "SlowDown", "InternalError"]) {
+      const err = await generateStill(
+        "p",
+        ENV,
+        deps(transport([{ status: "COMPLETED", output: { ok: false, code } }])),
+      ).catch((e) => e);
+      expect(String(err)).toContain(`engine refused: ${code}`);
+      expect((err as EngineError).retryable).toBe(true);
+    }
+  });
+
+  it("an unrecognised refusal code stays non-retryable — the list is an allowlist", async () => {
+    for (const code of ["no-frames", "storage-not-configured", "prompt-refused", "unknown"]) {
+      const err = await generateStill(
+        "p",
+        ENV,
+        deps(transport([{ status: "COMPLETED", output: { ok: false, code } }])),
+      ).catch((e) => e);
+      expect((err as EngineError).retryable).toBe(false);
+    }
+    expect(verifyStillOutput({ ok: false, code: "brand-new-code" })).toMatchObject({
+      ok: false,
+      retryable: false,
+    });
+  });
 });
 
 // C. the ladder
