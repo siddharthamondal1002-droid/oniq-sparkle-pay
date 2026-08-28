@@ -4385,6 +4385,7 @@ export type Database = {
           id: boolean
           max_story_seconds: number
           min_story_seconds: number
+          motion_select: boolean
           updated_at: string
         }
         Insert: {
@@ -4395,6 +4396,7 @@ export type Database = {
           id?: boolean
           max_story_seconds?: number
           min_story_seconds?: number
+          motion_select?: boolean
           updated_at?: string
         }
         Update: {
@@ -4405,6 +4407,7 @@ export type Database = {
           id?: boolean
           max_story_seconds?: number
           min_story_seconds?: number
+          motion_select?: boolean
           updated_at?: string
         }
         Relationships: []
