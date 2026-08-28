@@ -54,13 +54,25 @@ describe("the production renderer routes its motion", () => {
     expect(blocked.slice(0, 400)).toContain("no provider fallback");
   });
 
-  it("the in-house branch never falls through to the Veo branch", () => {
+  it("the in-house branch returns or throws — it never falls through to Veo", () => {
     const fn = RENDERER.slice(
       RENDERER.indexOf("async function generateClip("),
       RENDERER.indexOf("Temporal-aliveness score"),
     );
-    const inHouse = fn.slice(fn.indexOf("route.engine === 'in-house'"));
-    expect(inHouse.slice(0, 400)).toMatch(/throw new Error/);
-    expect(inHouse.slice(0, 400)).toContain("no provider fallback");
+    const inHouse = fn.slice(
+      fn.indexOf("route.engine === 'in-house'"),
+      fn.indexOf("const prompt = composeVideoPrompt"),
+    );
+    // It calls ONIQ's own transport...
+    expect(inHouse).toContain("edge('story-motion'");
+    // ...and every exit from the branch is a return or a throw, so control
+    // can never reach the story-clip code below it.
+    expect(inHouse).toMatch(/return \{ \.\.\.got, audioRouting/);
+    expect(inHouse).toMatch(/throw new Error/);
+    expect(inHouse).toContain("no provider fallback");
+    // The property is "no CALL to the provider", not "the word is absent" —
+    // the branch's own comment mentions story-clip to explain the shape it
+    // matches, and a word-level assertion would forbid the explanation.
+    expect(inHouse).not.toContain("edge('story-clip'");
   });
 });

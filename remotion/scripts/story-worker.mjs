@@ -907,6 +907,21 @@ function audioPlanFor(shot) {
  * work the owner routed to hardware they already pay for is the one outcome
  * this must never produce.
  */
+/**
+ * The renderer's shotId is `<jobId>:<stem>`; story-motion wants identifiers it
+ * can derive a key from, and the job id comes from the TOKEN rather than here.
+ * The stem is split on its last dash so a scene and a shot survive separately,
+ * with every unsafe character mapped to `-` — the edge function refuses
+ * anything that still looks wrong, so this only has to be honest, not trusted.
+ */
+function splitShotId(shotId) {
+  const stem = String(shotId).split(':').pop() ?? 'shot';
+  const safe = stem.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 100) || 'shot';
+  const cut = safe.lastIndexOf('-');
+  if (cut <= 0 || cut === safe.length - 1) return ['s', safe];
+  return [safe.slice(0, cut), safe.slice(cut + 1)];
+}
+
 function motionRoute() {
   return routeMotion({
     inHouseEnabled: process.env.IN_HOUSE_MOTION === 'on',
@@ -915,7 +930,7 @@ function motionRoute() {
   });
 }
 
-async function generateClip(shot, stillFile, shotSeconds, shotId) {
+async function generateClip(shot, stillFile, shotSeconds, shotId, noWatermark = false) {
   const route = motionRoute();
   if (route.engine === 'blocked') {
     // Honest in-house failure. The caller already treats a thrown clip as
@@ -923,9 +938,22 @@ async function generateClip(shot, stillFile, shotSeconds, shotId) {
     throw new Error(`in-house motion unavailable (${route.reason}) — no provider fallback`);
   }
   if (route.engine === 'in-house') {
-    throw new Error(
-      'in-house motion transport not yet wired (gpu-video film-clip action) — no provider fallback',
-    );
+    // ONIQ's own GPU. Identifiers only — story-motion recomputes the still's
+    // key from the job token's id plus these, so no bucket path travels and
+    // a token for one film cannot animate another's frames. The reply carries
+    // `data` exactly as story-clip's does, so everything downstream of this
+    // call (aliveness, trim, assembly) is untouched.
+    const [sceneId, shotIdPart] = splitShotId(shotId);
+    const got = await edge('story-motion', {
+      prompt: composeVideoPrompt(shot).slice(0, 1000),
+      sceneId,
+      shotId: shotIdPart,
+      version: 1,
+      index: 0,
+      noWatermark: Boolean(noWatermark),
+    });
+    if (!got?.data) throw new Error('in-house motion returned no clip — no provider fallback');
+    return { ...got, audioRouting: audioPlanFor(shot) };
   }
   const prompt = composeVideoPrompt(shot).slice(0, 1900);
   const imageBase64 = fs.readFileSync(stillFile).toString('base64');
@@ -2180,7 +2208,7 @@ if (offline) {
             ` — clip REQUESTED (${motionPlan.reason})`,
         );
         try {
-          const got = await generateClip(shot, stillFile, seconds, `${job.id}:${stem}`);
+          const got = await generateClip(shot, stillFile, seconds, `${job.id}:${stem}`, job.no_watermark);
           const clipFile = path.join(assetRoot, `${stem}.clip.mp4`);
           fs.writeFileSync(clipFile, Buffer.from(got.data, 'base64'));
           const clipSeconds = secondsOf(clipFile);
