@@ -77,7 +77,53 @@ export type EngineDeps = {
   newId: () => string;
 };
 
-export class EngineError extends Error {}
+/**
+ * A failure that names whether trying again could plausibly help.
+ *
+ * WHY THIS EXISTS. Story job 1481d262 (2026-08-28) died when this engine
+ * returned FAILED twice on shot 1, and the endpoint's own health at the
+ * time read 53 completed / 20 failed with ZERO unhealthy or throttled
+ * workers — so a quarter of all jobs fail against a provably healthy
+ * endpoint, and not one of those twenty recorded WHY, because the throw
+ * below used to discard the provider's error text. `retryable` and
+ * `reason` exist so a failure is diagnosable and so the caller can tell
+ * a container hiccup from a verdict about the request itself. Retrying
+ * the second sort only spends money to be told the same thing again.
+ */
+export class EngineError extends Error {
+  readonly retryable: boolean;
+  constructor(message: string, retryable = false) {
+    super(message);
+    this.retryable = retryable;
+  }
+}
+
+/**
+ * The provider's own account of a failed job, flattened to one short
+ * line. RunPod carries it as `error` (usually the handler's traceback)
+ * and sometimes inside `output`; both are read because neither is
+ * promised. Bounded hard — this ends up in a log and an error body, and
+ * an unbounded traceback belongs in neither.
+ */
+export function failureReason(state: unknown): string {
+  if (!state || typeof state !== "object") return "";
+  const s = state as Record<string, unknown>;
+  const parts: string[] = [];
+  if (typeof s.error === "string" && s.error.trim()) parts.push(s.error.trim());
+  const out = s.output;
+  if (typeof out === "string" && out.trim()) {
+    parts.push(out.trim());
+  } else if (out && typeof out === "object") {
+    const o = out as Record<string, unknown>;
+    for (const k of ["error", "message", "detail", "traceback"]) {
+      if (typeof o[k] === "string" && (o[k] as string).trim()) {
+        parts.push((o[k] as string).trim());
+        break;
+      }
+    }
+  }
+  return parts.join(" | ").replace(/\s+/g, " ").slice(0, 300);
+}
 
 /**
  * Draw one still. Submits, polls to a bounded deadline, fetches the
@@ -113,7 +159,11 @@ export async function generateStill(
     }),
   });
   if (!submitted.ok) {
-    throw new EngineError(`engine rejected the request (${submitted.status})`);
+    // 5xx is the platform; 4xx is a verdict on this request.
+    throw new EngineError(
+      `engine rejected the request (${submitted.status})`,
+      submitted.status >= 500,
+    );
   }
   const { id } = (await submitted.json()) as { id?: string };
   if (!id) throw new EngineError("engine returned no job id");
@@ -121,21 +171,32 @@ export async function generateStill(
   let output: unknown = null;
   for (;;) {
     if (deps.now() - started > deadlineMs) {
-      throw new EngineError("still took too long");
+      // The deadline expired with the job still not terminal — a slow
+      // cold start looks exactly like this, and it is worth one more ask.
+      throw new EngineError("still took too long", true);
     }
     await deps.sleep(pollMs);
     const res = await deps.fetchImpl(
       `${RUNPOD_SERVERLESS}/${env.endpointId}/status/${encodeURIComponent(id)}`,
       { headers },
     );
-    if (!res.ok) throw new EngineError(`engine status ${res.status}`);
+    if (!res.ok) throw new EngineError(`engine status ${res.status}`, res.status >= 500);
     const state = (await res.json()) as { status?: string; output?: unknown };
     if (state.status === TERMINAL_OK) {
       output = state.output;
       break;
     }
     if (TERMINAL_BAD.includes(String(state.status))) {
-      throw new EngineError(`engine job ${String(state.status)}`);
+      const status = String(state.status);
+      const why = failureReason(state);
+      // FAILED and TIMED_OUT are the container hiccuping — measured
+      // retryable: run #132's shot 6 hit FAILED and drew fine on the
+      // next attempt. CANCELLED is somebody's decision, and asking
+      // again would be arguing with it.
+      throw new EngineError(
+        why ? `engine job ${status}: ${why}` : `engine job ${status}`,
+        status !== "CANCELLED",
+      );
     }
   }
 
@@ -143,7 +204,14 @@ export async function generateStill(
   if (verdict.ok !== true) throw new EngineError(verdict.reason);
 
   const artifact = await deps.fetchImpl(`${env.publicBase.replace(/\/$/, "")}/${key}`);
-  if (!artifact.ok) throw new EngineError(`artifact fetch ${artifact.status}`);
+  // A 404 moments after the engine reported the write is the bucket
+  // catching up, not a missing still; 5xx is the bucket hiccuping.
+  if (!artifact.ok) {
+    throw new EngineError(
+      `artifact fetch ${artifact.status}`,
+      artifact.status === 404 || artifact.status >= 500,
+    );
+  }
   const bytes = new Uint8Array(await artifact.arrayBuffer());
   if (bytes.byteLength !== verdict.bytes) {
     throw new EngineError(
