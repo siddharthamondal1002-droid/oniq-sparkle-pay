@@ -1754,16 +1754,23 @@ if (offline) {
       // the wrong payer is worse than no log: it cost a review of the whole
       // spend path to establish that nothing was being rented.
       //
-      // Two switches, so the line reports both. STORY_MOVIE says WHETHER
-      // the clip stage runs; IN_HOUSE_MOTION says WHICH engine answers.
+      // Two switches and three facts, each its own KEY=VALUE token so the
+      // line can be grepped rather than read. STORY_MOVIE says WHETHER the
+      // clip stage runs (MOTION_STAGE); IN_HOUSE_MOTION says WHICH engine
+      // answers (MOTION_PROVIDER, MOTION_ENGINE). MOTION_ENGINE names the
+      // transport that will actually be invoked, so the log and the code
+      // can be checked against each other without inference.
       const inHouse = process.env.IN_HOUSE_MOTION === 'on';
       console.log(
         clipStage === 'off'
-          ? '  movie grade: MOTION_STAGE=off — stills and camera only (STORY_MOVIE unset)'
-          : `  movie grade: MOTION_STAGE=${clipStage} (${
-              clipStage === 'select' ? 'motion-selected shots only' : 'every shot'
-            }), engine ${inHouse ? "ONIQ's own LTX" : 'external video provider'} ` +
-              `(IN_HOUSE_MOTION=${inHouse ? 'on' : 'off'})`,
+          ? '  movie grade: MOTION_STAGE=off MOTION_PROVIDER=none MOTION_ENGINE=none' +
+              ' — stills and camera only (STORY_MOVIE unset)'
+          : `  movie grade: MOTION_STAGE=${clipStage} ` +
+              `MOTION_PROVIDER=${inHouse ? 'in_house' : 'external'} ` +
+              `MOTION_ENGINE=${inHouse ? 'LTX' : 'story-clip'} ` +
+              `(IN_HOUSE_MOTION=${inHouse ? 'on' : 'off'}, ${
+                clipStage === 'select' ? 'motion-selected shots only' : 'every shot'
+              })`,
       );
     }
 
