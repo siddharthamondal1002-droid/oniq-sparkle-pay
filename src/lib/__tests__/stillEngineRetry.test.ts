@@ -26,7 +26,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
+  ASPECT_SUFFIX,
+  ENGINE_MAX_PROMPT_CHARS,
   EngineError,
+  MAX_ASK_CHARS,
+  failureIsTransient,
   failureReason,
   generateStill,
   verifyStillOutput,
@@ -240,7 +244,14 @@ describe("C — the ladder spends a bounded number of paid attempts", () => {
     expect(stillFn).toMatch(
       /return json\(\{ error: `Could not draw that frame: \$\{why\}`, retryable \}, 502\);/,
     );
-    expect(stillFn).toMatch(/import \{ EngineError, generateStill \}/);
+    // The symbols, not the formatting. The import list grew when the
+    // engine's prompt ceiling moved into the shared module, and prettier
+    // decides on its own whether that fits one line.
+    const imports = stillFn.slice(0, stillFn.indexOf("const corsHeaders"));
+    for (const symbol of ["EngineError", "generateStill", "MAX_ASK_CHARS", "ASPECT_SUFFIX"]) {
+      expect(imports).toContain(symbol);
+    }
+    expect(imports).toContain('from "../_shared/oniqImage.ts"');
   });
 });
 
@@ -392,5 +403,53 @@ describe("F — the route the film has to reach once a still succeeds", () => {
 
   it("the engine switch is still IN_HOUSE_MOTION === 'on' and nothing else", () => {
     expect(worker).toMatch(/inHouseEnabled: process\.env\.IN_HOUSE_MOTION === 'on'/);
+  });
+});
+
+// G. the contract mismatch that WAS the 27%
+describe("G — the app may not ask for more than the engine takes", () => {
+  it("the ceiling is the worker's number, and the aspect line is counted against it", () => {
+    expect(ENGINE_MAX_PROMPT_CHARS).toBe(1000); // contract.py MAX_PROMPT_CHARS
+    expect(MAX_ASK_CHARS).toBe(ENGINE_MAX_PROMPT_CHARS - ASPECT_SUFFIX.length);
+    // What story-still actually sends must fit, at the boundary.
+    expect(("x".repeat(MAX_ASK_CHARS) + ASPECT_SUFFIX).length).toBe(ENGINE_MAX_PROMPT_CHARS);
+  });
+
+  it("story-still refuses an over-length ask as STEPPABLE, without a GPU job", () => {
+    // 422 is the ladder's step-down signal: ask again with a shorter rung.
+    // A 5xx would have burned three paid attempts on an unchanging answer.
+    expect(stillFn).toMatch(/if \(prompt\.length > MAX_ASK_CHARS\) \{/);
+    expect(stillFn).toMatch(/retryable: false,\s*\n\s*\},\s*\n\s*422,/);
+    expect(stillFn).not.toMatch(/MAX_PROMPT = 2000/);
+    // and it imports the ceiling rather than keeping its own
+    expect(stillFn).toMatch(/MAX_ASK_CHARS,/);
+  });
+
+  it("the worker builds every rung inside the ceiling — 1900 is gone", () => {
+    expect(worker).not.toMatch(/\.slice\(0, 1900\)/);
+    // Three still rungs plus the motion prompt: video_generate carries the
+    // identical 1000-char cap, and generateClip was slicing to 1900 as well.
+    expect(worker.match(/\.slice\(0, MAX_ASK_CHARS\)/g)?.length).toBe(4);
+    expect(worker).toMatch(/composeVideoPrompt\(shot\)\.slice\(0, MAX_ASK_CHARS\)/);
+    expect(worker).toMatch(/import \{ MAX_ASK_CHARS \} from/);
+  });
+
+  it("a contract refusal is NOT retried — it would say the same thing three times", () => {
+    // The exact failure the owner hit, now classified from its reason.
+    expect(failureIsTransient("params.prompt exceeds 1000 characters")).toBe(false);
+    expect(failureIsTransient("params.prompt may not exceed 1000 characters")).toBe(false);
+    expect(failureIsTransient("invalid-input")).toBe(false);
+    // A container that fell over still is.
+    expect(failureIsTransient("CUDA out of memory")).toBe(true);
+    expect(failureIsTransient("worker exited unexpectedly")).toBe(true);
+    // No reason at all keeps the old, blind behaviour rather than going fatal.
+    expect(failureIsTransient("")).toBe(true);
+  });
+
+  it("end to end: the owner's failure is now non-retryable and named", async () => {
+    const t = transport([{ status: "FAILED", error: "params.prompt exceeds 1000 characters" }]);
+    const err = await generateStill("p", ENV, deps(t)).catch((e) => e);
+    expect(String(err)).toContain("params.prompt exceeds 1000 characters");
+    expect((err as EngineError).retryable).toBe(false);
   });
 });

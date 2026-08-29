@@ -98,6 +98,7 @@ import {
 } from '../../src/lib/puppetPerformance.ts';
 import { MAX_STORY_SECONDS, MIN_STORY_SECONDS, planStory } from '../../src/lib/storyPlan.ts';
 import { planMovieTimeline, shotsOverClipCeiling } from '../../src/lib/movieTimeline.ts';
+import { MAX_ASK_CHARS } from '../../supabase/functions/_shared/oniqImage.ts';
 import { DURATION_MAX_RATIO, DURATION_MIN_RATIO, preflight, STORY_FPS, STORY_WIDTH, STORY_HEIGHT } from '../../src/lib/storyPreflight.ts';
 import { castShot } from '../../src/lib/storyActorCasting.ts';
 import { ONIQ_ASSET_ORIGIN } from '../../src/data/storyActorAssets.ts';
@@ -984,7 +985,14 @@ async function generateClip(shot, stillFile, shotSeconds, shotId, noWatermark = 
     if (!got?.data) throw new Error('in-house motion returned no clip — no provider fallback');
     return { ...got, audioRouting: audioPlanFor(shot) };
   }
-  const prompt = composeVideoPrompt(shot).slice(0, 1900);
+  // The SAME 1000-character ceiling: contract.py caps video_generate's
+  // params.prompt exactly as it caps image_generate's. This was sliced to
+  // 1900 too, so a richly composed motion prompt would have been refused
+  // deterministically on the LTX path — the one path this whole loop
+  // exists to prove. MAX_ASK_CHARS is used rather than the raw ceiling so
+  // both stages answer to one number; the few characters of headroom cost
+  // nothing and remove any need to reason about per-stage suffixes.
+  const prompt = composeVideoPrompt(shot).slice(0, MAX_ASK_CHARS);
   const imageBase64 = fs.readFileSync(stillFile).toString('base64');
   // Veo's menu is 4, 6 or 8 seconds — no 10, no extend. Ask for the longest
   // that the narration can use; the composition freezes the last frame under
@@ -2052,14 +2060,26 @@ if (offline) {
       );
       const sceneWeather = selectSceneWeather(directedStill);
       const settingForImage = weatherConsistentSetting(plan.setting ?? '', sceneWeather);
+      // SLICED TO THE ENGINE'S OWN CEILING, not to a number that predates it.
+      //
+      // These were cut to 1900 characters while the GPU worker's contract
+      // refuses anything over 1000 — so the two long rungs, the ones that
+      // carry the character locks, were built over-length, sent, and refused
+      // every single time. Prompt length varies per shot, so a deterministic
+      // mismatch read as a flaky endpoint: 20 failures against 53 completes
+      // with no unhealthy worker anywhere. MAX_ASK_CHARS is the worker's
+      // number minus the aspect line story-still appends, imported from the
+      // one place that states it.
       const asks = [
-        `${directedStill}\n\nSetting: ${settingForImage}`.slice(0, 1900),
+        `${directedStill}\n\nSetting: ${settingForImage}`.slice(0, MAX_ASK_CHARS),
         (
           `Gentle, family-friendly animated storybook illustration. ` +
           `${shot.narration}\n\nCharacters:\n${locks}\n\nSetting: ${settingForImage}`
-        ).slice(0, 1900),
-        `A gentle watercolor storybook illustration of a place with no people in it: ` +
-          `${settingForImage}. Soft warm light, wide view.`.slice(0, 1900),
+        ).slice(0, MAX_ASK_CHARS),
+        (
+          `A gentle watercolor storybook illustration of a place with no people in it: ` +
+          `${settingForImage}. Soft warm light, wide view.`
+        ).slice(0, MAX_ASK_CHARS),
       ];
       // OWNER-ASSET CASTING (character-as-actor), off unless STORY_ACTOR_REFS=on.
       // Cast only the actors this shot's own text supports and take the best as

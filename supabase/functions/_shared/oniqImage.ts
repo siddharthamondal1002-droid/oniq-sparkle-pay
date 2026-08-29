@@ -22,9 +22,41 @@ export const TERMINAL_BAD = ["FAILED", "CANCELLED", "TIMED_OUT"];
 /** The engine's own contract, mirrored: png at the video canvas. */
 export const STILL_MIME = "image/png";
 
+/**
+ * THE PROMPT CEILING, and it belongs to the worker, not to us.
+ *
+ * MEASURED 2026-08-29, and this is the 27%. The GPU worker's contract.py
+ * refuses `params.prompt` over 1000 characters; story-still was accepting
+ * 2000 and the story worker was slicing every ask to 1900. So any richly
+ * described shot — the rungs carrying character locks are the long ones —
+ * was accepted here and refused there, EVERY time, while a plain shot went
+ * through. Prompt length varies per shot, so a deterministic contract
+ * mismatch looked exactly like a flaky endpoint: 20 failed against 53
+ * completed, with no unhealthy worker anywhere.
+ *
+ * It stayed invisible because the throw discarded the provider's error
+ * text. The first failure after that was captured read
+ * `engine job FAILED: params.prompt exceeds 1000 characters`, which is the
+ * whole diagnosis in one line.
+ *
+ * ONE NUMBER, imported by both ends. story-still refuses past it and the
+ * worker slices to it, so the two cannot drift apart again — that drift is
+ * the bug, not the value.
+ */
+export const ENGINE_MAX_PROMPT_CHARS = 1000;
+
+/**
+ * Portrait, matching the episode pipeline. The aspect rides IN THE PROMPT
+ * rather than in a request field, so it SPENDS from the ceiling above and
+ * has to be counted against it.
+ */
+export const ASPECT_SUFFIX = "\n\nVertical 9:16 portrait composition, full-bleed.";
+
+/** What a caller may actually send, once the suffix is paid for. */
+export const MAX_ASK_CHARS = ENGINE_MAX_PROMPT_CHARS - ASPECT_SUFFIX.length;
+
 export type StillVerdict =
-  | { ok: true; bytes: number }
-  | { ok: false; reason: string; retryable?: boolean };
+  { ok: true; bytes: number } | { ok: false; reason: string; retryable?: boolean };
 
 /**
  * Engine refusal codes that are infrastructure, not a verdict on the ask.
@@ -136,6 +168,32 @@ export class EngineError extends Error {
  * promised. Bounded hard — this ends up in a log and an error body, and
  * an unbounded traceback belongs in neither.
  */
+/**
+ * Failure texts that will say the same thing every time.
+ *
+ * RunPod reports a job FAILED when the handler's result carries an `error`
+ * key, and handler._error() sets one for every ContractError — so a
+ * validation refusal and a dead container arrive under the identical
+ * status. Only the reason separates them, which is why capturing it
+ * mattered: `params.prompt exceeds 1000 characters` is not a hiccup, and
+ * asking again spends three GPU jobs to be refused three times.
+ */
+const DETERMINISTIC_FAILURE = [
+  /exceeds \d+ characters/i,
+  /may not exceed/i,
+  /must be a non-empty string/i,
+  /invalid-input/i,
+  /unsupported op/i,
+  /unknown op/i,
+  /missing required/i,
+];
+
+/** Would this failure reason plausibly change on another attempt? */
+export function failureIsTransient(reason: string): boolean {
+  if (!reason) return true; // no reason given — the old, blind behaviour
+  return !DETERMINISTIC_FAILURE.some((re) => re.test(reason));
+}
+
 export function failureReason(state: unknown): string {
   if (!state || typeof state !== "object") return "";
   const s = state as Record<string, unknown>;
@@ -226,7 +284,7 @@ export async function generateStill(
       // again would be arguing with it.
       throw new EngineError(
         why ? `engine job ${status}: ${why}` : `engine job ${status}`,
-        status !== "CANCELLED",
+        status !== "CANCELLED" && failureIsTransient(why),
       );
     }
   }
