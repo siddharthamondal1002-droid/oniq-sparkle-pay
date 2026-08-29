@@ -97,6 +97,7 @@ import {
   walkFor,
 } from '../../src/lib/puppetPerformance.ts';
 import { MAX_STORY_SECONDS, MIN_STORY_SECONDS, planStory } from '../../src/lib/storyPlan.ts';
+import { planMovieTimeline, shotsOverClipCeiling } from '../../src/lib/movieTimeline.ts';
 import { DURATION_MAX_RATIO, DURATION_MIN_RATIO, preflight, STORY_FPS, STORY_WIDTH, STORY_HEIGHT } from '../../src/lib/storyPreflight.ts';
 import { castShot } from '../../src/lib/storyActorCasting.ts';
 import { ONIQ_ASSET_ORIGIN } from '../../src/data/storyActorAssets.ts';
@@ -1937,15 +1938,65 @@ if (offline) {
       MAX_STORY_SECONDS,
       Math.max(MIN_STORY_SECONDS, job.requestedSeconds),
     );
-    const voicedRatio = voicedTimeline / voicedExpected;
-    if (voicedRatio < DURATION_MIN_RATIO || voicedRatio > DURATION_MAX_RATIO) {
-      throw new Error(
-        `PREFLIGHT_DURATION_MISMATCH: measured narration ${voicedTimeline.toFixed(1)}s is ` +
-          `${Math.round(voicedRatio * 100)}% of the requested ${voicedExpected}s — outside the ` +
-          `${DURATION_MIN_RATIO * 100}-${DURATION_MAX_RATIO * 100}% band ` +
-          `(caught after voices, before any still was drawn)`,
+
+    // THE MOVIE'S TIMELINE, and the gate that judges it.
+    //
+    // OWNER DIRECTIVE 2026-08-29: a Story Movie is as long as it was asked
+    // to be. Narration is one track on that timeline, not the timeline
+    // itself. Below, each shot takes the GREATER of its planned slot and its
+    // own narration, so speech is never cut and never stretched, and the
+    // remaining screen time is carried by the visual pass that already
+    // exists — Ken Burns, the parallax planes, the VFX, and over a clip the
+    // smoothstepped push.
+    //
+    // The old check asked "does narration fill at least half the request?"
+    // and refused job 1481d262's successor at 28.6%. That was measuring a
+    // consequence of narration-as-clock, not a fault in the story: the film
+    // could not be longer than its words because storyFrames multiplied the
+    // wav length by fps. planStory had been building a real timeline that
+    // sums to the request exactly, and the worker was taking its shot count
+    // and discarding its seconds.
+    //
+    // CLASSIC IS UNCHANGED. An ordinary Story keeps narration-as-clock and
+    // the 50-160% band it has always had.
+    let screenSeconds = voicedShots.map((v) => v.seconds);
+    if (cinematic) {
+      const timeline = planMovieTimeline({
+        requestedSeconds: job.requestedSeconds,
+        narrationSeconds: voicedShots.map((v) => v.seconds),
+      });
+      if (!timeline.ok) {
+        throw new Error(
+          `PREFLIGHT_TIMELINE_INFEASIBLE: ${timeline.reason} — ${timeline.detail} ` +
+            `(caught after voices, before any still was drawn)`,
+        );
+      }
+      screenSeconds = timeline.shots.map((s) => s.screenSeconds);
+      const over = shotsOverClipCeiling(timeline);
+      console.log(
+        `  movie timeline: ${timeline.timelineSeconds.toFixed(1)}s over ` +
+          `${timeline.shots.length} shots against ${timeline.requestedSeconds}s requested — ` +
+          `narration ${timeline.narrationSeconds.toFixed(1)}s + visual hold ` +
+          `${timeline.holdSeconds.toFixed(1)}s` +
+          (over ? ` (${over} shot(s) past the clip ceiling, push carries the tail)` : ''),
       );
+    } else {
+      const voicedRatio = voicedTimeline / voicedExpected;
+      if (voicedRatio < DURATION_MIN_RATIO || voicedRatio > DURATION_MAX_RATIO) {
+        throw new Error(
+          `PREFLIGHT_DURATION_MISMATCH: measured narration ${voicedTimeline.toFixed(1)}s is ` +
+            `${Math.round(voicedRatio * 100)}% of the requested ${voicedExpected}s — outside the ` +
+            `${DURATION_MIN_RATIO * 100}-${DURATION_MAX_RATIO * 100}% band ` +
+            `(caught after voices, before any still was drawn)`,
+        );
+      }
     }
+    // The screen length is what the composition renders; the narration keeps
+    // its own length and simply ends earlier inside the shot.
+    voicedShots.forEach((v, i) => {
+      v.screenSeconds = screenSeconds[i];
+      v.durationFrames = Math.max(1, Math.round(screenSeconds[i] * FPS));
+    });
     console.log(
       `  duration gate: measured ${voicedTimeline.toFixed(1)}s against ` +
         `${voicedExpected}s requested — inside the band, stills may begin`,
@@ -2216,6 +2267,10 @@ if (offline) {
       // directive 2026-08-26, voices-first) — this shot's clock arrives
       // ready-made from that pass.
       const { wav, seconds, durationFrames, spans, dialogueVoiced } = voicedShots[i];
+      // The shot's screen time. Equal to `seconds` for a classic Story;
+      // for a movie it is the planned slot, so the film is as long as the
+      // request. The narration wav still plays at `seconds` and ends inside.
+      const shotSeconds = voicedShots[i].screenSeconds ?? seconds;
 
       // RUNG 8 — the sound stage, movie grade only. The shot's own words
       // earn an ambient bed (or nothing), synthesized deterministically
@@ -2232,7 +2287,7 @@ if (offline) {
             execFileSync(ffmpeg, [
               '-y', '-f', 'lavfi',
               '-i', ambienceGraph(kind, vfxSeed(`amb:${i}:${shot.still}`)),
-              '-t', String(seconds), '-ar', '44100', '-ac', '1', amb,
+              '-t', String(shotSeconds), '-ar', '44100', '-ac', '1', amb,
             ], { stdio: 'pipe' });
             ambience = { src: `${assetDir}/${path.basename(amb)}`, kind };
             console.log(`  air ${i + 1}: ${kind}`);
@@ -2276,7 +2331,7 @@ if (offline) {
             ` — clip REQUESTED (${motionPlan.reason})`,
         );
         try {
-          const got = await generateClip(shot, stillFile, seconds, `${job.id}:${stem}`, job.no_watermark);
+          const got = await generateClip(shot, stillFile, shotSeconds, `${job.id}:${stem}`, job.no_watermark);
           const clipFile = path.join(assetRoot, `${stem}.clip.mp4`);
           fs.writeFileSync(clipFile, Buffer.from(got.data, 'base64'));
           const clipSeconds = secondsOf(clipFile);
@@ -2537,7 +2592,7 @@ if (offline) {
         // playable file is the CONCATENATED one — pointing the composition at
         // the narration-only wav would desync the clock and drop the line.
         audio: `${assetDir}/${path.basename(wav)}`,
-        seconds,
+        seconds: shotSeconds,
         // Camera per shot rather than a house constant: measured across six ep3
         // clips it ran 0.0 to 19.2 percent, half of them locked off.
         travel: framing.travel,
