@@ -2153,7 +2153,22 @@ if (offline) {
         }
       }
 
+      const stem = `shot${String(i).padStart(3, '0')}`;
       let still;
+      // THE SHOT'S OWN NAME FOR ITS STILL, decided BEFORE the still is drawn.
+      //
+      // The clip stage below calls generateClip with `${job.id}:${stem}` and
+      // story-motion DERIVES its input_key from exactly those identifiers. So
+      // the still has to be WRITTEN under the same name, or the motion job
+      // names an object that is not in the bucket — which is what it did:
+      // story-still drew to a random uuid it then threw away, so every
+      // video_generate would have failed on the download before LTX sampled a
+      // single frame.
+      //
+      // Split with the SAME function the clip stage uses. Two call sites
+      // agreeing BY CONSTRUCTION is the point; two agreeing because somebody
+      // kept them in step is the bug that was already here.
+      const [stillSceneId, stillShotId] = splitShotId(`${job.id}:${stem}`);
       // THE USER'S OWN OPENING FRAME, when they gave one.
       //
       // Shot 1 only, and only when plate_path is set. This REPLACES the
@@ -2186,6 +2201,8 @@ if (offline) {
             const usedRef = Boolean(ref) && a < 2;
             still = await edge('story-still', {
               prompt: asks[a],
+              sceneId: stillSceneId,
+              shotId: stillShotId,
               ...(usedRef ? { referenceImage: ref } : {}),
             });
             conditioned = usedRef;
@@ -2244,10 +2261,20 @@ if (offline) {
           }
         }
       }
-      const stem = `shot${String(i).padStart(3, '0')}`;
       const stillFile = path.join(assetRoot, `${stem}.png`);
       fs.writeFileSync(stillFile, Buffer.from(still.data, 'base64'));
-      console.log(`  still ${i + 1}/${plan.shots.length}${still.fromPlate ? ' (your photo)' : ''}`);
+      // THE BUCKET KEY, IN THE LOG, because it is the motion stage's input and
+      // a film that fails to animate should name the object that was missing
+      // rather than leave somebody guessing at a uuid nobody kept. A plate has
+      // no bucket copy at all — the worker never drew it — so it says so, which
+      // is precisely the shot whose clip will have nothing to animate.
+      const stillWhere = still.fromPlate
+        ? 'your photo (no bucket copy — this shot cannot be animated)'
+        : (still.key ?? 'unnamed');
+      console.log(
+        `  still ${i + 1}/${plan.shots.length}${still.fromPlate ? ' (your photo)' : ''}` +
+          ` STILL_KEY=${stillWhere}`,
+      );
       // PORTRAIT REFRAME (FIX 1) — a conditioned still inherits the owner
       // reference's ASPECT (landscape ref -> 1344x768), so reframe it to the
       // production 1080x1920 without a blind centre crop that could cut the
