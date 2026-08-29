@@ -33,6 +33,7 @@
 
 import { verifyJobToken } from "../_shared/jobToken.ts";
 import { ASPECT_SUFFIX, EngineError, MAX_ASK_CHARS, generateStill } from "../_shared/oniqImage.ts";
+import { stillIdFor } from "../_shared/inHouseMotion.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -86,8 +87,8 @@ function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const authFail = await requireAuth(req);
-    if (authFail) return authFail;
+    const auth = await requireAuth(req);
+    if (auth instanceof Response) return auth;
     // A minute of finished Story is ~9 shots. Thirty a minute lets one job move
     // at a sensible pace and still bounds what a single account can spend.
     if (!_rateLimit(_subFromAuth(req), 30)) return json({ error: "slow down bestie 😅" }, 429);
@@ -147,6 +148,47 @@ Deno.serve(async (req) => {
       );
     }
 
+    // WHERE THE STILL LANDS IN THE BUCKET, AND WHY IT IS NOT RANDOM.
+    //
+    // MEASURED 2026-08-29, reading the motion path end to end before spending
+    // a GPU second on it. This function drew every still to
+    // `story/still/<crypto.randomUUID()>.png` and returned only the BYTES. The
+    // uuid was never returned, never stored, and never told to anybody.
+    // story-motion, meanwhile, does not accept a key at all — by design, so a
+    // bucket path can never travel from a caller — and DERIVES its input_key as
+    // `story/still/<jobId>-<sceneId>-<shotId>.png`.
+    //
+    // Those two keys can never be the same string. So every video_generate job
+    // would have named an object that does not exist, and the worker's
+    // `storage.download(input_key, ...)` would have refused it before LTX was
+    // ever asked to sample a single frame. Not "poor motion" — no motion, at
+    // the price of a GPU job per shot, on every shot, forever.
+    //
+    // The seam already existed: oniqImage.generateStill takes an optional
+    // `opts.id` for exactly this reason, and inHouseMotion.stillIdFor is the
+    // one function that names it. It was simply never wired to a request. So
+    // the fix is to pass the identifiers, not to invent a second scheme.
+    //
+    // IDENTIFIERS, NEVER A PATH, and the job id comes from the TOKEN — the same
+    // rule story-motion holds. A caller cannot name another film's still,
+    // because the only part of the key it contributes is a bounded id inside
+    // its own job's namespace. Absent the identifiers (a signed-in user, a
+    // classic job that will never be animated) the key stays random and
+    // nothing changes.
+    let stillId: string | undefined;
+    const sceneId = typeof body?.sceneId === "string" ? body.sceneId.trim() : "";
+    const shotId = typeof body?.shotId === "string" ? body.shotId.trim() : "";
+    if (auth.jobId && sceneId && shotId) {
+      try {
+        stillId = stillIdFor(auth.jobId, sceneId, shotId);
+      } catch (err) {
+        // Refused, never sanitised: quietly rewriting an id would make two
+        // different shots share one key, and sharing a key means shot 4
+        // animating shot 2's frame.
+        return json({ error: `Bad shot reference: ${String(err)}`, retryable: false }, 400);
+      }
+    }
+
     try {
       const still = await generateStill(
         prompt + ASPECT_SUFFIX,
@@ -157,8 +199,12 @@ Deno.serve(async (req) => {
           sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
           newId: () => crypto.randomUUID(),
         },
+        { id: stillId },
       );
-      return json({ configured: true, mime: still.mime, data: still.data });
+      // `key` travels back so the runner can log WHERE the frame went, and so
+      // a film that later fails to animate can be diagnosed from its own log
+      // rather than by guessing at a uuid nobody kept.
+      return json({ configured: true, mime: still.mime, data: still.data, key: still.key });
     } catch (err) {
       // Named plainly, and NEVER converted into a cloud call. There is no
       // provider behind this except ONIQ's own engine, and a failure here
@@ -191,7 +237,12 @@ function json(payload: unknown, status = 200) {
   });
 }
 
-async function requireAuth(req: Request): Promise<Response | null> {
+/**
+ * Who is asking, or why they may not. A RUNNER's identity is the job it holds;
+ * a signed-in user has none here, and `jobId: null` says so — the still then
+ * gets a random key, exactly as before.
+ */
+async function requireAuth(req: Request): Promise<Response | { jobId: string | null }> {
   // A RUNNER IS NOT A USER. The Story worker holds a per-job capability token,
   // not a Supabase session, so /auth/v1/user would reject it — and passing the
   // service-role key here would not work either, because that is not a user
@@ -202,7 +253,9 @@ async function requireAuth(req: Request): Promise<Response | null> {
     const secret = Deno.env.get("STORY_JOB_SECRET");
     if (!secret) return json({ error: "Auth unavailable" }, 500);
     const verified = await verifyJobToken(jobToken, secret);
-    return verified.ok ? null : json({ error: `token ${verified.reason}` }, 401);
+    return verified.ok
+      ? { jobId: verified.jobId }
+      : json({ error: `token ${verified.reason}` }, 401);
   }
 
   const authHeader = req.headers.get("Authorization");
@@ -214,5 +267,5 @@ async function requireAuth(req: Request): Promise<Response | null> {
     headers: { Authorization: authHeader, apikey: anon },
   });
   if (!res.ok) return json({ error: "Unauthorized" }, 401);
-  return null;
+  return { jobId: null };
 }
