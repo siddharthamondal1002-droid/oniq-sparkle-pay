@@ -309,10 +309,25 @@ async function submitAudioRun(admin: AnyClient, job: Record<string, unknown>): P
     await salvageSilent(admin, job, `audio-admission:${admission.reason}`);
     return;
   }
+  // OWNER DIRECTIVE 2026-08-29: this was the third price refusal — the
+  // running total of what the video step already spent plus what the audio
+  // step would reserve, refused above GPU_JOB_CAP_USD. It is now measured
+  // and logged rather than enforced, in step with GPU_VIDEO_PRICE_GATE.
+  //
+  // It is LOUD on purpose. A ceiling that has been lifted should say so
+  // every time it would have caught something, so the decision stays
+  // visible in the logs rather than becoming invisible the moment it is
+  // made. The numbers below are the same ones the job row records.
   const spent = typeof job.actual_cost_usd === "number" ? job.actual_cost_usd : 0;
-  if (spent + admission.reservationUsd > GPU_JOB_CAP_USD) {
-    await salvageSilent(admin, job, "audio-admission:job-cap-exhausted");
-    return;
+  const wouldReserve = admission.reservationUsd;
+  const runningTotal = wouldReserve === null ? null : spent + wouldReserve;
+  if (runningTotal !== null && runningTotal > GPU_JOB_CAP_USD) {
+    console.warn(
+      `[gpu-video] price gate OFF (owner directive 2026-08-29): audio step ` +
+        `would have refused — spent $${spent.toFixed(4)} + reservation ` +
+        `$${wouldReserve!.toFixed(4)} = $${runningTotal.toFixed(4)} over the ` +
+        `$${GPU_JOB_CAP_USD} cap. Proceeding; cost is still recorded.`,
+    );
   }
   // Mark BEFORE submitting: a poller that finds audio_generating with no
   // provider id knows a submit was interrupted and salvages — it never

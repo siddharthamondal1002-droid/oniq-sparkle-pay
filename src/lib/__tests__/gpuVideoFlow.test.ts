@@ -7,7 +7,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { GPU_JOB_CAP_USD, admitGpuJob } from "../../../supabase/functions/_shared/gpuJob.ts";
 import {
+  GPU_VIDEO_PRICE_GATE,
   LAUNCH,
   MAX_PROMPT_CHARS,
   STAGED_REFERENCES,
@@ -472,11 +474,27 @@ describe("client cannot override budget or runtime", () => {
     }
   });
 
-  it("admission fails closed without a live quote", () => {
-    expect(admitGeneration(null)).toEqual({ ok: false, reason: "gpu-unpriced" });
+  /**
+   * OWNER DIRECTIVE 2026-08-29: the price gate on THIS tool is off, so a
+   * quality run can be generated and judged. These tests were the two that
+   * asserted it refusing. They are not deleted and not loosened — they now
+   * pin the switch itself, which is a stronger claim than the old pair
+   * made: that the gate is off HERE, that it is still on everywhere else,
+   * and that turning it back on restores the exact previous behaviour.
+   */
+  it("the price gate is OFF for this tool, and says so in one greppable word", () => {
+    expect(GPU_VIDEO_PRICE_GATE).toBe(false);
   });
 
-  it("admission holds the owner's $0.50 ceiling against the live price", () => {
+  it("no live quote no longer refuses — but the reservation reads null, never 0", () => {
+    const unpriced = admitGeneration(null);
+    expect(unpriced.ok).toBe(true);
+    // UNKNOWN is not zero. A missing price must not be recorded as a free
+    // job, which is the rule the orphan sweep and queue probe already keep.
+    if (unpriced.ok) expect(unpriced.reservationUsd).toBeNull();
+  });
+
+  it("a price spike no longer refuses, and the reservation is still measured", () => {
     const ok = admitGeneration(0.22);
     expect(ok.ok).toBe(true);
     if (ok.ok) {
@@ -484,12 +502,61 @@ describe("client cannot override budget or runtime", () => {
       expect(ok.maxRuntimeSeconds).toBe(900);
     }
     // The A5000's measured secure price (2026-08-26, the card production
-    // actually runs): a full 900s reservation is $0.0675, well inside cap.
+    // actually runs): a full 900s reservation is $0.0675.
     const a5000 = admitGeneration(0.27);
     expect(a5000.ok).toBe(true);
     if (a5000.ok) expect(a5000.reservationUsd).toBeCloseTo(0.0675, 5);
-    // A price spike that busts the ceiling refuses — it does not re-budget.
-    expect(admitGeneration(2.01)).toEqual({ ok: false, reason: "over-job-cap" });
+    // What used to be over-job-cap. Admitted now — and still priced, so the
+    // number reaches reservation_usd exactly as it did before.
+    const spike = admitGeneration(2.01);
+    expect(spike.ok).toBe(true);
+    if (spike.ok) expect(spike.reservationUsd).toBeCloseTo(0.5025, 5);
+  });
+
+  it("the gate still refuses everywhere it was not switched off", () => {
+    // admitGpuJob defaults to gating, so no other caller lost its ceiling.
+    const base = {
+      gpuType: "NVIDIA RTX A5000",
+      maxRuntimeSeconds: 900,
+      requiredVramGb: 16,
+      jobCapUsd: GPU_JOB_CAP_USD,
+    };
+    expect(admitGpuJob({ ...base, pricePerHourUsd: null })).toEqual({
+      ok: false,
+      reason: "gpu-unpriced",
+    });
+    expect(admitGpuJob({ ...base, pricePerHourUsd: 2.01 })).toEqual({
+      ok: false,
+      reason: "over-job-cap",
+    });
+    // …and an explicit true is the same as omitting it.
+    expect(admitGpuJob({ ...base, pricePerHourUsd: 2.01, priceGate: true })).toEqual({
+      ok: false,
+      reason: "over-job-cap",
+    });
+  });
+
+  it("only the PRICE half was switchable — the technical refusals are unconditional", () => {
+    const off = { maxRuntimeSeconds: 900, requiredVramGb: 16, priceGate: false };
+    // A card that is not the allowed one is still refused.
+    expect(admitGpuJob({ ...off, gpuType: "NVIDIA H100", pricePerHourUsd: 0.27 })).toEqual({
+      ok: false,
+      reason: "gpu-type-not-allowed",
+    });
+    // A card too small for the model is still refused.
+    expect(
+      admitGpuJob({ ...off, gpuType: "NVIDIA RTX A5000", pricePerHourUsd: 0.27, requiredVramGb: 80 }),
+    ).toEqual({ ok: false, reason: "insufficient-vram" });
+    // The runtime ceiling still holds — and with no price cap it is now the
+    // thing that bounds what one job can cost.
+    expect(
+      admitGpuJob({
+        ...off,
+        gpuType: "NVIDIA RTX A5000",
+        pricePerHourUsd: 0.27,
+        maxRuntimeSeconds: 90_000,
+      }),
+    ).toEqual({ ok: false, reason: "runtime-exceeds-ceiling" });
   });
 
   it("the request itself is bounded: prompt length, known reference, one key", () => {
