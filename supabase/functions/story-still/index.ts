@@ -32,7 +32,7 @@
 // create files nothing is tracking.
 
 import { verifyJobToken } from "../_shared/jobToken.ts";
-import { EngineError, generateStill } from "../_shared/oniqImage.ts";
+import { ASPECT_SUFFIX, EngineError, MAX_ASK_CHARS, generateStill } from "../_shared/oniqImage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,9 +51,7 @@ const corsHeaders = {
  * in the file. Removed 2026-08-28, alongside the worker's "RENTED clip
  * experiment" line, which had gone stale the same way.
  */
-const ASPECT_SUFFIX = "\n\nVertical 9:16 portrait composition, full-bleed.";
 
-const MAX_PROMPT = 2000;
 /**
  * Cap on an inlined reference data URL. The owner character frames are ~1.4 MB
  * PNGs (~1.9 MB once base64'd); 12 MB is generous headroom for those while
@@ -110,7 +108,28 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
     if (!prompt) return json({ error: "No prompt." }, 400);
-    if (prompt.length > MAX_PROMPT) return json({ error: "That prompt is too long." }, 400);
+    // OVER THE ENGINE'S CEILING IS A 422, NOT A 400 AND NOT A GPU JOB.
+    //
+    // This accepted 2000 characters while the worker's contract refuses
+    // above 1000, so every long ask was accepted here and refused there —
+    // deterministically, and at the price of a GPU job each time. That
+    // mismatch is the measured 27% failure rate.
+    //
+    // 422 because the caller's ask ladder reads it as "this CONTENT was
+    // refused, step down" and asks again with a shorter rung, which is
+    // exactly the right move and costs nothing. A 400 would be fatal and a
+    // 5xx would burn the retry budget on an answer that cannot change.
+    if (prompt.length > MAX_ASK_CHARS) {
+      return json(
+        {
+          error:
+            `That prompt is ${prompt.length} characters; the image engine takes ` +
+            `${MAX_ASK_CHARS} once the aspect line is counted.`,
+          retryable: false,
+        },
+        422,
+      );
+    }
 
     // REFERENCE CONDITIONING IS NOT AVAILABLE IN-HOUSE YET, and this says so
     // rather than drawing an unconditioned frame and letting the caller
