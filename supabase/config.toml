@@ -48,6 +48,26 @@ verify_jwt = false
 [functions.story-clip]
 verify_jwt = false
 
+# story-motion — ONIQ's OWN LTX motion transport, and the reason movies have
+# never animated. It is the in-house twin of story-clip: the runner is its only
+# caller, it authenticates SOLELY by x-story-job-token (verifyJobToken, HMAC over
+# one job id, 1-hour TTL, constant-time compare), and in dispatched mode the
+# runner sends no Authorization header at all.
+#
+# MEASURED 2026-08-29, story job fce10e2d. The clip stage fired correctly on six
+# shots — "motion 4: WALKING/WALK — clip REQUESTED" — and every one of them came
+# back
+#     story-motion: 404 {"code":"NOT_FOUND","message":"Requested function was not found"}
+# so the film fell back to stills and reported 0/9 shots with a character-motion
+# source. Not weak animation: NO animation. The function was written, committed,
+# and never declared here, so it was never deployed. LTX has not run once.
+#
+# Same reasoning as story-clip above, for the same shape of caller: leaving
+# verify_jwt on would 401 the runner at the gateway before the function's own
+# stronger token check could run.
+[functions.story-motion]
+verify_jwt = false
+
 # Called by pg_cron with the service-role key, which it compares itself — same
 # shape as story-dispatch, and a service key is not a user JWT.
 [functions.story-sweep]
