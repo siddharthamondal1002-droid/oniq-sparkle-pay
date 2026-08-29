@@ -309,18 +309,57 @@ describe("E — the log names the engine that will actually be called", () => {
     expect(emitted).not.toMatch(/RENTED/);
   });
 
-  it("it reports both switches by name", () => {
+  it("emits all three facts as greppable KEY=VALUE tokens", () => {
     expect(worker).toMatch(/MOTION_STAGE=\$\{clipStage\}/);
+    expect(worker).toMatch(/MOTION_PROVIDER=\$\{inHouse \? 'in_house' : 'external'\}/);
+    expect(worker).toMatch(/MOTION_ENGINE=\$\{inHouse \? 'LTX' : 'story-clip'\}/);
     expect(worker).toMatch(/IN_HOUSE_MOTION=\$\{inHouse \? 'on' : 'off'\}/);
     expect(worker).toMatch(/const inHouse = process\.env\.IN_HOUSE_MOTION === 'on';/);
   });
 
-  it("IN_HOUSE_MOTION=on says ONIQ's own LTX, never a rented provider", () => {
-    expect(worker).toMatch(/engine \$\{inHouse \? "ONIQ's own LTX" : 'external video provider'\}/);
+  /**
+   * The line the production run must print, rendered from the same
+   * expressions the worker uses. A test that only greps for the template
+   * cannot catch a token that reads correctly in source and wrong once
+   * interpolated, which is exactly the class of defect RENTED was.
+   */
+  const renderLabel = (clipStage: string, inHouseMotion: string) => {
+    const inHouse = inHouseMotion === "on";
+    return clipStage === "off"
+      ? "  movie grade: MOTION_STAGE=off MOTION_PROVIDER=none MOTION_ENGINE=none" +
+          " — stills and camera only (STORY_MOVIE unset)"
+      : `  movie grade: MOTION_STAGE=${clipStage} ` +
+          `MOTION_PROVIDER=${inHouse ? "in_house" : "external"} ` +
+          `MOTION_ENGINE=${inHouse ? "LTX" : "story-clip"} ` +
+          `(IN_HOUSE_MOTION=${inHouse ? "on" : "off"}, ${
+            clipStage === "select" ? "motion-selected shots only" : "every shot"
+          })`;
+  };
+
+  it("the production case reads in_house / LTX and cannot be mistaken for a rented provider", () => {
+    const line = renderLabel("select", "on");
+    expect(line).toContain("MOTION_STAGE=select");
+    expect(line).toContain("MOTION_PROVIDER=in_house");
+    expect(line).toContain("MOTION_ENGINE=LTX");
+    expect(line).toContain("IN_HOUSE_MOTION=on");
+    for (const wrong of ["RENTED", "rented", "veo", "Veo", "google", "Google", "wan", "WAN"]) {
+      expect(line).not.toContain(wrong);
+    }
+  });
+
+  it("with the in-house switch off it says external, so the payer is never hidden", () => {
+    const line = renderLabel("select", "");
+    expect(line).toContain("MOTION_PROVIDER=external");
+    expect(line).toContain("MOTION_ENGINE=story-clip");
+    expect(line).toContain("IN_HOUSE_MOTION=off");
+    expect(line).not.toContain("in_house");
   });
 
   it("the clip stage being off says stills and camera, not an experiment", () => {
-    expect(worker).toMatch(/MOTION_STAGE=off — stills and camera only \(STORY_MOVIE unset\)/);
+    expect(renderLabel("off", "on")).toContain(
+      "MOTION_STAGE=off MOTION_PROVIDER=none MOTION_ENGINE=none",
+    );
+    expect(worker).toMatch(/MOTION_STAGE=off MOTION_PROVIDER=none MOTION_ENGINE=none/);
   });
 });
 
