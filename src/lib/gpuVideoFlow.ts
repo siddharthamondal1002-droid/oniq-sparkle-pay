@@ -5,6 +5,7 @@
 // works on the owner's device, same as every story function — runs the SAME
 // code the app and the vitest suite see. One source of truth, two runtimes.
 export {
+  GPU_VIDEO_PRICE_GATE,
   AUDIO_MODES,
   MAX_PROMPT_CHARS,
   TARGET_GPU_ID,

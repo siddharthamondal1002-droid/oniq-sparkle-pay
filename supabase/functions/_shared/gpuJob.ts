@@ -179,7 +179,11 @@ export type AdmissionRefusal =
   | "insufficient-vram";
 
 export type GpuAdmission =
-  | { ok: true; reservationUsd: number; maxRuntimeSeconds: number }
+  // reservationUsd is NULLABLE because the price gate is switchable: with
+  // it off an unpriced GPU is admitted and there is genuinely no reservation
+  // to quote. Null is "not measured", never 0 — the rule the orphan sweep
+  // and the queue probe already follow.
+  | { ok: true; reservationUsd: number | null; maxRuntimeSeconds: number }
   | { ok: false; reason: AdmissionRefusal };
 
 /**
@@ -196,6 +200,8 @@ export function admitGpuJob(req: {
   maxRuntimeSeconds: number;
   requiredVramGb: number;
   jobCapUsd?: number;
+  /** Owner switch. Omit or true = refuse on price; false = measure only. */
+  priceGate?: boolean;
 }): GpuAdmission {
   const spec = ALLOWED_GPU_TYPES[req.gpuType];
   if (!spec) return { ok: false, reason: "gpu-type-not-allowed" };
@@ -204,11 +210,28 @@ export function admitGpuJob(req: {
     return { ok: false, reason: "runtime-exceeds-ceiling" };
   }
   const reservationUsd = gpuReservationUsd(req.pricePerHourUsd, req.maxRuntimeSeconds);
-  // A null price is an UNAVAILABLE or unpriced GPU — the A5000's exact state
-  // when this was written. Reserving against it would be reserving nothing.
-  if (reservationUsd === null) return { ok: false, reason: "gpu-unpriced" };
-  const cap = req.jobCapUsd ?? GPU_JOB_CAP_USD;
-  if (reservationUsd > cap) return { ok: false, reason: "over-job-cap" };
+  // THE PRICE GATE, and only the price gate, is switchable.
+  //
+  // Everything above this line is technical and stays unconditional: an
+  // unknown card, a card too small for the model, and a runtime past the
+  // ceiling are all refused whatever the caller asks for. Those are the
+  // checks that stop a job that cannot work; these two stop a job that
+  // works but costs more than a rule allows, which is a different kind of
+  // decision and the owner's to make.
+  //
+  // DEFAULT ON. `priceGate` must be explicitly false to skip these, so
+  // every existing caller keeps the gate it was written with and no
+  // workflow loses its ceiling by being forgotten.
+  if (req.priceGate !== false) {
+    // A null price is an UNAVAILABLE or unpriced GPU — the A5000's exact
+    // state when this was written. Reserving against it would be reserving
+    // nothing.
+    if (reservationUsd === null) return { ok: false, reason: "gpu-unpriced" };
+    const cap = req.jobCapUsd ?? GPU_JOB_CAP_USD;
+    if (reservationUsd > cap) return { ok: false, reason: "over-job-cap" };
+  }
+  // The reservation is returned either way: with the gate off it stops
+  // being a permission and stays a measurement.
   return { ok: true, reservationUsd, maxRuntimeSeconds: req.maxRuntimeSeconds };
 }
 

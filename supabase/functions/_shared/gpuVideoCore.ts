@@ -241,9 +241,37 @@ export function buildAudioMuxPayload(narration: string, jobId: string) {
 export const TARGET_GPU_ID = "NVIDIA RTX A5000";
 
 /**
+ * OWNER DIRECTIVE 2026-08-29: the price gate on the GPU video tool is OFF.
+ *
+ * The owner authorised removing the price/cost admission gates so a quality
+ * run can be generated and judged, and asked explicitly that the cost still
+ * be MEASURED. So this is the one thing that changed: `over-job-cap` and
+ * `gpu-unpriced` no longer refuse. The live quote is still fetched, the
+ * reservation is still computed, `reservation_usd`, `price_per_hour_usd`,
+ * billed seconds and `actual_cost_usd` are all still written exactly as
+ * before. What was a permission is now a measurement.
+ *
+ * A NAMED CONSTANT, not an inline `false`, for three reasons: it is
+ * greppable, turning the gate back on is this one word, and the test suite
+ * asserts its current value — so if it ever flips, CI says so out loud
+ * instead of a ceiling quietly disappearing.
+ *
+ * The scope is deliberately this tool alone. `admitGpuJob` still defaults
+ * to gating, so no other caller is affected, and nothing in the Story
+ * Movie path reads any of this — that path has never had a price gate.
+ */
+export const GPU_VIDEO_PRICE_GATE = false;
+
+/**
  * Financial admission for one generation: the SAME admitGpuJob gate the GPU
  * contract module defines, fed a LIVE price. LTX 2B measured 15.9GB peak on
  * the card, so 16GB is the honest VRAM floor (the A5000 carries 24GB).
+ *
+ * The technical half of that gate is untouched and unconditional: the card
+ * must be the allowed A5000, it must carry the VRAM the model needs, and
+ * the runtime ceiling still bounds the job. Those are what stop a job that
+ * cannot work, and they are also what bounds the spend now that the price
+ * ceiling does not — a job cannot bill past MAX_GPU_RUNTIME_SECONDS.
  */
 export function admitGeneration(livePricePerHourUsd: number | null): GpuAdmission {
   return admitGpuJob({
@@ -252,6 +280,7 @@ export function admitGeneration(livePricePerHourUsd: number | null): GpuAdmissio
     maxRuntimeSeconds: MAX_GPU_RUNTIME_SECONDS,
     requiredVramGb: 16,
     jobCapUsd: GPU_JOB_CAP_USD,
+    priceGate: GPU_VIDEO_PRICE_GATE,
   });
 }
 
