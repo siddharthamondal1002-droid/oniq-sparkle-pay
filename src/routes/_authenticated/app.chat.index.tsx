@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SearchClearButton } from "@/components/ui/SearchClearButton";
@@ -115,11 +115,12 @@ type ScrollDiagStats = {
 };
 
 function ScrollDiagOverlay({
+  enabled,
   queryStateRef,
 }: {
+  enabled: boolean;
   queryStateRef: RefObject<ScrollDiagQueryState>;
 }) {
-  const [enabled, setEnabled] = useState(false);
   const [snap, setSnap] = useState({
     top: 0,
     height: 0,
@@ -139,10 +140,6 @@ function ScrollDiagOverlay({
   // Snapshot trigger: the sampler bumps this so the readout re-renders even
   // when only the counters (not the sampled numbers) moved.
   const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    setEnabled(new URLSearchParams(window.location.search).get("scrolldiag") === "1");
-  }, []);
 
   useEffect(() => {
     if (!enabled) return;
@@ -258,6 +255,48 @@ function ChatList() {
   // Read by the dev-only scroll diagnostic on every scrollHeight change so the
   // console line can say whether the list was loading at that instant.
   const diagQueryRef = useRef<ScrollDiagQueryState>({ isLoading: false, isFetching: false });
+
+  // Dev-only scroll diagnostic activation: query param OR five quick taps on
+  // the "Chats" header title. No persistence — state resets on remount.
+  const [scrollDiagQueryEnabled, setScrollDiagQueryEnabled] = useState(false);
+  const [scrollDiagTappedEnabled, setScrollDiagTappedEnabled] = useState(false);
+  const scrollDiagTapCountRef = useRef(0);
+  const scrollDiagLastTapRef = useRef(0);
+  const scrollDiagResetTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setScrollDiagQueryEnabled(
+      new URLSearchParams(window.location.search).get("scrolldiag") === "1",
+    );
+  }, []);
+
+  const handleHeaderTitleTap = useCallback(() => {
+    const now = Date.now();
+    if (now - scrollDiagLastTapRef.current > 3000) {
+      scrollDiagTapCountRef.current = 1;
+    } else {
+      scrollDiagTapCountRef.current += 1;
+    }
+    scrollDiagLastTapRef.current = now;
+
+    if (scrollDiagResetTimerRef.current !== null) {
+      window.clearTimeout(scrollDiagResetTimerRef.current);
+    }
+    scrollDiagResetTimerRef.current = window.setTimeout(() => {
+      scrollDiagTapCountRef.current = 0;
+    }, 3000);
+
+    if (scrollDiagTapCountRef.current >= 5) {
+      scrollDiagTapCountRef.current = 0;
+      if (scrollDiagResetTimerRef.current !== null) {
+        window.clearTimeout(scrollDiagResetTimerRef.current);
+        scrollDiagResetTimerRef.current = null;
+      }
+      setScrollDiagTappedEnabled((v) => !v);
+    }
+  }, []);
+
+  const scrollDiagEnabled = scrollDiagQueryEnabled || scrollDiagTappedEnabled;
 
   const startLongPress = (c: EnrichedConv) => {
     longPressFired.current = false;
@@ -472,7 +511,7 @@ function ChatList() {
 
   return (
     <div className="px-4 pt-12 pb-4">
-      <ScrollDiagOverlay queryStateRef={diagQueryRef} />
+      <ScrollDiagOverlay enabled={scrollDiagEnabled} queryStateRef={diagQueryRef} />
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <Link
@@ -482,7 +521,7 @@ function ChatList() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="font-display text-3xl font-bold">
+          <h1 className="font-display text-3xl font-bold" onClick={handleHeaderTitleTap}>
             <span className="bg-gradient-to-r from-foreground via-foreground to-fuchsia-400 bg-clip-text text-transparent">
               Chats
             </span>
