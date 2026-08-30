@@ -110,6 +110,33 @@ Deno.serve(async (req) => {
   try {
     // Service role only. This is a scheduled internal job, not a user action —
     // an authenticated user calling it could dispatch other people's Stories.
+    //
+    // THIS COMPARES TWO COPIES OF ONE CREDENTIAL, AND THAT IS THE FRAGILITY.
+    // The check is byte equality against the key the PLATFORM injects here.
+    // The caller is pg_cron, which sends the copy kept in the Postgres vault —
+    // story_dispatch_tick() reads `story_dispatch_service_role_key` and falls
+    // back to `email_queue_service_role_key`. Nothing keeps the two copies in
+    // step and nothing tests that they still match, so any edit to either side
+    // silently disarms the dispatcher.
+    //
+    // MEASURED 2026-08-30. The vault's copy was overwritten at 16:57:45 with a
+    // DIFFERENT service-role credential — a legacy `eyJ...` JWT issued
+    // 2026-07-02 and still perfectly valid, which authenticated against
+    // PostgREST when it was tested. Valid was not enough, because this is
+    // equality. The first 401 landed at 17:00:00, the next scheduled call
+    // after that write, and every story-dispatch AND every story-sweep call
+    // failed from then on. This project is on Supabase's new API key format
+    // (`sb_publishable_` / `sb_secret_`, see src/integrations/supabase/
+    // client.ts), so the value injected here and a legacy JWT are different
+    // strings by construction — "it is a real service_role key" says nothing.
+    //
+    // WHEN THE STORY QUEUE STOPS MOVING, READ story_dispatch_health FIRST.
+    // consecutive_failures and last_detail name this failure in one row, and
+    // last_ok_at brackets when it began. Do NOT start at story-still: a
+    // dispatcher that never fires leaves the GPU idle and the job rows clean,
+    // with `error` empty and dispatched_at NULL, which reads like a fault
+    // downstream of the queue and is the opposite of one. A user's Story sat
+    // in `queued` for over half an hour that way.
     const auth = req.headers.get("Authorization") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!serviceKey || auth !== `Bearer ${serviceKey}`) {

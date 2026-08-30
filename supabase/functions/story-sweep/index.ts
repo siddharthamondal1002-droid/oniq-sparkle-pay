@@ -99,6 +99,16 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !serviceKey) return json({ configured: false }, 200);
 
+    // Same two-copies-of-one-credential check as story-dispatch, and the same
+    // failure — but SILENT, which is the part worth fixing. story_sweep_tick()
+    // calls this with `perform net.http_post(...)`, discarding the request id,
+    // so no response is ever read back and there is no story_dispatch_health
+    // equivalent for the sweep. On 2026-08-30 the vault's key stopped matching
+    // the injected one at 16:57:45 and every sweep 401'd from 17:00 onward:
+    // user video was not being purged for three hours and NOTHING said so.
+    // Dispatch surfaced its own outage within a minute because it keeps the
+    // request id and records the reply; this does not. See the comment at the
+    // matching check in story-dispatch/index.ts for the full incident.
     const auth = req.headers.get("Authorization") ?? "";
     if (auth !== `Bearer ${serviceKey}`) return json({ error: "Unauthorized" }, 401);
 
