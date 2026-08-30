@@ -256,6 +256,48 @@ function ChatList() {
   // console line can say whether the list was loading at that instant.
   const diagQueryRef = useRef<ScrollDiagQueryState>({ isLoading: false, isFetching: false });
 
+  // Dev-only scroll diagnostic activation: query param OR five quick taps on
+  // the "Chats" header title. No persistence — state resets on remount.
+  const [scrollDiagQueryEnabled, setScrollDiagQueryEnabled] = useState(false);
+  const [scrollDiagTappedEnabled, setScrollDiagTappedEnabled] = useState(false);
+  const scrollDiagTapCountRef = useRef(0);
+  const scrollDiagLastTapRef = useRef(0);
+  const scrollDiagResetTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setScrollDiagQueryEnabled(
+      new URLSearchParams(window.location.search).get("scrolldiag") === "1",
+    );
+  }, []);
+
+  const handleHeaderTitleTap = useCallback(() => {
+    const now = Date.now();
+    if (now - scrollDiagLastTapRef.current > 3000) {
+      scrollDiagTapCountRef.current = 1;
+    } else {
+      scrollDiagTapCountRef.current += 1;
+    }
+    scrollDiagLastTapRef.current = now;
+
+    if (scrollDiagResetTimerRef.current !== null) {
+      window.clearTimeout(scrollDiagResetTimerRef.current);
+    }
+    scrollDiagResetTimerRef.current = window.setTimeout(() => {
+      scrollDiagTapCountRef.current = 0;
+    }, 3000);
+
+    if (scrollDiagTapCountRef.current >= 5) {
+      scrollDiagTapCountRef.current = 0;
+      if (scrollDiagResetTimerRef.current !== null) {
+        window.clearTimeout(scrollDiagResetTimerRef.current);
+        scrollDiagResetTimerRef.current = null;
+      }
+      setScrollDiagTappedEnabled((v) => !v);
+    }
+  }, []);
+
+  const scrollDiagEnabled = scrollDiagQueryEnabled || scrollDiagTappedEnabled;
+
   const startLongPress = (c: EnrichedConv) => {
     longPressFired.current = false;
     longPressTimer.current = window.setTimeout(() => {
