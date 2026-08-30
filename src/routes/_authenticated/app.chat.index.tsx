@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SearchClearButton } from "@/components/ui/SearchClearButton";
@@ -115,11 +115,12 @@ type ScrollDiagStats = {
 };
 
 function ScrollDiagOverlay({
+  enabled,
   queryStateRef,
 }: {
+  enabled: boolean;
   queryStateRef: RefObject<ScrollDiagQueryState>;
 }) {
-  const [enabled, setEnabled] = useState(false);
   const [snap, setSnap] = useState({
     top: 0,
     height: 0,
@@ -139,10 +140,6 @@ function ScrollDiagOverlay({
   // Snapshot trigger: the sampler bumps this so the readout re-renders even
   // when only the counters (not the sampled numbers) moved.
   const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    setEnabled(new URLSearchParams(window.location.search).get("scrolldiag") === "1");
-  }, []);
 
   useEffect(() => {
     if (!enabled) return;
