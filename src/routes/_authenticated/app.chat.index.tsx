@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SearchClearButton } from "@/components/ui/SearchClearButton";
@@ -88,6 +88,159 @@ function convTime(iso: string | null): string {
   return format(d, "dd/MM/yy");
 }
 
+/**
+ * DEV-ONLY SCROLL DIAGNOSTIC (owner request, 2026-08-30).
+ *
+ * Enabled ONLY by the query param `?scrolldiag=1` — no env or build flag, so
+ * it can never reach a normal user. It measures the document scroller on
+ * /app/chat to separate two mechanisms for scroll offsets that move without a
+ * gesture: content height changing under the finger (which forces the browser
+ * to clamp scrollTop), and compositor/overscroll state in the WebView.
+ *
+ * It renders a fixed readout (top-right, pointer-events:none) and logs one
+ * console line per scrollHeight change, including the conversations query's
+ * isLoading/isFetching at that instant. It changes no layout, no handlers and
+ * no product behaviour: a passive scroll listener plus a 120ms sampler.
+ */
+type ScrollDiagQueryState = { isLoading: boolean; isFetching: boolean };
+
+type ScrollDiagStats = {
+  heightChanges: number;
+  lastHeightDelta: number;
+  unrequestedTopChanges: number;
+  lastScrollTarget: string;
+  lastHeight: number;
+  lastTop: number;
+  lastHeightChangeAt: number;
+};
+
+function ScrollDiagOverlay({
+  queryStateRef,
+}: {
+  queryStateRef: RefObject<ScrollDiagQueryState>;
+}) {
+  const [enabled, setEnabled] = useState(false);
+  const [snap, setSnap] = useState({
+    top: 0,
+    height: 0,
+    client: 0,
+    vvh: -1,
+    vvo: -1,
+  });
+  const statsRef = useRef<ScrollDiagStats>({
+    heightChanges: 0,
+    lastHeightDelta: 0,
+    unrequestedTopChanges: 0,
+    lastScrollTarget: "(none)",
+    lastHeight: -1,
+    lastTop: 0,
+    lastHeightChangeAt: -1e9,
+  });
+  // Snapshot trigger: the sampler bumps this so the readout re-renders even
+  // when only the counters (not the sampled numbers) moved.
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    setEnabled(new URLSearchParams(window.location.search).get("scrolldiag") === "1");
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const se = document.scrollingElement ?? document.documentElement;
+    const st = statsRef.current;
+    st.lastHeight = se.scrollHeight;
+    st.lastTop = se.scrollTop;
+
+    const updateSnap = () => {
+      setSnap({
+        top: se.scrollTop,
+        height: se.scrollHeight,
+        client: se.clientHeight,
+        vvh: window.visualViewport?.height ?? -1,
+        vvo: window.visualViewport?.offsetTop ?? -1,
+      });
+    };
+
+    const onScroll = (e: Event) => {
+      const top = se.scrollTop;
+      const delta = top - st.lastTop;
+      // A scrollTop move within 200ms of a scrollHeight change is the clamp,
+      // not the finger.
+      if (
+        Math.abs(delta) > 1 &&
+        performance.now() - st.lastHeightChangeAt <= 200
+      ) {
+        st.unrequestedTopChanges += 1;
+      }
+      st.lastTop = top;
+      const t = e.target;
+      st.lastScrollTarget =
+        t === document || t === null
+          ? "document"
+          : `${(t as HTMLElement).tagName}.${String((t as HTMLElement).className ?? "").slice(0, 48)}`;
+      updateSnap();
+      setTick((n) => n + 1);
+    };
+
+    const sample = () => {
+      const h = se.scrollHeight;
+      if (h !== st.lastHeight) {
+        const prev = st.lastHeight;
+        const delta = h - prev;
+        st.heightChanges += 1;
+        st.lastHeightDelta = delta;
+        st.lastHeight = h;
+        st.lastHeightChangeAt = performance.now();
+        const q = queryStateRef.current;
+        // eslint-disable-next-line no-console
+        console.log(
+          `[scrolldiag] scrollHeight ${prev} -> ${h} (Δ${delta}) scrollTop=${se.scrollTop} convs.isLoading=${q?.isLoading} convs.isFetching=${q?.isFetching}`,
+        );
+        setTick((n) => n + 1);
+      }
+      updateSnap();
+    };
+
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    const iv = window.setInterval(sample, 120);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.clearInterval(iv);
+    };
+  }, [enabled, queryStateRef]);
+
+  if (!enabled) return null;
+
+  const st = statsRef.current;
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "fixed",
+        top: 4,
+        right: 4,
+        zIndex: 9999,
+        pointerEvents: "none",
+        fontFamily: "monospace",
+        fontSize: 11,
+        lineHeight: 1.5,
+        whiteSpace: "pre",
+        background: "rgba(0,0,0,0.75)",
+        color: "#7CFC00",
+        padding: "4px 6px",
+        borderRadius: 6,
+      }}
+    >
+      {`top ${snap.top}  h ${snap.height}  ch ${snap.client}
+vv ${Math.round(snap.vvh)}/${Math.round(snap.vvo)}
+hΔ n=${st.heightChanges} last=${st.lastHeightDelta}
+clamp n=${st.unrequestedTopChanges}
+src ${st.lastScrollTarget}
+t${tick}`}
+    </div>
+  );
+}
+
 function ChatList() {
   const qc = useQueryClient();
   const onlineSet = useOnlineUsers();
@@ -102,6 +255,9 @@ function ChatList() {
   const [deleting, setDeleting] = useState(false);
   const longPressTimer = useRef<number | null>(null);
   const longPressFired = useRef(false);
+  // Read by the dev-only scroll diagnostic on every scrollHeight change so the
+  // console line can say whether the list was loading at that instant.
+  const diagQueryRef = useRef<ScrollDiagQueryState>({ isLoading: false, isFetching: false });
 
   const startLongPress = (c: EnrichedConv) => {
     longPressFired.current = false;
@@ -160,7 +316,7 @@ function ChatList() {
   });
   const blockedSet = useMemo(() => new Set(blockedIds), [blockedIds]);
 
-  const { data: convs, isLoading } = useQuery({
+  const { data: convs, isLoading, isFetching } = useQuery({
     queryKey: ["conversations", me?.id, blockedIds.join(",")],
     enabled: !!me,
     staleTime: 30_000,
@@ -207,6 +363,10 @@ function ChatList() {
         }));
     },
   });
+
+  useEffect(() => {
+    diagQueryRef.current = { isLoading, isFetching };
+  }, [isLoading, isFetching]);
 
   // Incoming friend requests count (for header badge)
   const { data: incomingRequests = [] } = useQuery({
@@ -312,6 +472,7 @@ function ChatList() {
 
   return (
     <div className="px-4 pt-12 pb-4">
+      <ScrollDiagOverlay queryStateRef={diagQueryRef} />
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <Link
