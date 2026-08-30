@@ -511,7 +511,7 @@ function ChatList() {
 
   return (
     <div className="px-4 pt-12 pb-4">
-      <ScrollDiagOverlay queryStateRef={diagQueryRef} />
+      <ScrollDiagOverlay enabled={scrollDiagEnabled} queryStateRef={diagQueryRef} />
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <Link
@@ -521,7 +521,7 @@ function ChatList() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="font-display text-3xl font-bold">
+          <h1 className="font-display text-3xl font-bold" onClick={handleHeaderTitleTap}>
             <span className="bg-gradient-to-r from-foreground via-foreground to-fuchsia-400 bg-clip-text text-transparent">
               Chats
             </span>
