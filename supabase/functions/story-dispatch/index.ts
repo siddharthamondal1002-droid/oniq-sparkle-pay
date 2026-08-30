@@ -21,6 +21,7 @@
 // IT DOES NOT CLAIM THE JOB. The row stays `queued` until the runner actually
 // starts, so a dispatch that never lands on a runner leaves the job available
 // rather than stranding it in `generating` with nothing working on it.
+import { authorizeScheduledCaller } from "../_shared/dispatchAuth.ts";
 import { mintJobToken } from "../_shared/jobToken.ts";
 
 const corsHeaders = {
@@ -108,12 +109,30 @@ function findGithubToken(): { name: string; value: string } | null {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    // Service role only. This is a scheduled internal job, not a user action —
-    // an authenticated user calling it could dispatch other people's Stories.
-    const auth = req.headers.get("Authorization") ?? "";
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!serviceKey || auth !== `Bearer ${serviceKey}`) {
+    // Scheduled caller only. This is an internal job, not a user action — an
+    // authenticated user calling it could dispatch other people's Stories.
+    // _shared/dispatchAuth.ts holds the credential's whole story: why it is a
+    // dedicated secret rather than the service-role key, and the 2026-08-30
+    // outage that forced the change.
+    //
+    // WHEN THE STORY QUEUE STOPS MOVING, READ story_dispatch_health FIRST.
+    // consecutive_failures and last_detail name a caller-auth failure in one
+    // row, and last_ok_at brackets when it began. Do NOT start at story-still:
+    // a dispatcher that never fires leaves the GPU idle and the job rows
+    // clean, with `error` empty and dispatched_at NULL, which reads like a
+    // fault downstream of the queue and is the opposite of one. A user's Story
+    // sat in `queued` for over half an hour that way, while the GPU worker sat
+    // warm and idle and every probe of it came back healthy.
+    if (!authorizeScheduledCaller(req)) {
       return json({ error: "Unauthorized" }, 401);
+    }
+    // Still needed BELOW, for this function's OWN PostgREST calls. What moved
+    // to a dedicated secret is the CALLER's credential, not the function's.
+    // Checked here rather than folded into `missing` below because this is
+    // also what narrows the type for the header uses further down.
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!serviceKey) {
+      return json({ configured: false, missing: ["SUPABASE_SERVICE_ROLE_KEY"] }, 200);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");

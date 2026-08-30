@@ -31,6 +31,8 @@
  * anywhere. MIRRORED in src/lib/storyLifecycle.ts; storyLifecycle.test.ts
  * fails if the two drift.
  */
+import { authorizeScheduledCaller } from "../_shared/dispatchAuth.ts";
+
 const READY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** queued -> stale. An UNCLAIMED job that no runner picked up dies at 30 min. */
@@ -99,8 +101,19 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !serviceKey) return json({ configured: false }, 200);
 
-    const auth = req.headers.get("Authorization") ?? "";
-    if (auth !== `Bearer ${serviceKey}`) return json({ error: "Unauthorized" }, 401);
+    // Scheduled caller only — see _shared/dispatchAuth.ts for why this is a
+    // dedicated secret rather than the service-role key, and for the incident
+    // that forced the change.
+    //
+    // THE SWEEP'S OWN FAILURE WAS SILENT, and that is the half still worth
+    // fixing. story_sweep_tick() calls this with `perform net.http_post(...)`,
+    // discarding the request id, so no response is ever read back and there is
+    // no story_dispatch_health equivalent for the sweep. On 2026-08-30 every
+    // sweep 401'd from 17:00 onward — user video went unpurged for three hours
+    // and NOTHING said so. Dispatch surfaced the same outage within a minute
+    // because it keeps its request id and records the reply. Giving the sweep
+    // a health row is the obvious follow-up.
+    if (!authorizeScheduledCaller(req)) return json({ error: "Unauthorized" }, 401);
 
     const svc = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
     const now = Date.now();
