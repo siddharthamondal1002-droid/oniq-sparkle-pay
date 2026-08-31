@@ -46,7 +46,7 @@
  * worker is then asked for.
  */
 
-import { ACTOR_ASSETS, referenceEligible } from "../../../src/data/storyActorAssets.ts";
+import { ACTOR_ASSETS, referenceEligible } from "./storyActorAssets.ts";
 
 /** The server-owned prefix. Mirrors contract.py REFERENCE_PREFIX exactly. */
 export const REFERENCE_PREFIX = "story/ref/";

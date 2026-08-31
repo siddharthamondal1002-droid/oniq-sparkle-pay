@@ -43,7 +43,7 @@ import {
   ONIQ_ASSET_ORIGIN,
   assetUrl,
   referenceEligible,
-} from "../../../src/data/storyActorAssets.ts";
+} from "../_shared/storyActorAssets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
