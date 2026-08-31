@@ -322,6 +322,41 @@ export type MotionConditions = {
   workerImagePresent: boolean;
 };
 
+/**
+ * OWNER DIRECTIVE, 2026-08-31: "enable video and use in-house motion first."
+ *
+ * WHAT WAS ACTUALLY WRONG. Motion had never run in production — not once. The
+ * ladder was escalating correctly and this router was answering `in-house`
+ * correctly; the refusal came from further down, at the spend guard:
+ * `provider_budget_config.VIDEO.enabled` was FALSE, so every clip request came
+ * back 402 `no-budget-configured` and each shot silently carried as a still.
+ * Measured on job 87c2b756 (2026-08-31), a 60s nine-shot film:
+ *
+ *   MOTION_VALIDATE FAIL: 0/9 shots have a character-motion source,
+ *                         9 still-only, 7 FAIL
+ *   MOTION_CONTRACT: 8x story-motion: 402 no-budget-configured
+ *
+ * The film rendered, graded, uploaded and delivered — and was a slideshow. A
+ * green pipeline is not a correct artifact, which is the whole reason
+ * MOTION_VALIDATE prints that line rather than letting the run pass quietly.
+ *
+ * VIDEO is now enabled, with its existing caps untouched: $50/day, $5/job,
+ * $1/request, 3 attempts per shot.
+ *
+ * "IN-HOUSE FIRST" NEEDED NO CODE CHANGE — it is what the branches below
+ * already do, and more strictly than "first" implies: when in-house is
+ * selected, a failure is `blocked`, never `premium`. The directive is recorded
+ * here so that reading this router tells you the routing IS the owner's
+ * decision, not an implementation detail free to be relaxed later.
+ *
+ * WHY THE ORDER IS WORTH DEFENDING, measured rather than argued:
+ *   in-house  $0.0029 per clip   (IN_HOUSE_CLIP_COST, A5000, 2026-08-27)
+ *   Veo Fast  $0.40–$0.80 per clip ($0.10/s × 4–8s, videoRouting.ts)
+ * That is roughly 140–275x. A silent premium fallback would not be a
+ * degradation of quality, it would be a two-order-of-magnitude change in what
+ * a film costs to make — which is exactly the class of decision the
+ * 2026-08-14 directive says an agent may not take on its own.
+ */
 export function routeMotion(c: MotionConditions): MotionRoute {
   if (!c.inHouseEnabled) return { engine: "premium", level: 5 };
   if (!c.workerImagePresent) return { engine: "blocked", reason: "worker-image-missing" };
