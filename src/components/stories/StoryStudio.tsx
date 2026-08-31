@@ -613,84 +613,6 @@ export function StoryStudio() {
           was cut. Only the text above gets narrated.
         </p>
       ) : null}
-
-      <CinematicPanel
-        intent={shotIntent}
-        onChange={setShotIntent}
-        disabled={verbatim}
-        promptText={prompt}
-      />
-
-      {/* THE PLATE. Sits under the prompt because it answers the same
-          question — what the film opens on — and because that is where it was
-          looked for and not found (2026-08-17).
-
-          The input accepts IMAGES ONLY, and the copy says why rather than
-          leaving "images only" to read as a limitation of the picker. Veo is
-          image-to-video; there is no video-in path in the engine at all, so a
-          video here could be stored and never used, which is the kind of
-          control this codebase treats as a bug. checkPlate() still catches a
-          video, because `accept` is a hint a file manager may ignore. */}
-      <div className="mt-3">
-        <div className="text-xs font-semibold text-foreground">Open on your own photo?</div>
-        <input
-          ref={plateInputRef}
-          type="file"
-          accept={PLATE_TYPES.join(",")}
-          className="sr-only"
-          onChange={(e) => {
-            const f = e.target.files?.[0] ?? null;
-            // Clear the input's own value so picking the SAME file twice after
-            // a rejection still fires a change event.
-            e.target.value = "";
-            if (!f) return;
-            const verdict = checkPlate(f);
-            if (!verdict.ok) {
-              setPlate(null);
-              setPlateError(verdict.message);
-              return;
-            }
-            setPlateError(null);
-            setPlate(f);
-          }}
-        />
-        {plate && platePreview ? (
-          <div className="mt-1.5 flex items-center gap-2 rounded-2xl border border-border bg-card/70 p-2">
-            <img
-              src={platePreview}
-              alt="The frame your film will open on"
-              className="h-14 w-20 rounded-lg object-cover"
-            />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-xs text-foreground">{plate.name}</div>
-              <div className="text-[11px] text-muted-foreground">
-                the first shot starts here, then the film moves on
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setPlate(null);
-                setPlateError(null);
-              }}
-              aria-label="Remove the opening photo"
-              className="press grid h-7 w-7 shrink-0 place-items-center rounded-full border border-border text-muted-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => plateInputRef.current?.click()}
-            className="press mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-dashed border-border bg-card/60 px-3 py-1.5 text-[11px] font-semibold text-muted-foreground"
-          >
-            <ImagePlus className="h-3.5 w-3.5" /> add a photo
-          </button>
-        )}
-        {plateError ? <p className="mt-1 text-[11px] text-amber-300">{plateError}</p> : null}
-      </div>
-
       <div className="mt-3 text-xs font-semibold text-foreground">How long?</div>
       <div className="mt-1.5 flex flex-wrap gap-2">
         {PRESETS.map((s) => (
@@ -713,7 +635,6 @@ export function StoryStudio() {
       <div className="mt-1.5 text-[11px] text-muted-foreground">
         {plan_.seconds}s · {plan_.shots.length} shots
       </div>
-
       {/* MOVIE GRADE — no longer a toggle (owner directive, 2026-08-15:
           "make classic inactive totally"). It was a switch while there were
           two products; with classic withdrawn there is one, so this states
@@ -732,203 +653,272 @@ export function StoryStudio() {
         </span>
       </div>
 
-      {/* MY WORDS — verbatim mode (owner directive, 2026-08-14). The typed
+      {/* ONE JOB ON SCREEN (owner directive, 2026-08-31: "this page is very
+          confusing make everything automated not so many options").
+
+          The studio had eleven stacked sections and TWO generate buttons — the
+          film one at the bottom and the clip one two thirds of the way down —
+          so the first question the page asked was "which of these am I even
+          using". Everything below is still here and still one tap away; what
+          changed is that the default view answers one question, describe a
+          story and press Generate, and the rest is folded.
+
+          NOTHING WAS DELETED AND NOTHING MOVED ROUTE. Folding is reversible in
+          a way that deleting is not, and every one of these panels is somebody's
+          workflow. `<details>` is the same native disclosure CinematicPanel
+          already uses: no library, no state, no hook, so it cannot break the
+          rules-of-hooks gate that is a release blocker here.
+
+          WHAT STAYS OPEN IS DELIBERATE. The AI label and its report control are
+          required by Play and are declared in config/playCompliance.ts; the
+          length picker is what decides how much video time a press spends; and
+          the "before you generate" notice has to be read BEFORE the button, not
+          discovered after. None of those three may be folded. */}
+      <details className="mt-3 rounded-2xl border border-border bg-card/50 px-3 py-2">
+        <summary className="cursor-pointer select-none text-xs font-semibold text-foreground">
+          More options
+          <span className="ms-1 font-normal text-muted-foreground">
+            (opening photo, look, your own words, cast)
+          </span>
+        </summary>
+        <div className="mb-1">
+          <CinematicPanel
+            intent={shotIntent}
+            onChange={setShotIntent}
+            disabled={verbatim}
+            promptText={prompt}
+          />
+          {/* THE PLATE. Sits under the prompt because it answers the same
+          question — what the film opens on — and because that is where it was
+          looked for and not found (2026-08-17).
+
+          The input accepts IMAGES ONLY, and the copy says why rather than
+          leaving "images only" to read as a limitation of the picker. Veo is
+          image-to-video; there is no video-in path in the engine at all, so a
+          video here could be stored and never used, which is the kind of
+          control this codebase treats as a bug. checkPlate() still catches a
+          video, because `accept` is a hint a file manager may ignore. */}
+          <div className="mt-3">
+            <div className="text-xs font-semibold text-foreground">Open on your own photo?</div>
+            <input
+              ref={plateInputRef}
+              type="file"
+              accept={PLATE_TYPES.join(",")}
+              className="sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                // Clear the input's own value so picking the SAME file twice after
+                // a rejection still fires a change event.
+                e.target.value = "";
+                if (!f) return;
+                const verdict = checkPlate(f);
+                if (!verdict.ok) {
+                  setPlate(null);
+                  setPlateError(verdict.message);
+                  return;
+                }
+                setPlateError(null);
+                setPlate(f);
+              }}
+            />
+            {plate && platePreview ? (
+              <div className="mt-1.5 flex items-center gap-2 rounded-2xl border border-border bg-card/70 p-2">
+                <img
+                  src={platePreview}
+                  alt="The frame your film will open on"
+                  className="h-14 w-20 rounded-lg object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs text-foreground">{plate.name}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    the first shot starts here, then the film moves on
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlate(null);
+                    setPlateError(null);
+                  }}
+                  aria-label="Remove the opening photo"
+                  className="press grid h-7 w-7 shrink-0 place-items-center rounded-full border border-border text-muted-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => plateInputRef.current?.click()}
+                className="press mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-dashed border-border bg-card/60 px-3 py-1.5 text-[11px] font-semibold text-muted-foreground"
+              >
+                <ImagePlus className="h-3.5 w-3.5" /> add a photo
+              </button>
+            )}
+            {plateError ? <p className="mt-1 text-[11px] text-amber-300">{plateError}</p> : null}
+          </div>
+          {/* MY WORDS — verbatim mode (owner directive, 2026-08-14). The typed
           text is a finished story, narrated exactly as written: the worker
           slices it into shot narrations and Ting designs only the pictures.
           Arms only when the text's spoken length fits the picked tier; the
           claim re-checks the same band server-side, so this gate is honest
           twice. */}
-      <button
-        type="button"
-        aria-pressed={verbatim}
-        disabled={!verbatimFit.fits}
-        onClick={() => setVerbatim((v) => !v)}
-        className={
-          "mt-2 flex w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left " +
-          (verbatim
-            ? "border-primary bg-primary/10"
-            : "border-border bg-card/50" + (verbatimFit.fits ? "" : " opacity-60"))
-        }
-      >
-        <span>
-          <span className="block text-xs font-semibold text-foreground">📜 My words</span>
-          <span className="mt-0.5 block text-[11px] text-muted-foreground">
-            {verbatimFit.fits
-              ? `Narrated exactly as written — no retelling. Reads as ~${Math.round(verbatimFit.spokenSeconds)}s of speech.`
-              : prompt.trim().length >= 8
-                ? verbatimTierFix
-                  ? `Reads as ~${Math.round(verbatimFit.spokenSeconds)}s of speech — ${verbatimFit.reason ?? "does not fit"} at ${tierLabel(plan_.seconds)}. It fits ${tierLabel(verbatimTierFix)}.`
-                  : `Needs a full story that fits ${tierLabel(plan_.seconds)}: yours ${verbatimFit.reason ?? "does not fit"}.`
-                : "Paste a full story and it will be narrated exactly as written."}
-          </span>
-        </span>
-        <span
-          className={
-            "ms-3 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " +
-            (verbatim
-              ? "bg-primary text-primary-foreground"
-              : "border border-border text-muted-foreground")
-          }
-        >
-          {verbatim ? "on" : "off"}
-        </span>
-      </button>
-      {/* The one-tap way out of a refusal. Its own button rather than part of
+          <button
+            type="button"
+            aria-pressed={verbatim}
+            disabled={!verbatimFit.fits}
+            onClick={() => setVerbatim((v) => !v)}
+            className={
+              "mt-2 flex w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left " +
+              (verbatim
+                ? "border-primary bg-primary/10"
+                : "border-border bg-card/50" + (verbatimFit.fits ? "" : " opacity-60"))
+            }
+          >
+            <span>
+              <span className="block text-xs font-semibold text-foreground">📜 My words</span>
+              <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                {verbatimFit.fits
+                  ? `Narrated exactly as written — no retelling. Reads as ~${Math.round(verbatimFit.spokenSeconds)}s of speech.`
+                  : prompt.trim().length >= 8
+                    ? verbatimTierFix
+                      ? `Reads as ~${Math.round(verbatimFit.spokenSeconds)}s of speech — ${verbatimFit.reason ?? "does not fit"} at ${tierLabel(plan_.seconds)}. It fits ${tierLabel(verbatimTierFix)}.`
+                      : `Needs a full story that fits ${tierLabel(plan_.seconds)}: yours ${verbatimFit.reason ?? "does not fit"}.`
+                    : "Paste a full story and it will be narrated exactly as written."}
+              </span>
+            </span>
+            <span
+              className={
+                "ms-3 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " +
+                (verbatim
+                  ? "bg-primary text-primary-foreground"
+                  : "border border-border text-muted-foreground")
+              }
+            >
+              {verbatim ? "on" : "off"}
+            </span>
+          </button>
+          {/* The one-tap way out of a refusal. Its own button rather than part of
           the toggle above, because a button inside a button is invalid and
           because the two do different things — this changes the LENGTH, which
           changes the price, so it must be a deliberate separate tap. */}
-      {verbatimTierFix !== null ? (
-        <button
-          type="button"
-          onClick={() => setSeconds(verbatimTierFix)}
-          className="mt-1.5 w-full rounded-2xl border border-primary/50 bg-primary/10 px-3 py-2 text-[11px] font-semibold text-primary"
-        >
-          Switch to {tierLabel(verbatimTierFix)} so &ldquo;My words&rdquo; can take this story
-        </button>
-      ) : null}
-
-      {/* YOUR CHARACTERS — the cast library. Saved people the user can put in
+          {verbatimTierFix !== null ? (
+            <button
+              type="button"
+              onClick={() => setSeconds(verbatimTierFix)}
+              className="mt-1.5 w-full rounded-2xl border border-primary/50 bg-primary/10 px-3 py-2 text-[11px] font-semibold text-primary"
+            >
+              Switch to {tierLabel(verbatimTierFix)} so &ldquo;My words&rdquo; can take this story
+            </button>
+          ) : null}
+          {/* YOUR CHARACTERS — the cast library. Saved people the user can put in
           any film. Toggled chips ride into this job as `reuse`; the planner
           keeps their locks verbatim, so the same character stays the same
           person film after film. Design characters anywhere (Adobe Firefly is
           the house authoring tool) — the DESCRIPTION is what the pipeline
           consumes. */}
-      <div className="mt-4 rounded-2xl border border-border bg-card/50 p-3">
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          <Users2 className="h-3.5 w-3.5" /> your characters
-        </div>
-        {cast.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {cast.map((m) => {
-              const on = pickedCast.has(m.id);
-              return (
-                <span key={m.id} className="inline-flex items-center">
-                  <button
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() =>
-                      setPickedCast((cur) => {
-                        const next = new Set(cur);
-                        if (next.has(m.id)) next.delete(m.id);
-                        else if (next.size < MAX_CAST_PER_FILM) next.add(m.id);
-                        return next;
-                      })
-                    }
-                    title={m.lock}
-                    className={`rounded-s-full border py-1 ps-3 pe-2 text-[11px] font-semibold normal-case tracking-normal ${
-                      on
-                        ? "border-primary bg-primary/15 text-primary"
-                        : "border-border text-muted-foreground"
-                    }`}
-                  >
-                    {m.name}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Delete ${m.name}`}
-                    onClick={() => {
-                      deleteCastMember(m.id);
-                      setCast(listCast());
-                      setPickedCast((cur) => {
-                        const next = new Set(cur);
-                        next.delete(m.id);
-                        return next;
-                      });
-                    }}
-                    className={`rounded-e-full border border-s-0 py-1 ps-1.5 pe-2 ${
-                      on ? "border-primary text-primary" : "border-border text-muted-foreground"
-                    }`}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              );
-            })}
-          </div>
-        )}
-        <div className="mt-2 grid gap-1.5">
-          <input
-            value={newCastName}
-            onChange={(e) => setNewCastName(e.target.value)}
-            maxLength={MAX_NAME}
-            placeholder="Character name — e.g. Meera"
-            className="w-full rounded-xl border border-border bg-card/70 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none"
-          />
-          <textarea
-            value={newCastLock}
-            onChange={(e) => setNewCastLock(e.target.value)}
-            maxLength={MAX_LOCK}
-            rows={2}
-            placeholder="Exact look, repeated in every frame — age, build, hair, clothing, colours. e.g. a nine-year-old girl, small and quick, black hair in two braids, red scarf over a mustard kurta"
-            className="w-full resize-none rounded-xl border border-border bg-card/70 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none"
-          />
-          <button
-            type="button"
-            disabled={!newCastName.trim() || !newCastLock.trim()}
-            onClick={() => {
-              const saved = saveCastMember(newCastName, newCastLock);
-              if (saved) {
-                setCast(listCast());
-                setPickedCast((cur) => {
-                  const next = new Set(cur);
-                  if (next.size < MAX_CAST_PER_FILM) next.add(saved.id);
-                  return next;
-                });
-                setNewCastName("");
-                setNewCastLock("");
-              }
-            }}
-            className="justify-self-start rounded-xl border border-primary/50 bg-primary/10 px-3 py-1.5 text-[11px] font-semibold text-primary disabled:opacity-40"
-          >
-            Save character
-          </button>
-        </div>
-        {pickedCast.size > 0 && (
-          <p className="mt-2 text-[10px] text-muted-foreground">
-            {pickedCast.size} character{pickedCast.size === 1 ? "" : "s"} will appear in this film,
-            looking the same as in your last one.
-          </p>
-        )}
-        {/* Portraits are a separate, explicit product: one tap, one image,
+          <div className="mt-4 rounded-2xl border border-border bg-card/50 p-3">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <Users2 className="h-3.5 w-3.5" /> your characters
+            </div>
+            {cast.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {cast.map((m) => {
+                  const on = pickedCast.has(m.id);
+                  return (
+                    <span key={m.id} className="inline-flex items-center">
+                      <button
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() =>
+                          setPickedCast((cur) => {
+                            const next = new Set(cur);
+                            if (next.has(m.id)) next.delete(m.id);
+                            else if (next.size < MAX_CAST_PER_FILM) next.add(m.id);
+                            return next;
+                          })
+                        }
+                        title={m.lock}
+                        className={`rounded-s-full border py-1 ps-3 pe-2 text-[11px] font-semibold normal-case tracking-normal ${
+                          on
+                            ? "border-primary bg-primary/15 text-primary"
+                            : "border-border text-muted-foreground"
+                        }`}
+                      >
+                        {m.name}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Delete ${m.name}`}
+                        onClick={() => {
+                          deleteCastMember(m.id);
+                          setCast(listCast());
+                          setPickedCast((cur) => {
+                            const next = new Set(cur);
+                            next.delete(m.id);
+                            return next;
+                          });
+                        }}
+                        className={`rounded-e-full border border-s-0 py-1 ps-1.5 pe-2 ${
+                          on ? "border-primary text-primary" : "border-border text-muted-foreground"
+                        }`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            <div className="mt-2 grid gap-1.5">
+              <input
+                value={newCastName}
+                onChange={(e) => setNewCastName(e.target.value)}
+                maxLength={MAX_NAME}
+                placeholder="Character name — e.g. Meera"
+                className="w-full rounded-xl border border-border bg-card/70 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none"
+              />
+              <textarea
+                value={newCastLock}
+                onChange={(e) => setNewCastLock(e.target.value)}
+                maxLength={MAX_LOCK}
+                rows={2}
+                placeholder="Exact look, repeated in every frame — age, build, hair, clothing, colours. e.g. a nine-year-old girl, small and quick, black hair in two braids, red scarf over a mustard kurta"
+                className="w-full resize-none rounded-xl border border-border bg-card/70 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none"
+              />
+              <button
+                type="button"
+                disabled={!newCastName.trim() || !newCastLock.trim()}
+                onClick={() => {
+                  const saved = saveCastMember(newCastName, newCastLock);
+                  if (saved) {
+                    setCast(listCast());
+                    setPickedCast((cur) => {
+                      const next = new Set(cur);
+                      if (next.size < MAX_CAST_PER_FILM) next.add(saved.id);
+                      return next;
+                    });
+                    setNewCastName("");
+                    setNewCastLock("");
+                  }
+                }}
+                className="justify-self-start rounded-xl border border-primary/50 bg-primary/10 px-3 py-1.5 text-[11px] font-semibold text-primary disabled:opacity-40"
+              >
+                Save character
+              </button>
+            </div>
+            {pickedCast.size > 0 && (
+              <p className="mt-2 text-[10px] text-muted-foreground">
+                {pickedCast.size} character{pickedCast.size === 1 ? "" : "s"} will appear in this
+                film, looking the same as in your last one.
+              </p>
+            )}
+            {/* Portraits are a separate, explicit product: one tap, one image,
             stored as a reusable reference. Drawing never starts a film. */}
-        <CharacterBuilder cast={cast} />
-      </div>
-
-      {/* STORY FIRST — generation without rendering (mega loop, 2026-08-27).
-          Writes the structured story through story-plot and stops. Making the
-          film remains this studio's own explicit, paid Generate tap. */}
-      <StoryWriter
-        prompt={prompt}
-        seconds={plan_.seconds}
-        shots={plan_.shots.length}
-        reuse={cast
-          .filter((m) => pickedCast.has(m.id))
-          .slice(0, MAX_CAST_PER_FILM)
-          .map((m) => ({ name: m.name, lock: m.lock }))}
-        onUseDraft={(draftPrompt, draftSeconds) => {
-          setPrompt(draftPrompt);
-          setSeconds(draftSeconds);
-          // The story panel sits far below the prompt on a phone; without
-          // this the tap looks dead (owner report, 2026-08-27). Mirrors the
-          // clip seed's scroll — loading a form, never generating.
-          document
-            .getElementById("story-prompt")
-            ?.scrollIntoView({ behavior: "smooth", block: "center" });
-          toast.success("Story loaded — press Generate film when you are ready");
-        }}
-        onCastSaved={() => setCast(listCast())}
-        onFilmShot={setClipSeed}
-      />
-
-      {/* VIDEO CLIPS — the in-house generation path, user-facing (owner
-          directive 2026-08-27). Its own explicit Generate press is the only
-          thing that submits; a shot handed over above only fills the form. */}
-      <VideoClips seed={clipSeed} />
-
-      {/* VIDEO TIME — the finished-video-time catalogue (owner directive
-          2026-08-27). Display and explicit purchase only: nothing here can
-          start a generation, and the server prices every purchase itself. */}
-      <VideoPlans />
+            <CharacterBuilder cast={cast} />
+          </div>
+        </div>
+      </details>
 
       {/*
         THE DISCLAIMER SITS ABOVE THE BUTTON, not below it and not behind a
@@ -955,7 +945,6 @@ export function StoryStudio() {
           </li>
         </ul>
       </div>
-
       <button
         type="button"
         onClick={() => void generate()}
@@ -1095,6 +1084,75 @@ export function StoryStudio() {
               }
         }
       />
+
+      {/* THE LIBRARIES AND THE PRICE LIST SIT BELOW THE BUTTON, folded.
+          Each is a real destination, not a step in making this film — saved
+          stories, the separate 4-second clip studio, and the plan catalogue.
+          Above the button they competed with it; here they are still one tap
+          away and no longer in the way of the thing the page is for. */}
+      <details className="mt-3 rounded-2xl border border-border bg-card/50 px-3 py-2">
+        <summary className="cursor-pointer select-none text-xs font-semibold text-foreground">
+          Your stories
+          <span className="ms-1 font-normal text-muted-foreground">
+            (write one first, without making the film)
+          </span>
+        </summary>
+        <div className="mb-1">
+          {/* STORY FIRST — generation without rendering (mega loop, 2026-08-27).
+          Writes the structured story through story-plot and stops. Making the
+          film remains this studio's own explicit, paid Generate tap. */}
+          <StoryWriter
+            prompt={prompt}
+            seconds={plan_.seconds}
+            shots={plan_.shots.length}
+            reuse={cast
+              .filter((m) => pickedCast.has(m.id))
+              .slice(0, MAX_CAST_PER_FILM)
+              .map((m) => ({ name: m.name, lock: m.lock }))}
+            onUseDraft={(draftPrompt, draftSeconds) => {
+              setPrompt(draftPrompt);
+              setSeconds(draftSeconds);
+              // The story panel sits far below the prompt on a phone; without
+              // this the tap looks dead (owner report, 2026-08-27). Mirrors the
+              // clip seed's scroll — loading a form, never generating.
+              document
+                .getElementById("story-prompt")
+                ?.scrollIntoView({ behavior: "smooth", block: "center" });
+              toast.success("Story loaded — press Generate film when you are ready");
+            }}
+            onCastSaved={() => setCast(listCast())}
+            onFilmShot={setClipSeed}
+          />
+        </div>
+      </details>
+      <details className="mt-3 rounded-2xl border border-border bg-card/50 px-3 py-2">
+        <summary className="cursor-pointer select-none text-xs font-semibold text-foreground">
+          Video clips
+          <span className="ms-1 font-normal text-muted-foreground">
+            (one ~4 second clip, its own separate Generate)
+          </span>
+        </summary>
+        <div className="mb-1">
+          {/* VIDEO CLIPS — the in-house generation path, user-facing (owner
+          directive 2026-08-27). Its own explicit Generate press is the only
+          thing that submits; a shot handed over above only fills the form. */}
+          <VideoClips seed={clipSeed} />
+        </div>
+      </details>
+      <details className="mt-3 rounded-2xl border border-border bg-card/50 px-3 py-2">
+        <summary className="cursor-pointer select-none text-xs font-semibold text-foreground">
+          Plans &amp; pricing
+          <span className="ms-1 font-normal text-muted-foreground">
+            (what your video time costs)
+          </span>
+        </summary>
+        <div className="mb-1">
+          {/* VIDEO TIME — the finished-video-time catalogue (owner directive
+          2026-08-27). Display and explicit purchase only: nothing here can
+          start a generation, and the server prices every purchase itself. */}
+          <VideoPlans />
+        </div>
+      </details>
     </div>
   );
 }
