@@ -101,6 +101,44 @@ describe("no test reads outside the repository it ships with", () => {
   });
 });
 
+describe("no source file is secretly binary", () => {
+  it("contains no NUL byte anywhere in the tracked source", () => {
+    // MEASURED 2026-08-31, during the merge audit. storySeed.ts carried ONE
+    // NUL byte, as the separator in `[...].join("\0")`. Everything still
+    // worked — esbuild tolerated it and the seeds stayed deterministic — but
+    // three things were wrong at once:
+    //
+    //   1. git classified the file as BINARY, so its diff showed as
+    //      "Bin 0 -> 3324 bytes" and could not be reviewed. This repository
+    //      treats reviewable diffs as its primary quality control.
+    //   2. Deno is the runtime for edge functions and need not agree with
+    //      esbuild about a NUL in source.
+    //   3. Worst: it is INVISIBLE. A reader sees `join("")` and reasonably
+    //      concludes the separator is empty — which would be a real collision
+    //      bug, since ("ab","c") and ("a","bc") would then share a seed.
+    //
+    // A character nobody can see is a character nobody can review.
+    const roots = ["src", "supabase/functions", "remotion/scripts"];
+    const exts = [".ts", ".tsx", ".mjs", ".js", ".json", ".toml", ".pin"];
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir)) {
+        if (entry === "node_modules" || entry === ".git") continue;
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) {
+          walk(full);
+        } else if (exts.some((e) => entry.endsWith(e))) {
+          if (readFileSync(full).includes(0)) {
+            offenders.push(full.replace(process.cwd() + "/", ""));
+          }
+        }
+      }
+    };
+    for (const r of roots) walk(join(process.cwd(), r));
+    expect(offenders, offenders.join("\n")).toEqual([]);
+  });
+});
+
 // ------------------------------------------------------------------- timing
 describe("no test measures the machine instead of the code", () => {
   /**
