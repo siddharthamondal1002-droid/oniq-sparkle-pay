@@ -288,12 +288,16 @@ export function buildClipPayload(
  * makes for a still, over the key this module already computes.
  */
 export function clipSeed(key: string, attempt: number): number {
-  const [projectId, sceneId, shotId] = key.split("/");
+  const [projectId, sceneId, shotId, version, index] = key.split("/");
   return deriveSeed({
     stage: "clip",
     jobId: projectId ?? key,
     sceneId: sceneId ?? "s",
     shotId: shotId ?? "shot",
+    // The unit key's LAST TWO segments, which the shot's identity does not
+    // carry. Dropping them (as this did until 2026-08-31) made every clip of
+    // a multi-clip shot the same draw, and made a version bump inert.
+    unit: `${version ?? "v1"}/${index ?? "0"}`,
     attempt: Number.isInteger(attempt) && attempt > 0 ? attempt - 1 : 0,
   });
 }
