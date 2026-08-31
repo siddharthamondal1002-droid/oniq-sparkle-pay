@@ -55,8 +55,29 @@ describe("a reference is refused, never quietly ignored", () => {
       join(process.cwd(), "supabase/functions/_shared/oniqImage.ts"),
       "utf8",
     );
-    expect(engine).toMatch(/params:\s*\{\s*prompt\s*\}/);
-    expect(engine).not.toMatch(/input_key/);
+    // The image_generate params carry TEXT AND NUMBERS ONLY. `seed` and
+    // `negative_prompt` joined `prompt` on 2026-08-31 — the first so ten
+    // retries are ten different draws rather than one image ten times, the
+    // second so a shot with a face is steered off malformed eyes rather than
+    // off "inconsistent motion". Neither is a byte carrier, and the rule this
+    // test exists for is unchanged: nothing that could hold an image may
+    // appear in the request the engine is sent.
+    // The params object itself — the op name legitimately contains "image".
+    const op = engine.indexOf('op: "image_generate"');
+    const body = engine.slice(engine.indexOf("params: {", op), engine.indexOf("});", op));
+    expect(body).toMatch(/prompt,/);
+    expect(body).toMatch(/seed: opts\.seed/);
+    expect(body).toMatch(/negative_prompt: opts\.negativePrompt/);
+    for (const carrier of [
+      "input_key",
+      "referenceImage",
+      "image",
+      "reference",
+      "base64",
+      "data:",
+    ]) {
+      expect(body, carrier).not.toContain(carrier);
+    }
   });
 
   it("an external http(s) URL still cannot reach a model — now by construction", () => {

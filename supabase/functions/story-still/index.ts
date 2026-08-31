@@ -32,7 +32,14 @@
 // create files nothing is tracking.
 
 import { verifyJobToken } from "../_shared/jobToken.ts";
-import { ASPECT_SUFFIX, EngineError, MAX_ASK_CHARS, generateStill } from "../_shared/oniqImage.ts";
+import {
+  EngineError,
+  MAX_ASK_CHARS,
+  MAX_NEGATIVE_PROMPT_CHARS,
+  MAX_SEED,
+  generateStill,
+} from "../_shared/oniqImage.ts";
+import { CAPABILITY_MARKER } from "../_shared/referenceOutcome.ts";
 import { stillIdFor } from "../_shared/inHouseMotion.ts";
 
 const corsHeaders = {
@@ -125,7 +132,7 @@ Deno.serve(async (req) => {
         {
           error:
             `That prompt is ${prompt.length} characters; the image engine takes ` +
-            `${MAX_ASK_CHARS} once the aspect line is counted.`,
+            `${MAX_ASK_CHARS}.`,
           retryable: false,
         },
         422,
@@ -134,18 +141,85 @@ Deno.serve(async (req) => {
 
     // REFERENCE CONDITIONING IS NOT AVAILABLE IN-HOUSE YET, and this says so
     // rather than drawing an unconditioned frame and letting the caller
-    // believe it was conditioned. 422 is the caller's own step-down signal:
-    // the ask ladder drops the reference and asks again, which is how a film
-    // stays alive. The in-house route to conditioning is a character asset
-    // the engine itself drew, addressed by its key — not an inlined upload,
-    // because the bucket's write credentials live in the endpoint alone.
+    // believe it was conditioned. The in-house route to conditioning is a
+    // character asset the engine itself drew, addressed by its key — not an
+    // inlined upload, because the bucket's write credentials live in the
+    // endpoint alone.
+    //
+    // `code` IS THE FIX, MEASURED 2026-08-31. The status alone was 422, and
+    // the worker's ask ladder reads a bare 422 as "the CONTENT was refused,
+    // step down" — so a shot that had SUCCESSFULLY resolved a character
+    // reference was demoted two rungs to `a place with no people in it`. The
+    // engine's inability to use a reference was being charged against the
+    // shot's subject matter, and the person the shot was about became an
+    // empty landscape.
+    //
+    // A machine-readable field separates the two meanings. It is a FIELD and
+    // not a sentence on purpose: the previous signal was an English error
+    // message, and an English error message is not an API. referenceOutcome.ts
+    // holds the taxonomy and the caller's response to each branch.
     const referenceImage =
       typeof body?.referenceImage === "string" ? body.referenceImage.trim() : "";
     if (referenceImage) {
       return json(
-        { error: "The in-house image engine does not condition on a reference yet." },
+        {
+          error: "The in-house image engine does not condition on a reference yet.",
+          code: CAPABILITY_MARKER,
+          // Explicit, because the whole bug was a caller inferring the wrong
+          // thing from silence: this says nothing about the prompt.
+          retryable: false,
+          promptRefused: false,
+        },
         422,
       );
+    }
+
+    // THE SEED, AND WHY IT ARRIVES FROM THE CALLER RATHER THAN BEING ROLLED.
+    //
+    // videogen.py carried `SEED = 42` as a module constant, so every draw of
+    // every shot of every film sampled the same point. Harmless while a
+    // failed shot was simply a failed shot; a bug the moment the retry
+    // ceiling went 3 -> 10 on 2026-08-31, because ten attempts against a
+    // fixed seed are ten byte-identical draws and the retry budget could not
+    // succeed. The caller derives it from the shot's identity plus the
+    // attempt number (storySeed.ts), so attempt 2 genuinely differs from
+    // attempt 1 AND any frame can be drawn again exactly.
+    //
+    // Validated HERE as well as in the worker: an out-of-range seed refused
+    // at the edge costs nothing, and refused on the GPU costs a job.
+    let seed: number | undefined;
+    if (body?.seed !== undefined && body?.seed !== null) {
+      const raw = body.seed;
+      if (
+        typeof raw !== "number" ||
+        !Number.isInteger(raw) ||
+        raw < 0 ||
+        raw > MAX_SEED
+      ) {
+        return json({ error: "seed must be an integer in range", retryable: false }, 400);
+      }
+      seed = raw;
+    }
+
+    // THE NEGATIVE PROMPT, PER SHOT. The worker's global one listed five
+    // MOTION faults ("worst quality, inconsistent motion, blurry, jittery,
+    // distorted") and not one face fault, which is what the audit was opened
+    // to explain. A caller that knows whether this shot shows a face sends
+    // the terms that matter for it; one that does not sends nothing and the
+    // worker's default stands.
+    let negativePrompt: string | undefined;
+    if (body?.negativePrompt !== undefined && body?.negativePrompt !== null) {
+      const raw = body.negativePrompt;
+      if (typeof raw !== "string" || raw.length > MAX_NEGATIVE_PROMPT_CHARS) {
+        return json(
+          {
+            error: `negativePrompt must be a string of at most ${MAX_NEGATIVE_PROMPT_CHARS} characters`,
+            retryable: false,
+          },
+          400,
+        );
+      }
+      negativePrompt = raw;
     }
 
     // WHERE THE STILL LANDS IN THE BUCKET, AND WHY IT IS NOT RANDOM.
@@ -191,7 +265,10 @@ Deno.serve(async (req) => {
 
     try {
       const still = await generateStill(
-        prompt + ASPECT_SUFFIX,
+        // The ask, VERBATIM. The aspect sentence this used to append is gone
+        // (oniqImage.ts): the canvas is portrait in contract.py, which is the
+        // one place an aspect ratio can be true.
+        prompt,
         { apiKey, endpointId, publicBase },
         {
           fetchImpl: fetch,
@@ -199,7 +276,7 @@ Deno.serve(async (req) => {
           sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
           newId: () => crypto.randomUUID(),
         },
-        { id: stillId },
+        { id: stillId, seed, negativePrompt },
       );
       // `key` travels back so the runner can log WHERE the frame went, and so
       // a film that later fails to animate can be diagnosed from its own log

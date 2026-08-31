@@ -46,14 +46,44 @@ export const STILL_MIME = "image/png";
 export const ENGINE_MAX_PROMPT_CHARS = 1000;
 
 /**
- * Portrait, matching the episode pipeline. The aspect rides IN THE PROMPT
- * rather than in a request field, so it SPENDS from the ceiling above and
- * has to be counted against it.
+ * THE ASPECT IS THE CANVAS, NOT A SENTENCE. Removed 2026-08-31.
+ *
+ * This module used to append
+ *
+ *     "\n\nVertical 9:16 portrait composition, full-bleed."
+ *
+ * to every ask. For as long as it existed it was FALSE: the worker's contract
+ * sampled 704x480 — landscape, 1.47:1 — so the model was told to compose
+ * vertically onto a horizontal canvas, and the assembler then took a
+ * 1080x1920 crop out of the middle of the result. The audit measured what
+ * that cost: 61.6% of every frame's width discarded and 16 output pixels
+ * invented per real one.
+ *
+ * The canvas is now genuinely portrait (contract.py: 704x1248, both axes
+ * 32-divisible, 0.28% crop against the 1080x1920 film), so the sentence is no
+ * longer a lie — and that is exactly why it goes. An aspect ratio is a
+ * property of the tensor, decided in ONE place; a prompt asking for it is a
+ * second, weaker, unverifiable copy that can silently disagree with the first.
+ * Deleting it also returns 46 characters of an already-tight budget to the
+ * words that describe the shot.
+ *
+ * If a future canvas changes shape, contract.py changes and nothing here has
+ * to be remembered.
  */
-export const ASPECT_SUFFIX = "\n\nVertical 9:16 portrait composition, full-bleed.";
 
-/** What a caller may actually send, once the suffix is paid for. */
-export const MAX_ASK_CHARS = ENGINE_MAX_PROMPT_CHARS - ASPECT_SUFFIX.length;
+/** What a caller may send. The worker's whole ceiling, now nothing is skimmed. */
+export const MAX_ASK_CHARS = ENGINE_MAX_PROMPT_CHARS;
+
+/**
+ * The worker's negative-prompt ceiling, mirrored (contract.py:
+ * MAX_NEGATIVE_PROMPT_CHARS). One number on both sides, for the same reason
+ * ENGINE_MAX_PROMPT_CHARS is: a ceiling known to only one end of a contract
+ * is a deterministic failure waiting for a long enough input.
+ */
+export const MAX_NEGATIVE_PROMPT_CHARS = 400;
+
+/** The worker's seed bound: params.seed is a uint64. */
+export const MAX_SEED = 2 ** 53 - 1;
 
 export type StillVerdict =
   { ok: true; bytes: number } | { ok: false; reason: string; retryable?: boolean };
@@ -224,7 +254,24 @@ export async function generateStill(
   prompt: string,
   env: EngineEnv,
   deps: EngineDeps,
-  opts: { deadlineMs?: number; pollMs?: number; id?: string } = {},
+  opts: {
+    deadlineMs?: number;
+    pollMs?: number;
+    id?: string;
+    /**
+     * The sampler seed for THIS draw. Derived by the caller from the shot's
+     * identity plus its attempt number (storySeed.ts) — never rolled here,
+     * because a still that cannot be redrawn is a still nobody can diagnose.
+     * Absent, the worker falls back to its own constant, which is the old
+     * behaviour and is why ten retries used to be one image ten times.
+     */
+    seed?: number;
+    /**
+     * What this shot must NOT contain. Per shot, because the terms that ruin
+     * a face are not the terms that ruin a landscape (faceQuality.ts).
+     */
+    negativePrompt?: string;
+  } = {},
 ): Promise<{ mime: string; data: string; bytes: number; key: string }> {
   const deadlineMs = opts.deadlineMs ?? 120_000;
   const pollMs = opts.pollMs ?? 2_000;
@@ -244,7 +291,21 @@ export async function generateStill(
     method: "POST",
     headers,
     body: JSON.stringify({
-      input: { op: "image_generate", output_key: key, params: { prompt } },
+      input: {
+        op: "image_generate",
+        output_key: key,
+        // Only fields the worker's contract names, and only when the caller
+        // actually supplied one: sending `seed: undefined` would serialise
+        // away, but sending `seed: null` would be refused by the contract, and
+        // an absent field is the documented way to ask for the default.
+        params: {
+          prompt,
+          ...(typeof opts.seed === "number" ? { seed: opts.seed } : {}),
+          ...(typeof opts.negativePrompt === "string"
+            ? { negative_prompt: opts.negativePrompt }
+            : {}),
+        },
+      },
     }),
   });
   if (!submitted.ok) {

@@ -76,8 +76,24 @@ describe("stills are ONIQ's own", () => {
   });
 
   it("reference conditioning refuses honestly instead of drawing an unconditioned frame", () => {
-    // 422 is the caller's own step-down signal: the ask ladder drops the
-    // reference and asks again, which is how a film stays alive.
-    expect(STORY_STILL).toMatch(/does not condition on a reference yet[\s\S]{0,40}422/);
+    expect(STORY_STILL).toMatch(/does not condition on a reference yet[\s\S]{0,400}422/);
+  });
+
+  it("the refusal names the CAPABILITY, so nobody can mistake it for a verdict on the prompt", () => {
+    // MEASURED 2026-08-31. The refusal used to be a bare 422, and the ask
+    // ladder reads a bare 422 as "the CONTENT was refused, step down" — so a
+    // shot whose character reference had resolved SUCCESSFULLY was demoted to
+    // rung 2, `a place with no people in it`. A capability the engine lacks
+    // was charged against the shot's subject matter, and the person the shot
+    // was about was redrawn as an empty landscape.
+    const refusal = STORY_STILL.slice(
+      STORY_STILL.indexOf("does not condition on a reference yet"),
+      STORY_STILL.indexOf("does not condition on a reference yet") + 500,
+    );
+    expect(refusal).toContain("CAPABILITY_MARKER");
+    expect(refusal).toMatch(/promptRefused:\s*false/);
+    // A FIELD, not a sentence. The previous signal was English prose, and
+    // matching on prose is how the confusion survived.
+    expect(STORY_STILL).toContain('from "../_shared/referenceOutcome.ts"');
   });
 });

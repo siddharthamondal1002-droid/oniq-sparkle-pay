@@ -37,7 +37,9 @@
 
 import { VIDEO_CLOCK_SECONDS, MAX_PROMPT_CHARS } from "./gpuVideoCore.ts";
 import { stillKeyFor as oniqStillKeyFor } from "./oniqImage.ts";
-import { composeVideoPrompt, type MovieShot } from "./movieGrammar.ts";
+import { composeInHouseVideoPrompt, type MovieShot } from "./movieGrammar.ts";
+import { deriveSeed } from "./storySeed.ts";
+import { negativePromptFor } from "./faceQuality.ts";
 
 /**
  * ONE STILL KEY SCHEME, IMPORTED. oniqImage already names every still the GPU
@@ -203,7 +205,7 @@ export function planMotion(
         detail: `${s.sceneId}/${s.shotId} is ${s.seconds}s`,
       };
     }
-    if (composeVideoPrompt(s.shot).length > MAX_PROMPT_CHARS) {
+    if (composeInHouseVideoPrompt(s.shot).length > MAX_PROMPT_CHARS) {
       return {
         ok: false,
         refusal: "prompt-too-long",
@@ -239,16 +241,61 @@ export function planMotion(
  * shape exactly — same op, same param names — so the worker contract has one
  * meaning, not two. The only difference is where the starting frame comes
  * from, which is the whole reason this module exists.
+ *
+ * THE ATTEMPT NUMBER IS PART OF THE PAYLOAD, AND THE KEY IS NOT.
+ *
+ * Those two sentences are the whole of §10 and they pull in opposite
+ * directions, so both are stated. `unitKey` above must stay identical across
+ * attempts — it is the unit's IDENTITY, and an identity that moved would turn
+ * a retry into duplicate paid GPU work. The SEED must move, because a retry
+ * that samples the same point returns the same clip: with videogen.py's
+ * `SEED = 42` and this function returning a byte-identical payload, the two
+ * attempts below were one clip generated twice, and the attempt ceiling the
+ * owner raised from 3 to 10 on 2026-08-31 bought exactly nothing.
+ *
+ * Derived, never rolled. Attempt 2 of a shot is a different draw from attempt
+ * 1, and drawing attempt 2 again tomorrow gives the same frames back — which
+ * is what anybody wants the moment a clip comes out wrong.
  */
-export function buildClipPayload(unit: ClipUnit, shot: MovieShot, noWatermark: boolean) {
+export function buildClipPayload(
+  unit: ClipUnit,
+  shot: MovieShot,
+  noWatermark: boolean,
+  attempt = 1,
+) {
   return {
     input: {
       op: "video_generate",
       input_key: unit.stillKey,
       output_key: unit.outputKey,
-      params: { prompt: composeVideoPrompt(shot), watermark: !noWatermark },
+      // THE IN-HOUSE COMPOSER, not the Veo one. Everything downstream of this
+      // payload runs on ONIQ's own LTX; the four-part prompt is what that
+      // engine's guidance asks for, and the Veo composer's twelve-word
+      // motion-only output is what the audit found underneath the soft faces.
+      params: {
+        prompt: composeInHouseVideoPrompt(shot),
+        watermark: !noWatermark,
+        seed: clipSeed(unit.key, attempt),
+        negative_prompt: negativePromptFor([shot.still, shot.narration, shot.motion]),
+      },
     },
   };
+}
+
+/**
+ * The sampler seed for one attempt at one unit. A pure function of the unit's
+ * own identity plus the attempt number — the same derivation storySeed.ts
+ * makes for a still, over the key this module already computes.
+ */
+export function clipSeed(key: string, attempt: number): number {
+  const [projectId, sceneId, shotId] = key.split("/");
+  return deriveSeed({
+    stage: "clip",
+    jobId: projectId ?? key,
+    sceneId: sceneId ?? "s",
+    shotId: shotId ?? "shot",
+    attempt: Number.isInteger(attempt) && attempt > 0 ? attempt - 1 : 0,
+  });
 }
 
 /**
@@ -454,7 +501,9 @@ export async function runUnit(
 
   let lastReason = "unknown";
   for (let attempt = 1; attempt <= MAX_UNIT_ATTEMPTS; attempt++) {
-    const payload = buildClipPayload(unit, shot, noWatermark);
+    // The attempt number travels INTO the payload, so attempt 2 is a
+    // genuinely different draw rather than a second copy of attempt 1.
+    const payload = buildClipPayload(unit, shot, noWatermark, attempt);
     let gpuJobId: string | null = null;
     try {
       gpuJobId = await deps.submit(unit, payload);
