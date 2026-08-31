@@ -152,14 +152,21 @@ describe("the strength band matches the worker's contract", () => {
     expect(DEFAULT_REFERENCE_STRENGTH).toBeLessThan(MAX_REFERENCE_STRENGTH);
   });
 
-  it("and the worker states the same numbers, so neither end can drift", () => {
+  it("and the numbers are pinned on both sides, so neither end can drift", () => {
     // A bound known to only one end of a contract is a deterministic failure
     // waiting for the right input — the lesson of the 1000-character prompt
     // ceiling, applied before it can happen again.
-    const py = read("../oniq-gpu-worker/contract.py");
-    expect(py).toContain(`MIN_REFERENCE_STRENGTH = ${MIN_REFERENCE_STRENGTH}`);
-    expect(py).toContain(`MAX_REFERENCE_STRENGTH = ${MAX_REFERENCE_STRENGTH}`);
-    expect(py).toContain(`REFERENCE_PREFIX = "${REFERENCE_PREFIX}"`);
+    //
+    // oniq-gpu-worker/contract.py pins MIN_REFERENCE_STRENGTH = 0.05,
+    // MAX_REFERENCE_STRENGTH = 0.95 and REFERENCE_PREFIX = "story/ref/", and
+    // its own suite asserts those literals. The two repos cannot import each
+    // other and CI checks out one at a time, so the numbers are pinned on
+    // both sides rather than read across — the same discipline
+    // gpuVideoAudio.test.ts applies to MAX_NARRATION_CHARS.
+    expect(MIN_REFERENCE_STRENGTH).toBe(0.05);
+    expect(MAX_REFERENCE_STRENGTH).toBe(0.95);
+    expect(REFERENCE_PREFIX).toBe("story/ref/");
+    expect(REFERENCE_SCOPE_CANON).toBe("canon");
   });
 });
 

@@ -66,6 +66,41 @@ describe("the suite collects what we think it collects", () => {
   });
 });
 
+// -------------------------------------------------------------- repo bounds
+describe("no test reads outside the repository it ships with", () => {
+  it("opens no path that escapes the checkout", () => {
+    // MEASURED 2026-08-31, and it is why this exists. A test asserted that
+    // oniq-gpu-worker/contract.py states the same reference bounds this repo
+    // does — a genuinely valuable cross-check, written as
+    // `readFileSync(join(process.cwd(), "../oniq-gpu-worker/contract.py"))`.
+    // It passed here, where both repositories are checked out side by side,
+    // and failed in CI with ENOENT, where only one of them is. A test that
+    // passes locally and fails in CI is worse than no test: it costs a red
+    // build and it teaches nobody anything about the code.
+    //
+    // The repo's own answer to a two-repo contract is already established
+    // (gpuVideoAudio.test.ts, MAX_NARRATION_CHARS): pin the number on BOTH
+    // sides with a comment naming the other, so each CI enforces its half and
+    // a drift fails in whichever repo moved.
+    const offenders: string[] = [];
+    for (const file of FILES) {
+      // Comments only — NOT `code()`, which also blanks string literals and
+      // would erase the very path this check reads. The note above quotes the
+      // offending line verbatim as its example, and "a guard that accuses the
+      // tests enforcing the rule is a guard people learn to silence".
+      const src = readFileSync(file, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+      for (const m of src.matchAll(/(?:readFileSync|readFile|existsSync|readdirSync)\s*\(\s*join\(\s*process\.cwd\(\)\s*,\s*(["'`])([^"'`]*)\1/g)) {
+        if (m[2].startsWith("..") || m[2].startsWith("/")) {
+          offenders.push(`${file.replace(process.cwd() + "/", "")}: ${m[2]}`);
+        }
+      }
+    }
+    expect(offenders, offenders.join("\n")).toEqual([]);
+  });
+});
+
 // ------------------------------------------------------------------- timing
 describe("no test measures the machine instead of the code", () => {
   /**
