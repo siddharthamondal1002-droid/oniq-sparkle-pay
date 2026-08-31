@@ -1895,7 +1895,20 @@ if (offline) {
     // construction unable to change a shot's weather (the decorated still
     // is what selectSceneWeather reads, and every palette phrase classifies
     // as no-vfx).
-    const directed = directShots(plan.shots.map((s) => s.still), String(job.id));
+    // THE SHOTS' OWN GRAMMAR travels to the director now, so a beat carried
+    // by a face cannot be assigned a wide. Before this the size came from
+    // position alone and a line of dialogue could land on `wide shot`, which
+    // draws the face at roughly 25 pixels on a 704-wide canvas — the measured
+    // reason faces were "not reliably visible".
+    const directed = directShots(
+      plan.shots.map((s) => s.still),
+      String(job.id),
+      plan.shots.map((s) => ({
+        still: s.still,
+        narration: s.narration,
+        dialogue: s.dialogue ?? null,
+      })),
+    );
 
     // VOICES FIRST — the whole clock is spoken and MEASURED before a single
     // still is drawn (owner directive 2026-08-26). Job 76d09a89 cleared every
@@ -2119,7 +2132,8 @@ if (offline) {
       // weather alike — one text, one decision, no way to disagree.
       const directedStill = directed[i].still;
       console.log(
-        `  director ${i + 1}: ${directed[i].size ?? 'size kept'} | ${directed[i].lighting}`,
+        `  director ${i + 1}: ${directed[i].size ?? 'size kept'} | ${directed[i].lighting}` +
+          (directed[i].faceFramed ? ' | FACE BEAT — framed for it' : ''),
       );
       const sceneWeather = selectSceneWeather(directedStill);
       const settingForImage = weatherConsistentSetting(plan.setting ?? '', sceneWeather);
@@ -2288,7 +2302,20 @@ if (offline) {
         for (let t = 0; t < STILL_ATTEMPTS; t++) {
           // The reference conditions only the CHARACTER rungs (0, 1); rung 2
           // is people-less scenery by construction, so it never carries a face.
-          const usedRef = Boolean(ref) && a < 2 && !refBlocked;
+          // THE ANCHOR TRAVELS AS AN ID, NOT AS BYTES (2026-08-31).
+          //
+          // This used to send a base64 data URL, which the in-house engine
+          // refused outright — the media bucket's write credentials live in
+          // the endpoint alone, so there was nowhere for inline bytes to
+          // land. The id names a PUBLISHED CANONICAL CHARACTER; story-still
+          // resolves it against a fixed server-side allowlist and the GPU
+          // worker re-validates the derived key against its own contract
+          // before spending anything. Nothing that could be a path, a URL or
+          // another user's object travels from here.
+          //
+          // Rungs 1 and 2 only: rung 3 is people-less scenery by
+          // construction, so it never carries a character.
+          const usedRef = Boolean(refAudit.characterRefId) && a < 2 && !refBlocked;
           try {
             still = await edge('story-still', {
               prompt: asks[a],
@@ -2302,9 +2329,21 @@ if (offline) {
                 attempt: stillDraw,
               }),
               negativePrompt: shotNegative,
-              ...(usedRef ? { referenceImage: ref } : {}),
+              ...(usedRef ? { characterRefId: refAudit.characterRefId } : {}),
             });
-            conditioned = usedRef;
+            // WHAT THE ENGINE SAYS IT DID, not what this side asked for. A
+            // reference whose canonical frame has not been published yet
+            // comes back unanchored with a reason, and recording the ask
+            // instead of the outcome is how "the character keeps changing"
+            // stays invisible in a log that claims it was conditioned.
+            conditioned = still?.conditioned === true;
+            if (usedRef && !conditioned) {
+              refAudit.referenceAttached = false;
+              refAudit.reason = still?.referenceUnresolved ?? 'REFERENCE_NOT_PUBLISHED';
+              console.log(
+                `  still ${i + 1}: anchor unavailable (${refAudit.reason}) — drew unanchored`,
+              );
+            }
             break outer;
           } catch (err) {
             stillDraw += 1;

@@ -21,9 +21,11 @@ import { describe, expect, it } from "vitest";
 import { vfxKindFor } from "../particleField.ts";
 import { ambienceFor } from "../soundStage.ts";
 import {
+  FACE_LEGIBLE_SIZES,
   LIGHTING_PALETTE,
   SHOT_SIZES,
   directShots,
+  faceCarriesTheBeat,
   hasLeadingSize,
 } from "../shotDirector.ts";
 
@@ -140,7 +142,15 @@ describe("story worker carries the director pass", () => {
 
   it("imports the director and runs it over the whole plan", () => {
     expect(src).toMatch(/import \{ directShots \} from '\.\.\/\.\.\/src\/lib\/shotDirector\.ts'/);
-    expect(src).toMatch(/directShots\(plan\.shots\.map\(\(s\) => s\.still\), String\(job\.id\)\)/);
+    expect(src).toMatch(/directShots\(\s*plan\.shots\.map\(\(s\) => s\.still\),\s*String\(job\.id\),/);
+  });
+
+  it("hands the director the shots' own grammar, not just their text", () => {
+    // Size used to come from POSITION alone, so a line of dialogue could be
+    // assigned `wide shot` and the face drawn at ~25px on a 704-wide canvas.
+    // The beat has to reach the director for that to be impossible.
+    expect(src).toMatch(/dialogue: s\.dialogue \?\? null,/);
+    expect(src).toContain("FACE BEAT");
   });
 
   it("feeds the DECORATED still to both the weather decision and the image ask", () => {
@@ -161,5 +171,66 @@ describe("story worker carries the director pass", () => {
     expect(src).not.toMatch(/ambienceFor\([^)]*directedStill/);
     expect(src).toMatch(/emotionFor\(\s*`\$\{shot\.still\} \$\{shot\.narration\}/);
     expect(src).not.toMatch(/emotionFor\([^)]*directedStill/);
+  });
+});
+
+// ─────────────────────────── face visibility (§9), as behaviour
+describe("a beat the face carries is never assigned a wide", () => {
+  const dialogueShot = {
+    still: "A man stands in a doorway.",
+    narration: "He answered at last.",
+    dialogue: { line: "The jar was never mine." },
+  };
+  const sceneryShot = {
+    still: "An empty desert at dawn with no people in it.",
+    narration: "The sun rose.",
+  };
+
+  it("a spoken line forces a face-legible size", () => {
+    const beats = Array.from({ length: 9 }, () => dialogueShot);
+    const out = directShots(beats.map((b) => b.still), "film-1", beats);
+    for (const shot of out) {
+      expect(FACE_LEGIBLE_SIZES).toContain(shot.size);
+      expect(shot.faceFramed).toBe(true);
+    }
+  });
+
+  it("including the LAST shot, which used to be forced wide", () => {
+    // The film ending on someone's face is exactly the shot a forced wide was
+    // worst for.
+    const beats = Array.from({ length: 5 }, (_, i) => (i === 4 ? dialogueShot : sceneryShot));
+    const out = directShots(beats.map((b) => b.still), "film-2", beats);
+    expect(FACE_LEGIBLE_SIZES).toContain(out[4].size);
+  });
+
+  it("but the rhythm survives — face beats still cut between framings", () => {
+    const beats = Array.from({ length: 9 }, () => dialogueShot);
+    const sizes = new Set(directShots(beats.map((b) => b.still), "film-3", beats).map((s) => s.size));
+    expect(sizes.size).toBeGreaterThan(1);
+  });
+
+  it("a scenery beat is untouched, wides and all", () => {
+    const beats = Array.from({ length: 6 }, () => sceneryShot);
+    const out = directShots(beats.map((b) => b.still), "film-4", beats);
+    expect(out.every((s) => s.faceFramed === false)).toBe(true);
+    expect(out[0].size).toBe("establishing");
+    expect(out[out.length - 1].size).toBe("wide");
+  });
+
+  it("a shot that merely contains a person does not become a close-up", () => {
+    // Coverage is the consistency strategy; a film of faces reads as a glitch.
+    expect(faceCarriesTheBeat({ still: "A figure walks along the harbour wall.", narration: "Time passed." })).toBe(false);
+  });
+
+  it("an explicit denial of people wins over the word 'people'", () => {
+    expect(faceCarriesTheBeat({ still: "A square with no people in it.", narration: "He looks up." })).toBe(false);
+  });
+
+  it("with no beats supplied the director behaves exactly as before", () => {
+    const stills = ["a", "b", "c", "d", "e"];
+    const out = directShots(stills, "film-5");
+    expect(out[0].size).toBe("establishing");
+    expect(out[4].size).toBe("wide");
+    expect(out.every((s) => s.faceFramed === false)).toBe(true);
   });
 });

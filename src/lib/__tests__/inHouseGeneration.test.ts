@@ -75,8 +75,8 @@ describe("stills are ONIQ's own", () => {
     }
   });
 
-  it("reference conditioning refuses honestly instead of drawing an unconditioned frame", () => {
-    expect(STORY_STILL).toMatch(/does not condition on a reference yet[\s\S]{0,400}422/);
+  it("inline reference bytes are refused honestly, never quietly ignored", () => {
+    expect(STORY_STILL).toMatch(/Inline reference bytes are not accepted[\s\S]{0,500}422/);
   });
 
   it("the refusal names the CAPABILITY, so nobody can mistake it for a verdict on the prompt", () => {
@@ -86,10 +86,8 @@ describe("stills are ONIQ's own", () => {
     // rung 2, `a place with no people in it`. A capability the engine lacks
     // was charged against the shot's subject matter, and the person the shot
     // was about was redrawn as an empty landscape.
-    const refusal = STORY_STILL.slice(
-      STORY_STILL.indexOf("does not condition on a reference yet"),
-      STORY_STILL.indexOf("does not condition on a reference yet") + 500,
-    );
+    const at = STORY_STILL.indexOf("Inline reference bytes are not accepted");
+    const refusal = STORY_STILL.slice(at, at + 500);
     expect(refusal).toContain("CAPABILITY_MARKER");
     expect(refusal).toMatch(/promptRefused:\s*false/);
     // A FIELD, not a sentence. The previous signal was English prose, and

@@ -71,8 +71,31 @@ describe("casting and conditioning are wired into the still loop", () => {
   });
 
   it("attaches the reference to story-still only on the character rungs (a < 2)", () => {
-    expect(WORKER).toMatch(/const usedRef = Boolean\(ref\) && a < 2/);
-    expect(WORKER).toMatch(/\.\.\.\(usedRef \? \{ referenceImage: ref \} : \{\}\)/);
+    // Rung 3 is people-less scenery by construction, so it never carries a
+    // character.
+    expect(WORKER).toMatch(
+      /const usedRef = Boolean\(refAudit\.characterRefId\) && a < 2/,
+    );
+  });
+
+  it("sends an IDENTITY, never bytes and never a path", () => {
+    // The data URL this used to send was refused outright by the in-house
+    // engine: the bucket's write credentials live in the endpoint alone, so
+    // there was nowhere for inline bytes to land. An id is resolved to a
+    // server-owned key by story-still and re-validated by the worker's own
+    // contract before anything is spent.
+    expect(WORKER).toMatch(
+      /\.\.\.\(usedRef \? \{ characterRefId: refAudit\.characterRefId \} : \{\}\)/,
+    );
+    expect(WORKER).not.toMatch(/referenceImage: ref/);
+  });
+
+  it("records what the ENGINE did, not what this side asked for", () => {
+    // An unanchored still looks exactly like an anchored one until the
+    // character's face changes between shots. Logging the request would keep
+    // that invisible.
+    expect(WORKER).toMatch(/conditioned = still\?\.conditioned === true/);
+    expect(WORKER).toContain("REFERENCE_NOT_PUBLISHED");
   });
 
   it("records the full audit trail per shot, without logging base64", () => {

@@ -91,6 +91,58 @@ function draw(seed: number, lane: number): number {
   return h / 4294967296;
 }
 
+/**
+ * The sizes at which a face is legible on this canvas.
+ *
+ * MEASURED, not stylistic. The generation canvas is 704x1248. In a "wide"
+ * shot a standing figure occupies perhaps a fifth of the frame height, so the
+ * head is around 40px tall and the face maybe 25px — below what the VAE
+ * resolves as features at all, which is why the audit's complaint is
+ * "characters' faces are not reliably visible" rather than "faces look bad".
+ * At medium and closer the face is hundreds of pixels and the model has
+ * something to work with.
+ *
+ * Order matters: these are walked in the same round-robin the full palette is,
+ * so a film whose beats are all face beats still cuts between three different
+ * framings rather than becoming five identical close-ups.
+ */
+export const FACE_LEGIBLE_SIZES: readonly string[] = [
+  "medium",
+  "medium close-up",
+  "close-up",
+];
+
+/**
+ * Does THIS shot's beat need a face?
+ *
+ * Deliberately narrow. The directive is explicit that not every shot should
+ * become a close-up and that a shot which deliberately puts someone off-screen
+ * must stay that way — coverage is the character-consistency strategy, and a
+ * film of faces reads as a glitch. So this answers yes only for the two cases
+ * where the beat is CARRIED by the face:
+ *
+ *   - the shot has a spoken line (a mouth the audience must see move), or
+ *   - the shot's own text names an expression or a look.
+ *
+ * A shot that merely contains a person does not qualify. Neither does one
+ * whose text says nobody is there.
+ */
+export function faceCarriesTheBeat(shot: {
+  still?: string | null;
+  narration?: string | null;
+  dialogue?: { line?: string | null } | null;
+}): boolean {
+  if (shot.dialogue && String(shot.dialogue.line ?? "").trim()) return true;
+  const hay = `${shot.still ?? ""} ${shot.narration ?? ""}`.toLowerCase();
+  if (!hay.trim()) return false;
+  // An explicit denial wins, for the same reason it does in faceQuality:
+  // "no people" contains "people".
+  if (/\b(no people|no one|nobody|deserted|uninhabited|empty)\b/.test(hay)) return false;
+  return /\b(face|eyes?|expression|smiles?|smiling|frowns?|weeps?|weeping|stares?|staring|glares?|looks? up|looks? down|looks? at|meets? (?:his|her|their) (?:eye|gaze)|whispers?|shouts?|says?|speaks?|asks?|replies)\b/.test(
+    hay,
+  );
+}
+
 export type DirectedShot = {
   /** The decorated still the image prompt should use. */
   still: string;
@@ -98,6 +150,8 @@ export type DirectedShot = {
   size: string | null;
   /** Lighting note appended (always present). */
   lighting: string;
+  /** True when the size pool was narrowed because the beat needs a face. */
+  faceFramed: boolean;
 };
 
 /**
@@ -108,7 +162,21 @@ export type DirectedShot = {
  * adjacent shots. A very long still (the 1900-char prompt budget is
  * sliced downstream) is left undecorated rather than half-decorated.
  */
-export function directShots(stills: readonly string[], seedId: string): DirectedShot[] {
+export function directShots(
+  stills: readonly string[],
+  seedId: string,
+  /**
+   * The shots' own grammar, when the caller has it. Optional so every existing
+   * call site keeps working unchanged: with no beats supplied the director
+   * behaves exactly as it did, and only a caller that knows which beats are
+   * carried by a face gets the narrowed pool.
+   */
+  beats: readonly {
+    still?: string | null;
+    narration?: string | null;
+    dialogue?: { line?: string | null } | null;
+  }[] = [],
+): DirectedShot[] {
   const seed = fnv1a(String(seedId ?? ""));
   const n = stills.length;
   const offset = Math.floor(draw(seed, 0) * SHOT_SIZES.length);
@@ -123,20 +191,49 @@ export function directShots(stills: readonly string[], seedId: string): Directed
     const lighting = LIGHTING_PALETTE[li];
 
     const keepSize = hasLeadingSize(still);
-    const size =
-      i === 0 ? "establishing" : i === n - 1 ? "wide" : SHOT_SIZES[(i + offset) % SHOT_SIZES.length];
+
+    // SIZE USED TO BE CHOSEN BY POSITION ALONE, and that was the defect.
+    //
+    // MEASURED 2026-08-31, reading this function against the complaint
+    // "characters' faces are not reliably visible". The size came from
+    // `SHOT_SIZES[(i + offset) % SHOT_SIZES.length]` — a round-robin over the
+    // whole palette from a seeded offset — with the first shot forced to
+    // `establishing` and the LAST forced to `wide`. The shot's own content was
+    // never consulted. So a line of dialogue could land on `wide`, the still
+    // prompt would faithfully say "wide shot", and the face would be drawn at
+    // perhaps 25 pixels on a 704-wide canvas. Nobody chose that; it fell out
+    // of a cutting rhythm meeting a beat it could not see.
+    //
+    // The rhythm is worth keeping — it is why two films with the same shot
+    // count do not cut identically — so it is NARROWED rather than replaced.
+    // A beat the face carries walks the same round-robin over the
+    // face-legible sizes; every other beat is untouched, including the
+    // establishing open. The last shot keeps its `wide` close unless the film
+    // ends on someone's face, which is exactly the shot a forced wide was
+    // worst for.
+    const beat = beats[i];
+    const needsFace = beat ? faceCarriesTheBeat(beat) : false;
+    const pool = needsFace ? FACE_LEGIBLE_SIZES : SHOT_SIZES;
+    const size = needsFace
+      ? pool[(i + offset) % pool.length]
+      : i === 0
+        ? "establishing"
+        : i === n - 1
+          ? "wide"
+          : SHOT_SIZES[(i + offset) % SHOT_SIZES.length];
 
     if (still.length > 1700) {
       // Decoration appended past the downstream slice would be cut mid-word;
       // an undecorated shot beats a mangled prompt (same trade the slice
       // itself makes).
-      return { still, size: null, lighting };
+      return { still, size: null, lighting, faceFramed: false };
     }
     const sizeNote = keepSize ? "" : `${size} shot, `;
     return {
       still: `${still} — ${sizeNote}${lighting}.`,
       size: keepSize ? null : size,
       lighting,
+      faceFramed: needsFace && !keepSize,
     };
   });
 }

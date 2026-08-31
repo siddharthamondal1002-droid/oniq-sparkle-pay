@@ -40,6 +40,12 @@ import {
   generateStill,
 } from "../_shared/oniqImage.ts";
 import { CAPABILITY_MARKER } from "../_shared/referenceOutcome.ts";
+import {
+  DEFAULT_REFERENCE_STRENGTH,
+  MAX_REFERENCE_STRENGTH,
+  MIN_REFERENCE_STRENGTH,
+  characterRefKey,
+} from "../_shared/characterRef.ts";
 import { stillIdFor } from "../_shared/inHouseMotion.ts";
 
 const corsHeaders = {
@@ -163,7 +169,9 @@ Deno.serve(async (req) => {
     if (referenceImage) {
       return json(
         {
-          error: "The in-house image engine does not condition on a reference yet.",
+          error:
+            "Inline reference bytes are not accepted. Name a published " +
+            "canonical character with characterRefId instead.",
           code: CAPABILITY_MARKER,
           // Explicit, because the whole bug was a caller inferring the wrong
           // thing from silence: this says nothing about the prompt.
@@ -172,6 +180,52 @@ Deno.serve(async (req) => {
         },
         422,
       );
+    }
+
+    // THE IDENTITY ANCHOR — an id, resolved here, never a path (owner
+    // directive 2026-08-31: character identity is not preserved between
+    // character creation, scene creation and motion).
+    //
+    // The caller names a PUBLISHED CANONICAL CHARACTER. This side turns that
+    // name into a bucket key against a fixed server-side allowlist, and the
+    // worker's contract independently pins the same prefix and shape before
+    // spending a byte of GPU. Two checks that cannot both be talked out of it,
+    // and the browser contributes only a name from a closed set.
+    //
+    // An unknown id is NOT an error. It is a shot that draws without an anchor
+    // — which is what every shot did before this existed — and the reason
+    // travels back so the caller can tell that apart from a refusal of the
+    // content. A capability gap must never make the prompt worse; that is the
+    // whole of referenceOutcome.ts.
+    const characterRefId =
+      typeof body?.characterRefId === "string" ? body.characterRefId.trim() : "";
+    let referenceKey: string | null = null;
+    let referenceUnresolved: string | null = null;
+    if (characterRefId) {
+      referenceKey = characterRefKey(characterRefId);
+      if (!referenceKey) referenceUnresolved = "not-a-published-canonical-character";
+    }
+
+    let referenceStrength: number | undefined;
+    if (body?.referenceStrength !== undefined && body?.referenceStrength !== null) {
+      const raw = body.referenceStrength;
+      if (
+        typeof raw !== "number" ||
+        !Number.isFinite(raw) ||
+        raw < MIN_REFERENCE_STRENGTH ||
+        raw > MAX_REFERENCE_STRENGTH
+      ) {
+        return json(
+          {
+            error:
+              `referenceStrength must be between ${MIN_REFERENCE_STRENGTH} and ` +
+              `${MAX_REFERENCE_STRENGTH}`,
+            retryable: false,
+          },
+          400,
+        );
+      }
+      referenceStrength = raw;
     }
 
     // THE SEED, AND WHY IT ARRIVES FROM THE CALLER RATHER THAN BEING ROLLED.
@@ -276,12 +330,33 @@ Deno.serve(async (req) => {
           sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
           newId: () => crypto.randomUUID(),
         },
-        { id: stillId, seed, negativePrompt },
+        {
+          id: stillId,
+          seed,
+          negativePrompt,
+          ...(referenceKey
+            ? {
+                referenceKey,
+                referenceStrength: referenceStrength ?? DEFAULT_REFERENCE_STRENGTH,
+              }
+            : {}),
+        },
       );
       // `key` travels back so the runner can log WHERE the frame went, and so
       // a film that later fails to animate can be diagnosed from its own log
       // rather than by guessing at a uuid nobody kept.
-      return json({ configured: true, mime: still.mime, data: still.data, key: still.key });
+      return json({
+        configured: true,
+        mime: still.mime,
+        data: still.data,
+        key: still.key,
+        // WHETHER THE ANCHOR WAS ACTUALLY USED, reported rather than assumed.
+        // An unanchored still looks exactly like an anchored one until the
+        // character's face changes between shots, so the caller is told which
+        // it got and, when it is the wrong one, why.
+        conditioned: Boolean(referenceKey),
+        referenceUnresolved,
+      });
     } catch (err) {
       // Named plainly, and NEVER converted into a cloud call. There is no
       // provider behind this except ONIQ's own engine, and a failure here

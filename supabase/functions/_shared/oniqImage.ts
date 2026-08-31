@@ -271,6 +271,15 @@ export async function generateStill(
      * a face are not the terms that ruin a landscape (faceQuality.ts).
      */
     negativePrompt?: string;
+    /**
+     * The canonical character reference's BUCKET KEY, already resolved from a
+     * published id by characterRef.ts. Never a URL and never caller-supplied:
+     * the worker reads it with its own credentials and re-validates the shape
+     * against its contract before any GPU work.
+     */
+    referenceKey?: string;
+    /** How hard to hold it. The worker refuses anything outside its band. */
+    referenceStrength?: number;
   } = {},
 ): Promise<{ mime: string; data: string; bytes: number; key: string }> {
   const deadlineMs = opts.deadlineMs ?? 120_000;
@@ -303,6 +312,10 @@ export async function generateStill(
           ...(typeof opts.seed === "number" ? { seed: opts.seed } : {}),
           ...(typeof opts.negativePrompt === "string"
             ? { negative_prompt: opts.negativePrompt }
+            : {}),
+          ...(opts.referenceKey ? { reference_key: opts.referenceKey } : {}),
+          ...(typeof opts.referenceStrength === "number"
+            ? { reference_strength: opts.referenceStrength }
             : {}),
         },
       },
