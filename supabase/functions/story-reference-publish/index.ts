@@ -108,6 +108,34 @@ export function pngSize(bytes: Uint8Array): { width: number; height: number } | 
   return { width: view.getUint32(16), height: view.getUint32(20) };
 }
 
+/**
+ * The R2 client, or the NAMES of what is missing.
+ *
+ * A name is operator information; a value never is. The same rule gpu-video
+ * holds for RUNPOD_API_KEY, and it is why nothing below ever interpolates a
+ * credential into a response, a log or an error.
+ */
+function readR2Env():
+  | { r2: AwsClient; endpoint: string }
+  | { missing: string[] } {
+  const accessKeyId = Deno.env.get("R2_ACCESS_KEY_ID") ?? "";
+  const secretAccessKey = Deno.env.get("R2_SECRET_ACCESS_KEY") ?? "";
+  const accountId = Deno.env.get("R2_ACCOUNT_ID") ?? "";
+  const endpoint =
+    Deno.env.get("R2_S3_ENDPOINT") ??
+    (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "");
+  const missing = [
+    !accessKeyId && "R2_ACCESS_KEY_ID",
+    !secretAccessKey && "R2_SECRET_ACCESS_KEY",
+    !endpoint && "R2_ACCOUNT_ID (or R2_S3_ENDPOINT)",
+  ].filter(Boolean) as string[];
+  if (missing.length) return { missing };
+  return {
+    r2: new AwsClient({ accessKeyId, secretAccessKey, region: SIGNING_REGION, service: "s3" }),
+    endpoint,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -129,8 +157,56 @@ Deno.serve(async (req) => {
       .from("profiles").select("is_admin").eq("id", userRes.user.id).maybeSingle();
     if (profile?.is_admin !== true) return json({ error: "Admins only" }, 403);
 
-    // ── 3. resolve the canonical asset through the existing owner map ───────
     const body = await req.json().catch(() => ({}));
+
+    // ── action: "probe" — READ-ONLY, MUTATES NOTHING ────────────────────────
+    //
+    // "The variables are present" is not the same claim as "the credential can
+    // write this bucket", and conflating them is how a deploy gets reported
+    // green and then fails on its first real object. This proves what can be
+    // proved without touching anything: that the credential AUTHENTICATES and
+    // that it can READ the bucket the worker reads from.
+    //
+    // WHAT IT DELIBERATELY DOES NOT CLAIM. An R2 token can be scoped
+    // read-only, so a successful list says nothing about PUT. Write is
+    // provable only by writing, which is a real mutation of a production
+    // bucket — cheap (no GPU, no model, one small object) but not something to
+    // do unasked. `publish` is that action, and it is separate on purpose.
+    if (body?.action === "probe") {
+      const env = readR2Env();
+      if ("missing" in env) return json({ configured: false, missing: env.missing });
+      const listUrl = `${env.endpoint}/${BUCKET}?list-type=2&max-keys=1`;
+      let status = 0;
+      let detail = "";
+      try {
+        const res = await env.r2.fetch(listUrl, { method: "GET" });
+        status = res.status;
+        if (!res.ok) detail = (await res.text()).slice(0, 200);
+      } catch (err) {
+        detail = err instanceof Error ? err.message.slice(0, 200) : "unreachable";
+      }
+      return json({
+        configured: true,
+        bucket: BUCKET,
+        canAuthenticate: status === 200 || status === 403,
+        canRead: status === 200,
+        status,
+        detail: detail || undefined,
+        // Said plainly, because the whole value of this probe is that it does
+        // not overstate what it checked.
+        writeProven: false,
+        note:
+          status === 200
+            ? "the credential authenticates and can read this bucket; WRITE is " +
+              "still unproven — an R2 token can be scoped read-only"
+            : status === 403
+              ? "the credential authenticates but is not permitted to read " +
+                `${BUCKET} — it is most likely scoped to another bucket`
+              : "the credential did not authenticate against this endpoint",
+      });
+    }
+
+    // ── 3. resolve the canonical asset through the existing owner map ───────
     const characterRefId =
       typeof body?.characterRefId === "string" ? body.characterRefId.trim() : "";
     if (!isPublishableCharacterRef(characterRefId)) {
@@ -195,27 +271,9 @@ Deno.serve(async (req) => {
     const destKey = characterRefKey(characterRefId, version);
     if (!destKey) return json({ error: "could not derive a destination key" }, 400);
 
-    const accessKeyId = Deno.env.get("R2_ACCESS_KEY_ID") ?? "";
-    const secretAccessKey = Deno.env.get("R2_SECRET_ACCESS_KEY") ?? "";
-    const accountId = Deno.env.get("R2_ACCOUNT_ID") ?? "";
-    const endpoint =
-      Deno.env.get("R2_S3_ENDPOINT") ??
-      (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "");
-    if (!accessKeyId || !secretAccessKey || !endpoint) {
-      // The NAME of a missing variable is operator information; no value ever
-      // is. The rule gpu-video holds for RUNPOD_API_KEY.
-      return json({
-        configured: false,
-        missing: [
-          !accessKeyId && "R2_ACCESS_KEY_ID",
-          !secretAccessKey && "R2_SECRET_ACCESS_KEY",
-          !endpoint && "R2_ACCOUNT_ID (or R2_S3_ENDPOINT)",
-        ].filter(Boolean),
-      }, 200);
-    }
-    const r2 = new AwsClient({
-      accessKeyId, secretAccessKey, region: SIGNING_REGION, service: "s3",
-    });
+    const env = readR2Env();
+    if ("missing" in env) return json({ configured: false, missing: env.missing }, 200);
+    const { r2, endpoint } = env;
     const objectUrl = `${endpoint}/${BUCKET}/${destKey}`;
 
     // ── IMMUTABLE: a version that exists is never overwritten ───────────────

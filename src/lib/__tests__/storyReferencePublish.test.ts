@@ -193,3 +193,50 @@ describe("how many frames this actually unblocks", () => {
     expect(eligible.every((a) => Boolean(a.assetPath))).toBe(true);
   });
 });
+
+describe("the read-only probe proves what it can and claims nothing more", () => {
+  it("mutates nothing — no PUT, no DELETE, no object key", () => {
+    const at = SRC.indexOf('body?.action === "probe"');
+    expect(at).toBeGreaterThan(-1);
+    const probe = SRC.slice(at, SRC.indexOf("// ── 3. resolve", at));
+    expect(probe).toContain('method: "GET"');
+    expect(probe).not.toContain('method: "PUT"');
+    expect(probe).not.toContain('method: "DELETE"');
+    // It lists ONE key to prove authentication; it never names an object.
+    expect(probe).toContain("list-type=2&max-keys=1");
+  });
+
+  it("does not mistake 'the variables are present' for 'the credential can write'", () => {
+    // An R2 token can be scoped read-only, so a successful list says nothing
+    // about PUT. Conflating the two is how a deploy gets reported green and
+    // then fails on its first real object.
+    const at = SRC.indexOf('body?.action === "probe"');
+    const probe = SRC.slice(at, SRC.indexOf("// ── 3. resolve", at));
+    expect(probe).toContain("writeProven: false");
+    expect(probe).toContain("canAuthenticate");
+    expect(probe).toContain("canRead");
+  });
+
+  it("separates 'authenticates but cannot read this bucket' from 'did not authenticate'", () => {
+    // 403 and a connection failure are different operator problems: the first
+    // is a token scoped to another bucket, the second is a wrong endpoint or
+    // a dead credential.
+    const at = SRC.indexOf('body?.action === "probe"');
+    const probe = SRC.slice(at, SRC.indexOf("// ── 3. resolve", at));
+    expect(probe).toContain("status === 403");
+    expect(probe).toContain("scoped to another bucket");
+  });
+
+  it("is behind the same admin gate as publishing", () => {
+    // The probe reads a production bucket. It sits AFTER the admin check.
+    expect(SRC.indexOf('json({ error: "Admins only" }, 403)')).toBeLessThan(
+      SRC.indexOf('body?.action === "probe"'),
+    );
+  });
+
+  it("reads the credential through one helper, so neither path can diverge", () => {
+    expect(SRC).toContain("function readR2Env()");
+    // Exactly two call sites: the probe and the publish.
+    expect(SRC.match(/readR2Env\(\)/g)?.length).toBe(3); // 1 definition + 2 uses
+  });
+});
