@@ -47,7 +47,21 @@ export type MotionDeps = {
  * handling needs no new branch downstream of the call.
  */
 export async function generateMotionClip(
-  args: { prompt: string; inputKey: string; outputKey: string; watermark: boolean },
+  args: {
+    prompt: string;
+    inputKey: string;
+    outputKey: string;
+    watermark: boolean;
+    /**
+     * The sampler seed for THIS clip attempt, derived by the caller from the
+     * shot's identity and its attempt number (storySeed.ts). Absent, the
+     * worker's own fallback constant stands — which is what made ten retries
+     * ten identical clips before 2026-08-31.
+     */
+    seed?: number;
+    /** What this shot must NOT contain — per shot, never one global list. */
+    negativePrompt?: string;
+  },
   env: MotionEnv,
   deps: MotionDeps,
   opts: { deadlineMs?: number; pollMs?: number } = {},
@@ -75,7 +89,17 @@ export async function generateMotionClip(
         op: "video_generate",
         input_key: args.inputKey,
         output_key: args.outputKey,
-        params: { prompt: args.prompt, watermark: args.watermark },
+        // Only the fields the caller actually set. The worker's contract
+        // refuses a null seed and takes an ABSENT one as "use the default",
+        // so an unset option must not become a key.
+        params: {
+          prompt: args.prompt,
+          watermark: args.watermark,
+          ...(typeof args.seed === "number" ? { seed: args.seed } : {}),
+          ...(typeof args.negativePrompt === "string"
+            ? { negative_prompt: args.negativePrompt }
+            : {}),
+        },
       },
     }),
   });

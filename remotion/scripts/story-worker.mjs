@@ -104,7 +104,13 @@ import { castShot } from '../../src/lib/storyActorCasting.ts';
 import { ONIQ_ASSET_ORIGIN } from '../../src/data/storyActorAssets.ts';
 import { planPortrait, PORTRAIT_W, PORTRAIT_H } from '../../src/lib/portraitReframe.ts';
 import { planPrecondition } from '../../src/lib/portraitPrecondition.ts';
-import { composeVideoPrompt } from '../../supabase/functions/_shared/movieGrammar.ts';
+import {
+  composeInHouseVideoPrompt,
+  composeVideoPrompt,
+} from '../../supabase/functions/_shared/movieGrammar.ts';
+import { deriveSeed } from '../../supabase/functions/_shared/storySeed.ts';
+import { negativePromptFor } from '../../supabase/functions/_shared/faceQuality.ts';
+import { classifyReferenceFailure } from '../../supabase/functions/_shared/referenceOutcome.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -597,7 +603,28 @@ async function renderPlan(plan, outFile) {
       // NOT muted. A silent Story is the failure this project already shipped.
       muted: false,
       concurrency: CONCURRENCY,
-      crf: 28,
+      // THE MASTER'S QUALITY DEPENDS ON WHETHER IT IS THE DELIVERABLE.
+      //
+      // MEASURED 2026-08-31, tracing every lossy step from the VAE to the
+      // file a viewer opens:
+      //
+      //   1. the clip      libx264 crf 23   (videogen.py)
+      //   2. this master   libx264 crf 28
+      //   3. the grade     libx264 crf 21   (filmLook.mjs)
+      //
+      // Step 2 is an INTERMEDIATE whenever step 3 runs — its only consumer is
+      // an ffmpeg that immediately re-encodes it. Detail thrown away at crf
+      // 28 cannot be recovered by a crf 21 pass; all the lower number then
+      // buys is a bigger file carrying the earlier pass's artifacts. That is
+      // precisely the unnecessary lossy intermediate to remove.
+      //
+      // crf 28 was chosen for DELIVERY and is right for delivery: it gave
+      // episode 1 41MB for 4:47 (1.13 Mbps) where the default gave 330MB,
+      // and painterly art with no text compresses that well. So the number
+      // is chosen by ROLE rather than lowered everywhere. The grade probe is
+      // a pure inspection of local binaries and answers before any frame is
+      // rendered, so the role is known here.
+      crf: findGradeFfmpeg() ? MASTER_CRF_INTERMEDIATE : MASTER_CRF_DELIVERED,
       audioBitrate: '128k',
       // Stated intent, MEASURED as insufficient: the compositor still tags
       // the master yuvj420p (full-range) with this set, because Chromium
@@ -739,6 +766,23 @@ const RIG_KEY_BY_NAME = new Map([...MEASURED_RIGS].map((k) => [k.toLowerCase(), 
  * step-down below ships the clean master exactly as before — this probe
  * never makes the pipeline worse, only sometimes better.
  */
+/**
+ * The master's crf, by role.
+ *
+ * DELIVERED — the grade cannot run on this host, so the master IS the film.
+ * 28 is the measured delivery value (ep1: 41MB for 4:47 against 330MB at the
+ * default, with native-resolution crops of hair, fabric and sky gradient
+ * indistinguishable).
+ *
+ * INTERMEDIATE — the grade will re-encode this file at crf 21, so this pass
+ * only has to survive one more generation. 18 is the conventional
+ * visually-lossless threshold for x264 8-bit; it roughly doubles the
+ * intermediate on disk, which is a temporary file deleted minutes later, and
+ * it stops the grade from sharpening crf-28 blocking into the shipped film.
+ */
+const MASTER_CRF_DELIVERED = 28;
+const MASTER_CRF_INTERMEDIATE = 18;
+
 let gradeFfmpeg; // undefined = not probed; null = none capable
 function findGradeFfmpeg() {
   if (gradeFfmpeg !== undefined) return gradeFfmpeg;
@@ -974,13 +1018,32 @@ async function generateClip(shot, stillFile, shotSeconds, shotId, noWatermark = 
     // `data` exactly as story-clip's does, so everything downstream of this
     // call (aliveness, trim, assembly) is untouched.
     const [sceneId, shotIdPart] = splitShotId(shotId);
+    const jobId = String(shotId).split(':')[0] || 'job';
     const got = await edge('story-motion', {
-      prompt: composeVideoPrompt(shot).slice(0, 1000),
+      // THE IN-HOUSE COMPOSER. composeVideoPrompt is Veo's, and every rule in
+      // it was measured against Veo's classifier and Veo's conditioning; on
+      // LTX its motion-only output is nearly everything the text encoder is
+      // ever told about the shot. composeInHouseVideoPrompt carries the
+      // visual condition, the motion, the camera and the expression, which is
+      // the order LTX's own guidance asks for.
+      prompt: composeInHouseVideoPrompt(shot).slice(0, 1000),
       sceneId,
       shotId: shotIdPart,
       version: 1,
       index: 0,
       noWatermark: Boolean(noWatermark),
+      // Attempt 0: this call site does not retry — a failed clip steps the
+      // shot down to its still. The seed is derived anyway so the clip is
+      // reproducible, and so a future retry here varies by construction
+      // rather than by somebody remembering to make it.
+      seed: deriveSeed({
+        stage: 'clip',
+        jobId,
+        sceneId,
+        shotId: shotIdPart,
+        attempt: 0,
+      }),
+      negativePrompt: negativePromptFor([shot.still, shot.narration, shot.motion]),
     });
     if (!got?.data) throw new Error('in-house motion returned no clip — no provider fallback');
     return { ...got, audioRouting: audioPlanFor(shot) };
@@ -1832,7 +1895,20 @@ if (offline) {
     // construction unable to change a shot's weather (the decorated still
     // is what selectSceneWeather reads, and every palette phrase classifies
     // as no-vfx).
-    const directed = directShots(plan.shots.map((s) => s.still), String(job.id));
+    // THE SHOTS' OWN GRAMMAR travels to the director now, so a beat carried
+    // by a face cannot be assigned a wide. Before this the size came from
+    // position alone and a line of dialogue could land on `wide shot`, which
+    // draws the face at roughly 25 pixels on a 704-wide canvas — the measured
+    // reason faces were "not reliably visible".
+    const directed = directShots(
+      plan.shots.map((s) => s.still),
+      String(job.id),
+      plan.shots.map((s) => ({
+        still: s.still,
+        narration: s.narration,
+        dialogue: s.dialogue ?? null,
+      })),
+    );
 
     // VOICES FIRST — the whole clock is spoken and MEASURED before a single
     // still is drawn (owner directive 2026-08-26). Job 76d09a89 cleared every
@@ -2056,7 +2132,8 @@ if (offline) {
       // weather alike — one text, one decision, no way to disagree.
       const directedStill = directed[i].still;
       console.log(
-        `  director ${i + 1}: ${directed[i].size ?? 'size kept'} | ${directed[i].lighting}`,
+        `  director ${i + 1}: ${directed[i].size ?? 'size kept'} | ${directed[i].lighting}` +
+          (directed[i].faceFramed ? ' | FACE BEAT — framed for it' : ''),
       );
       const sceneWeather = selectSceneWeather(directedStill);
       const settingForImage = weatherConsistentSetting(plan.setting ?? '', sceneWeather);
@@ -2188,6 +2265,34 @@ if (offline) {
           console.log(`  still 1: plate unusable (${String(err?.message ?? err).slice(0, 120)}) — drawing one instead`);
         }
       }
+      // WHAT THIS SHOT MUST NOT CONTAIN, decided from the shot's own text.
+      //
+      // The worker carried ONE negative prompt for every shot of every film:
+      // "worst quality, inconsistent motion, blurry, jittery, distorted" —
+      // five terms, all about a clip MOVING badly, none about a face. That is
+      // the audit's headline complaint with no instruction against it
+      // anywhere in the system. faceQuality decides per shot and stays inside
+      // the worker's 400-character bound, because a negative prompt is
+      // encoded against the same token budget as the prompt that says what
+      // the shot IS.
+      const shotNegative = negativePromptFor([
+        shot.still,
+        shot.narration,
+        shot.motion,
+        plan.setting ?? '',
+      ]);
+      // ONE ATTEMPT COUNTER FOR THE WHOLE SHOT, across every rung and every
+      // repeat, because it is what makes each draw DIFFERENT. Ten attempts
+      // against videogen.py's `SEED = 42` were ten byte-identical images: the
+      // retry budget the owner raised from 3 to 10 could not succeed, because
+      // nothing about the second attempt differed from the first. The seed is
+      // derived, never rolled, so a frame that comes out wrong can be drawn
+      // again exactly and looked at.
+      let stillDraw = 0;
+      // A reference that the ENGINE cannot use is dropped for the rest of
+      // this shot. Re-attaching it on the next attempt would re-earn the same
+      // refusal at the price of another GPU job.
+      let refBlocked = false;
       outer: for (let a = 0; a < asks.length && !still; a++) {
         // NO_IMAGE is an EMPTY reply, not a verdict — run 66 saw it clear on
         // the next identical call while run 69 lost a film to it on the
@@ -2195,46 +2300,113 @@ if (offline) {
         // repeat before it counts as a refusal; a named refusal
         // (PROHIBITED_CONTENT) steps straight down.
         for (let t = 0; t < STILL_ATTEMPTS; t++) {
+          // The reference conditions only the CHARACTER rungs (0, 1); rung 2
+          // is people-less scenery by construction, so it never carries a face.
+          // THE ANCHOR TRAVELS AS AN ID, NOT AS BYTES (2026-08-31).
+          //
+          // This used to send a base64 data URL, which the in-house engine
+          // refused outright — the media bucket's write credentials live in
+          // the endpoint alone, so there was nowhere for inline bytes to
+          // land. The id names a PUBLISHED CANONICAL CHARACTER; story-still
+          // resolves it against a fixed server-side allowlist and the GPU
+          // worker re-validates the derived key against its own contract
+          // before spending anything. Nothing that could be a path, a URL or
+          // another user's object travels from here.
+          //
+          // Rungs 1 and 2 only: rung 3 is people-less scenery by
+          // construction, so it never carries a character.
+          const usedRef = Boolean(refAudit.characterRefId) && a < 2 && !refBlocked;
           try {
-            // The reference conditions only the CHARACTER rungs (0, 1); rung 2
-            // is people-less scenery by construction, so it never carries a face.
-            const usedRef = Boolean(ref) && a < 2;
             still = await edge('story-still', {
               prompt: asks[a],
               sceneId: stillSceneId,
               shotId: stillShotId,
-              ...(usedRef ? { referenceImage: ref } : {}),
+              seed: deriveSeed({
+                stage: 'still',
+                jobId: job.id,
+                sceneId: stillSceneId,
+                shotId: stillShotId,
+                attempt: stillDraw,
+              }),
+              negativePrompt: shotNegative,
+              ...(usedRef ? { characterRefId: refAudit.characterRefId } : {}),
             });
-            conditioned = usedRef;
+            // WHAT THE ENGINE SAYS IT DID, not what this side asked for. A
+            // reference whose canonical frame has not been published yet
+            // comes back unanchored with a reason, and recording the ask
+            // instead of the outcome is how "the character keeps changing"
+            // stays invisible in a log that claims it was conditioned.
+            conditioned = still?.conditioned === true;
+            if (usedRef && !conditioned) {
+              refAudit.referenceAttached = false;
+              refAudit.reason = still?.referenceUnresolved ?? 'REFERENCE_NOT_PUBLISHED';
+              console.log(
+                `  still ${i + 1}: anchor unavailable (${refAudit.reason}) — drew unanchored`,
+              );
+            }
             break outer;
           } catch (err) {
+            stillDraw += 1;
             const msg = String(err?.message ?? err);
-            // Three sorts of failure, three verdicts:
-            //   422 / 400-too-long  — the CONTENT is refused: step down.
-            //   5xx / 429           — the SERVICE hiccuped: one same-ask
-            //                         retry after a pause, then fatal. Runs
-            //                         3, 11 and 19 of the 2026-08-18 dry
-            //                         campaign died to a single injected 500
-            //                         because only refusals had a ladder; a
-            //                         one-blip transient is not worth a paid
-            //                         film. One retry, never more — a host
-            //                         that failed twice in a row is down,
-            //                         and infinite patience here would hold
-            //                         the whole queue.
-            //   anything else       — a real failure: throw.
-            const steppable =
-              /story-still: 422/.test(msg) || /story-still: 400 .*too long/i.test(msg);
-            // THE ENGINE'S OWN VERDICT WHEN IT OFFERS ONE. story-still now
+            // THE ENGINE'S OWN VERDICT WHEN IT OFFERS ONE. story-still
             // returns `retryable` alongside the message, because every
             // EngineError leaves it as a 502 and the status code alone
             // cannot separate "the container hiccuped" from "that output
             // was not a png". The status-code guess stays as the fallback
             // for a worker and a function deployed out of step.
             const said = /"retryable"\s*:\s*(true|false)/.exec(msg);
+            const status = Number(/story-still: (\d{3})/.exec(msg)?.[1] ?? 0);
+            const code = /"code"\s*:\s*"([^"]+)"/.exec(msg)?.[1] ?? null;
+
+            // A 400 for an over-long ask is the one case the status alone
+            // still decides: it is a verdict on THIS text, and the next rung
+            // is shorter by construction.
+            if (status === 400 && /too long/i.test(msg)) {
+              if (a === asks.length - 1) throw err;
+              console.log(
+                `  still ${i + 1}: ask too long — step-down ${a + 2}/${asks.length}`,
+              );
+              break;
+            }
+
+            // WHY A FAILURE, NOT JUST WHETHER. Measured 2026-08-31: every 422
+            // was read as "the CONTENT is refused, step down", so a shot whose
+            // character reference had resolved SUCCESSFULLY was demoted two
+            // rungs to `a place with no people in it`. The engine's inability
+            // to condition on a reference was charged against the shot's
+            // subject matter and the person became an empty landscape.
+            // referenceOutcome separates the four meanings; only one of them
+            // may ever lower the rung.
+            const verdict = classifyReferenceFailure({
+              status,
+              code,
+              sentReference: usedRef,
+            });
+            // WHETHER to try again is still the engine's own verdict, falling
+            // back to the status code exactly as before. Deliberately NOT
+            // taken from `verdict`: referenceOutcome treats an unrecognised
+            // status as transient, which is the right default for the
+            // REFERENCE question and the wrong one for the retry budget — a
+            // 401 or a 403 would then buy three paid attempts at an answer
+            // that cannot change. verdict decides what the failure was ABOUT;
+            // this decides whether asking again could help.
             const transient = said
               ? said[1] === 'true'
-              : /story-still: (5\d\d|429)/.test(msg);
-            if (!steppable && !transient) throw err;
+              : status >= 500 || status === 429;
+
+            if (verdict.dropReference && usedRef) {
+              refBlocked = true;
+              refAudit.referenceAttached = false;
+              refAudit.dropReason = verdict.outcome;
+              console.log(
+                `  still ${i + 1}: ${verdict.outcome} — same ask, no reference ` +
+                  `(rung ${a + 1}/${asks.length} kept)`,
+              );
+              // Not a step-down and not a transient wait: the ask was never
+              // the problem, so it is asked again unchanged and immediately.
+              continue;
+            }
+
             if (transient) {
               const delay = STILL_BACKOFF_MS[t];
               if (delay === undefined) {
@@ -2251,12 +2423,20 @@ if (offline) {
               await new Promise((r) => setTimeout(r, delay));
               continue;
             }
+
+            // Not transient, and the reference is not the suspect: only a
+            // verdict about the CONTENT may lower the rung. Anything else is
+            // a real failure and is thrown at once rather than being spent
+            // against the ladder.
+            if (verdict.outcome !== 'CONTENT_REFUSED') throw err;
             if (/NO_IMAGE/.test(msg) && t === 0) {
               console.log(`  still ${i + 1}: empty reply — same ask once more`);
               continue;
             }
             if (a === asks.length - 1) throw err;
-            console.log(`  still ${i + 1}: refused (${msg.slice(0, 120)}) — step-down ${a + 2}/3`);
+            console.log(
+              `  still ${i + 1}: refused (${msg.slice(0, 120)}) — step-down ${a + 2}/${asks.length}`,
+            );
             break;
           }
         }

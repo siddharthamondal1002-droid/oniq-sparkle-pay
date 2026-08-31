@@ -26,7 +26,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
-  ASPECT_SUFFIX,
   ENGINE_MAX_PROMPT_CHARS,
   EngineError,
   MAX_ASK_CHARS,
@@ -228,13 +227,19 @@ describe("C — the ladder spends a bounded number of paid attempts", () => {
   it("believes the engine's verdict over the status code, and falls back when absent", () => {
     expect(worker).toMatch(/const said = \/"retryable"\\s\*:\\s\*\(true\|false\)\/\.exec\(msg\);/);
     expect(worker).toMatch(/said\s*\n?\s*\?\s*said\[1\] === 'true'/);
-    expect(worker).toMatch(/: \/story-still: \(5\\d\\d\|429\)\/\.test\(msg\)/);
+    // The fallback is still the status code and NOT the reference taxonomy:
+    // referenceOutcome calls an unrecognised status transient, which is right
+    // for "was the reference the problem" and wrong for "is another paid
+    // attempt worth making" — a 401 must not buy three of them.
+    expect(worker).toMatch(/status >= 500 \|\| status === 429/);
   });
 
   it("a deterministic failure is thrown at once, not retried", () => {
-    // Neither steppable nor transient leaves the loop immediately — the
-    // requirement is that a non-retryable verdict never reaches the delay.
-    expect(worker).toMatch(/if \(!steppable && !transient\) throw err;/);
+    // The requirement is unchanged and the shape moved: a failure that is
+    // neither transient, nor the reference's fault, nor a verdict on the
+    // CONTENT leaves the loop immediately and never reaches the delay.
+    expect(worker).toMatch(/if \(verdict\.outcome !== 'CONTENT_REFUSED'\) throw err;/);
+    expect(worker).not.toMatch(/const steppable =/);
   });
 
   it("story-still hands the verdict out, defaulting to not-retryable", () => {
@@ -248,7 +253,7 @@ describe("C — the ladder spends a bounded number of paid attempts", () => {
     // engine's prompt ceiling moved into the shared module, and prettier
     // decides on its own whether that fits one line.
     const imports = stillFn.slice(0, stillFn.indexOf("const corsHeaders"));
-    for (const symbol of ["EngineError", "generateStill", "MAX_ASK_CHARS", "ASPECT_SUFFIX"]) {
+    for (const symbol of ["EngineError", "generateStill", "MAX_ASK_CHARS"]) {
       expect(imports).toContain(symbol);
     }
     expect(imports).toContain('from "../_shared/oniqImage.ts"');
@@ -408,11 +413,21 @@ describe("F — the route the film has to reach once a still succeeds", () => {
 
 // G. the contract mismatch that WAS the 27%
 describe("G — the app may not ask for more than the engine takes", () => {
-  it("the ceiling is the worker's number, and the aspect line is counted against it", () => {
+  it("the ceiling is the worker's number, and nothing is skimmed off it", () => {
     expect(ENGINE_MAX_PROMPT_CHARS).toBe(1000); // contract.py MAX_PROMPT_CHARS
-    expect(MAX_ASK_CHARS).toBe(ENGINE_MAX_PROMPT_CHARS - ASPECT_SUFFIX.length);
-    // What story-still actually sends must fit, at the boundary.
-    expect(("x".repeat(MAX_ASK_CHARS) + ASPECT_SUFFIX).length).toBe(ENGINE_MAX_PROMPT_CHARS);
+    // The aspect sentence this used to subtract is GONE (2026-08-31). It was
+    // false for as long as it existed — the canvas was 704x480 landscape
+    // while the prompt asked for "Vertical 9:16 portrait" — and now that the
+    // canvas is genuinely portrait it is redundant instead, which is worse in
+    // a different way: a second, unverifiable copy of a fact contract.py
+    // already states. What story-still sends is the caller's ask verbatim.
+    expect(MAX_ASK_CHARS).toBe(ENGINE_MAX_PROMPT_CHARS);
+    // The CONSTANT is gone, not merely unused. (The words still appear in the
+    // comment that records why it went — deleting the history along with the
+    // code is how the same mistake gets made twice.)
+    expect(engine).not.toMatch(/export const ASPECT_SUFFIX/);
+    expect(stillFn).not.toContain("ASPECT_SUFFIX");
+    expect(stillFn).toMatch(/generateStill\(\s*(\/\/[^\n]*\n\s*)*prompt,/);
   });
 
   it("story-still refuses an over-length ask as STEPPABLE, without a GPU job", () => {
@@ -431,6 +446,9 @@ describe("G — the app may not ask for more than the engine takes", () => {
     // identical 1000-char cap, and generateClip was slicing to 1900 as well.
     expect(worker.match(/\.slice\(0, MAX_ASK_CHARS\)/g)?.length).toBe(4);
     expect(worker).toMatch(/composeVideoPrompt\(shot\)\.slice\(0, MAX_ASK_CHARS\)/);
+    // The IN-HOUSE branch composes with the in-house composer, and is bounded
+    // by the same 1000 the contract states.
+    expect(worker).toMatch(/composeInHouseVideoPrompt\(shot\)\.slice\(0, 1000\)/);
     expect(worker).toMatch(/import \{ MAX_ASK_CHARS \} from/);
   });
 

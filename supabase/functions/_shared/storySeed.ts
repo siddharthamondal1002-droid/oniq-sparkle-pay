@@ -1,0 +1,87 @@
+/**
+ * The seed a shot is drawn with — DERIVED, never rolled.
+ *
+ * WHY THIS EXISTS. videogen.py carried `SEED = 42` as a module constant, so
+ * every sample of every shot of every film used the same seed. That was
+ * harmless while a failed shot was simply a failed shot; it became a bug on
+ * 2026-08-31, when the retry ceiling was raised from 3 to 10 on the owner's
+ * "focus on quality". Ten attempts against a fixed seed are ten byte-identical
+ * draws: the retry budget could not succeed, because nothing about the second
+ * attempt differed from the first.
+ *
+ * The fix is not randomness. A random seed would make a bad frame
+ * unreproducible, and the first thing anyone wants when a face comes out wrong
+ * is to draw that exact frame again and look at it. So the seed is a pure
+ * function of WHICH shot and WHICH attempt:
+ *
+ *     seed = H(job | scene | shot | attempt)
+ *
+ *   - same shot, same attempt  -> identical seed, identical frame
+ *   - same shot, next attempt  -> a genuinely different draw
+ *   - different shot           -> independent, so one bad seed cannot
+ *                                 poison a whole film
+ *
+ * NO Date.now(), NO Math.random(), NO crypto.randomUUID(). Each of those
+ * would reintroduce the unreproducibility this module exists to prevent, and
+ * a test asserts their absence from this file.
+ *
+ * FNV-1a, not SHA-256, and deliberately: this is a sampler seed, not a
+ * security boundary. It needs to be stable across runtimes and cheap, and it
+ * must not be mistaken for a capability token — jobToken.ts is the module
+ * that carries authority, and it uses HMAC precisely because it does.
+ */
+
+/** The worker's contract bound: params.seed is a uint64. */
+export const MAX_SEED = 2n ** 64n - 1n;
+
+/** 64-bit FNV-1a. Stable, dependency-free, identical in Deno and Node. */
+function fnv1a64(text: string): bigint {
+  const PRIME = 1099511628211n;
+  const MASK = 2n ** 64n - 1n;
+  let hash = 14695981039346656037n;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= BigInt(text.charCodeAt(i) & 0xff);
+    hash = (hash * PRIME) & MASK;
+  }
+  return hash;
+}
+
+export type SeedParts = {
+  /** The story job this shot belongs to. */
+  jobId: string;
+  /** The scene within the film. */
+  sceneId: string;
+  /** The shot within the scene. */
+  shotId: string;
+  /** 0 for the first draw, 1 for the first retry, and so on. */
+  attempt: number;
+  /**
+   * Which stage is asking. A still and the clip that animates it are two
+   * different draws of the same shot and must not share a seed — sampling a
+   * video from the same seed as its own conditioning frame is not a
+   * meaningful pairing, just an accidental one.
+   */
+  stage: "still" | "clip";
+};
+
+export function deriveSeed(parts: SeedParts): number {
+  const attempt = Number.isInteger(parts.attempt) ? parts.attempt : 0;
+  if (attempt < 0) throw new Error("attempt must not be negative");
+  // "|" as the separator, and it is load-bearing rather than decorative: every
+  // part is constrained to [A-Za-z0-9._-] (assertSafeId on the worker side, a
+  // uuid for the job, a literal for the stage, digits for the attempt), so a
+  // pipe cannot appear INSIDE a part and two different shots can never produce
+  // the same material string. An empty separator would let ("ab","c") and
+  // ("a","bc") collide into one seed.
+  const material = [
+    parts.stage,
+    parts.jobId,
+    parts.sceneId,
+    parts.shotId,
+    String(attempt),
+  ].join("|");
+  // Number, not bigint, because it crosses JSON to the worker. 2^53-1 keeps
+  // every value exactly representable — a seed that lost precision in transit
+  // would break the reproducibility this whole module is for.
+  return Number(fnv1a64(material) % BigInt(Number.MAX_SAFE_INTEGER));
+}

@@ -37,7 +37,9 @@
 
 import { VIDEO_CLOCK_SECONDS, MAX_PROMPT_CHARS } from "./gpuVideoCore.ts";
 import { stillKeyFor as oniqStillKeyFor } from "./oniqImage.ts";
-import { composeVideoPrompt, type MovieShot } from "./movieGrammar.ts";
+import { composeInHouseVideoPrompt, type MovieShot } from "./movieGrammar.ts";
+import { deriveSeed } from "./storySeed.ts";
+import { negativePromptFor } from "./faceQuality.ts";
 
 /**
  * ONE STILL KEY SCHEME, IMPORTED. oniqImage already names every still the GPU
@@ -203,7 +205,7 @@ export function planMotion(
         detail: `${s.sceneId}/${s.shotId} is ${s.seconds}s`,
       };
     }
-    if (composeVideoPrompt(s.shot).length > MAX_PROMPT_CHARS) {
+    if (composeInHouseVideoPrompt(s.shot).length > MAX_PROMPT_CHARS) {
       return {
         ok: false,
         refusal: "prompt-too-long",
@@ -239,16 +241,61 @@ export function planMotion(
  * shape exactly — same op, same param names — so the worker contract has one
  * meaning, not two. The only difference is where the starting frame comes
  * from, which is the whole reason this module exists.
+ *
+ * THE ATTEMPT NUMBER IS PART OF THE PAYLOAD, AND THE KEY IS NOT.
+ *
+ * Those two sentences are the whole of §10 and they pull in opposite
+ * directions, so both are stated. `unitKey` above must stay identical across
+ * attempts — it is the unit's IDENTITY, and an identity that moved would turn
+ * a retry into duplicate paid GPU work. The SEED must move, because a retry
+ * that samples the same point returns the same clip: with videogen.py's
+ * `SEED = 42` and this function returning a byte-identical payload, the two
+ * attempts below were one clip generated twice, and the attempt ceiling the
+ * owner raised from 3 to 10 on 2026-08-31 bought exactly nothing.
+ *
+ * Derived, never rolled. Attempt 2 of a shot is a different draw from attempt
+ * 1, and drawing attempt 2 again tomorrow gives the same frames back — which
+ * is what anybody wants the moment a clip comes out wrong.
  */
-export function buildClipPayload(unit: ClipUnit, shot: MovieShot, noWatermark: boolean) {
+export function buildClipPayload(
+  unit: ClipUnit,
+  shot: MovieShot,
+  noWatermark: boolean,
+  attempt = 1,
+) {
   return {
     input: {
       op: "video_generate",
       input_key: unit.stillKey,
       output_key: unit.outputKey,
-      params: { prompt: composeVideoPrompt(shot), watermark: !noWatermark },
+      // THE IN-HOUSE COMPOSER, not the Veo one. Everything downstream of this
+      // payload runs on ONIQ's own LTX; the four-part prompt is what that
+      // engine's guidance asks for, and the Veo composer's twelve-word
+      // motion-only output is what the audit found underneath the soft faces.
+      params: {
+        prompt: composeInHouseVideoPrompt(shot),
+        watermark: !noWatermark,
+        seed: clipSeed(unit.key, attempt),
+        negative_prompt: negativePromptFor([shot.still, shot.narration, shot.motion]),
+      },
     },
   };
+}
+
+/**
+ * The sampler seed for one attempt at one unit. A pure function of the unit's
+ * own identity plus the attempt number — the same derivation storySeed.ts
+ * makes for a still, over the key this module already computes.
+ */
+export function clipSeed(key: string, attempt: number): number {
+  const [projectId, sceneId, shotId] = key.split("/");
+  return deriveSeed({
+    stage: "clip",
+    jobId: projectId ?? key,
+    sceneId: sceneId ?? "s",
+    shotId: shotId ?? "shot",
+    attempt: Number.isInteger(attempt) && attempt > 0 ? attempt - 1 : 0,
+  });
 }
 
 /**
@@ -322,6 +369,52 @@ export type MotionConditions = {
   workerImagePresent: boolean;
 };
 
+/**
+ * OWNER DIRECTIVE, 2026-08-31: "enable video and use in-house motion first."
+ *
+ * WHAT WAS ACTUALLY WRONG. Motion had never run in production — not once. The
+ * ladder was escalating correctly and this router was answering `in-house`
+ * correctly; the refusal came from further down, at the spend guard:
+ * `provider_budget_config.VIDEO.enabled` was FALSE, so every clip request came
+ * back 402 `no-budget-configured` and each shot silently carried as a still.
+ * Measured on job 87c2b756 (2026-08-31), a 60s nine-shot film:
+ *
+ *   MOTION_VALIDATE FAIL: 0/9 shots have a character-motion source,
+ *                         9 still-only, 7 FAIL
+ *   MOTION_CONTRACT: 8x story-motion: 402 no-budget-configured
+ *
+ * The film rendered, graded, uploaded and delivered — and was a slideshow. A
+ * green pipeline is not a correct artifact, which is the whole reason
+ * MOTION_VALIDATE prints that line rather than letting the run pass quietly.
+ *
+ * VIDEO is now enabled: $50/day, $5/job, $1/request, and attempts per shot
+ * raised 3 -> 10 (the CHECK ceiling) on the owner's "focus on quality".
+ *
+ * ONLY THE ATTEMPT COUNT WAS RAISED, and the arithmetic is why. At the
+ * measured in-house rate below, $1/request is 344 clips, $5/job is 1,724, and
+ * $50/day is 17,241 — against films of nine to seventeen shots. None of the
+ * dollar ceilings can reach an in-house film to truncate it; what they
+ * actually bound is the PREMIUM route, where $5 is six to twelve clips.
+ * Raising them would have bought no quality and widened the Veo blast radius
+ * if the route ever resolves premium, so they stand. The attempt count was
+ * the one cap a shot could really hit: a clip that fails the aliveness gate
+ * gives up and carries as a still, and three tries was the ceiling on how
+ * hard a doubtful shot is allowed to try.
+ *
+ * "IN-HOUSE FIRST" NEEDED NO CODE CHANGE — it is what the branches below
+ * already do, and more strictly than "first" implies: when in-house is
+ * selected, a failure is `blocked`, never `premium`. The directive is recorded
+ * here so that reading this router tells you the routing IS the owner's
+ * decision, not an implementation detail free to be relaxed later.
+ *
+ * WHY THE ORDER IS WORTH DEFENDING, measured rather than argued:
+ *   in-house  $0.0029 per clip   (IN_HOUSE_CLIP_COST, A5000, 2026-08-27)
+ *   Veo Fast  $0.40–$0.80 per clip ($0.10/s × 4–8s, videoRouting.ts)
+ * That is roughly 140–275x. A silent premium fallback would not be a
+ * degradation of quality, it would be a two-order-of-magnitude change in what
+ * a film costs to make — which is exactly the class of decision the
+ * 2026-08-14 directive says an agent may not take on its own.
+ */
 export function routeMotion(c: MotionConditions): MotionRoute {
   if (!c.inHouseEnabled) return { engine: "premium", level: 5 };
   if (!c.workerImagePresent) return { engine: "blocked", reason: "worker-image-missing" };
@@ -408,7 +501,9 @@ export async function runUnit(
 
   let lastReason = "unknown";
   for (let attempt = 1; attempt <= MAX_UNIT_ATTEMPTS; attempt++) {
-    const payload = buildClipPayload(unit, shot, noWatermark);
+    // The attempt number travels INTO the payload, so attempt 2 is a
+    // genuinely different draw rather than a second copy of attempt 1.
+    const payload = buildClipPayload(unit, shot, noWatermark, attempt);
     let gpuJobId: string | null = null;
     try {
       gpuJobId = await deps.submit(unit, payload);

@@ -21,6 +21,7 @@ import { verifyJobToken } from "../_shared/jobToken.ts";
 import { generateMotionClip } from "../_shared/oniqMotion.ts";
 import { assertSafeId, outputKeyFor, stillKeyFor, unitKey } from "../_shared/inHouseMotion.ts";
 import { MAX_PROMPT_CHARS } from "../_shared/gpuVideoCore.ts";
+import { MAX_NEGATIVE_PROMPT_CHARS, MAX_SEED } from "../_shared/oniqImage.ts";
 import { runBilledUnit } from "../_shared/inHouseMotion.ts";
 import {
   admitProviderSpend,
@@ -88,6 +89,36 @@ Deno.serve(async (req) => {
       return json({ error: "That prompt is too long." }, 400);
     }
 
+    // SEED AND NEGATIVE PROMPT — the same two fields story-still now takes,
+    // validated here for the same reason: refused at the edge costs nothing,
+    // refused on the GPU costs a paid job. Both are OPTIONAL, and an absent
+    // one leaves the worker's own default in place rather than inventing a
+    // value at this layer.
+    //
+    // The seed is the retry fix. `SEED = 42` in videogen.py meant a shot's
+    // second attempt resampled its first attempt exactly; the caller derives
+    // one from (job, scene, shot, attempt) so the ten attempts the owner paid
+    // for are ten genuinely different draws — and still reproducible, because
+    // the derivation is a pure function of the shot's identity.
+    let seed: number | undefined;
+    if (body?.seed !== undefined && body?.seed !== null) {
+      const raw = body.seed;
+      if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 0 || raw > MAX_SEED) {
+        return json({ error: "seed must be an integer in range" }, 400);
+      }
+      seed = raw;
+    }
+    let negativePrompt: string | undefined;
+    if (body?.negativePrompt !== undefined && body?.negativePrompt !== null) {
+      const raw = body.negativePrompt;
+      if (typeof raw !== "string" || raw.length > MAX_NEGATIVE_PROMPT_CHARS) {
+        return json({
+          error: `negativePrompt must be a string of at most ${MAX_NEGATIVE_PROMPT_CHARS} characters`,
+        }, 400);
+      }
+      negativePrompt = raw;
+    }
+
     // IDENTIFIERS, NOT PATHS. The job id comes from the TOKEN, never the body,
     // so a token for job A cannot animate a still belonging to job B however
     // the body is shaped.
@@ -128,7 +159,7 @@ Deno.serve(async (req) => {
         admit: (request) => admitProviderSpend(rpc, request),
         generate: () =>
           generateMotionClip(
-            { prompt, inputKey: stillKey, outputKey, watermark },
+            { prompt, inputKey: stillKey, outputKey, watermark, seed, negativePrompt },
             { apiKey, endpointId, publicBase },
             {
               fetchImpl: fetch,
