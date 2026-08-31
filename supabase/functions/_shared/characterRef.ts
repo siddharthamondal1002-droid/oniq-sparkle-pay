@@ -52,6 +52,32 @@ import { ACTOR_ASSETS, referenceEligible } from "../../../src/data/storyActorAss
 export const REFERENCE_PREFIX = "story/ref/";
 
 /**
+ * The scope segment, and why one exists.
+ *
+ *     story/ref/canon/<characterId>/v<n>.png
+ *
+ * Today every reference is ONIQ's own published canon — shared, belonging to
+ * no user and no film. The segment is here so that per-user references, if
+ * they are ever added, land under a DIFFERENT scope and the isolation between
+ * one person's character and another's is structural rather than a rule
+ * somebody has to remember. Widening an authorisation pattern later is exactly
+ * the change nobody reviews carefully enough.
+ */
+export const REFERENCE_SCOPE_CANON = "canon";
+
+/**
+ * The version every canonical character starts at.
+ *
+ * IMMUTABLE ONCE USED. A shot drawn against v1 must keep looking like v1 even
+ * after the character is re-published as v2 — overwriting a key in place would
+ * silently change films that were already finished, and nobody would see it
+ * happen. Versions are integers, not timestamps and not random ids, for the
+ * same reason storySeed derives rather than rolls: an identity that moves is
+ * not an identity.
+ */
+export const CANONICAL_VERSION = 1;
+
+/**
  * The shape the worker's contract will accept. Kept here so this side cannot
  * build a key the other side is going to refuse — the same discipline
  * ENGINE_MAX_PROMPT_CHARS applies to the prompt ceiling, and for the same
@@ -87,9 +113,13 @@ export function isPublishableCharacterRef(id: unknown): id is string {
  * unknown id is not an emergency, it is a shot that draws without an anchor —
  * exactly what happens today for every shot. The caller records the reason.
  */
-export function characterRefKey(id: unknown): string | null {
+export function characterRefKey(
+  id: unknown,
+  version: number = CANONICAL_VERSION,
+): string | null {
   if (!isPublishableCharacterRef(id)) return null;
-  return `${REFERENCE_PREFIX}${id}.png`;
+  if (!Number.isInteger(version) || version < 1 || version > 9999) return null;
+  return `${REFERENCE_PREFIX}${REFERENCE_SCOPE_CANON}/${id}/v${version}.png`;
 }
 
 /**
@@ -123,8 +153,14 @@ export const MAX_REFERENCE_STRENGTH = 0.95;
  * taxonomy referenceOutcome.ts already holds, and NOT as a verdict on the
  * shot's content.
  */
+const CANONICAL_KEY_RE = new RegExp(
+  `^${REFERENCE_PREFIX}${REFERENCE_SCOPE_CANON}/([A-Za-z0-9][A-Za-z0-9._-]{0,120})/v([1-9][0-9]{0,3})\\.png$`,
+);
+
 export function isCanonicalRefKey(key: unknown): key is string {
-  if (typeof key !== "string" || !key.startsWith(REFERENCE_PREFIX)) return false;
-  const id = key.slice(REFERENCE_PREFIX.length).replace(/\.png$/, "");
-  return id !== key.slice(REFERENCE_PREFIX.length) && isPublishableCharacterRef(id);
+  if (typeof key !== "string") return false;
+  const m = CANONICAL_KEY_RE.exec(key);
+  // The SHAPE is not the authority — the allowlist is. A key that looks
+  // perfect but names a character nobody published is still refused.
+  return Boolean(m) && isPublishableCharacterRef(m![1]);
 }

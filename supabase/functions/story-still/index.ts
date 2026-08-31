@@ -41,6 +41,7 @@ import {
 } from "../_shared/oniqImage.ts";
 import { CAPABILITY_MARKER } from "../_shared/referenceOutcome.ts";
 import {
+  CANONICAL_VERSION,
   DEFAULT_REFERENCE_STRENGTH,
   MAX_REFERENCE_STRENGTH,
   MIN_REFERENCE_STRENGTH,
@@ -201,8 +202,17 @@ Deno.serve(async (req) => {
       typeof body?.characterRefId === "string" ? body.characterRefId.trim() : "";
     let referenceKey: string | null = null;
     let referenceUnresolved: string | null = null;
+    // The VERSION travels with the id, because a reference is immutable per
+    // version: a shot drawn against v1 must keep looking like v1 after the
+    // character is re-published as v2. Absent, the caller means v1.
+    const rawVersion = body?.characterRefVersion;
+    const characterRefVersion =
+      rawVersion === undefined || rawVersion === null ? CANONICAL_VERSION : rawVersion;
     if (characterRefId) {
-      referenceKey = characterRefKey(characterRefId);
+      if (!Number.isInteger(characterRefVersion) || characterRefVersion < 1) {
+        return json({ error: "characterRefVersion must be a positive integer", retryable: false }, 400);
+      }
+      referenceKey = characterRefKey(characterRefId, characterRefVersion);
       if (!referenceKey) referenceUnresolved = "not-a-published-canonical-character";
     }
 
@@ -356,6 +366,9 @@ Deno.serve(async (req) => {
         // it got and, when it is the wrong one, why.
         conditioned: Boolean(referenceKey),
         referenceUnresolved,
+        // WHICH version drew this frame, so a film can be reproduced later
+        // even after the character is re-published.
+        referenceVersion: referenceKey ? characterRefVersion : null,
       });
     } catch (err) {
       // Named plainly, and NEVER converted into a cloud call. There is no

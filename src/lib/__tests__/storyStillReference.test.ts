@@ -59,7 +59,7 @@ describe("a reference is refused, never quietly ignored", () => {
     // read an object of their choosing. An id is not: it is looked up in a
     // fixed allowlist, and an id that is not a published canonical character
     // resolves to nothing.
-    expect(SRC).toContain("characterRefKey(characterRefId)");
+    expect(SRC).toContain("characterRefKey(characterRefId, characterRefVersion)");
     expect(SRC).toContain('from "../_shared/characterRef.ts"');
     // Nothing in the function builds a key from caller text.
     expect(SRC).not.toMatch(/story\/ref\/\$\{/);

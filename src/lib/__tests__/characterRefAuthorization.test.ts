@@ -23,7 +23,9 @@ import {
   DEFAULT_REFERENCE_STRENGTH,
   MAX_REFERENCE_STRENGTH,
   MIN_REFERENCE_STRENGTH,
+  CANONICAL_VERSION,
   REFERENCE_PREFIX,
+  REFERENCE_SCOPE_CANON,
   characterRefKey,
   isCanonicalRefKey,
   isPublishableCharacterRef,
@@ -39,7 +41,7 @@ describe("only a published canonical character resolves to a key", () => {
     expect(eligible.length).toBeGreaterThan(0);
     for (const a of eligible) {
       expect(characterRefKey(a.characterRefId), a.characterRefId).toBe(
-        `${REFERENCE_PREFIX}${a.characterRefId}.png`,
+        `${REFERENCE_PREFIX}${REFERENCE_SCOPE_CANON}/${a.characterRefId}/v1.png`,
       );
     }
   });
@@ -72,6 +74,31 @@ describe("only a published canonical character resolves to a key", () => {
       expect(characterRefKey(hostile as unknown), String(hostile)).toBeNull();
       expect(isPublishableCharacterRef(hostile as unknown)).toBe(false);
     }
+  });
+
+  it("versions are immutable and separate — v1 and v2 are different objects", () => {
+    // A shot drawn against v1 must keep looking like v1 after the character is
+    // re-published. Overwriting one key in place would silently change films
+    // that were already finished, and nobody would see it happen.
+    const id = eligible[0].characterRefId;
+    expect(characterRefKey(id, 1)).not.toBe(characterRefKey(id, 2));
+    expect(characterRefKey(id, 1)).toContain("/v1.png");
+    expect(characterRefKey(id, 2)).toContain("/v2.png");
+    expect(characterRefKey(id)).toBe(characterRefKey(id, CANONICAL_VERSION));
+    // Not a timestamp and not a random id — an identity that moves is not one.
+    for (const bad of [0, -1, 1.5, "1", null, 10_000, NaN]) {
+      expect(characterRefKey(id, bad as unknown as number), String(bad)).toBeNull();
+    }
+  });
+
+  it("the scope segment keeps canon separate from anything added later", () => {
+    // Per-user references, if they are ever added, land under a DIFFERENT
+    // scope. Widening an authorisation pattern later is the change nobody
+    // reviews carefully enough.
+    for (const a of eligible.slice(0, 5)) {
+      expect(characterRefKey(a.characterRefId)).toContain(`/${REFERENCE_SCOPE_CANON}/`);
+    }
+    expect(isCanonicalRefKey(`story/ref/u/someone/x/v1.png`)).toBe(false);
   });
 
   it("a real id with anything appended is a different id, and resolves to nothing", () => {
