@@ -340,8 +340,19 @@ export type MotionConditions = {
  * green pipeline is not a correct artifact, which is the whole reason
  * MOTION_VALIDATE prints that line rather than letting the run pass quietly.
  *
- * VIDEO is now enabled, with its existing caps untouched: $50/day, $5/job,
- * $1/request, 3 attempts per shot.
+ * VIDEO is now enabled: $50/day, $5/job, $1/request, and attempts per shot
+ * raised 3 -> 10 (the CHECK ceiling) on the owner's "focus on quality".
+ *
+ * ONLY THE ATTEMPT COUNT WAS RAISED, and the arithmetic is why. At the
+ * measured in-house rate below, $1/request is 344 clips, $5/job is 1,724, and
+ * $50/day is 17,241 — against films of nine to seventeen shots. None of the
+ * dollar ceilings can reach an in-house film to truncate it; what they
+ * actually bound is the PREMIUM route, where $5 is six to twelve clips.
+ * Raising them would have bought no quality and widened the Veo blast radius
+ * if the route ever resolves premium, so they stand. The attempt count was
+ * the one cap a shot could really hit: a clip that fails the aliveness gate
+ * gives up and carries as a still, and three tries was the ceiling on how
+ * hard a doubtful shot is allowed to try.
  *
  * "IN-HOUSE FIRST" NEEDED NO CODE CHANGE — it is what the branches below
  * already do, and more strictly than "first" implies: when in-house is
