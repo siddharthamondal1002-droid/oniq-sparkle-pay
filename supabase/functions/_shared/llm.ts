@@ -296,7 +296,13 @@ export type CallClaudeOpts = {
 // answer came back in the same shape, and nothing downstream could tell that
 // the web_search tool had been dropped on the way.
 export type CallClaudeResult =
-  { ok: true; data: any; provider: "anthropic" | "gemini" } | { ok: false; reason: string };
+  | { ok: true; data: any; provider: "anthropic" | "gemini" }
+  /**
+   * `reason` is what callers pattern-match on and must stay stable.
+   * `fallbackReason` is why the GEMINI fallback failed, when one ran — kept
+   * separate precisely so it cannot disturb that matching.
+   */
+  | { ok: false; reason: string; fallbackReason?: string };
 
 // ---------------------------------------------------------------------------
 // Gemini fallback — used ONLY when Anthropic returns a specific billing/credit
