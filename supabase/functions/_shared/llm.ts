@@ -526,7 +526,11 @@ export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult
   const toolConfig = translateToolChoiceToGemini(opts.toolChoice, allowedFunctionNames);
 
   const body: Record<string, unknown> = {
-    systemInstruction: { parts: [{ text: opts.system }] },
+    // Same scalar proto field as parts[].text, so the same normalisation. For
+    // the string every caller actually passes this is the identity function;
+    // it is here so a future caller that hands over blocks fails soft rather
+    // than 400ing the whole request.
+    systemInstruction: { parts: [{ text: normalizeGeminiText(opts.system) }] },
     contents: translateMessagesToGemini(opts.messages),
     generationConfig: { maxOutputTokens: opts.maxTokens ?? 1024 },
   };
