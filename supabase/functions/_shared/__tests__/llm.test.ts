@@ -23,6 +23,7 @@ import { describe, expect, it, afterEach } from "vitest";
 import {
   type ClaudeMessage,
   callGemini,
+  GEMINI_THINKING_HEADROOM_TOKENS,
   geminiPartsFor,
   normalizeGeminiText,
   translateMessagesToGemini,
@@ -220,6 +221,102 @@ describe("translateMessagesToGemini never emits a non-string part", () => {
  * inspects the JSON that would have reached Google — which is where the 400
  * was raised, and the only place systemInstruction can be checked too.
  */
+describe("a forced tool call that never arrives is named, not silently empty", () => {
+  const realFetch = globalThis.fetch;
+  const hadDeno = "Deno" in globalThis;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    if (!hadDeno) delete (globalThis as Record<string, unknown>).Deno;
+  });
+
+  function stubReturning(candidate: unknown) {
+    (globalThis as Record<string, unknown>).Deno = { env: { get: () => "test-key" } };
+    globalThis.fetch = (async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ candidates: [candidate], usageMetadata: {} }),
+    })) as unknown as typeof fetch;
+  }
+
+  const forced = {
+    system: "s",
+    messages: [{ role: "user" as const, content: "make the section" }],
+    tools: [{ name: "emit", description: "d", input_schema: { type: "object" } }],
+    toolChoice: { type: "tool", name: "emit" },
+    maxTokens: 1800,
+  };
+
+  it("reports WHY when Gemini answers prose instead of calling the tool", async () => {
+    // This is study-paper-generate's "mcq: no items" at its source. The caller
+    // could only report the symptom; the cause lives here.
+    stubReturning({
+      content: { parts: [{ text: "Sure! Here are ten questions..." }] },
+      finishReason: "STOP",
+    });
+    const res = await callGemini(forced);
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.reason).toBe("gemini-no-tool-call finish=STOP");
+  });
+
+  it("names MAX_TOKENS specifically, which is the thinking-budget failure", async () => {
+    // The one the headroom exists to prevent — it must be tellable apart from
+    // every other reason a tool call might not arrive.
+    stubReturning({ content: { parts: [] }, finishReason: "MAX_TOKENS" });
+    const res = await callGemini(forced);
+    expect(res.ok === false && res.reason).toBe("gemini-no-tool-call finish=MAX_TOKENS");
+  });
+
+  it("still succeeds when the tool call DOES arrive", async () => {
+    stubReturning({
+      content: { parts: [{ functionCall: { name: "emit", args: { mcq: [1, 2] } } }] },
+      finishReason: "STOP",
+    });
+    const res = await callGemini(forced);
+    expect(res.ok).toBe(true);
+  });
+
+  it("does not fire for callers that never forced a tool", async () => {
+    // Ting asks for prose. Prose is the correct answer there.
+    stubReturning({ content: { parts: [{ text: "hello" }] }, finishReason: "STOP" });
+    const res = await callGemini({ system: "s", messages: [{ role: "user", content: "hi" }] });
+    expect(res.ok).toBe(true);
+  });
+});
+
+describe("thinking headroom", () => {
+  const realFetch = globalThis.fetch;
+  const hadDeno = "Deno" in globalThis;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    if (!hadDeno) delete (globalThis as Record<string, unknown>).Deno;
+  });
+
+  it("asks Gemini for more than the caller's budget, to cover thoughts", async () => {
+    // Anthropic's max_tokens bounds the ANSWER; Gemini 3.x draws its thinking
+    // from the same allowance. Passing the number through unchanged is how a
+    // 1,800-token section ends at MAX_TOKENS with no tool call at all.
+    (globalThis as Record<string, unknown>).Deno = { env: { get: () => "test-key" } };
+    let sent: Record<string, unknown> = {};
+    globalThis.fetch = (async (_u: string, init: { body: string }) => {
+      sent = JSON.parse(init.body);
+      return {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            candidates: [{ content: { parts: [{ text: "ok" }] }, finishReason: "STOP" }],
+            usageMetadata: {},
+          }),
+      };
+    }) as unknown as typeof fetch;
+
+    await callGemini({ system: "s", messages: [{ role: "user", content: "q" }], maxTokens: 1800 });
+    const cfg = sent.generationConfig as { maxOutputTokens: number };
+    expect(cfg.maxOutputTokens).toBe(1800 + GEMINI_THINKING_HEADROOM_TOKENS);
+    expect(cfg.maxOutputTokens).toBeGreaterThan(1800);
+  });
+});
+
 describe("mime types Gemini will not accept", () => {
   /**
    * BOTH PICKERS OFFER GIF. app.ai.tsx and app.study.tsx both list

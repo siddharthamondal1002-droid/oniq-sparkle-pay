@@ -288,6 +288,15 @@ export type CallClaudeResult =
  * is the worst place for one: it changes silently, and the only time anyone
  * finds out is mid-outage, when the primary is already down.
  */
+/**
+ * Extra output tokens allowed on Gemini to cover thinking.
+ *
+ * Not a guess at how much a model thinks — a floor generous enough that a
+ * forced tool call is not truncated before it is emitted. Costs nothing when
+ * unused.
+ */
+export const GEMINI_THINKING_HEADROOM_TOKENS = 4096;
+
 const GEMINI_FALLBACK_MODEL = "gemini-3.6-flash";
 
 function isAnthropicBillingExhaustion(status: number, body: any): boolean {
@@ -608,7 +617,29 @@ export async function callGemini(
     // than 400ing the whole request.
     systemInstruction: { parts: [{ text: normalizeGeminiText(opts.system) }] },
     contents: translated.contents,
-    generationConfig: { maxOutputTokens: opts.maxTokens ?? 1024 },
+    // THE CALLER'S TOKEN BUDGET DOES NOT MEAN THE SAME THING ON GEMINI.
+    //
+    // Anthropic's max_tokens bounds the ANSWER. Gemini 3.x models think by
+    // default and their thoughts are drawn from maxOutputTokens as well —
+    // this file already says so about billing ("THINKING TOKENS ARE BILLED AS
+    // OUTPUT", in the usage translation below) and then passed the Anthropic
+    // number straight through anyway.
+    //
+    // The consequence is not a smaller answer, it is NO answer: the response
+    // finishes at MAX_TOKENS having spent the budget on thoughts, carrying no
+    // functionCall at all. A forced-tool caller then sees an empty payload.
+    // study-paper-generate reports exactly that — "mcq: no items", on every
+    // one of its three attempts, for a section whose budget is 1,800 tokens.
+    //
+    // Headroom rather than a thinkingConfig, deliberately: the thinking knob
+    // is spelled differently across Gemini generations (thinkingBudget on 2.5,
+    // thinkingLevel on 3.x) and sending the wrong one is a 400 on the fallback
+    // path, which is the worst place to be clever. Unused headroom is free —
+    // Google bills tokens produced, not tokens allowed — and settlement reads
+    // actual usage via geminiOutputTokens.
+    generationConfig: {
+      maxOutputTokens: (opts.maxTokens ?? 1024) + GEMINI_THINKING_HEADROOM_TOKENS,
+    },
   };
   if (tools) body.tools = tools;
   if (toolConfig) body.toolConfig = toolConfig;
@@ -632,6 +663,32 @@ export async function callGemini(
       return { ok: false, reason: `gemini http ${res.status}` };
     }
     const translated = translateGeminiResponseToAnthropic(parsed);
+
+    // A FORCED TOOL CALL THAT DID NOT ARRIVE IS A FAILURE, NOT AN ANSWER.
+    //
+    // When the caller sets toolChoice {type:"tool"|"any"} it is not asking for
+    // prose, it is asking for a structured payload it will parse. Returning
+    // ok:true with a text block leaves the caller to discover the emptiness
+    // itself and describe it in its own words — study-paper-generate says
+    // "mcq: no items", which names the symptom and hides the cause. Naming it
+    // here puts the real reason on the caller's screen: it is now the only
+    // channel that works, the log pipeline having gone quiet.
+    // Conditioned on WHAT WAS ACTUALLY SENT rather than on caller intent:
+    // `body.toolConfig` is present only when a function tool really went out,
+    // which is the same test in every version of this file regardless of how
+    // search tools are wired above it.
+    const choiceType = (opts.toolChoice as { type?: unknown } | undefined)?.type;
+    const forcedTool = !!body.toolConfig && (choiceType === "tool" || choiceType === "any");
+    if (forcedTool && !translated.content.some((b: { type?: string }) => b?.type === "tool_use")) {
+      const finish =
+        (Array.isArray(parsed?.candidates) ? parsed.candidates[0]?.finishReason : "") || "unknown";
+      console.warn(`callGemini: forced tool produced no functionCall (finish=${finish})`);
+      // MAX_TOKENS here is the thinking-budget failure the headroom above is
+      // meant to prevent; anything else is a genuinely different problem and
+      // deserves to be told apart from it.
+      return { ok: false, reason: `gemini-no-tool-call finish=${finish}` };
+    }
+
     console.info(
       `callGemini: ok model=${GEMINI_FALLBACK_MODEL} stop_reason=${translated.stop_reason} blocks=${translated.content.length}`,
     );
