@@ -23,33 +23,51 @@ import { describe, expect, it, afterEach } from "vitest";
 import {
   type ClaudeMessage,
   callGemini,
+  geminiPartsFor,
   normalizeGeminiText,
   translateMessagesToGemini,
 } from "../llm.ts";
 
 /** The shape Gemini actually requires, asserted rather than assumed. */
-type GeminiContent = { role: string; parts: { text: unknown }[] };
+type GeminiContent = { role: string; parts: Record<string, unknown>[] };
 
 /**
  * The single property this whole file exists to defend.
  *
- * Checked structurally — every message, every part — rather than by spot-
- * checking `[0].parts[0]`, because the failure was positional: one message in a
- * conversation carried the attachment and the rest were plain strings.
+ * NOTE WHAT IT DOES AND DOES NOT SAY. It used to require every part to carry a
+ * string `text`, which was right while the bridge was text-only and became
+ * WRONG once attachments were made to cross properly — an `inlineData` part
+ * legitimately has no `text` at all. The invariant that actually prevents the
+ * original 400 is narrower: no part may carry a `text` that is not a string.
+ * That is the thing Gemini's scalar proto field rejects, and it is still
+ * asserted on every part of every message.
+ *
+ * Checked structurally rather than by spot-checking `[0].parts[0]`, because
+ * the failure was positional: one message in a conversation carried the
+ * attachment and the rest were plain strings.
  */
-function expectEveryPartIsAString(contents: unknown[]) {
+function expectEveryPartIsGeminiValid(contents: unknown[]) {
   expect(contents.length).toBeGreaterThan(0);
   for (const [i, c] of contents.entries()) {
     const msg = c as GeminiContent;
     expect(Array.isArray(msg.parts), `message ${i} has no parts array`).toBe(true);
+    expect(msg.parts.length, `message ${i} has no parts`).toBeGreaterThan(0);
     for (const [j, part] of msg.parts.entries()) {
-      expect(
-        typeof part.text,
-        `contents[${i}].parts[${j}].text is ${
-          Array.isArray(part.text) ? "an array" : typeof part.text
-        } — Gemini 400s on anything but a string`,
-      ).toBe("string");
-      expect(Array.isArray(part.text)).toBe(false);
+      if ("text" in part) {
+        expect(
+          typeof part.text,
+          `contents[${i}].parts[${j}].text is ${
+            Array.isArray(part.text) ? "an array" : typeof part.text
+          } — Gemini 400s on anything but a string`,
+        ).toBe("string");
+        expect(Array.isArray(part.text)).toBe(false);
+      } else {
+        // The only other legal part shape.
+        const inline = part.inlineData as { mimeType?: unknown; data?: unknown } | undefined;
+        expect(inline, `contents[${i}].parts[${j}] is neither text nor inlineData`).toBeTruthy();
+        expect(typeof inline?.mimeType).toBe("string");
+        expect(typeof inline?.data).toBe("string");
+      }
     }
   }
 }
@@ -119,7 +137,7 @@ describe("normalizeGeminiText", () => {
 describe("translateMessagesToGemini never emits a non-string part", () => {
   it("1. handles plain string content", () => {
     const contents = translateMessagesToGemini([{ role: "user", content: "hi" }]);
-    expectEveryPartIsAString(contents);
+    expectEveryPartIsGeminiValid(contents);
     expect((contents[0] as GeminiContent).parts[0].text).toBe("hi");
   });
 
@@ -133,8 +151,15 @@ describe("translateMessagesToGemini never emits a non-string part", () => {
         ],
       },
     ]);
-    expectEveryPartIsAString(contents);
-    expect((contents[0] as GeminiContent).parts[0].text).toBe("What is wrong with my working?");
+    expectEveryPartIsGeminiValid(contents);
+    // THE IMAGE CROSSES NOW. It used to be dropped, which for a chat message
+    // was arguably tolerable and for study-paper-grade was not — that function
+    // photographs a handwritten answer and asks for a mark, so a dropped photo
+    // means marking work the model never saw.
+    const p0 = (contents[0] as GeminiContent).parts;
+    expect(p0).toHaveLength(2);
+    expect(p0[0].inlineData).toEqual({ mimeType: "image/png", data: "iVBOR" });
+    expect(p0[1].text).toBe("What is wrong with my working?");
   });
 
   it("7. handles structured ASSISTANT content, and still maps the role to model", () => {
@@ -142,7 +167,7 @@ describe("translateMessagesToGemini never emits a non-string part", () => {
     const contents = translateMessagesToGemini([
       { role: "assistant", content: [{ type: "text", text: "Because x = 4." }] },
     ]);
-    expectEveryPartIsAString(contents);
+    expectEveryPartIsGeminiValid(contents);
     expect((contents[0] as GeminiContent).role).toBe("model");
     expect((contents[0] as GeminiContent).parts[0].text).toBe("Because x = 4.");
   });
@@ -170,9 +195,11 @@ describe("translateMessagesToGemini never emits a non-string part", () => {
       { role: "assistant", content: [{ type: "text", text: "structured reply" }] },
     ];
     const contents = translateMessagesToGemini(convo);
-    expectEveryPartIsAString(contents);
+    expectEveryPartIsGeminiValid(contents);
     expect(contents).toHaveLength(4);
-    expect((contents[2] as GeminiContent).parts[0].text).toBe("and this one is from the PDF");
+    const withPdf = (contents[2] as GeminiContent).parts;
+    expect(withPdf[0].inlineData).toEqual({ mimeType: "application/pdf", data: "JVB" });
+    expect(withPdf[1].text).toBe("and this one is from the PDF");
   });
 
   it("emits a string part even for empty and null content", () => {
@@ -181,7 +208,7 @@ describe("translateMessagesToGemini never emits a non-string part", () => {
       { role: "user", content: null as unknown as string },
       { role: "user", content: undefined as unknown as string },
     ]);
-    expectEveryPartIsAString(contents);
+    expectEveryPartIsGeminiValid(contents);
   });
 });
 
@@ -193,6 +220,75 @@ describe("translateMessagesToGemini never emits a non-string part", () => {
  * inspects the JSON that would have reached Google — which is where the 400
  * was raised, and the only place systemInstruction can be checked too.
  */
+describe("attachments cross to Gemini instead of vanishing", () => {
+  /**
+   * THE REGRESSION THAT MATTERS MOST IN THIS FILE.
+   *
+   * study-paper-grade photographs a student's handwritten answer and asks for
+   * a mark. study-tutor sends homework photos. health-scan sends a medical
+   * report. If the blob is dropped on the way to Gemini, none of those degrade
+   * gracefully — they produce a grade, an explanation or a health summary for
+   * a document the model was never shown. That is a fabricated answer wearing
+   * a real one's clothes, and it is worse than an outage.
+   */
+  it("inlines a base64 image rather than dropping it", () => {
+    const { parts, dropped } = geminiPartsFor([
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "AAAA" } },
+      { type: "text", text: "Grade this." },
+    ]);
+    expect(dropped).toBe(0);
+    expect(parts).toEqual([
+      { inlineData: { mimeType: "image/jpeg", data: "AAAA" } },
+      { text: "Grade this." },
+    ]);
+  });
+
+  it("inlines a base64 PDF too", () => {
+    const { parts } = geminiPartsFor([
+      {
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: "JVBERi0" },
+      },
+      { type: "text", text: "Summarise this report." },
+    ]);
+    expect(parts[0]).toEqual({ inlineData: { mimeType: "application/pdf", data: "JVBERi0" } });
+  });
+
+  it("COUNTS what it cannot inline instead of silently discarding it", () => {
+    // A URL source has no inline equivalent. The count is what lets a caller
+    // refuse rather than answer blind — silence is what caused this bug.
+    const { parts, dropped } = geminiPartsFor([
+      { type: "image", source: { type: "url", url: "https://example.test/x.png" } },
+      { type: "text", text: "What is this?" },
+    ]);
+    expect(dropped).toBe(1);
+    expect(parts).toEqual([{ text: "What is this?" }]);
+  });
+
+  it("keeps a plain string as one text part", () => {
+    expect(geminiPartsFor("hello")).toEqual({ parts: [{ text: "hello" }], dropped: 0 });
+  });
+
+  it("always emits at least one part, even for empty content", () => {
+    // Gemini rejects a content entry with no parts at all.
+    for (const empty of [[], null, undefined, ""]) {
+      const { parts } = geminiPartsFor(empty);
+      expect(parts.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("puts the instruction after the attachment it refers to", () => {
+    // "the answer is in the attached photo" only makes sense following it.
+    const { parts } = geminiPartsFor([
+      { type: "text", text: "first" },
+      { type: "image", source: { type: "base64", media_type: "image/png", data: "Zm9v" } },
+      { type: "text", text: "second" },
+    ]);
+    expect(parts[0]).toHaveProperty("inlineData");
+    expect(parts[1]).toEqual({ text: "first\nsecond" });
+  });
+});
+
 describe("Claude → Gemini fallback with structured content", () => {
   const realFetch = globalThis.fetch;
   const hadDeno = "Deno" in globalThis;
@@ -240,10 +336,13 @@ describe("Claude → Gemini fallback with structured content", () => {
 
     expect(res.ok, "the fallback itself must not fail").toBe(true);
     const sent = body();
-    expectEveryPartIsAString(sent.contents as unknown[]);
-    expect((sent.contents as GeminiContent[])[0].parts[0].text as string).toBe(
-      "Grade this answer out of 5.",
-    );
+    expectEveryPartIsGeminiValid(sent.contents as unknown[]);
+    const parts = (sent.contents as GeminiContent[])[0].parts;
+    // The photo reaches Google, and the instruction that refers to it follows.
+    // Before this, the image was dropped and Gemini was asked to grade a
+    // handwritten answer it had never been shown.
+    expect(parts[0].inlineData).toEqual({ mimeType: "image/jpeg", data: "AAAA" });
+    expect(parts[1].text).toBe("Grade this answer out of 5.");
   });
 
   it("keeps systemInstruction a string too", () => {
@@ -263,6 +362,6 @@ describe("Claude → Gemini fallback with structured content", () => {
     // Mutation check, kept as documentation of what regressing looks like: the
     // pre-fix expression was `parts: [{ text: m.content }]`.
     const preFix = [{ role: "user", parts: [{ text: [{ type: "text", text: "x" }] }] }];
-    expect(() => expectEveryPartIsAString(preFix)).toThrow();
+    expect(() => expectEveryPartIsGeminiValid(preFix)).toThrow();
   });
 });

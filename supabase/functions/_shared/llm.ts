@@ -413,12 +413,94 @@ export function normalizeGeminiText(content: unknown): string {
   return String(content);
 }
 
+/** A Gemini part: either text, or an inline base64 blob. */
+export type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+
+/**
+ * One message's content as Gemini parts — ATTACHMENTS INCLUDED.
+ *
+ * THIS EXISTS BECAUSE DROPPING THE IMAGE WAS NOT ACTUALLY HONEST. The first
+ * version of this bridge flattened content to text and discarded image and
+ * document blocks, on the reasoning that a chat answer to the surviving text
+ * beats a 400. That reasoning does not survive contact with what actually
+ * sends attachments:
+ *
+ *   study-paper-grade  a photograph of a student's handwritten answer, with
+ *                      the prompt "the answer is in the attached photo, read
+ *                      it carefully, then grade". Dropping the photo does not
+ *                      degrade the grade — it produces a MARK FOR WORK THE
+ *                      MODEL NEVER SAW.
+ *   study-tutor        a homework photo or PDF the question refers to.
+ *   health-scan        a medical report to summarise in plain language.
+ *
+ * In every one of those, an answer without the attachment is not a lesser
+ * answer, it is a fabricated one. So the blob crosses properly: Anthropic's
+ * `{type:"image"|"document", source:{type:"base64", media_type, data}}` becomes
+ * Gemini's `{inlineData:{mimeType, data}}`, which is the same bytes in the
+ * other provider's spelling.
+ *
+ * WHAT STILL CANNOT CROSS is counted rather than ignored — a URL-sourced image
+ * has no inline equivalent here — so a caller can refuse instead of answering
+ * blind. Silence is what caused this.
+ */
+export function geminiPartsFor(content: unknown): { parts: GeminiPart[]; dropped: number } {
+  if (typeof content === "string") return { parts: [{ text: content }], dropped: 0 };
+  if (content == null) return { parts: [{ text: "" }], dropped: 0 };
+  if (!Array.isArray(content)) return { parts: [{ text: String(content) }], dropped: 0 };
+
+  const parts: GeminiPart[] = [];
+  let dropped = 0;
+  const text: string[] = [];
+
+  for (const block of content) {
+    if (typeof block === "string") {
+      if (block) text.push(block);
+      continue;
+    }
+    if (!block || typeof block !== "object") continue;
+    const b = block as Record<string, unknown>;
+
+    if (typeof b.text === "string") {
+      if (b.text) text.push(b.text);
+      continue;
+    }
+
+    if (b.type === "image" || b.type === "document") {
+      const src = (b.source ?? {}) as Record<string, unknown>;
+      if (
+        src.type === "base64" &&
+        typeof src.media_type === "string" &&
+        typeof src.data === "string" &&
+        src.data.length > 0
+      ) {
+        parts.push({ inlineData: { mimeType: src.media_type, data: src.data } });
+      } else {
+        // A URL source, or a shape we do not recognise. It cannot be inlined,
+        // and pretending it was is how a model ends up grading a blank page.
+        dropped++;
+      }
+      continue;
+    }
+    // tool_use, tool_result and anything else: no text, nothing to carry.
+  }
+
+  // Text last, matching how the Anthropic callers order their blocks: the
+  // instruction refers to the attachment above it.
+  if (text.length > 0 || parts.length === 0) parts.push({ text: text.join("\n") });
+  return { parts, dropped };
+}
+
 /** Exported for tests; the shape Gemini's `contents` expects. */
 export function translateMessagesToGemini(msgs: ClaudeMessage[]): unknown[] {
-  return msgs.map((m) => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: normalizeGeminiText(m.content) }],
-  }));
+  return msgs.map((m) => {
+    const { parts, dropped } = geminiPartsFor(m.content);
+    if (dropped > 0) {
+      console.warn(
+        `translateMessagesToGemini: ${dropped} attachment block(s) could not be inlined for Gemini`,
+      );
+    }
+    return { role: m.role === "assistant" ? "model" : "user", parts };
+  });
 }
 
 // Gemini candidates → Anthropic-shaped response body.
