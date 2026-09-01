@@ -101,10 +101,11 @@ Deno.serve(async (req) => {
 
     const systemPrompt = SYSTEM + langInstruction(lang);
 
-    // --- Claude Opus 5 is Ting's primary engine. Gemini remains a
-    // text-only fallback when the Anthropic call fails (attachments need
-    // Anthropic's vision/document schema, and Gemini has no web_search
-    // wired up here — fallback answers just lose live sources). ---
+    // --- Claude Opus 5 is Ting's primary engine. Gemini is the fallback when
+    // the Anthropic call fails, and it is NO LONGER TEXT-ONLY: geminiPartsFor
+    // in _shared/llm.ts inlines base64 images and PDFs as Gemini inlineData,
+    // so an attachment survives the crossing. Fallback answers still lose live
+    // web_search sources, which is a real degradation and a different one. ---
     const hasAttachment = outMessages.some((m) => typeof m.content !== "string");
     let data: any = null;
     let servedBy: "gemini" | "anthropic" = "anthropic";
@@ -137,11 +138,24 @@ Deno.serve(async (req) => {
       } else {
         const t = await res.text().catch(() => "");
         console.error("anthropic error", res.status, t);
-        if (!hasAttachment) {
+        // ATTACHMENTS FAIL OVER TOO NOW. This used to read
+        // `if (!hasAttachment)`, so a Ting message carrying a photo or a PDF
+        // had no second engine at all and simply died whenever Anthropic was
+        // out. It was gated that way because the old bridge flattened content
+        // to text and would have sent Gemini the caption with no picture —
+        // answering a question about an image it had never seen. That is fixed
+        // at the bridge rather than avoided here.
+        {
           const geminiMsgs: ClaudeMessage[] = outMessages.map((m) => ({
             role: m.role as "user" | "assistant",
-            content: typeof m.content === "string" ? m.content : "",
+            // Passed through UNCHANGED. Blanking non-string content to "" was
+            // the second place the attachment was lost, and it silently threw
+            // away the user's question along with the picture.
+            content: m.content as string | unknown[],
           }));
+          if (hasAttachment) {
+            console.info("Ting: failing over to Gemini WITH an attachment inlined");
+          }
           const g = await callGemini({ system: systemPrompt, messages: geminiMsgs, maxTokens: 1024 });
           if (g.ok) {
             console.info("Ting answered via Gemini (fallback)");
