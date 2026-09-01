@@ -2384,3 +2384,46 @@ next build and consumes `videoProvider.server.ts` as its source of
 truth. Program GPU spend to date ≈ **$0.11–0.16 total** (three
 completed GPU jobs at $0.01 computed each + the diagnostic-era boots);
 R2 $0.00.
+
+---
+
+2026-09-01 — **the vendored harness is removed; oniq-gpu-worker is the
+only place it exists.** Owner directive.
+
+`gpu-validation/` was copied into this repository on 2026-08-25 because
+the RunPod Actions secret lived here and the gated pipeline had to run
+where the key was. It was described as byte-identical to
+`oniq-gpu-worker@f9f79a6` by the workflow and to `e708d79` by this
+ledger — two pins for one copy, a day apart, which was the first sign.
+
+Measured today, six days on: `runpod_client.py` 471 lines vendored
+against 1191 live, 3 validation modules against 42, **197 commits
+behind**, and `TARGET_GPU = "NVIDIA GeForce RTX 3090"` — a card ONIQ had
+stopped renting in favour of A40 / RTX A6000. None of that week's volume,
+datacenter or template work existed in the copy. A file that claims byte
+identity and has drifted is worse than no copy, because the claim is what
+stops anyone checking it.
+
+The premise had also expired. `oniq-gpu-worker` now holds its own RunPod
+secret and its own `gpu-spend` environment, and every write of 2026-09-01
+— the volume attach, the `locations` un-pin that ended the daily
+endpoint-recreation cycle, the volume delete, the template retarget —
+was dispatched from there.
+
+Removed: `gpu-validation/` (7 files) and `.github/workflows/gpu-validation.yml`,
+which cannot run without it. The Actions secret in this repository is now
+unreferenced and can be deleted from Settings. **The RUNPOD_API_KEY read
+by `src/lib/gpuVideo.server.ts` and `supabase/functions/gpu-video` is a
+different thing** — the server's runtime key, untouched, still the path
+the product calls the endpoint with.
+
+A full repository merge was considered and DEFERRED, deliberately rather
+than forgotten. It requires rewriting the spend gate that reads "this
+workflow must remain the ONLY one in the repo that references
+`secrets.RUNPOD_API_KEY`", and that gate is what stops a Lovable sync
+commit renting a GPU. Bolting it onto other work is how that gate gets
+weakened by accident.
+
+Entries above this line are history and are left as written.
+
+GPU spend on 2026-09-01: the harness removal is $0 — no worker, no job.
