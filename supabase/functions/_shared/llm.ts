@@ -291,11 +291,47 @@ export type CallClaudeResult =
 /**
  * Extra output tokens allowed on Gemini to cover thinking.
  *
- * Not a guess at how much a model thinks — a floor generous enough that a
- * forced tool call is not truncated before it is emitted. Costs nothing when
- * unused.
+ * SIZED FROM REPORTED BEHAVIOUR, not from a guess. Google's own trackers
+ * (googleapis/python-genai#782, #811) document that on 2.5+ and 3.x:
+ *
+ *   - thinking is ON by default and thoughts are drawn from maxOutputTokens;
+ *   - MAX_TOKENS fires when thoughts + output exceed it;
+ *   - when it fires the response comes back EMPTY, so a forced tool call is
+ *     not truncated, it is absent entirely;
+ *   - thoughts reach ~6k tokens even on simple tasks.
+ *
+ * 8192 covers that with room, rather than the 4096 first tried here — which
+ * was itself a guess and would still have been under the reported ceiling.
  */
-export const GEMINI_THINKING_HEADROOM_TOKENS = 4096;
+export const GEMINI_THINKING_HEADROOM_TOKENS = 8192;
+
+/**
+ * A floor under the Gemini output ceiling, regardless of what the caller asked.
+ *
+ * TWO REPORTED FAILURES MEET HERE. Thoughts alone can take ~6k, and separately
+ * (googleapis/js-genai#1619) Flash models generate LARGE function-call
+ * arguments unreliably — MAX_TOKENS with partial output, or
+ * MALFORMED_FUNCTION_CALL with nothing exposed. study-paper-generate asks for a
+ * whole exam section in a single call: twenty MCQs with four options and an
+ * explanation each. A ceiling sized for Anthropic's completion is nowhere near
+ * enough once thinking shares it.
+ *
+ * A CEILING IS NOT A SPEND. Google bills tokens produced, not tokens allowed,
+ * and settlement reads actual usage through geminiOutputTokens — so a generous
+ * bound costs nothing and an ungenerous one costs the whole answer.
+ *
+ * `thinkingConfig: { thinkingBudget: 0 }` is deliberately NOT used instead:
+ * python-genai#782 reports it is not reliably honoured — thoughts still arrive
+ * — and the knob is spelled differently across generations, so sending the
+ * wrong one is a 400 on the fallback path.
+ */
+export const GEMINI_MIN_OUTPUT_TOKENS = 16384;
+
+/** The output ceiling to send Gemini for a caller that asked for `wanted`. */
+export function geminiOutputCeiling(wanted: number | undefined): number {
+  const asked = typeof wanted === "number" && wanted > 0 ? wanted : 1024;
+  return Math.max(asked + GEMINI_THINKING_HEADROOM_TOKENS, GEMINI_MIN_OUTPUT_TOKENS);
+}
 
 const GEMINI_FALLBACK_MODEL = "gemini-3.6-flash";
 
@@ -637,9 +673,7 @@ export async function callGemini(
     // path, which is the worst place to be clever. Unused headroom is free —
     // Google bills tokens produced, not tokens allowed — and settlement reads
     // actual usage via geminiOutputTokens.
-    generationConfig: {
-      maxOutputTokens: (opts.maxTokens ?? 1024) + GEMINI_THINKING_HEADROOM_TOKENS,
-    },
+    generationConfig: { maxOutputTokens: geminiOutputCeiling(opts.maxTokens) },
   };
   if (tools) body.tools = tools;
   if (toolConfig) body.toolConfig = toolConfig;

@@ -23,7 +23,9 @@ import { describe, expect, it, afterEach } from "vitest";
 import {
   type ClaudeMessage,
   callGemini,
+  GEMINI_MIN_OUTPUT_TOKENS,
   GEMINI_THINKING_HEADROOM_TOKENS,
+  geminiOutputCeiling,
   geminiPartsFor,
   normalizeGeminiText,
   translateMessagesToGemini,
@@ -283,6 +285,34 @@ describe("a forced tool call that never arrives is named, not silently empty", (
   });
 });
 
+describe("geminiOutputCeiling", () => {
+  it("never sends less than the floor, however small the caller's budget", () => {
+    // study-paper-generate gives its mcq section 1,800 tokens — sized for
+    // Anthropic, where max_tokens bounds the ANSWER. On Gemini that same number
+    // is shared with thinking, and ~6k of thoughts leaves nothing.
+    for (const asked of [1, 256, 1024, 1800, 3600, 6000]) {
+      expect(geminiOutputCeiling(asked)).toBeGreaterThanOrEqual(GEMINI_MIN_OUTPUT_TOKENS);
+    }
+  });
+
+  it("scales above the floor for a caller that genuinely wants more", () => {
+    expect(geminiOutputCeiling(20000)).toBe(20000 + GEMINI_THINKING_HEADROOM_TOKENS);
+  });
+
+  it("is always strictly more than the caller asked for", () => {
+    // The invariant. Equalling it would recreate the bug.
+    for (const asked of [1, 1024, 1800, 16384, 50000]) {
+      expect(geminiOutputCeiling(asked)).toBeGreaterThan(asked);
+    }
+  });
+
+  it("copes with a missing or nonsense budget", () => {
+    expect(geminiOutputCeiling(undefined)).toBeGreaterThanOrEqual(GEMINI_MIN_OUTPUT_TOKENS);
+    expect(geminiOutputCeiling(0)).toBeGreaterThanOrEqual(GEMINI_MIN_OUTPUT_TOKENS);
+    expect(geminiOutputCeiling(-5)).toBeGreaterThanOrEqual(GEMINI_MIN_OUTPUT_TOKENS);
+  });
+});
+
 describe("thinking headroom", () => {
   const realFetch = globalThis.fetch;
   const hadDeno = "Deno" in globalThis;
@@ -312,8 +342,11 @@ describe("thinking headroom", () => {
 
     await callGemini({ system: "s", messages: [{ role: "user", content: "q" }], maxTokens: 1800 });
     const cfg = sent.generationConfig as { maxOutputTokens: number };
-    expect(cfg.maxOutputTokens).toBe(1800 + GEMINI_THINKING_HEADROOM_TOKENS);
-    expect(cfg.maxOutputTokens).toBeGreaterThan(1800);
+    expect(cfg.maxOutputTokens).toBe(geminiOutputCeiling(1800));
+    // The number that matters: comfortably above the ~6k of thoughts Google's
+    // own issue tracker reports on simple tasks, so a forced tool call is
+    // emitted rather than truncated into nothing.
+    expect(cfg.maxOutputTokens).toBeGreaterThanOrEqual(16384);
   });
 });
 
