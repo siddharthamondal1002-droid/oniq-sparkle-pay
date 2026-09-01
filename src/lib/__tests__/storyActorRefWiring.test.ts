@@ -239,7 +239,16 @@ describe("the fallback is preserved — no reference means text-only, unchanged"
   it("the edge call omits referenceImage when there is no reference", () => {
     // usedRef is false → the spread contributes nothing → the body is exactly
     // { prompt: asks[a] }, the previous behaviour.
-    expect(WORKER).toMatch(/still = await edge\('story-still', \{\s*prompt: asks\[a\],/);
+    //
+    // The call is drawStill(), not edge('story-still'), since 2026-09-01: a
+    // still is now submitted once and polled, because a cold worker outlasts
+    // any deadline an edge function can hold. The property under test is
+    // unchanged — the payload still opens with the ask and carries a
+    // reference only when there is one.
+    expect(WORKER).toMatch(/still = await drawStill\(\{\s*prompt: asks\[a\],/);
+    // And it is genuinely the resuming path, not a renamed synchronous ask.
+    expect(WORKER).toMatch(/action: 'start'/);
+    expect(WORKER).toMatch(/action: 'poll'/);
   });
 
   it("the frozen duration contract is still intact in the same file", () => {

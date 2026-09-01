@@ -38,6 +38,8 @@ import {
   MAX_NEGATIVE_PROMPT_CHARS,
   MAX_SEED,
   generateStill,
+  pollStill,
+  submitStill,
 } from "../_shared/oniqImage.ts";
 import { CAPABILITY_MARKER } from "../_shared/referenceOutcome.ts";
 import {
@@ -327,6 +329,103 @@ Deno.serve(async (req) => {
       }
     }
 
+    // START / POLL — the resume path, and why the bounded wait could not stay.
+    //
+    // A Supabase edge function has a wall-clock ceiling measured in seconds. A
+    // COLD RunPod worker pulls ~40 GiB of image and then fetches a 17.74 GiB
+    // text encoder out of R2 before it can draw, which is minutes. No deadline
+    // held inside one invocation spans that, so the wait moves to the runner,
+    // which has hours. story-clip already splits start from poll for the same
+    // reason; this is that shape rather than a second one.
+    //
+    // MEASURED 2026-09-01, jobs e09a0dcf and 4b335729: the bounded path timed
+    // out three times at 120s and every attempt submitted a FRESH engine job
+    // while the first was still hydrating. At workersMax 1 those queue, so one
+    // cold start cost three billed GPU jobs and produced no frame at all.
+    //
+    // BOTH HALVES NEED THE SHOT'S IDENTITY, because the key is derived from it
+    // and never carried: without sceneId and shotId the submit would draw to a
+    // random uuid that no later poll could name. That is refused rather than
+    // silently falling back to the bounded wait, which would reintroduce the
+    // exact failure this path exists to remove.
+    const action = typeof body?.action === "string" ? body.action.trim() : "";
+    if (action === "start" || action === "poll") {
+      if (!stillId) {
+        return json(
+          {
+            error: "start/poll needs sceneId and shotId — the still's key is derived from them",
+            retryable: false,
+          },
+          400,
+        );
+      }
+      const engineEnv = { apiKey, endpointId, publicBase };
+      const engineDeps = {
+        fetchImpl: fetch,
+        now: () => Date.now(),
+        sleep: (ms: number) => new Promise((r) => setTimeout(r, ms)),
+        newId: () => crypto.randomUUID(),
+      };
+      // What the caller is told about the anchor. Returned by START only —
+      // it is settled when the job is submitted, and a poll has no
+      // reference id with which to recompute it honestly.
+      const provenance = {
+        conditioned: Boolean(referenceKey),
+        referenceUnresolved,
+        referenceVersion: referenceKey ? characterRefVersion : null,
+      };
+      try {
+        if (action === "start") {
+          const { jobId: engineJobId, key } = await submitStill(
+            prompt,
+            engineEnv,
+            engineDeps,
+            {
+              id: stillId,
+              seed,
+              negativePrompt,
+              ...(referenceKey
+                ? {
+                    referenceKey,
+                    referenceStrength: referenceStrength ?? DEFAULT_REFERENCE_STRENGTH,
+                  }
+                : {}),
+            },
+          );
+          return json({ configured: true, engineJobId, key, ...provenance });
+        }
+        // POLL. The engine's job id is the ONLY thing the caller carries back,
+        // and it names a job, not a bucket path — the key is re-derived here
+        // from the token's job id, so a caller still cannot name another
+        // film's still.
+        const engineJobId =
+          typeof body?.engineJobId === "string" ? body.engineJobId.trim() : "";
+        if (!engineJobId) {
+          return json(
+            { error: "poll needs the engineJobId that start returned", retryable: false },
+            400,
+          );
+        }
+        const got = await pollStill(engineJobId, stillId, engineEnv, engineDeps);
+        if (!got.done) return json({ configured: true, done: false });
+        // THE FRAME ONLY. Provenance is decided at SUBMIT time and is
+        // deliberately not repeated here: a poll carries no characterRefId —
+        // resolving one on every poll would be a lookup per tick — so
+        // recomputing it from this body would report `conditioned: false` for
+        // a still that was in fact anchored. The caller keeps what `start`
+        // told it, which is the only answer that was ever true.
+        return json({
+          configured: true,
+          done: true,
+          mime: got.mime,
+          data: got.data,
+          key: got.key,
+        });
+      } catch (err) {
+        return engineFailure(err);
+      }
+    }
+
     try {
       const still = await generateStill(
         // The ask, VERBATIM. The aspect sentence this used to append is gone
@@ -382,10 +481,7 @@ Deno.serve(async (req) => {
       // retried — one of those is money spent to be told the same thing.
       // Absent the flag (an older worker reading a newer function, or the
       // reverse) the caller falls back to its previous behaviour.
-      const why = err instanceof Error ? err.message : String(err);
-      const retryable = err instanceof EngineError ? err.retryable : false;
-      console.error("story-still in-house engine", `retryable=${retryable}`, why.slice(0, 300));
-      return json({ error: `Could not draw that frame: ${why}`, retryable }, 502);
+      return engineFailure(err);
     }
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") {
@@ -395,6 +491,27 @@ Deno.serve(async (req) => {
     return json({ error: "Something went sideways — try again" }, 500);
   }
 });
+/**
+ * One engine failure, worded one way. Shared by the bounded path and the
+ * resume path so the two can never drift — the worker's retry ladder reads
+ * `retryable`, and a second copy of this that fell behind would have it
+ * retrying things the engine already called final.
+ */
+function engineFailure(err: unknown) {
+  // Named plainly, and NEVER converted into a cloud call. There is no
+  // provider behind this except ONIQ's own engine, and a failure here
+  // stays a failure.
+  //
+  // `retryable` is the engine's own verdict, carried out to the worker so its
+  // ladder stops guessing from an HTTP code. Absent the flag (an older worker
+  // reading a newer function, or the reverse) the caller falls back to its
+  // previous behaviour.
+  const why = err instanceof Error ? err.message : String(err);
+  const retryable = err instanceof EngineError ? err.retryable : false;
+  console.error("story-still in-house engine", `retryable=${retryable}`, why.slice(0, 300));
+  return json({ error: `Could not draw that frame: ${why}`, retryable }, 502);
+}
+
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,

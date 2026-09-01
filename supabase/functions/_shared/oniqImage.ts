@@ -250,55 +250,78 @@ export function failureReason(state: unknown): string {
  * endpoint's environment, never here), and proves the bytes before
  * returning them.
  */
-export async function generateStill(
+/**
+ * What one draw needs to know. Named rather than inline because the submit
+ * half and the wait half are now separate entry points and both take it.
+ */
+export type StillOpts = {
+  deadlineMs?: number;
+  pollMs?: number;
+  id?: string;
+  /**
+   * The sampler seed for THIS draw. Derived by the caller from the shot's
+   * identity plus its attempt number (storySeed.ts) — never rolled here,
+   * because a still that cannot be redrawn is a still nobody can diagnose.
+   * Absent, the worker falls back to its own constant, which is the old
+   * behaviour and is why ten retries used to be one image ten times.
+   */
+  seed?: number;
+  /**
+   * What this shot must NOT contain. Per shot, because the terms that ruin
+   * a face are not the terms that ruin a landscape (faceQuality.ts).
+   */
+  negativePrompt?: string;
+  /**
+   * The canonical character reference's BUCKET KEY, already resolved from a
+   * published id by characterRef.ts. Never a URL and never caller-supplied:
+   * the worker reads it with its own credentials and re-validates the shape
+   * against its contract before any GPU work.
+   */
+  referenceKey?: string;
+  /** How hard to hold it. The worker refuses anything outside its band. */
+  referenceStrength?: number;
+};
+
+function engineHeaders(env: EngineEnv) {
+  return {
+    Authorization: `Bearer ${env.apiKey}`,
+    "content-type": "application/json",
+  };
+}
+
+/**
+ * Submit one still and return the engine's job id WITHOUT waiting for it.
+ *
+ * WHY THE WAIT IS NOT HERE. A Supabase edge function has a wall-clock
+ * ceiling measured in seconds. A cold RunPod worker has to pull ~40 GiB of
+ * image and then fetch a 17.74 GiB text encoder out of R2 before it can
+ * draw anything, which is minutes. No deadline held inside one invocation
+ * can span that, so the waiting belongs to the caller that HAS the time —
+ * the GitHub runner, which has hours. story-clip already splits start from
+ * poll for exactly this reason; this is that shape, not a new one.
+ *
+ * MEASURED 2026-09-01, jobs e09a0dcf and 4b335729: the bounded-wait path
+ * timed out three times at 120s and each attempt SUBMITTED A FRESH JOB
+ * while the first was still hydrating. With workersMax 1 those queue, so
+ * one cold start cost three billed GPU jobs and still returned no frame.
+ * Resuming a single id is what removes that.
+ */
+export async function submitStill(
   prompt: string,
   env: EngineEnv,
   deps: EngineDeps,
-  opts: {
-    deadlineMs?: number;
-    pollMs?: number;
-    id?: string;
-    /**
-     * The sampler seed for THIS draw. Derived by the caller from the shot's
-     * identity plus its attempt number (storySeed.ts) — never rolled here,
-     * because a still that cannot be redrawn is a still nobody can diagnose.
-     * Absent, the worker falls back to its own constant, which is the old
-     * behaviour and is why ten retries used to be one image ten times.
-     */
-    seed?: number;
-    /**
-     * What this shot must NOT contain. Per shot, because the terms that ruin
-     * a face are not the terms that ruin a landscape (faceQuality.ts).
-     */
-    negativePrompt?: string;
-    /**
-     * The canonical character reference's BUCKET KEY, already resolved from a
-     * published id by characterRef.ts. Never a URL and never caller-supplied:
-     * the worker reads it with its own credentials and re-validates the shape
-     * against its contract before any GPU work.
-     */
-    referenceKey?: string;
-    /** How hard to hold it. The worker refuses anything outside its band. */
-    referenceStrength?: number;
-  } = {},
-): Promise<{ mime: string; data: string; bytes: number; key: string }> {
-  const deadlineMs = opts.deadlineMs ?? 120_000;
-  const pollMs = opts.pollMs ?? 2_000;
-  const started = deps.now();
+  opts: StillOpts = {},
+): Promise<{ jobId: string; key: string }> {
   // A caller may supply a DERIVED id so the still's key can be recomputed
   // later without being carried around — the film's motion stage needs to
   // name this still as its source without anyone passing a bucket path.
   // Absent one, a random id as before. This engine's own request stays
   // text-only either way; the id names the DESTINATION, never an input.
   const key = stillKeyFor(opts.id ?? deps.newId());
-  const headers = {
-    Authorization: `Bearer ${env.apiKey}`,
-    "content-type": "application/json",
-  };
 
   const submitted = await deps.fetchImpl(`${RUNPOD_SERVERLESS}/${env.endpointId}/run`, {
     method: "POST",
-    headers,
+    headers: engineHeaders(env),
     body: JSON.stringify({
       input: {
         op: "image_generate",
@@ -330,39 +353,71 @@ export async function generateStill(
   }
   const { id } = (await submitted.json()) as { id?: string };
   if (!id) throw new EngineError("engine returned no job id");
+  return { jobId: id, key };
+}
 
-  let output: unknown = null;
-  for (;;) {
-    if (deps.now() - started > deadlineMs) {
-      // The deadline expired with the job still not terminal — a slow
-      // cold start looks exactly like this, and it is worth one more ask.
-      throw new EngineError("still took too long", true);
-    }
-    await deps.sleep(pollMs);
-    const res = await deps.fetchImpl(
-      `${RUNPOD_SERVERLESS}/${env.endpointId}/status/${encodeURIComponent(id)}`,
-      { headers },
-    );
-    if (!res.ok) throw new EngineError(`engine status ${res.status}`, res.status >= 500);
-    const state = (await res.json()) as { status?: string; output?: unknown };
-    if (state.status === TERMINAL_OK) {
-      output = state.output;
-      break;
-    }
-    if (TERMINAL_BAD.includes(String(state.status))) {
-      const status = String(state.status);
-      const why = failureReason(state);
-      // FAILED and TIMED_OUT are the container hiccuping — measured
-      // retryable: run #132's shot 6 hit FAILED and drew fine on the
-      // next attempt. CANCELLED is somebody's decision, and asking
-      // again would be arguing with it.
-      throw new EngineError(
-        why ? `engine job ${status}: ${why}` : `engine job ${status}`,
-        status !== "CANCELLED" && failureIsTransient(why),
-      );
-    }
+export type StillPoll =
+  { done: false } | { done: true; mime: string; data: string; bytes: number; key: string };
+
+/** The status check, against a key this module derived and the caller never saw. */
+async function pollStillByKey(
+  jobId: string,
+  key: string,
+  env: EngineEnv,
+  deps: EngineDeps,
+): Promise<StillPoll> {
+  const res = await deps.fetchImpl(
+    `${RUNPOD_SERVERLESS}/${env.endpointId}/status/${encodeURIComponent(jobId)}`,
+    { headers: engineHeaders(env) },
+  );
+  if (!res.ok) throw new EngineError(`engine status ${res.status}`, res.status >= 500);
+  const state = (await res.json()) as { status?: string; output?: unknown };
+  if (state.status === TERMINAL_OK) {
+    return { done: true, ...(await collectStill(state.output, key, env, deps)) };
   }
+  if (TERMINAL_BAD.includes(String(state.status))) {
+    const status = String(state.status);
+    const why = failureReason(state);
+    // FAILED and TIMED_OUT are the container hiccuping — measured
+    // retryable: run #132's shot 6 hit FAILED and drew fine on the
+    // next attempt. CANCELLED is somebody's decision, and asking
+    // again would be arguing with it.
+    throw new EngineError(
+      why ? `engine job ${status}: ${why}` : `engine job ${status}`,
+      status !== "CANCELLED" && failureIsTransient(why),
+    );
+  }
+  // IN_QUEUE or IN_PROGRESS. Neither an error nor a verdict: how long to
+  // keep asking is the caller's to decide, because only the caller knows
+  // how much wall clock it actually has.
+  return { done: false };
+}
 
+/**
+ * Ask ONCE whether a submitted still has landed. Never sleeps.
+ *
+ * Takes the shot's `stillId`, NOT a bucket key. The key is derived here
+ * through the same function the submit used, because a poll that accepted
+ * a key would let its caller name any object in the bucket and have this
+ * function fetch it back to them. stillKeyFor deliberately carries no
+ * overload taking a key; this keeps that true across the resume path too.
+ */
+export async function pollStill(
+  jobId: string,
+  stillId: string,
+  env: EngineEnv,
+  deps: EngineDeps,
+): Promise<StillPoll> {
+  return pollStillByKey(jobId, stillKeyFor(stillId), env, deps);
+}
+
+/** Verify the engine's verdict, then fetch the artifact and prove the bytes. */
+async function collectStill(
+  output: unknown,
+  key: string,
+  env: EngineEnv,
+  deps: EngineDeps,
+): Promise<{ mime: string; data: string; bytes: number; key: string }> {
   const verdict = verifyStillOutput(output);
   if (verdict.ok !== true) throw new EngineError(verdict.reason, verdict.retryable === true);
 
@@ -386,4 +441,35 @@ export async function generateStill(
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);
   return { mime: STILL_MIME, data: btoa(binary), bytes: bytes.byteLength, key };
+}
+
+/**
+ * Draw one still and wait for it, to a bounded deadline.
+ *
+ * KEPT, and behaving exactly as it did, for callers that genuinely have the
+ * time to wait inside one request. The STORY path no longer uses it: a cold
+ * worker outlasts any deadline an edge function can hold, so that path
+ * submits once and polls from the runner instead.
+ */
+export async function generateStill(
+  prompt: string,
+  env: EngineEnv,
+  deps: EngineDeps,
+  opts: StillOpts = {},
+): Promise<{ mime: string; data: string; bytes: number; key: string }> {
+  const deadlineMs = opts.deadlineMs ?? 120_000;
+  const pollMs = opts.pollMs ?? 2_000;
+  const started = deps.now();
+  const { jobId, key } = await submitStill(prompt, env, deps, opts);
+
+  for (;;) {
+    if (deps.now() - started > deadlineMs) {
+      // The deadline expired with the job still not terminal — a slow
+      // cold start looks exactly like this, and it is worth one more ask.
+      throw new EngineError("still took too long", true);
+    }
+    await deps.sleep(pollMs);
+    const got = await pollStillByKey(jobId, key, env, deps);
+    if (got.done) return { mime: got.mime, data: got.data, bytes: got.bytes, key: got.key };
+  }
 }
