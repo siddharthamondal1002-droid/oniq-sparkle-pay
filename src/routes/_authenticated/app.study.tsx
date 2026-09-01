@@ -3200,10 +3200,21 @@ function PaperModal({
         setReattachIds(new Set());
         setCurrentIdx(0);
       } else {
-        setErrorMsg("couldn't build that paper — try again 🌿");
+        // THE REASON WAS ALWAYS HERE AND WAS ALWAYS THROWN AWAY. The function
+        // answers 200 with a precise one — "mcq: http 400", "long: no items",
+        // "malformed paper", "bad mcq item", "storage failed" — and each needs
+        // a different fix. Collapsing them into one sentence meant a provider
+        // outage and a validation bug looked identical, and on 2026-09-01,
+        // with the Supabase log pipeline returning no rows, this string was
+        // the only evidence left anywhere.
+        console.warn("study-paper-generate unavailable:", d?.source, d?.reason);
+        setErrorMsg(withReason("couldn't build that paper — try again 🌿", d?.reason));
       }
-    } catch {
-      setErrorMsg("couldn't build that paper — try again 🌿");
+    } catch (e) {
+      // Non-2xx: supabase-js hides the body on `.context`. Same loss, other path.
+      const detail = await edgeErrorMessage(e);
+      console.warn("study-paper-generate threw:", detail || e);
+      setErrorMsg(withReason("couldn't build that paper — try again 🌿", detail));
     } finally {
       generating.current = false;
       setLoading(false);
