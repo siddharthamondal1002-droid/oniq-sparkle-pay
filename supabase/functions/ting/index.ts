@@ -271,10 +271,23 @@ Deno.serve(async (req) => {
         if (!gate.eligible) {
           console.info(`Ting: no failover (${gate.block}, class=${failureClass})`);
         }
-        if (gate.eligible && !hasAttachment) {
+        // ATTACHMENTS FAIL OVER TOO NOW. This used to read
+        // `gate.eligible && !hasAttachment`, so a Ting message carrying a
+        // photo or a PDF had no second engine at all and simply died whenever
+        // Anthropic was out. It was gated that way because the old bridge
+        // flattened content to text and would have sent Gemini the caption
+        // with no picture — answering a question about an image it had never
+        // seen. That is fixed at the bridge rather than avoided here.
+        if (gate.eligible) {
+          if (hasAttachment) {
+            console.info("Ting: failing over to Gemini WITH an attachment inlined");
+          }
           const geminiMsgs: ClaudeMessage[] = outMessages.map((m) => ({
             role: m.role as "user" | "assistant",
-            content: typeof m.content === "string" ? m.content : "",
+            // Passed through UNCHANGED. Blanking non-string content to "" was
+            // the second place the attachment was lost, and it silently threw
+            // away the user's question along with the picture.
+            content: m.content as string | unknown[],
           }));
           // The fallback is a SECOND billable call, on a different key, and it
           // needs its own reservation. The request id is DERIVED from the
