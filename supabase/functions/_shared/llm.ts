@@ -224,7 +224,24 @@ function mask(k: string | undefined): string {
 
 const RETRY_STATUSES = new Set([429, 500, 502, 503, 529]);
 
-export type ClaudeMessage = { role: "user" | "assistant"; content: string };
+/**
+ * One turn of a conversation.
+ *
+ * `content` IS NOT ALWAYS A STRING, and typing it as one is what caused a
+ * production outage. Anthropic accepts either a plain string or an array of
+ * content blocks — `[{ type: "image", source: {...} }, { type: "text", text }]`
+ * — and two callers genuinely send the array form: study-paper-grade when a
+ * student photographs a handwritten answer, and study-tutor when a message
+ * carries an image or PDF attachment. Both had to write `as any` at the call
+ * site to get past this type, which is exactly the signal that the type was
+ * wrong rather than the callers.
+ *
+ * The declared string then hid the bug from tsc, and the array reached Gemini's
+ * `parts[].text` verbatim: `Unknown name "text" at 'contents[0].parts[0]':
+ * Proto field is not repeating, cannot start list.` Anything crossing to Gemini
+ * must go through normalizeGeminiText().
+ */
+export type ClaudeMessage = { role: "user" | "assistant"; content: string | unknown[] };
 
 export type CallClaudeOpts = {
   system: string;
