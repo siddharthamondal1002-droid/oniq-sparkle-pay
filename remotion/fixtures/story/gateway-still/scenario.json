@@ -1,0 +1,42 @@
+{
+  "name": "gateway stills — a synchronous engine, no GPU anywhere in the path",
+  "_why": "OWNER DIRECTIVE 2026-09-01: stills route back to the Lovable gateway and the GPU leaves the still path, because the RunPod worker had never drawn a frame on the current endpoint and every film was dying at `still 1`. The gateway answers in ONE call — `start` carries the frame — so this scenario proves the worker takes it without polling. The failure it exists to catch is expensive: a worker that polled a synchronous engine would earn a 400 per shot, and a future `poll` that redrew instead of refusing would bill a second image per shot forever. `key: null` is the other half — a gateway still is bytes that were never stored, so in-house motion cannot animate one. This is a CLASSIC grade, which is what the directive's era actually shipped: gateway stills under ONIQ's own Ken Burns, with Veo reserved for movie grade.",
+  "_run": "STORY_FIXTURES=fixtures/story/gateway-still node scripts/story-worker.mjs",
+  "job": {
+    "id": "dry-1",
+    "prompt": "a brave mouse in a bakery",
+    "shotCount": 3,
+    "grade": "classic"
+  },
+  "plan": {
+    "title": "The Mouse Under the Bakery",
+    "setting": "a warm old bakery at night, flour dust in the lamplight",
+    "shots": [
+      {
+        "still": "A small brown mouse peers out from under a wooden floorboard.",
+        "narration": "Under the floorboards of an old bakery there lived a very small and very brave mouse."
+      },
+      {
+        "still": "Wide view of the dark bakery, moonlight on the counters.",
+        "narration": "Every night when the baker went home, the mouse came out to see what the world had left behind."
+      },
+      {
+        "still": "The mouse carries a crumb twice its size across the floor.",
+        "narration": "And every night she carried home one crumb, which to a mouse is a very great treasure indeed."
+      }
+    ]
+  },
+  "still": [{ "synchronous": true }],
+  "_expect": {
+    "exit": 0,
+    "calls": {
+      "still": 3,
+      "voice": 3,
+      "clip": 0,
+      "plot": 1
+    },
+    "log": ["story-plot #1 ok", "story-still #3 ok", "story-voice #3 ok"],
+    "absent": ["FAIL", "unknown engineJobId"],
+    "film": true
+  }
+}

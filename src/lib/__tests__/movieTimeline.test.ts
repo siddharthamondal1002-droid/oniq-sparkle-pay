@@ -260,7 +260,11 @@ describe("the motion route and the controls it must not cost", () => {
   });
 
   it("the clip is asked to cover the SHOT, so a longer shot is not a longer freeze", () => {
-    expect(worker).toMatch(/await generateClip\(shot, stillFile, shotSeconds,/);
+    // Matched across newlines: the call grew a sixth argument (the still's
+    // bucket key, so in-house motion cannot be sent after a gateway still)
+    // and prettier broke it over several lines. The property under test is
+    // unchanged — the SHOT's length is what the clip is asked to cover.
+    expect(worker).toMatch(/await generateClip\(\s*shot,\s*stillFile,\s*shotSeconds,/s);
     // and the ambient bed spans the shot too, not just the words
     expect(worker).toMatch(/'-t', String\(shotSeconds\)/);
   });

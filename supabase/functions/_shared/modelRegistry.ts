@@ -215,15 +215,23 @@ export const TEXT_FALLBACK: ModelEntry = {
  * literally the same weights opened as a different pipeline class — so there
  * is one model in the image, not two.
  *
- * This entry supersedes the gateway-served google/gemini-2.5-flash-image that
- * ran here under the 2026-08-14 directive. No key, no provider, no credit
- * pool: the only cost is this worker's own GPU seconds.
+ * No key, no provider, no credit pool: the only cost is this worker's own GPU
+ * seconds.
+ *
+ * NO LONGER THE DEFAULT, 2026-09-01. This entry used to say it "supersedes"
+ * the gateway-served google/gemini-2.5-flash-image; the owner directive of
+ * 2026-09-01 put that engine back and made it the default, because this one
+ * has not drawn a frame on the current endpoint — both films that day died at
+ * still 1 with the endpoint stuck `initializing`, before any GPU second was
+ * spent. It is reached now by STILL_PROVIDER=in_house and is still the only
+ * engine whose stills in-house MOTION can animate, because it is the only one
+ * that writes them into the bucket.
  */
 export const IMAGE_STILL: ModelEntry = {
   id: "Lightricks/LTX-Video",
   provider: "oniq-gpu-worker",
   keyEnv: null,
-  usedBy: "story-still",
+  usedBy: "story-still (STILL_PROVIDER=in_house)",
   status: "current",
   shutdownOn: null,
   note:
@@ -244,6 +252,56 @@ export const IMAGE_STILL: ModelEntry = {
       "referenceSupport is false and that is enforced, not assumed: " +
       "story-still refuses a reference with 422 rather than quietly drawing " +
       "an unconditioned frame.",
+  },
+};
+
+/**
+ * IMAGE — the gateway engine, restored 2026-09-01.
+ *
+ * OWNER DIRECTIVE, 2026-09-01: stills route here and the GPU leaves the still
+ * path ("old version back where in-house and Veo both was there without gpu").
+ * Whose money: Lovable credits, the same pool VOICE_TTS below already spends.
+ *
+ * BOTH ENTRIES ARE CURRENT, and that is not an oversight. story-still can run
+ * on either engine and picks one from STILL_PROVIDER before it calls anything
+ * (_shared/stillRoute.ts); the registry describes what CAN serve a stage, and
+ * two things now can. What it must never do is leave a reader unable to tell
+ * which one actually ran — that is why every story-still reply carries
+ * `provider`, and why this entry exists instead of IMAGE_STILL being quietly
+ * edited to say "gateway".
+ *
+ * The capability differences are real and are reported per request rather than
+ * assumed: no seed (so no exact reproduction), no negative-prompt tensor (the
+ * terms ride in the ask as a sentence), no reference-strength dial — and a
+ * reference IS supported, by inlining bytes this side reads from ONIQ's own
+ * bucket, which the 2026-08-20 probe measured holding a character's identity.
+ */
+export const IMAGE_STILL_GATEWAY: ModelEntry = {
+  id: "google/gemini-2.5-flash-image",
+  provider: "lovable-gateway",
+  keyEnv: "LOVABLE_API_KEY",
+  usedBy: "story-still (STILL_PROVIDER=gateway, the 2026-09-01 default)",
+  status: "unknown",
+  shutdownOn: null,
+  note:
+    "No published gateway lifecycle found for this id. Ran this stage for the " +
+    "whole 2026-08-14 to 2026-08-27 era and is restored unchanged.",
+  capabilities: {
+    modality: "text-to-image",
+    durationsSec: null,
+    aspectRatios: [],
+    referenceSupport: true,
+    audioSupport: false,
+    commercialUse: null,
+    note:
+      "Reference conditioning by INLINED bytes: story-still resolves a " +
+      "published canonical character id to a server-owned key, reads that " +
+      "object over the bucket's public base, and inlines it as a data: URL. " +
+      "A caller never supplies a path, a URL or bytes. No seed and no " +
+      "negative-prompt tensor — story-still reports seedHonoured:false and " +
+      "negativeApplied:'prompt-text' rather than letting a caller assume " +
+      "conditioning it did not get. Writes nothing to a bucket, so the reply " +
+      "carries key:null and in-house motion cannot animate its frames.",
   },
 };
 
@@ -344,6 +402,7 @@ export const MODEL_REGISTRY: ModelEntry[] = [
   TEXT_TOOLS,
   TEXT_FALLBACK,
   IMAGE_STILL,
+  IMAGE_STILL_GATEWAY,
   VOICE_TTS,
   VIDEO_CLIP,
   VIDEO_CLIP_FALLBACK,

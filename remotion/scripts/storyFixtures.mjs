@@ -338,6 +338,20 @@ export function createFixtureEdge(dir, opts = {}) {
       const key = `story/still/${body?.sceneId ?? 's'}-${body?.shotId ?? counts.still}.png`;
 
       if (body?.action === 'start') {
+        // THE GATEWAY SHAPE: one call, frame included, no engine job. Real
+        // since the 2026-09-01 directive, and worth being able to run offline
+        // because the whole rest of the pipeline sits downstream of it — a
+        // worker that polled a synchronous engine would earn a 400 per shot,
+        // and one that sent in-house motion after a keyless still would claim
+        // a GPU job to fail its own download.
+        //
+        // `key: null` is the load-bearing half. A gateway still is bytes and
+        // nothing else; a fixture that handed one a key would make the
+        // in-house-motion guard untestable and quietly assert the opposite of
+        // what production does.
+        if (spec.synchronous) {
+          return { configured: true, provider: 'gateway', done: true, mime: 'image/png', data, key: null };
+        }
         const engineJobId = `fixture-still-${counts.still}`;
         operations.set(engineJobId, {
           data,
