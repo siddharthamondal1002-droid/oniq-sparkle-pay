@@ -436,7 +436,7 @@ Deno.serve(async (req) => {
         {
           fetchImpl: fetch,
           now: () => Date.now(),
-          sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+          sleep: (ms) => new Promise<void>((r) => setTimeout(r, ms)),
           newId: () => crypto.randomUUID(),
         },
         {
