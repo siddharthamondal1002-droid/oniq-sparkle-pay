@@ -18,6 +18,7 @@ import {
 import { Capacitor } from "@capacitor/core";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage, withReason } from "@/lib/edgeError";
 import { compressToJpeg } from "@/lib/imageCompress";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { AiOutputReport, AI_OUTPUT_LABEL } from "@/components/safety/AiOutputReport";
