@@ -50,6 +50,41 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+/**
+ * The sentence the edge function actually sent, not the one supabase-js made up.
+ *
+ * WHY THIS EXISTS. `functions.invoke` throws a FunctionsHttpError on any
+ * non-2xx, and its `.message` is the fixed string "Edge Function returned a
+ * non-2xx status code". The real body — which `ting` always fills in with a
+ * specific sentence — hangs off `.context` as a Response, and nothing read it.
+ * So every distinct server failure collapsed into one toast:
+ *
+ *   400 invalid content · 401 Unauthorized · 429 slow down bestie ·
+ *   429 Ting is a bit busy · 500 Something went sideways · 502 Ting glitched
+ *
+ * all of them shown to the user, and to us, as "ting choked on that". A real
+ * outage — Anthropic credit exhausted on 2026-09-01 — was indistinguishable
+ * from a validation bug, and diagnosing it took a production log pull that the
+ * message on screen should have made unnecessary.
+ *
+ * Returns "" when there is genuinely nothing better to say, so the caller keeps
+ * its friendly fallback rather than showing an empty toast.
+ */
+async function edgeErrorMessage(e: unknown): Promise<string> {
+  const ctx = (e as { context?: unknown } | null)?.context;
+  // Cloned, in case anything else still needs to read the body.
+  if (ctx instanceof Response) {
+    try {
+      const body = (await ctx.clone().json()) as { error?: unknown };
+      if (typeof body?.error === "string" && body.error.trim()) return body.error.trim();
+    } catch {
+      /* not JSON — fall through to the message */
+    }
+  }
+  const raw = e instanceof Error ? e.message : "";
+  return raw && !/non-2xx/i.test(raw) ? raw : "";
+}
+
 function TingScreen() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -238,8 +273,7 @@ function TingScreen() {
         },
       ]);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "";
-      toast.error(msg && !/non-2xx/i.test(msg) ? msg : "ting choked on that 😵‍💫 try again");
+      toast.error((await edgeErrorMessage(e)) || "ting choked on that 😵‍💫 try again");
     } finally {
       setLoading(false);
     }
