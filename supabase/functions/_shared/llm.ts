@@ -686,7 +686,7 @@ export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult
     // than 400ing the whole request.
     systemInstruction: { parts: [{ text: normalizeGeminiText(opts.system) }] },
     contents: translateMessagesToGemini(opts.messages),
-    generationConfig: { maxOutputTokens: opts.maxTokens ?? 1024 },
+    generationConfig: { maxOutputTokens: geminiOutputCeiling(opts.maxTokens) },
   };
   // Google rejects google_search alongside functionDeclarations, so a request
   // that needs search sends search. ONIQ's scouts send no function tools.
