@@ -136,7 +136,7 @@ describe("normalizeGeminiText", () => {
 
 describe("translateMessagesToGemini never emits a non-string part", () => {
   it("1. handles plain string content", () => {
-    const contents = translateMessagesToGemini([{ role: "user", content: "hi" }]);
+    const contents = translateMessagesToGemini([{ role: "user", content: "hi" }]).contents;
     expectEveryPartIsGeminiValid(contents);
     expect((contents[0] as GeminiContent).parts[0].text).toBe("hi");
   });
@@ -150,7 +150,7 @@ describe("translateMessagesToGemini never emits a non-string part", () => {
           { type: "text", text: "What is wrong with my working?" },
         ],
       },
-    ]);
+    ]).contents;
     expectEveryPartIsGeminiValid(contents);
     // THE IMAGE CROSSES NOW. It used to be dropped, which for a chat message
     // was arguably tolerable and for study-paper-grade was not — that function
@@ -166,14 +166,14 @@ describe("translateMessagesToGemini never emits a non-string part", () => {
     // Role conversion is existing behaviour and must survive the fix.
     const contents = translateMessagesToGemini([
       { role: "assistant", content: [{ type: "text", text: "Because x = 4." }] },
-    ]);
+    ]).contents;
     expectEveryPartIsGeminiValid(contents);
     expect((contents[0] as GeminiContent).role).toBe("model");
     expect((contents[0] as GeminiContent).parts[0].text).toBe("Because x = 4.");
   });
 
   it("keeps user as user", () => {
-    const contents = translateMessagesToGemini([{ role: "user", content: "q" }]);
+    const contents = translateMessagesToGemini([{ role: "user", content: "q" }]).contents;
     expect((contents[0] as GeminiContent).role).toBe("user");
   });
 
@@ -194,7 +194,7 @@ describe("translateMessagesToGemini never emits a non-string part", () => {
       },
       { role: "assistant", content: [{ type: "text", text: "structured reply" }] },
     ];
-    const contents = translateMessagesToGemini(convo);
+    const contents = translateMessagesToGemini(convo).contents;
     expectEveryPartIsGeminiValid(contents);
     expect(contents).toHaveLength(4);
     const withPdf = (contents[2] as GeminiContent).parts;
@@ -207,7 +207,7 @@ describe("translateMessagesToGemini never emits a non-string part", () => {
       { role: "user", content: [] },
       { role: "user", content: null as unknown as string },
       { role: "user", content: undefined as unknown as string },
-    ]);
+    ]).contents;
     expectEveryPartIsGeminiValid(contents);
   });
 });
@@ -220,6 +220,76 @@ describe("translateMessagesToGemini never emits a non-string part", () => {
  * inspects the JSON that would have reached Google — which is where the 400
  * was raised, and the only place systemInstruction can be checked too.
  */
+describe("mime types Gemini will not accept", () => {
+  /**
+   * BOTH PICKERS OFFER GIF. app.ai.tsx and app.study.tsx both list
+   * `image/gif` in their accept attribute, and Anthropic takes it happily.
+   * Gemini does not accept GIF as inlineData at all, so posting one would turn
+   * a working Anthropic request into a hard Gemini 400 — the fallback failing
+   * on precisely the request that needed a fallback.
+   */
+  it("treats a GIF as uncrossable rather than posting it and being rejected", () => {
+    const { parts, dropped } = geminiPartsFor([
+      { type: "image", source: { type: "base64", media_type: "image/gif", data: "R0lGOD" } },
+      { type: "text", text: "what is this?" },
+    ]);
+    expect(dropped).toBe(1);
+    expect(parts).toEqual([{ text: "what is this?" }]);
+  });
+
+  it("accepts the types Gemini documents, and only those", () => {
+    for (const mime of ["image/png", "image/jpeg", "image/webp", "application/pdf"]) {
+      const { dropped } = geminiPartsFor([
+        { type: "image", source: { type: "base64", media_type: mime, data: "AAAA" } },
+      ]);
+      expect(dropped, `${mime} should cross`).toBe(0);
+    }
+    for (const mime of ["image/gif", "image/bmp", "image/tiff", "video/mp4", "text/html"]) {
+      const { dropped } = geminiPartsFor([
+        { type: "image", source: { type: "base64", media_type: mime, data: "AAAA" } },
+      ]);
+      expect(dropped, `${mime} should NOT cross`).toBe(1);
+    }
+  });
+});
+
+describe("callGemini refuses rather than answering about an unseen attachment", () => {
+  const realFetch = globalThis.fetch;
+  const hadDeno = "Deno" in globalThis;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    if (!hadDeno) delete (globalThis as Record<string, unknown>).Deno;
+  });
+
+  it("refuses when an attachment cannot cross, and never calls Google", async () => {
+    // The failure this whole bridge was rewritten to prevent: a confident
+    // answer to a question about a picture the model was never sent.
+    (globalThis as Record<string, unknown>).Deno = { env: { get: () => "test-key" } };
+    let called = false;
+    globalThis.fetch = (async () => {
+      called = true;
+      throw new Error("must not reach Google");
+    }) as unknown as typeof fetch;
+
+    const res = await callGemini({
+      system: "grade it",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: "image/gif", data: "R0lGOD" } },
+            { type: "text", text: "Grade the attached answer." },
+          ],
+        },
+      ],
+    });
+
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.reason).toBe("attachment-untranslatable");
+    expect(called, "it must refuse BEFORE spending a call").toBe(false);
+  });
+});
+
 describe("attachments cross to Gemini instead of vanishing", () => {
   /**
    * THE REGRESSION THAT MATTERS MOST IN THIS FILE.

@@ -443,6 +443,25 @@ export type GeminiPart = { text: string } | { inlineData: { mimeType: string; da
  * has no inline equivalent here — so a caller can refuse instead of answering
  * blind. Silence is what caused this.
  */
+/**
+ * What Gemini will actually accept as inlineData.
+ *
+ * NOT THE SAME SET AS ANTHROPIC, which is the trap. Both Ting and Study offer
+ * `image/gif` in their file pickers and Anthropic takes it happily; Gemini does
+ * not accept GIF at all. Sending one across would have turned a working
+ * Anthropic request into a hard Gemini 400 — the fallback failing on exactly
+ * the request that needed it. An unsupported type is treated as uncrossable
+ * rather than posted and rejected.
+ */
+const GEMINI_INLINE_MIME = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+  "application/pdf",
+]);
+
 export function geminiPartsFor(content: unknown): { parts: GeminiPart[]; dropped: number } {
   if (typeof content === "string") return { parts: [{ text: content }], dropped: 0 };
   if (content == null) return { parts: [{ text: "" }], dropped: 0 };
@@ -470,6 +489,7 @@ export function geminiPartsFor(content: unknown): { parts: GeminiPart[]; dropped
       if (
         src.type === "base64" &&
         typeof src.media_type === "string" &&
+        GEMINI_INLINE_MIME.has(src.media_type) &&
         typeof src.data === "string" &&
         src.data.length > 0
       ) {
@@ -490,17 +510,27 @@ export function geminiPartsFor(content: unknown): { parts: GeminiPart[]; dropped
   return { parts, dropped };
 }
 
-/** Exported for tests; the shape Gemini's `contents` expects. */
-export function translateMessagesToGemini(msgs: ClaudeMessage[]): unknown[] {
-  return msgs.map((m) => {
-    const { parts, dropped } = geminiPartsFor(m.content);
-    if (dropped > 0) {
-      console.warn(
-        `translateMessagesToGemini: ${dropped} attachment block(s) could not be inlined for Gemini`,
-      );
-    }
-    return { role: m.role === "assistant" ? "model" : "user", parts };
+/**
+ * Exported for tests; the shape Gemini's `contents` expects, plus a count of
+ * attachments that could NOT be carried across.
+ *
+ * The count is returned rather than merely logged because callGemini refuses on
+ * it. Every function in this codebase that sends an attachment sends it because
+ * the question is ABOUT the attachment — grade this photo, summarise this
+ * report, what is this product. An answer produced without it is not a degraded
+ * answer, it is a confident answer to a question the model was never shown.
+ */
+export function translateMessagesToGemini(msgs: ClaudeMessage[]): {
+  contents: unknown[];
+  dropped: number;
+} {
+  let dropped = 0;
+  const contents = msgs.map((m) => {
+    const r = geminiPartsFor(m.content);
+    dropped += r.dropped;
+    return { role: m.role === "assistant" ? "model" : "user", parts: r.parts };
   });
+  return { contents, dropped };
 }
 
 // Gemini candidates → Anthropic-shaped response body.
@@ -559,13 +589,25 @@ export async function callGemini(
   const { tools, allowedFunctionNames } = translateToolsToGemini(opts.tools);
   const toolConfig = translateToolChoiceToGemini(opts.toolChoice, allowedFunctionNames);
 
+  // ATTACHMENTS ARE LOAD-BEARING, SO A LOST ONE IS A REFUSAL. Every caller
+  // that sends one is asking a question about it. Answering anyway would mean
+  // grading a photo we did not send, or summarising a report we did not send —
+  // the failure mode this whole bridge was rewritten to prevent.
+  const translated = translateMessagesToGemini(opts.messages);
+  if (translated.dropped > 0) {
+    console.warn(
+      `callGemini: refusing — ${translated.dropped} attachment(s) cannot cross to Gemini`,
+    );
+    return { ok: false, reason: "attachment-untranslatable" };
+  }
+
   const body: Record<string, unknown> = {
     // Same scalar proto field as parts[].text, so the same normalisation. For
     // the string every caller actually passes this is the identity function;
     // it is here so a future caller that hands over blocks fails soft rather
     // than 400ing the whole request.
     systemInstruction: { parts: [{ text: normalizeGeminiText(opts.system) }] },
-    contents: translateMessagesToGemini(opts.messages),
+    contents: translated.contents,
     generationConfig: { maxOutputTokens: opts.maxTokens ?? 1024 },
   };
   if (tools) body.tools = tools;
