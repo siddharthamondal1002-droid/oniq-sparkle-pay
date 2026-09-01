@@ -351,6 +351,74 @@ const VOICE_GAP_MS = 6_500;
  */
 const STILL_BACKOFF_MS = [5_000, 20_000];
 const STILL_ATTEMPTS = STILL_BACKOFF_MS.length + 1;
+
+/**
+ * How long ONE still may take, and how often to ask.
+ *
+ * THE WAIT LIVES HERE, not in the edge function, and that is the whole
+ * point. A Supabase edge function has a wall-clock ceiling measured in
+ * seconds; a COLD RunPod worker pulls ~40 GiB of image and then fetches a
+ * 17.74 GiB text encoder out of R2 before it can draw, which is minutes.
+ * This runner has hours, so it is the only side that can honestly wait.
+ *
+ * MEASURED 2026-09-01, jobs e09a0dcf and 4b335729: story-still held a 120s
+ * deadline itself and returned 502 "still took too long" three times. Each
+ * of those attempts SUBMITTED A FRESH GPU JOB while the first was still
+ * hydrating — at workersMax 1 they queue — so a cold start cost three
+ * billed jobs and produced no frame. Resuming one engine job id is what
+ * removes that, and it is why drawStill polls rather than re-asks.
+ *
+ * 25 minutes sits under the endpoint's own executionTimeoutMs (2 700 000 ms
+ * = 45 min, read live 2026-09-01), so RunPod's ceiling stays the backstop
+ * and this number can never be the thing that silently outlives a job.
+ */
+const STILL_POLL_MS = 10_000;
+const STILL_WAIT_MS = 25 * 60_000;
+
+/**
+ * One still, drawn across as many edge calls as the cold start needs.
+ *
+ * `start` submits and hands back the engine's job id; every `poll` asks
+ * after THAT id. The shape is story-clip's, deliberately — this codebase
+ * already had a start/poll stage and a second pattern would be one more
+ * thing to keep in step.
+ *
+ * Provenance (whether the character anchor was actually used) is taken from
+ * the START reply and never from a poll: it is settled when the job is
+ * submitted, and a poll carries no reference id with which to recompute it.
+ */
+async function drawStill(payload) {
+  const started = await edge('story-still', { ...payload, action: 'start' });
+  const t0 = Date.now();
+  for (;;) {
+    if (Date.now() - t0 > STILL_WAIT_MS) {
+      throw new Error(
+        `story-still: no frame after ${Math.round(STILL_WAIT_MS / 60000)} min ` +
+          `(engine job ${started.engineJobId})`,
+      );
+    }
+    await new Promise((r) => setTimeout(r, STILL_POLL_MS));
+    const got = await edge('story-still', {
+      // The prompt travels again because story-still validates it before it
+      // reaches the poll branch; it is not re-read for anything else. The
+      // character reference deliberately does NOT travel, so no poll costs a
+      // reference lookup.
+      prompt: payload.prompt,
+      sceneId: payload.sceneId,
+      shotId: payload.shotId,
+      action: 'poll',
+      engineJobId: started.engineJobId,
+    });
+    if (got.done) {
+      return {
+        ...got,
+        conditioned: started.conditioned,
+        referenceUnresolved: started.referenceUnresolved,
+        referenceVersion: started.referenceVersion,
+      };
+    }
+  }
+}
 let lastVoiceAt = 0;
 async function voiceWithRetry(payload, attempts) {
   for (let a = 1; ; a++) {
@@ -2317,7 +2385,7 @@ if (offline) {
           // construction, so it never carries a character.
           const usedRef = Boolean(refAudit.characterRefId) && a < 2 && !refBlocked;
           try {
-            still = await edge('story-still', {
+            still = await drawStill({
               prompt: asks[a],
               sceneId: stillSceneId,
               shotId: stillShotId,

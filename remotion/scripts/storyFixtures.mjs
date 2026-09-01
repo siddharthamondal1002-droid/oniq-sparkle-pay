@@ -312,12 +312,45 @@ export function createFixtureEdge(dir, opts = {}) {
     }
 
     if (fn === 'story-still') {
+      // START / POLL, because that is what the real function speaks now. A
+      // fixture that still answered a single synchronous ask would count one
+      // still per CALL rather than per FRAME, and the offline run would
+      // silently draw twice as many as the film has shots.
+      //
+      // `spec.pendingPolls` lets a scenario hold a frame back for n polls,
+      // which is how a test can prove the worker RESUMES one engine job
+      // instead of submitting a fresh one — the failure that cost three
+      // billed GPU jobs per cold start on 2026-09-01.
+      if (body?.action === 'poll') {
+        const op = operations.get(String(body?.engineJobId ?? ''));
+        if (!op) throw refuse('story-still', { status: 400, error: 'unknown engineJobId' });
+        op.polls += 1;
+        if (op.polls <= op.pendingPolls) return { configured: true, done: false };
+        return { configured: true, done: true, mime: 'image/png', data: op.data, key: op.key };
+      }
+
       const spec = entryAt(scenario.still, counts.still);
       counts.still += 1;
       events.push({ fn: 'story-still', n: counts.still, spec });
       if (spec.fail) throw refuse('story-still', spec.fail);
       const { w, h } = scenario.stillPx;
-      return { configured: true, mime: 'image/png', data: syntheticPng(counts.still, w, h).toString('base64') };
+      const data = syntheticPng(counts.still, w, h).toString('base64');
+      const key = `story/still/${body?.sceneId ?? 's'}-${body?.shotId ?? counts.still}.png`;
+
+      if (body?.action === 'start') {
+        const engineJobId = `fixture-still-${counts.still}`;
+        operations.set(engineJobId, {
+          data,
+          key,
+          polls: 0,
+          pendingPolls: Number(spec.pendingPolls ?? 0),
+        });
+        return { configured: true, engineJobId, key };
+      }
+
+      // No action: the original synchronous shape, kept for any caller that
+      // has not moved to start/poll.
+      return { configured: true, mime: 'image/png', data, key };
     }
 
     if (fn === 'story-voice') {
