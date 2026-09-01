@@ -186,7 +186,15 @@ Deno.serve(async (req) => {
           timeoutMs: STAY_BUDGET.maxWallClockMs,
           cacheSystem: true,
           model: STAY_MODEL,
-          allowFallback: false,
+          // FAILOVER ON, BUT ONLY WITH SOURCES. This was `allowFallback: false`
+          // because a tool-less Gemini answer to a stay-price prompt is a
+          // fabricated price list with fabricated `verified` domains. That
+          // objection is now handled rather than avoided: geminiSearch.ts
+          // translates web_search_20250305 into Google's google_search, and
+          // requireSearch makes callGemini REFUSE an answer it could not
+          // ground. A refusal is what this function already did when Anthropic
+          // was out; an invented source list would be new and worse.
+          requireSearch: true,
         });
         return {
           value: res,
