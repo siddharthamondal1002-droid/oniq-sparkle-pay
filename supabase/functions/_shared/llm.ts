@@ -230,7 +230,13 @@ export type CallClaudeOpts = {
 
 export type CallClaudeResult =
   | { ok: true; data: any }
-  | { ok: false; reason: string };
+  /**
+   * `reason` is what callers pattern-match on and must stay stable.
+   * `fallbackReason` is why the GEMINI fallback failed, when one ran — kept
+   * separate precisely so it cannot disturb that matching. Absent when no
+   * fallback was attempted.
+   */
+  | { ok: false; reason: string; fallbackReason?: string };
 
 // ---------------------------------------------------------------------------
 // Gemini fallback — used ONLY when Anthropic returns a specific billing/credit
@@ -524,7 +530,24 @@ async function callGeminiFallback(
     console.info("callClaude: fell back to Gemini due to Anthropic billing exhaustion");
     return r;
   }
-  return { ok: false, reason: "http 400" };
+
+  // THE FALLBACK'S OWN FAILURE USED TO BE INVISIBLE. This returned a bare
+  // "http 400" — the Anthropic status — no matter why Gemini failed, so a
+  // timeout, an ungrounded refusal, a missing key and a real Gemini 400 all
+  // arrived at the caller as the same four characters. smart-scout maps
+  // /http 400/ to "AI credits exhausted — top up to keep scouting", which
+  // means a user was told to spend money to fix a problem topping up may not
+  // fix. Observed 2026-09-01, on a day the log pipeline was also returning no
+  // rows, so this string was the only account of what happened.
+  //
+  // `reason` IS DELIBERATELY UNCHANGED, byte for byte. Every caller
+  // pattern-matches it — smart-scout and hotel-scout test /timeout/i BEFORE
+  // /http 400/ — so folding the Gemini reason into it would silently reroute
+  // a credit-exhaustion message to "try a more specific query" whenever Gemini
+  // happened to time out. The detail goes in its own field, where it can be
+  // read without changing a single existing branch.
+  console.warn(`callClaude: Gemini fallback failed (${r.reason}) after Anthropic http 400`);
+  return { ok: false, reason: "http 400", fallbackReason: r.reason };
 }
 
 export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult> {
