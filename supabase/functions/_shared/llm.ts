@@ -758,7 +758,21 @@ async function callGeminiFallback(
     console.info("callClaude: fell back to Gemini due to Anthropic billing exhaustion");
     return r;
   }
-  return { ok: false, reason: "http 400" };
+
+  // THE FALLBACK'S OWN FAILURE USED TO BE INVISIBLE. This returned a bare
+  // "http 400" — Anthropic's status — no matter why Gemini failed, so a
+  // timeout, an ungrounded refusal, a missing key and a real Gemini 400 all
+  // arrived at the caller as the same four characters. smart-scout maps
+  // /http 400/ to "AI credits exhausted — top up to keep scouting", so a user
+  // can be told to spend money to fix something topping up may not fix.
+  //
+  // `reason` IS DELIBERATELY UNCHANGED, byte for byte. Callers pattern-match
+  // it, and both scouts test /timeout/i BEFORE /http 400/, so folding the
+  // Gemini reason into it would silently reroute a credit-exhaustion message
+  // to "try a more specific query" whenever Gemini happened to time out. The
+  // detail goes in its own field, where it cannot disturb an existing branch.
+  console.warn(`callClaude: Gemini fallback failed (${r.reason}) after Anthropic http 400`);
+  return { ok: false, reason: "http 400", fallbackReason: r.reason };
 }
 
 export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult> {
