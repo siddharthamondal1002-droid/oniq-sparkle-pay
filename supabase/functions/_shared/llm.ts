@@ -224,7 +224,24 @@ function mask(k: string | undefined): string {
 
 const RETRY_STATUSES = new Set([429, 500, 502, 503, 529]);
 
-export type ClaudeMessage = { role: "user" | "assistant"; content: string };
+/**
+ * One turn of a conversation.
+ *
+ * `content` IS NOT ALWAYS A STRING, and typing it as one is what caused a
+ * production outage. Anthropic accepts either a plain string or an array of
+ * content blocks — `[{ type: "image", source: {...} }, { type: "text", text }]`
+ * — and two callers genuinely send the array form: study-paper-grade when a
+ * student photographs a handwritten answer, and study-tutor when a message
+ * carries an image or PDF attachment. Both had to write `as any` at the call
+ * site to get past this type, which is exactly the signal that the type was
+ * wrong rather than the callers.
+ *
+ * The declared string then hid the bug from tsc, and the array reached Gemini's
+ * `parts[].text` verbatim: `Unknown name "text" at 'contents[0].parts[0]':
+ * Proto field is not repeating, cannot start list.` Anything crossing to Gemini
+ * must go through normalizeGeminiText().
+ */
+export type ClaudeMessage = { role: "user" | "assistant"; content: string | unknown[] };
 
 export type CallClaudeOpts = {
   system: string;
@@ -279,7 +296,13 @@ export type CallClaudeOpts = {
 // answer came back in the same shape, and nothing downstream could tell that
 // the web_search tool had been dropped on the way.
 export type CallClaudeResult =
-  { ok: true; data: any; provider: "anthropic" | "gemini" } | { ok: false; reason: string };
+  | { ok: true; data: any; provider: "anthropic" | "gemini" }
+  /**
+   * `reason` is what callers pattern-match on and must stay stable.
+   * `fallbackReason` is why the GEMINI fallback failed, when one ran — kept
+   * separate precisely so it cannot disturb that matching.
+   */
+  | { ok: false; reason: string; fallbackReason?: string };
 
 // ---------------------------------------------------------------------------
 // Gemini fallback — used ONLY when Anthropic returns a specific billing/credit
@@ -332,6 +355,47 @@ export type CallClaudeResult =
  * finds out is mid-outage, when the primary is already down.
  */
 const GEMINI_FALLBACK_MODEL = "gemini-3.6-flash";
+
+/**
+ * Extra output tokens allowed on Gemini to cover thinking.
+ *
+ * SIZED FROM REPORTED BEHAVIOUR, not from a guess. Google's own trackers
+ * (googleapis/python-genai#782, #811) document that on 2.5+ and 3.x:
+ *
+ *   - thinking is ON by default and thoughts are drawn from maxOutputTokens;
+ *   - MAX_TOKENS fires when thoughts + output exceed it;
+ *   - when it fires the response comes back EMPTY, so a forced tool call is
+ *     not truncated, it is absent entirely;
+ *   - thoughts reach ~6k tokens even on simple tasks.
+ */
+export const GEMINI_THINKING_HEADROOM_TOKENS = 8192;
+
+/**
+ * A floor under the Gemini output ceiling, regardless of what the caller asked.
+ *
+ * TWO REPORTED FAILURES MEET HERE. Thoughts alone can take ~6k, and separately
+ * (googleapis/js-genai#1619) Flash models generate LARGE function-call
+ * arguments unreliably — MAX_TOKENS with partial output, or
+ * MALFORMED_FUNCTION_CALL with nothing exposed. study-paper-generate asks for a
+ * whole exam section in a single call: twenty MCQs with four options and an
+ * explanation each.
+ *
+ * A CEILING IS NOT A SPEND. Google bills tokens produced, not tokens allowed,
+ * and settlement reads actual usage through geminiOutputTokens — so a generous
+ * bound costs nothing and an ungenerous one costs the whole answer.
+ *
+ * `thinkingConfig: { thinkingBudget: 0 }` is deliberately NOT used instead:
+ * python-genai#782 reports it is not reliably honoured — thoughts still arrive
+ * — and the knob is spelled differently across generations, so sending the
+ * wrong one is a 400 on the fallback path.
+ */
+export const GEMINI_MIN_OUTPUT_TOKENS = 16384;
+
+/** The output ceiling to send Gemini for a caller that asked for `wanted`. */
+export function geminiOutputCeiling(wanted: number | undefined): number {
+  const asked = typeof wanted === "number" && wanted > 0 ? wanted : 1024;
+  return Math.max(asked + GEMINI_THINKING_HEADROOM_TOKENS, GEMINI_MIN_OUTPUT_TOKENS);
+}
 
 function isAnthropicBillingExhaustion(status: number, body: any): boolean {
   if (status !== 400) return false;
@@ -415,11 +479,142 @@ function translateToolChoiceToGemini(
   return { functionCallingConfig: { mode: "AUTO" } };
 }
 
-function translateMessagesToGemini(msgs: ClaudeMessage[]): unknown[] {
-  return msgs.map((m) => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }],
-  }));
+/**
+ * Anything a caller may put in `content`, flattened to a Gemini-safe string.
+ *
+ * GEMINI'S `parts[].text` IS A SCALAR PROTO FIELD. Handing it an array is not a
+ * type coercion Google forgives — it is HTTP 400, "Proto field is not
+ * repeating, cannot start list", and it took down every Gemini fallback for
+ * attachment-bearing requests.
+ *
+ * WHAT IT KEEPS AND WHAT IT DROPS. Text blocks are extracted and joined; image
+ * and document blocks are dropped, because Gemini's inlineData is a different
+ * shape from Anthropic's `source.base64` and inventing a translation here would
+ * be guessing at a format on a path that only runs when Anthropic is already
+ * failing. Dropping the image is lossy and it is the honest lossy: the model
+ * answers the text it can see instead of the whole request 400ing. The prompt
+ * text that accompanies an attachment is precisely what used to be lost.
+ *
+ * EXPORTED FOR ITS TESTS. It is pure — no clock, no network, no env — so the
+ * regression suite can assert the one property that matters directly.
+ */
+export function normalizeGeminiText(content: unknown): string {
+  if (typeof content === "string") return content;
+
+  if (Array.isArray(content)) {
+    return content
+      .map((block) => {
+        if (typeof block === "string") return block;
+        if (
+          block &&
+          typeof block === "object" &&
+          "text" in block &&
+          typeof (block as { text?: unknown }).text === "string"
+        ) {
+          return (block as { text: string }).text;
+        }
+        // An image, a document, a tool_use — no text to carry over.
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  // null and undefined become empty rather than the strings "null"/"undefined",
+  // which would otherwise be fed to a model as if a user had typed them.
+  if (content == null) return "";
+
+  return String(content);
+}
+
+/** A Gemini part: either text, or an inline base64 blob. */
+export type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+
+/**
+ * One message's content as Gemini parts — ATTACHMENTS INCLUDED.
+ *
+ * THIS EXISTS BECAUSE DROPPING THE IMAGE WAS NOT ACTUALLY HONEST. The first
+ * version of this bridge flattened content to text and discarded image and
+ * document blocks, on the reasoning that a chat answer to the surviving text
+ * beats a 400. That reasoning does not survive contact with what actually
+ * sends attachments:
+ *
+ *   study-paper-grade  a photograph of a student's handwritten answer, with
+ *                      the prompt "the answer is in the attached photo, read
+ *                      it carefully, then grade". Dropping the photo does not
+ *                      degrade the grade — it produces a MARK FOR WORK THE
+ *                      MODEL NEVER SAW.
+ *   study-tutor        a homework photo or PDF the question refers to.
+ *   health-scan        a medical report to summarise in plain language.
+ *
+ * In every one of those, an answer without the attachment is not a lesser
+ * answer, it is a fabricated one. So the blob crosses properly: Anthropic's
+ * `{type:"image"|"document", source:{type:"base64", media_type, data}}` becomes
+ * Gemini's `{inlineData:{mimeType, data}}`, which is the same bytes in the
+ * other provider's spelling.
+ *
+ * WHAT STILL CANNOT CROSS is counted rather than ignored — a URL-sourced image
+ * has no inline equivalent here — so a caller can refuse instead of answering
+ * blind. Silence is what caused this.
+ */
+export function geminiPartsFor(content: unknown): { parts: GeminiPart[]; dropped: number } {
+  if (typeof content === "string") return { parts: [{ text: content }], dropped: 0 };
+  if (content == null) return { parts: [{ text: "" }], dropped: 0 };
+  if (!Array.isArray(content)) return { parts: [{ text: String(content) }], dropped: 0 };
+
+  const parts: GeminiPart[] = [];
+  let dropped = 0;
+  const text: string[] = [];
+
+  for (const block of content) {
+    if (typeof block === "string") {
+      if (block) text.push(block);
+      continue;
+    }
+    if (!block || typeof block !== "object") continue;
+    const b = block as Record<string, unknown>;
+
+    if (typeof b.text === "string") {
+      if (b.text) text.push(b.text);
+      continue;
+    }
+
+    if (b.type === "image" || b.type === "document") {
+      const src = (b.source ?? {}) as Record<string, unknown>;
+      if (
+        src.type === "base64" &&
+        typeof src.media_type === "string" &&
+        typeof src.data === "string" &&
+        src.data.length > 0
+      ) {
+        parts.push({ inlineData: { mimeType: src.media_type, data: src.data } });
+      } else {
+        // A URL source, or a shape we do not recognise. It cannot be inlined,
+        // and pretending it was is how a model ends up grading a blank page.
+        dropped++;
+      }
+      continue;
+    }
+    // tool_use, tool_result and anything else: no text, nothing to carry.
+  }
+
+  // Text last, matching how the Anthropic callers order their blocks: the
+  // instruction refers to the attachment above it.
+  if (text.length > 0 || parts.length === 0) parts.push({ text: text.join("\n") });
+  return { parts, dropped };
+}
+
+/** Exported for tests; the shape Gemini's `contents` expects. */
+export function translateMessagesToGemini(msgs: ClaudeMessage[]): unknown[] {
+  return msgs.map((m) => {
+    const { parts, dropped } = geminiPartsFor(m.content);
+    if (dropped > 0) {
+      console.warn(
+        `translateMessagesToGemini: ${dropped} attachment block(s) could not be inlined for Gemini`,
+      );
+    }
+    return { role: m.role === "assistant" ? "model" : "user", parts };
+  });
 }
 
 // Gemini candidates → Anthropic-shaped response body.
@@ -526,9 +721,13 @@ export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult
   const toolConfig = translateToolChoiceToGemini(opts.toolChoice, allowedFunctionNames);
 
   const body: Record<string, unknown> = {
-    systemInstruction: { parts: [{ text: opts.system }] },
+    // Same scalar proto field as parts[].text, so the same normalisation. For
+    // the string every caller actually passes this is the identity function;
+    // it is here so a future caller that hands over blocks fails soft rather
+    // than 400ing the whole request.
+    systemInstruction: { parts: [{ text: normalizeGeminiText(opts.system) }] },
     contents: translateMessagesToGemini(opts.messages),
-    generationConfig: { maxOutputTokens: opts.maxTokens ?? 1024 },
+    generationConfig: { maxOutputTokens: geminiOutputCeiling(opts.maxTokens) },
   };
   // Google rejects google_search alongside functionDeclarations, so a request
   // that needs search sends search. ONIQ's scouts send no function tools.
@@ -560,6 +759,30 @@ export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult
       return { ok: false, reason: `gemini http ${res.status}` };
     }
     const translated = translateGeminiResponseToAnthropic(parsed);
+
+    // A FORCED TOOL CALL THAT DID NOT ARRIVE IS A FAILURE, NOT AN ANSWER.
+    //
+    // When the caller sets toolChoice {type:"tool"|"any"} it is not asking for
+    // prose, it is asking for a structured payload it will parse. Returning
+    // ok:true with a text block left study-paper-generate to discover the
+    // emptiness itself and describe it as "mcq: no items" — the symptom, not
+    // the cause. Naming it here puts the real reason on the caller's screen,
+    // which is currently the only diagnostic channel that works.
+    //
+    // Conditioned on body.toolConfig — what was ACTUALLY sent — rather than on
+    // caller intent, so it behaves the same however tools are wired above it.
+    const choiceType = (opts.toolChoice as { type?: unknown } | undefined)?.type;
+    const forcedTool = !!body.toolConfig && (choiceType === "tool" || choiceType === "any");
+    if (forcedTool && !translated.content.some((b: { type?: string }) => b?.type === "tool_use")) {
+      const finish =
+        (Array.isArray(parsed?.candidates) ? parsed.candidates[0]?.finishReason : "") || "unknown";
+      console.warn(`callGemini: forced tool produced no functionCall (finish=${finish})`);
+      // MAX_TOKENS is the thinking-budget failure the ceiling above prevents;
+      // MALFORMED_FUNCTION_CALL is js-genai#1619. Both must be tellable apart
+      // from each other and from a model simply declining (STOP).
+      return { ok: false, reason: `gemini-no-tool-call finish=${finish}` };
+    }
+
     console.info(
       `callGemini: ok model=${geminiModel} stop_reason=${translated.stop_reason} blocks=${translated.content.length}`,
     );
@@ -600,7 +823,21 @@ async function callGeminiFallback(
     console.info("callClaude: fell back to Gemini due to Anthropic billing exhaustion");
     return r;
   }
-  return { ok: false, reason: "http 400" };
+
+  // THE FALLBACK'S OWN FAILURE USED TO BE INVISIBLE. This returned a bare
+  // "http 400" — Anthropic's status — no matter why Gemini failed, so a
+  // timeout, an ungrounded refusal, a missing key and a real Gemini 400 all
+  // arrived at the caller as the same four characters. smart-scout maps
+  // /http 400/ to "AI credits exhausted — top up to keep scouting", so a user
+  // can be told to spend money to fix something topping up may not fix.
+  //
+  // `reason` IS DELIBERATELY UNCHANGED, byte for byte. Callers pattern-match
+  // it, and both scouts test /timeout/i BEFORE /http 400/, so folding the
+  // Gemini reason into it would silently reroute a credit-exhaustion message
+  // to "try a more specific query" whenever Gemini happened to time out. The
+  // detail goes in its own field, where it cannot disturb an existing branch.
+  console.warn(`callClaude: Gemini fallback failed (${r.reason}) after Anthropic http 400`);
+  return { ok: false, reason: "http 400", fallbackReason: r.reason };
 }
 
 export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult> {

@@ -280,10 +280,16 @@ Deno.serve(async (req) => {
           timeoutMs: budget.maxWallClockMs,
           cacheSystem: true,
           model: SCOUT_MODEL,
-          // A tool-less Gemini answer to a "find live prices" prompt is a
-          // fabricated price list with fabricated `verified` domains. Fail
-          // instead. See allowFallback in _shared/llm.ts.
-          allowFallback: false,
+          // FAILOVER ON, BUT ONLY WITH SOURCES. This was `allowFallback: false`,
+          // because a tool-less Gemini answer to a "find live prices" prompt is
+          // a fabricated price list with fabricated `verified` domains —
+          // measured at 36 of 37 rows naming a source never retrieved. The
+          // objection is now handled rather than avoided: geminiSearch.ts
+          // translates web_search_20250305 into google_search, and
+          // requireSearch makes callGemini REFUSE an ungrounded answer. A
+          // refusal is what this already did when Anthropic was out; an
+          // invented price list would be new and worse.
+          requireSearch: true,
         });
         // "not configured" is the ONLY reason we know no request left the box —
         // callClaude checks the key before it fetches. A timeout or a 5xx may
