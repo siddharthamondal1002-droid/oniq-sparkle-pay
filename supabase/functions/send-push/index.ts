@@ -102,7 +102,15 @@ Deno.serve(async (req) => {
       const headers = new Headers(
         typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined,
       );
-      if (init?.headers) new Headers(init.headers).forEach((v, k) => headers.set(k, v));
+      // READ THROUGH ONE SHAPE, because `typeof fetch` here resolves to a
+      // UNION of RequestInit definitions (Deno's own, supabase-js's, and its
+      // `& { client?: HttpClient }` variant) and TypeScript will not agree
+      // that `headers` is present on every member — TS2339 at this line,
+      // found 2026-09-01 by `deno check`. Nothing about the runtime changes:
+      // the same value is read and the same headers are copied. It is the
+      // read that is narrowed, not the behaviour.
+      const initHeaders = (init as { headers?: HeadersInit } | undefined)?.headers;
+      if (initHeaders) new Headers(initHeaders).forEach((v, k) => headers.set(k, v));
       if (isNewKey(key) && headers.get("Authorization") === `Bearer ${key}`) {
         headers.delete("Authorization");
       }
