@@ -1048,6 +1048,30 @@ function audioPlanFor(shot) {
  * exactly as a refused clip already does. Spending Google's metered key on
  * work the owner routed to hardware they already pay for is the one outcome
  * this must never produce.
+ *
+ * OWNER DIRECTIVE, 2026-09-01: set IN_HOUSE_MOTION=off, so motion routes to
+ * story-clip (Veo) rather than ONIQ's own LTX. The in-house endpoint spent
+ * the day unable to start a worker — the GHCR image was private, so every
+ * pull failed and the worker sat in `initializing` forever — and a film
+ * whose motion engine cannot start is a film of stills.
+ *
+ * WHAT THIS COSTS, measured rather than estimated. The August billing export
+ * prices Veo Fast 720p with Audio at 170 seconds for Rs 1,625.99, i.e.
+ * Rs 9.56 per second of generated video. With STORY_MOVIE=select only
+ * motion-selected shots reach it, which is why August's bill was Rs 1,626
+ * and not the ~Rs 33,000 an all-Veo month would have cost.
+ *
+ * WHAT IT DOES NOT FIX, said plainly because the flag invites the opposite
+ * assumption: STILLS ARE STILL IN-HOUSE. story-still calls RunPod and has no
+ * other provider, deliberately — the fallback was removed so the stage could
+ * not silently outsource. Veo is image-to-video and needs a starting frame,
+ * so while the RunPod worker cannot draw, NO story job completes on any
+ * motion setting. Both failures on 2026-09-01 died at `still 1`, before
+ * motion was ever reached. This directive changes which engine animates
+ * frames once they exist; it does not make them exist.
+ *
+ * The flag lives in the repository variable IN_HOUSE_MOTION, not in this
+ * file — story-worker.yml reads `${{ vars.IN_HOUSE_MOTION }}`.
  */
 /**
  * The renderer's shotId is `<jobId>:<stem>`; story-motion wants identifiers it

@@ -2427,3 +2427,46 @@ weakened by accident.
 Entries above this line are history and are left as written.
 
 GPU spend on 2026-09-01: the harness removal is $0 — no worker, no job.
+
+---
+
+## 2026-09-01 — motion routed to Veo (owner directive)
+
+`IN_HOUSE_MOTION` set to `off`, so `routeMotion` answers `external` and
+motion goes to `story-clip` (Veo 3.1 Fast) rather than ONIQ's own LTX.
+The repository variable is the switch; `story-worker.yml` reads
+`${{ vars.IN_HOUSE_MOTION }}`, so this is a settings change and no deploy.
+
+WHY. The in-house endpoint could not start a worker all day. The GHCR
+package was PRIVATE, so every pull was refused and the worker sat in
+`initializing` indefinitely — `{"idle":0,"initializing":1,"ready":0,
+"running":0,"throttled":0}` measured three times between 19:34 and 19:51.
+Two user films died at `still 1`. A film whose motion engine cannot start
+is a film of stills.
+
+WHAT IT COSTS, from the August billing export rather than an estimate:
+
+| SKU                                 | Usage      | Cost      |
+| ----------------------------------- | ---------- | --------- |
+| Veo Fast Generation 720p with Audio | 170 second | ₹1,625.99 |
+
+**₹9.56 per second of generated video.** With `STORY_MOVIE=select` only
+motion-selected shots reach Veo, which is why August billed ₹1,626 rather
+than the ~₹33,000 an all-Veo month would have cost. August produced 56.0
+minutes of finished video across 31 jobs and 485 shots; at 170 Veo-seconds
+that is roughly 21 clips, about 4% of shots. The hybrid is what keeps the
+other 96% cheap.
+
+A SAVING NOT YET TAKEN: the SKU is _with Audio_, and `story-clip` plays
+every result MUTED because narration is the clock in `StoryFilm`. Audio is
+being bought and discarded on every clip. Worth checking whether a
+non-audio SKU is priced lower before the next film.
+
+WHAT THIS DOES NOT FIX. Stills remain in-house. `story-still` calls RunPod
+and has no other provider — the fallback was removed deliberately so the
+stage could not silently outsource — and Veo is image-to-video, needing a
+starting frame. While the RunPod worker cannot draw, no story job completes
+on any motion setting. This directive decides which engine animates frames
+once they exist; it does not make them exist.
+
+GPU spend for this change: $0. It is a variable, not a job.
