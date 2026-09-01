@@ -168,10 +168,10 @@ Deno.serve(async (req) => {
 
     const systemPrompt = SYSTEM + langInstruction(lang);
 
-    // --- Claude Opus 5 is Ting's primary engine. Gemini remains a
-    // text-only fallback when the Anthropic call fails (attachments need
-    // Anthropic's vision/document schema, and Gemini has no web_search
-    // wired up here — fallback answers just lose live sources). ---
+    // --- Claude Opus 5 is Ting's primary engine. Gemini is the fallback when
+    // the Anthropic call fails; geminiPartsFor inlines base64 images and PDFs,
+    // so attachments cross too. What a fallback answer still loses is live
+    // web_search sources, which are not wired up on the Gemini path. ---
     const hasAttachment = outMessages.some((m) => typeof m.content !== "string");
     let data: any = null;
     let servedBy: "gemini" | "anthropic" = "anthropic";
