@@ -718,6 +718,30 @@ export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult
       return { ok: false, reason: `gemini http ${res.status}` };
     }
     const translated = translateGeminiResponseToAnthropic(parsed);
+
+    // A FORCED TOOL CALL THAT DID NOT ARRIVE IS A FAILURE, NOT AN ANSWER.
+    //
+    // When the caller sets toolChoice {type:"tool"|"any"} it is not asking for
+    // prose, it is asking for a structured payload it will parse. Returning
+    // ok:true with a text block left study-paper-generate to discover the
+    // emptiness itself and describe it as "mcq: no items" — the symptom, not
+    // the cause. Naming it here puts the real reason on the caller's screen,
+    // which is currently the only diagnostic channel that works.
+    //
+    // Conditioned on body.toolConfig — what was ACTUALLY sent — rather than on
+    // caller intent, so it behaves the same however tools are wired above it.
+    const choiceType = (opts.toolChoice as { type?: unknown } | undefined)?.type;
+    const forcedTool = !!body.toolConfig && (choiceType === "tool" || choiceType === "any");
+    if (forcedTool && !translated.content.some((b: { type?: string }) => b?.type === "tool_use")) {
+      const finish =
+        (Array.isArray(parsed?.candidates) ? parsed.candidates[0]?.finishReason : "") || "unknown";
+      console.warn(`callGemini: forced tool produced no functionCall (finish=${finish})`);
+      // MAX_TOKENS is the thinking-budget failure the ceiling above prevents;
+      // MALFORMED_FUNCTION_CALL is js-genai#1619. Both must be tellable apart
+      // from each other and from a model simply declining (STOP).
+      return { ok: false, reason: `gemini-no-tool-call finish=${finish}` };
+    }
+
     console.info(
       `callGemini: ok model=${geminiModel} stop_reason=${translated.stop_reason} blocks=${translated.content.length}`,
     );
