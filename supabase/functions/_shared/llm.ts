@@ -356,6 +356,47 @@ export type CallClaudeResult =
  */
 const GEMINI_FALLBACK_MODEL = "gemini-3.6-flash";
 
+/**
+ * Extra output tokens allowed on Gemini to cover thinking.
+ *
+ * SIZED FROM REPORTED BEHAVIOUR, not from a guess. Google's own trackers
+ * (googleapis/python-genai#782, #811) document that on 2.5+ and 3.x:
+ *
+ *   - thinking is ON by default and thoughts are drawn from maxOutputTokens;
+ *   - MAX_TOKENS fires when thoughts + output exceed it;
+ *   - when it fires the response comes back EMPTY, so a forced tool call is
+ *     not truncated, it is absent entirely;
+ *   - thoughts reach ~6k tokens even on simple tasks.
+ */
+export const GEMINI_THINKING_HEADROOM_TOKENS = 8192;
+
+/**
+ * A floor under the Gemini output ceiling, regardless of what the caller asked.
+ *
+ * TWO REPORTED FAILURES MEET HERE. Thoughts alone can take ~6k, and separately
+ * (googleapis/js-genai#1619) Flash models generate LARGE function-call
+ * arguments unreliably — MAX_TOKENS with partial output, or
+ * MALFORMED_FUNCTION_CALL with nothing exposed. study-paper-generate asks for a
+ * whole exam section in a single call: twenty MCQs with four options and an
+ * explanation each.
+ *
+ * A CEILING IS NOT A SPEND. Google bills tokens produced, not tokens allowed,
+ * and settlement reads actual usage through geminiOutputTokens — so a generous
+ * bound costs nothing and an ungenerous one costs the whole answer.
+ *
+ * `thinkingConfig: { thinkingBudget: 0 }` is deliberately NOT used instead:
+ * python-genai#782 reports it is not reliably honoured — thoughts still arrive
+ * — and the knob is spelled differently across generations, so sending the
+ * wrong one is a 400 on the fallback path.
+ */
+export const GEMINI_MIN_OUTPUT_TOKENS = 16384;
+
+/** The output ceiling to send Gemini for a caller that asked for `wanted`. */
+export function geminiOutputCeiling(wanted: number | undefined): number {
+  const asked = typeof wanted === "number" && wanted > 0 ? wanted : 1024;
+  return Math.max(asked + GEMINI_THINKING_HEADROOM_TOKENS, GEMINI_MIN_OUTPUT_TOKENS);
+}
+
 function isAnthropicBillingExhaustion(status: number, body: any): boolean {
   if (status !== 400) return false;
   const err = body?.error;
@@ -686,7 +727,7 @@ export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult
     // than 400ing the whole request.
     systemInstruction: { parts: [{ text: normalizeGeminiText(opts.system) }] },
     contents: translateMessagesToGemini(opts.messages),
-    generationConfig: { maxOutputTokens: opts.maxTokens ?? 1024 },
+    generationConfig: { maxOutputTokens: geminiOutputCeiling(opts.maxTokens) },
   };
   // Google rejects google_search alongside functionDeclarations, so a request
   // that needs search sends search. ONIQ's scouts send no function tools.
@@ -718,6 +759,30 @@ export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult
       return { ok: false, reason: `gemini http ${res.status}` };
     }
     const translated = translateGeminiResponseToAnthropic(parsed);
+
+    // A FORCED TOOL CALL THAT DID NOT ARRIVE IS A FAILURE, NOT AN ANSWER.
+    //
+    // When the caller sets toolChoice {type:"tool"|"any"} it is not asking for
+    // prose, it is asking for a structured payload it will parse. Returning
+    // ok:true with a text block left study-paper-generate to discover the
+    // emptiness itself and describe it as "mcq: no items" — the symptom, not
+    // the cause. Naming it here puts the real reason on the caller's screen,
+    // which is currently the only diagnostic channel that works.
+    //
+    // Conditioned on body.toolConfig — what was ACTUALLY sent — rather than on
+    // caller intent, so it behaves the same however tools are wired above it.
+    const choiceType = (opts.toolChoice as { type?: unknown } | undefined)?.type;
+    const forcedTool = !!body.toolConfig && (choiceType === "tool" || choiceType === "any");
+    if (forcedTool && !translated.content.some((b: { type?: string }) => b?.type === "tool_use")) {
+      const finish =
+        (Array.isArray(parsed?.candidates) ? parsed.candidates[0]?.finishReason : "") || "unknown";
+      console.warn(`callGemini: forced tool produced no functionCall (finish=${finish})`);
+      // MAX_TOKENS is the thinking-budget failure the ceiling above prevents;
+      // MALFORMED_FUNCTION_CALL is js-genai#1619. Both must be tellable apart
+      // from each other and from a model simply declining (STOP).
+      return { ok: false, reason: `gemini-no-tool-call finish=${finish}` };
+    }
+
     console.info(
       `callGemini: ok model=${geminiModel} stop_reason=${translated.stop_reason} blocks=${translated.content.length}`,
     );
