@@ -190,7 +190,24 @@ function mask(k: string | undefined): string {
 
 const RETRY_STATUSES = new Set([429, 500, 502, 503, 529]);
 
-export type ClaudeMessage = { role: "user" | "assistant"; content: string };
+/**
+ * One turn of a conversation.
+ *
+ * `content` IS NOT ALWAYS A STRING, and typing it as one is what caused a
+ * production outage. Anthropic accepts either a plain string or an array of
+ * content blocks — `[{ type: "image", source: {...} }, { type: "text", text }]`
+ * — and two callers genuinely send the array form: study-paper-grade when a
+ * student photographs a handwritten answer, and study-tutor when a message
+ * carries an image or PDF attachment. Both had to write `as any` at the call
+ * site to get past this type, which is exactly the signal that the type was
+ * wrong rather than the callers.
+ *
+ * The declared string then hid the bug from tsc, and the array reached Gemini's
+ * `parts[].text` verbatim: `Unknown name "text" at 'contents[0].parts[0]':
+ * Proto field is not repeating, cannot start list.` Anything crossing to Gemini
+ * must go through normalizeGeminiText().
+ */
+export type ClaudeMessage = { role: "user" | "assistant"; content: string | unknown[] };
 
 export type CallClaudeOpts = {
   system: string;
@@ -342,10 +359,59 @@ function translateToolChoiceToGemini(
   return { functionCallingConfig: { mode: "AUTO" } };
 }
 
-function translateMessagesToGemini(msgs: ClaudeMessage[]): unknown[] {
+/**
+ * Anything a caller may put in `content`, flattened to a Gemini-safe string.
+ *
+ * GEMINI'S `parts[].text` IS A SCALAR PROTO FIELD. Handing it an array is not a
+ * type coercion Google forgives — it is HTTP 400, "Proto field is not
+ * repeating, cannot start list", and it took down every Gemini fallback for
+ * attachment-bearing requests.
+ *
+ * WHAT IT KEEPS AND WHAT IT DROPS. Text blocks are extracted and joined; image
+ * and document blocks are dropped, because Gemini's inlineData is a different
+ * shape from Anthropic's `source.base64` and inventing a translation here would
+ * be guessing at a format on a path that only runs when Anthropic is already
+ * failing. Dropping the image is lossy and it is the honest lossy: the model
+ * answers the text it can see instead of the whole request 400ing. The prompt
+ * text that accompanies an attachment is precisely what used to be lost.
+ *
+ * EXPORTED FOR ITS TESTS. It is pure — no clock, no network, no env — so the
+ * regression suite can assert the one property that matters directly.
+ */
+export function normalizeGeminiText(content: unknown): string {
+  if (typeof content === "string") return content;
+
+  if (Array.isArray(content)) {
+    return content
+      .map((block) => {
+        if (typeof block === "string") return block;
+        if (
+          block &&
+          typeof block === "object" &&
+          "text" in block &&
+          typeof (block as { text?: unknown }).text === "string"
+        ) {
+          return (block as { text: string }).text;
+        }
+        // An image, a document, a tool_use — no text to carry over.
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  // null and undefined become empty rather than the strings "null"/"undefined",
+  // which would otherwise be fed to a model as if a user had typed them.
+  if (content == null) return "";
+
+  return String(content);
+}
+
+/** Exported for tests; the shape Gemini's `contents` expects. */
+export function translateMessagesToGemini(msgs: ClaudeMessage[]): unknown[] {
   return msgs.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }],
+    parts: [{ text: normalizeGeminiText(m.content) }],
   }));
 }
 
@@ -406,7 +472,11 @@ export async function callGemini(
   const toolConfig = translateToolChoiceToGemini(opts.toolChoice, allowedFunctionNames);
 
   const body: Record<string, unknown> = {
-    systemInstruction: { parts: [{ text: opts.system }] },
+    // Same scalar proto field as parts[].text, so the same normalisation. For
+    // the string every caller actually passes this is the identity function;
+    // it is here so a future caller that hands over blocks fails soft rather
+    // than 400ing the whole request.
+    systemInstruction: { parts: [{ text: normalizeGeminiText(opts.system) }] },
     contents: translateMessagesToGemini(opts.messages),
     generationConfig: { maxOutputTokens: opts.maxTokens ?? 1024 },
   };
