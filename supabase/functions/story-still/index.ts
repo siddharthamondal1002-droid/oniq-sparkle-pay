@@ -363,7 +363,7 @@ Deno.serve(async (req) => {
       const engineDeps = {
         fetchImpl: fetch,
         now: () => Date.now(),
-        sleep: (ms: number) => new Promise((r) => setTimeout(r, ms)),
+        sleep: (ms: number) => new Promise<void>((r) => setTimeout(r, ms)),
         newId: () => crypto.randomUUID(),
       };
       // What the caller is told about the anchor. Returned by START only —
