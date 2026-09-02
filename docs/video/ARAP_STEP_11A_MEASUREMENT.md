@@ -2,6 +2,10 @@
 
 **Status: `MEASUREMENT_ENGINE_VALIDATED_REAL_CORPUS_PENDING`.**
 
+Step 11B — the verifier, the failure classes, the named-denominator report
+and the decision state machine that will consume the real corpus — is in
+`ARAP_STEP_11B_REAL_CORPUS.md`, and stands at `REAL_GATEWAY_CORPUS_PENDING`.
+
 Step 11A builds and validates the instrument that measures ONIQ's existing
 ARAP eligibility envelope. It does **not** enable pose-warp, register a
 provider, change routing, or touch the validated runtime image. No real

@@ -37,12 +37,45 @@ export type EvidenceSource = {
   shotId?: string;
   file?: string;
   sha256?: string;
+  /** The user the still belongs to (11B). Checked against the package's authorization. */
+  ownerUserId?: string;
 };
 
 export type EvidenceProvenance = {
   /** What produced this record — a script path, a document, a run id. */
   instrument: string;
   measuredAt?: string;
+  note?: string;
+};
+
+// ── 11B: WHO THE EVIDENCE BELONGS TO, AND WHO SAID IT MAY BE MEASURED ────────
+//
+// Additive within oniq.arap-evidence/1. Absent on the offline reference and on
+// the instrument self-test; REQUIRED on a gateway package, where the verifier
+// (arapEvidenceVerify.ts) turns every record outside the granted scope into
+// UNAUTHORIZED before anything is measured. Names and ids only — a credential
+// never appears in an evidence package.
+
+export const EVIDENCE_POPULATIONS = [
+  "gateway",
+  "offline-reference",
+  "instrument-selftest",
+] as const;
+export type EvidencePopulation = (typeof EVIDENCE_POPULATIONS)[number];
+
+export type EvidenceAuthorization = {
+  /** Who granted the data use — a role or a name, the way an owner directive is recorded. */
+  grantedBy: string;
+  /** When, ISO-8601. */
+  grantedAt: string;
+  /**
+   * owner-only:   only stills whose `source.ownerUserId` equals `ownerUserId`.
+   * listed-users: only stills whose owner is in `userIds`.
+   * all-users:    every still in the package — an explicit data-use decision.
+   */
+  scope: "owner-only" | "listed-users" | "all-users";
+  ownerUserId?: string;
+  userIds?: string[];
   note?: string;
 };
 
@@ -93,6 +126,10 @@ export type EvidencePackage = {
   records: EvidenceRecord[];
   /** Set when the package is a placeholder for evidence that could not be obtained. */
   missingEvidence?: string;
+  /** 11B. Which population this is. Only `gateway` can ever reach REAL_GATEWAY_CORPUS_MEASURED. */
+  population?: EvidencePopulation;
+  /** 11B. Required for `gateway`; ignored elsewhere. */
+  authorization?: EvidenceAuthorization;
 };
 
 // ── Adapter: the in-image driver's records/*.json → EvidenceRecord ───────────

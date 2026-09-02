@@ -2,6 +2,7 @@
   "schema": "oniq.arap-evidence/1",
   "corpusId": "OFFLINE_CAST_SHEET_REFERENCE",
   "label": "OFFLINE_CAST_SHEET_REFERENCE",
+  "population": "offline-reference",
   "provenance": {
     "instrument": "src/lib/__tests__/arapProvider.test.ts + MOTION_CPU_CORPUS.md",
     "measuredAt": "2026-08-22",
