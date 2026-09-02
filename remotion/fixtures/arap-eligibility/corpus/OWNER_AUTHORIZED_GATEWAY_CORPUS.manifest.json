@@ -13,116 +13,170 @@
   },
   "provenance": {
     "instrument": "runtime/arap-cpu/measure/fetch_corpus.py on a GitHub runner, then the in-image driver at the validated digest",
-    "note": "Keys are DERIVED, not guessed: the worker names a shot's still shot000..shot008 (zero-based, one per shot) and the edge function keys it story/still/<jobId>-s-<stem>.png. readBase is the bucket's public read base, recorded as public configuration in oniq-gpu-worker/validation/frame_pull.py; it is the base the application itself reads artifacts from. sha256 per still is RECORDED by the fetch on first run and VERIFIED against on every later run."
+    "note": "Keys are DERIVED, not guessed: the worker names a shot's still shot000..shot008 (zero-based, one per shot) and the edge function keys it story/still/<jobId>-s-<stem>.png. readBase is the bucket's public read base, recorded as public configuration in oniq-gpu-worker/validation/frame_pull.py; it is the base the application itself reads artifacts from. sha256 per still is RECORDED by the fetch on first run and VERIFIED against on every later run. Run 33646171242 (2026-09-02): 9 of 18 keys answered 200 \u2014 all nine shots of the 2026-08-31 film (704x480 PNG) \u2014 and all nine of the 2026-09-02 film answered 404. The nine hashes recorded here are verified on every later run; the nine absent keys stay listed and are classified MISSING."
   },
   "stills": {
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot000": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
       "sceneId": "s",
-      "shotId": "shot000"
+      "shotId": "shot000",
+      "sha256": "523da994abb0858f6ca0235922c45279ba74937e3efc28f53df552af89aca298",
+      "bytes": 402617,
+      "width": 704,
+      "height": 480,
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot001": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
       "sceneId": "s",
-      "shotId": "shot001"
+      "shotId": "shot001",
+      "sha256": "2d7a817c683dfb5fbd9066267bcff42419c8f81db1564b2edd829a6ab91613e6",
+      "bytes": 437633,
+      "width": 704,
+      "height": 480,
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot002": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
       "sceneId": "s",
-      "shotId": "shot002"
+      "shotId": "shot002",
+      "sha256": "4d0656f2605846a3878b21e7b390c5524d97bdc6bb2029ed79f77566c9d847d8",
+      "bytes": 388491,
+      "width": 704,
+      "height": 480,
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot003": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
       "sceneId": "s",
-      "shotId": "shot003"
+      "shotId": "shot003",
+      "sha256": "bd609b7096738e7e8e7174c91e550b50271c74fa623ab10b95b3425d2794ddb1",
+      "bytes": 348123,
+      "width": 704,
+      "height": 480,
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot004": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
       "sceneId": "s",
-      "shotId": "shot004"
+      "shotId": "shot004",
+      "sha256": "5d98a65dfebdf609a5b354be152a662c5052ccb19c1861a9729fcad28ad87008",
+      "bytes": 374888,
+      "width": 704,
+      "height": 480,
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot005": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
       "sceneId": "s",
-      "shotId": "shot005"
+      "shotId": "shot005",
+      "sha256": "5c98748ae686469e891506c15c2cc23bcc62155778852c5893e0a3eb3f2ebc3e",
+      "bytes": 371391,
+      "width": 704,
+      "height": 480,
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot006": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
       "sceneId": "s",
-      "shotId": "shot006"
+      "shotId": "shot006",
+      "sha256": "a964d5f3db0c03716315cf09be95f9c289dd2e2850c483f59df9eb0af76470a1",
+      "bytes": 398168,
+      "width": 704,
+      "height": 480,
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot007": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
       "sceneId": "s",
-      "shotId": "shot007"
+      "shotId": "shot007",
+      "sha256": "055cbac19235c08c88c1c9454c854d914e9e6fa42ee904b9d7f71e73f7b2b3b5",
+      "bytes": 409002,
+      "width": 704,
+      "height": 480,
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot008": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
       "sceneId": "s",
-      "shotId": "shot008"
+      "shotId": "shot008",
+      "sha256": "4d6608432a0bd3490b2185ee8ba23b51b8bf896710910b153a9b39781b4751e3",
+      "bytes": 378856,
+      "width": 704,
+      "height": 480,
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot000": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
-      "shotId": "shot000"
+      "shotId": "shot000",
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot001": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
-      "shotId": "shot001"
+      "shotId": "shot001",
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot002": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
-      "shotId": "shot002"
+      "shotId": "shot002",
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot003": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
-      "shotId": "shot003"
+      "shotId": "shot003",
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot004": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
-      "shotId": "shot004"
+      "shotId": "shot004",
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot005": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
-      "shotId": "shot005"
+      "shotId": "shot005",
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot006": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
-      "shotId": "shot006"
+      "shotId": "shot006",
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot007": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
-      "shotId": "shot007"
+      "shotId": "shot007",
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot008": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
-      "shotId": "shot008"
+      "shotId": "shot008",
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
     }
   }
 }
