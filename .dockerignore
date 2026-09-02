@@ -1,0 +1,21 @@
+# Deny-by-default build context for runtime/arap-cpu/Dockerfile.
+#
+# The image is built from the REPOSITORY ROOT (`docker build -f
+# runtime/arap-cpu/Dockerfile .`) because it ships four reference scripts
+# that live under remotion/scripts. A root context would otherwise hand the
+# daemon node_modules, .git, dist and every .env in the tree.
+#
+# So: exclude everything, then re-admit exactly the files the Dockerfile
+# COPYs. This is the same posture as the GPU worker image — the COPY list is
+# one lock and this file is the second, and neither is the only one. A file
+# that is not named twice cannot enter the build at all, which is what makes
+# a stray credential structurally impossible rather than merely unlikely.
+*
+
+!runtime/arap-cpu/pins.json
+!runtime/arap-cpu/entrypoint.sh
+!runtime/arap-cpu/proofs
+!remotion/scripts/l3_animate_reference.py
+!remotion/scripts/autorig_reference.py
+!remotion/scripts/segment_reference.py
+!remotion/scripts/retarget_armdamped_reference.yaml

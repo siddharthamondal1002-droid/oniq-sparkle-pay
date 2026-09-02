@@ -1,0 +1,169 @@
+{
+  "$comment": [
+    "ARAP CPU runtime — the single source of truth for every pin in this image.",
+    "The Dockerfile reads it, the proofs assert against it, and",
+    "src/lib/__tests__/arapRuntimePins.test.ts fails if it drifts from",
+    "arapProvider.ts's ARAP_L3_RUN spec. A pin is a measurement, never a memory:",
+    "every sha256 below was computed by streaming the asset, and the provenance",
+    "field says who says so."
+  ],
+  "image": {
+    "registry": "ghcr.io",
+    "repository": "siddharthamondal1002-droid/oniq-sparkle-pay/arap-cpu",
+    "role": "standalone worker-runtime artifact — NOT referenced by story-worker.yml",
+    "platform": "linux/amd64"
+  },
+  "base": {
+    "image": "python:3.10-slim-bookworm",
+    "why": "3.10 is the interpreter the ENV A recipe was measured on (mmcv-full 1.6.2 / mmdet 2.28.2 / mmpose 0.29.0 against torch 1.13.1). Debian bookworm carries libosmesa6 and libglu1-mesa, which ENV B needs. One interpreter, two venvs: isolation is the venv, not the python."
+  },
+  "envs": {
+    "autorig": {
+      "path": "/opt/oniq/venv-autorig",
+      "role": "ENV A — drawn-humanoid detection + pose estimation + silhouette. Produces char_cfg.yaml / texture.png / mask.png.",
+      "numpy": "1.23.5",
+      "torch": {
+        "spec": "torch==1.13.1+cpu",
+        "torchvision": "torchvision==0.14.1+cpu",
+        "index_url": "https://download.pytorch.org/whl/cpu",
+        "cpu_only": true,
+        "no_fallback_why": [
+          "MEASURED 2026-09-02: PyPI holds NO cpu-only torch 1.13.1 for linux",
+          "x86_64 — the only manylinux wheel is torch-1.13.1-cp310-cp310-manylinux1_x86_64.whl",
+          "at 887450534 bytes, which is the CUDA 11.7 build. The +cpu local version",
+          "exists ONLY on PyTorch's own index, download.pytorch.org.",
+          "The '+cpu' local version in the spec is the structural guarantee: PyPI",
+          "cannot satisfy it at all, so a reachability failure on the PyTorch index",
+          "STOPS the build instead of silently substituting the 887 MB CUDA wheel.",
+          "That substitution is the failure mode this pin exists to make impossible."
+        ]
+      },
+      "pip": {
+        "setuptools": "65.7.0",
+        "opencv-python-headless": "4.9.0.80",
+        "mmcv-full": "1.6.2",
+        "mmdet": "2.28.2",
+        "mmpose": "0.29.0",
+        "onnxruntime": "1.16.3"
+      },
+      "mmcv_build": {
+        "from_source": true,
+        "env": { "MMCV_WITH_OPS": "1", "FORCE_CUDA": "0" },
+        "flags": ["--no-binary", "mmcv-full", "--no-build-isolation"],
+        "why": "MEASURED 2026-09-02: download.openmmlab.com answers 403 CONNECT under this project's network policy, and PyPI ships mmcv-full 1.6.2 as an sdist only (no cp310 wheel). Source is the only route, and it must build against the ALREADY-INSTALLED cpu torch — hence --no-build-isolation."
+      },
+      "mmpose_no_deps_why": "mmpose 0.29.0 pulls chumpy, which is 3D-mesh only and does not build on numpy 1.23.5. The auto-rig uses the 2D top-down path.",
+      "xtcocotools_rebuild_why": "Its published wheel is compiled against a different numpy ABI; rebuilt from source so it links numpy 1.23.5."
+    },
+    "arap": {
+      "path": "/opt/oniq/venv-arap",
+      "role": "ENV B — BVH retarget, ARAP 2D deform, headless OSMesa render. Consumes ENV A's character dir, produces the clip.",
+      "no_torch_why": "animated_drawings.render needs OpenGL, numpy, scipy, skimage and shapely — not torch. Keeping torch out of ENV B is the reason the split exists, and is what lets the two numpy pins coexist.",
+      "measured": {
+        "where": "this container, 2026-09-02, python 3.10.20",
+        "note": "Every version below is a `pip freeze` of the environment that actually produced the render recorded in `validation`."
+      },
+      "freeze": {
+        "ImageIO": "2.37.4",
+        "Pillow": "10.1.0",
+        "PyOpenGL": "3.1.7",
+        "PyWavelets": "1.8.0",
+        "PyYAML": "6.0.1",
+        "Shapely": "1.8.5.post1",
+        "cloudpickle": "3.1.2",
+        "joblib": "1.6.0",
+        "networkx": "3.4.2",
+        "numpy": "1.26.4",
+        "opencv-python-headless": "4.9.0.80",
+        "packaging": "26.3",
+        "scikit-image": "0.19.3",
+        "scikit-learn": "1.1.2",
+        "scipy": "1.10.1",
+        "threadpoolctl": "3.6.0",
+        "tifffile": "2025.5.10",
+        "tqdm": "4.66.3"
+      },
+      "numpy_pin_why": "1.26.4, not AD's own 1.24.4 and not 2.x: AD's retarget stack uses np.bool8, which numpy 2 removed. arapProvider.ts records the same pin as ArapL3RunSpec.numpyPin."
+    }
+  },
+  "system": {
+    "apt": ["libosmesa6", "libglu1-mesa", "libgl1", "ffmpeg"],
+    "ffmpeg_why": "l3_animate_reference.py writes a gif; the host muxes to mp4 because OpenCV's h264 encoder is not always present.",
+    "gl_env": { "PYOPENGL_PLATFORM": "osmesa", "MESA_GL_VERSION_OVERRIDE": "3.3" }
+  },
+  "source": {
+    "animated_drawings": {
+      "repo": "https://github.com/facebookresearch/AnimatedDrawings",
+      "commit": "b859684857519c7424da51a0b0862fbd1fd258f4",
+      "resolved_by": "git ls-remote HEAD, 2026-09-02",
+      "license": "MIT",
+      "license_provenance": "LICENSE read directly from raw.githubusercontent.com; repo archived read-only since 2025-09, so HEAD is stable.",
+      "path_in_image": "/opt/oniq/AnimatedDrawings"
+    }
+  },
+  "assets": {
+    "$comment": "Every sha256 here was computed 2026-09-02 by streaming the asset through sha256sum in this container. None is quoted from memory.",
+    "drawn_humanoid_detector.mar": {
+      "url": "https://github.com/facebookresearch/AnimatedDrawings/releases/download/v0.0.1/drawn_humanoid_detector.mar",
+      "sha256": "1a2654c8c4fc52faeeeb9cb2f12ba7ecd01f01f5aeef7ff6723cd0a18133abfb",
+      "bytes": 327104441,
+      "unpack_to": "/opt/oniq/model-store/unpack_drawn_humanoid_detector",
+      "license": "MIT",
+      "license_provenance": "AnimatedDrawings README: 'Model weights are released under MIT license'. The .mar files were generated with OpenMMLab (mmdetection Apache-2.0). Recorded in OSS_MODEL_LICENSES.md as VERIFIED.",
+      "url_provenance": "Read from AnimatedDrawings' own torchserve/Dockerfile at the pinned commit, not composed by hand."
+    },
+    "drawn_humanoid_pose_estimator.mar": {
+      "url": "https://github.com/facebookresearch/AnimatedDrawings/releases/download/v0.0.1/drawn_humanoid_pose_estimator.mar",
+      "sha256": "40ebdc69f1727dfe475161ae751fb066013e590f8894fe0016f0b69b336ee42f",
+      "bytes": 374824711,
+      "unpack_to": "/opt/oniq/model-store/unpack_drawn_humanoid_pose_estimator",
+      "license": "MIT",
+      "license_provenance": "As above (mmpose Apache-2.0 framework, weights MIT).",
+      "url_provenance": "Read from AnimatedDrawings' own torchserve/Dockerfile at the pinned commit."
+    },
+    "u2netp.onnx": {
+      "url": "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx",
+      "sha256": "309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8",
+      "bytes": 4574861,
+      "install_to": "/opt/oniq/model-store/u2netp.onnx",
+      "license": "code MIT (rembg) / U^2-Net weights Apache-2.0",
+      "license_provenance": "OSS_MODEL_LICENSES.md — rembg code VERIFIED MIT; U^2-Net weights recorded as Apache-2.0, marked UNVERIFIED there.",
+      "why_mandatory": "MEASURED: AD's classical threshold mask FAILED on 6/6 ONIQ painterly cast sheets (100% fill). arapProvider.ts records mask: 'rembg-u2netp' for this reason.",
+      "url_provenance": "Read from remotion/scripts/segment_reference.py's recorded setup block."
+    }
+  },
+  "validation": {
+    "$comment": "What has actually been proven, and where. Anything not listed here is PENDING, not passing.",
+    "env_b_render": {
+      "status": "PASS",
+      "where": "this container, 2026-09-02, natively on /usr/bin/python3.10 (no docker daemon is available here)",
+      "command": "l3_animate_reference.py <AD> examples/characters/char1 examples/config/motion/zombie.yaml retarget_armdamped_reference.yaml out.gif",
+      "render_frames": 779,
+      "render_seconds": 72.6,
+      "render_fps": 10.73,
+      "cpu_user_seconds": 136.9,
+      "cpu_sys_seconds": 75.3,
+      "max_rss_mb": 1125,
+      "output_bytes": 1971306,
+      "gif_frames": 211,
+      "frame_size": "500x500",
+      "foreground_fraction_mean": 0.1107,
+      "interframe_mean_abs_diff": 1.579,
+      "static_frames": "0 of 210",
+      "empty_frames": "1 (index 210, the GIF trailer frame) of 211",
+      "reads": "Headless OSMesa GL, the arm-damped retarget config, the zombie.bvh WALKING driver and the ARAP deform all produce real, moving pixels on CPU with no display and no GPU."
+    },
+    "env_a_stack": {
+      "status": "PENDING — CI",
+      "why": "ENV A needs torch 1.13.1+cpu from download.pytorch.org, which answers 403 CONNECT under this container's network policy (measured 2026-09-02, agent-proxy recentRelayFailures). It is reachable from a GitHub Actions runner, so the build is CI's to do. No claim is made about ENV A until the publish workflow's proofs pass."
+    },
+    "image_build": {
+      "status": "PENDING — CI",
+      "why": "No docker daemon in this container (/var/run/docker.sock absent, measured 2026-09-02). The image cannot be built or benchmarked here."
+    },
+    "benchmark_200_frame": {
+      "status": "PENDING — CI",
+      "why": "Runs inside the built image, against the same 4-core shape the reference figures came from."
+    }
+  }
+}

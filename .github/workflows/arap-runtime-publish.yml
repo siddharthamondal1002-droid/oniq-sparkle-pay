@@ -1,0 +1,223 @@
+name: arap runtime publish
+
+# Build the ARAP CPU runtime image and push it to GHCR by digest.
+#
+# OWNER DIRECTIVE 2026-09-02. The CPU character-motion stack needs torch, a
+# source-built mmcv, two mutually incompatible numpy versions and ~700 MB of
+# model weights. The choice was between actions/cache and a container image,
+# and the image won: a cache key restores whatever some earlier run left
+# behind, with no way to prove the contents match the pins, while an image
+# pinned by DIGEST is the same bytes every time and can be checked before
+# anyone depends on it.
+#
+# THIS DOES NOT TOUCH PRODUCTION. story-worker.yml still runs on a bare
+# ubuntu-latest with no `container:`, and motionRuntime.ts still passes
+# `allowPoseWarp: false`. Pointing the worker at this image is a separate
+# change, made after these proofs have passed on a real build — the same
+# directive that asked for the image asked for that separation.
+#
+# NEVER ON PUSH. The mmcv source build alone is tens of minutes; building it
+# per commit would burn runner hours for nothing. Dispatch only, behind a
+# literal token, the same shape as the GPU worker's image-publish.
+#
+# IT CARRIES ONE CREDENTIAL AND IT IS GITHUB'S OWN. GITHUB_TOKEN, to push to
+# GHCR, issued per run. There is no HF token and no registry secret because
+# every asset this image bakes is a PUBLIC, hash-pinned download — the
+# Animated Drawings MIT weights and the rembg u2netp model. Nothing here can
+# leak a secret because there is no secret to leak, and no build argument is
+# accepted that could introduce one.
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Type PUBLISH-ARAP-CPU (exactly) to allow the build and push."
+        type: string
+        default: ""
+      tag:
+        description: "Extra tag to apply alongside the commit SHA (optional)."
+        type: string
+        default: ""
+      push:
+        description: "Push to GHCR. Unset to build and run the proofs only."
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: "build the ARAP CPU runtime and prove it"
+    if: inputs.publish == 'PUBLISH-ARAP-CPU'
+    runs-on: ubuntu-latest
+    # The mmcv-full 1.6.2 source build is the long pole: custom CPU ops
+    # compiled against torch 1.13.1 on a 2-core runner. 180 minutes is the
+    # same ceiling the GPU worker's media build uses.
+    timeout-minutes: 180
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}/arap-cpu
+      DOCKER_BUILDKIT: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Disk before"
+        run: df -B1 --output=source,size,used,avail,target / /mnt || true
+
+      # ------------------------------------------------------ preconditions
+
+      - name: "pins.json parses and names every asset"
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, sys
+          p = json.load(open("runtime/arap-cpu/pins.json"))
+          need = ["drawn_humanoid_detector.mar",
+                  "drawn_humanoid_pose_estimator.mar",
+                  "u2netp.onnx"]
+          bad = []
+          for n in need:
+              a = p["assets"].get(n)
+              if not a:
+                  bad.append(f"{n}: absent from pins.json"); continue
+              if len(a.get("sha256", "")) != 64:
+                  bad.append(f"{n}: sha256 is not 64 hex characters")
+              if not isinstance(a.get("bytes"), int) or a["bytes"] <= 0:
+                  bad.append(f"{n}: no byte count")
+              if not a.get("license"):
+                  bad.append(f"{n}: no licence recorded")
+          spec = p["envs"]["autorig"]["torch"]
+          if spec["spec"] != "torch==1.13.1+cpu":
+              bad.append("the torch pin is not the +cpu one")
+          if "download.pytorch.org" not in spec["index_url"]:
+              bad.append("the torch index is not PyTorch's own")
+          if bad:
+              print("\n".join("FAIL: " + b for b in bad)); sys.exit(1)
+          print("PROOF pins.json: 3 assets hash-pinned and licensed, torch pinned +cpu")
+          PY
+
+      - name: "The build context is deny-by-default"
+        run: |
+          set -euo pipefail
+          # A root build context with no .dockerignore would hand the daemon
+          # node_modules, .git and every .env in the tree. The first line
+          # being `*` is what makes the allow-list an allow-list.
+          test -f .dockerignore || { echo "FAIL: no .dockerignore at the repo root"; exit 1; }
+          if ! grep -qx '\*' .dockerignore; then
+            echo "FAIL: .dockerignore does not exclude everything by default"; exit 1
+          fi
+          echo "PROOF .dockerignore: deny-by-default, $(grep -c '^!' .dockerignore) files re-admitted"
+
+      # ------------------------------------------------------------ build
+
+      - name: "Build the models stage"
+        run: |
+          set -euo pipefail
+          docker build --target models \
+            -f runtime/arap-cpu/Dockerfile \
+            -t "${IMAGE}:${GITHUB_SHA}" \
+            -t "${IMAGE}:latest" .
+
+      - name: "Image size, measured"
+        run: |
+          set -euo pipefail
+          SIZE=$(docker image inspect "${IMAGE}:${GITHUB_SHA}" --format '{{.Size}}')
+          echo "IMAGE SIZE: ${SIZE} bytes"
+          awk -v b="${SIZE}" 'BEGIN{printf "IMAGE SIZE: %.2f GiB\n", b/1073741824}'
+          df -B1 --output=source,size,used,avail,target / /mnt || true
+
+      # ------------------------------------------------------------ proofs
+      # All of it runs BEFORE the push. An image that cannot rig or cannot
+      # render is worse than no image: it turns a visible absence into a
+      # worker that fails silently and falls back to stills, which is exactly
+      # the failure this whole path exists to end.
+
+      - name: "It runs as uid 10001, not root"
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint id "${IMAGE}:${GITHUB_SHA}" | tee /dev/stderr | grep -q 'uid=10001'
+          echo "PROOF uid: 10001"
+
+      - name: "No credential survived into the image"
+        run: |
+          set -euo pipefail
+          # This build takes no secret, so this proves an invariant rather
+          # than clearing a suspicion — and it is the check that would catch
+          # someone adding one later.
+          if docker image inspect "${IMAGE}:${GITHUB_SHA}" \
+               --format '{{json .Config.Env}}' | grep -qiE 'token|secret|key='; then
+            echo "FAIL: an image environment variable names a credential"; exit 1
+          fi
+          if docker history --no-trunc "${IMAGE}:${GITHUB_SHA}" | grep -qiE 'build-arg|token='; then
+            echo "FAIL: build history carries a build argument"; exit 1
+          fi
+          echo "PROOF image: no credential in env or history"
+
+      - name: "Every proof in the image"
+        run: |
+          set -euo pipefail
+          docker run --rm "${IMAGE}:${GITHUB_SHA}" proofs
+
+      - name: "The benchmark clip, kept"
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          docker run --rm -v "${PWD}/out:/work" "${IMAGE}:${GITHUB_SHA}" \
+            benchmark /work/benchmark.gif || true
+          ls -l out || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: arap-benchmark
+          path: out/
+          if-no-files-found: warn
+
+      # -------------------------------------------------------------- push
+
+      - name: "Log in to GHCR"
+        if: inputs.push
+        env:
+          # Through the environment, never interpolated into the script text:
+          # an expression expanded into a run block becomes part of the
+          # command line, which is the documented injection shape.
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          printf '%s' "${REGISTRY_TOKEN}" \
+            | docker login ghcr.io -u "${REGISTRY_USER}" --password-stdin
+
+      - name: "Push, and record the immutable digest"
+        if: inputs.push
+        env:
+          EXTRA: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          docker push "${IMAGE}:${GITHUB_SHA}"
+          docker push "${IMAGE}:latest"
+          if [ -n "${EXTRA}" ]; then
+            docker tag "${IMAGE}:${GITHUB_SHA}" "${IMAGE}:${EXTRA}"
+            docker push "${IMAGE}:${EXTRA}"
+          fi
+          # A TAG IS NOT AN IDENTITY. Tags move; a digest does not. When the
+          # story worker is eventually pointed at this runtime it must name
+          # the DIGEST, so it can never silently start running a different
+          # image than the one these proofs passed on.
+          DIGEST=$(docker image inspect "${IMAGE}:${GITHUB_SHA}" \
+            --format '{{index .RepoDigests 0}}')
+          echo "PUBLISHED: ${DIGEST}"
+          {
+            echo "### ARAP CPU runtime published"
+            echo ""
+            echo "- commit: \`${GITHUB_SHA}\`"
+            echo "- digest: \`${DIGEST}\`"
+            echo ""
+            echo "Name the DIGEST wherever this runtime is referenced, never the tag."
+            echo "story-worker.yml is deliberately NOT updated by this workflow."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: "Disk after"
+        if: always()
+        run: df -B1 --output=source,size,used,avail,target / /mnt || true
