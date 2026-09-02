@@ -75,5 +75,10 @@ jobs:
       - name: ffmpeg (for the story dry-run clip fixture)
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
 
+      # The ARAP WALKING QC fixture tests synthesise GIFs with Pillow so the
+      # Python statistics script can be exercised without a real render.
+      - name: Python image libraries (for the ARAP WALKING QC fixture tests)
+        run: sudo apt-get install -y --no-install-recommends python3-pil python3-numpy
+
       - name: Tests
         run: npm test
