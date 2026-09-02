@@ -32,6 +32,8 @@ describe("the Step 11D workflow is read as data", () => {
     expect(code).toContain('"${DIGEST}" benchmark /work/reference-char1/walk.gif');
     expect(code).toContain("/qc/walking_diagnosis.py");
     expect(code).toContain('"${GITHUB_WORKSPACE}/ONIQ_Step_11D_Diagnosis_Report.pdf"');
+    expect(code).toContain("--build-transfer out/qc out/transfer.json");
+    expect(code).toContain("branches: [claude/check-56jtg5]");
     expect(code).toContain("ENTRYPOINT=cp run_in_image");
     expect(code).not.toMatch(/story-worker|motionRuntime|planShotMotion|resolveShotMotion/);
   });
@@ -72,6 +74,7 @@ frames[0].save("walk.gif", save_all=True, append_images=frames[1:], duration=40,
     expect(d.firstEdgeContact).not.toBeNull();
     expect(existsSync(join(dir, "walker", "sheet-overview.png"))).toBe(true);
     expect(existsSync(join(dir, "walker", "sheet-exit.png"))).toBe(true);
+    expect(existsSync(join(dir, "walker", "strip.jpg"))).toBe(true);
   });
   it("a figure that shrinks in place and vanishes reads DEFORM_DOMINANT", () => {
     const d = clip(
@@ -96,6 +99,27 @@ frames[0].save("walk.gif", save_all=True, append_images=frames[1:], duration=40,
     const src = read("runtime/arap-cpu/qc/walking_diagnosis.py");
     expect(src).toContain("not gates");
     expect(src).not.toContain("l3RenderQc(");
+  });
+  it("a transfer file carries everything the PDF needs, and the PDF rebuilds from it alone", () => {
+    const transfer = join(dir, "transfer.json");
+    const out = execFileSync(
+      "python3",
+      [REPORT, "--build-transfer", dir, transfer, "--digest", "test-digest"],
+      { encoding: "utf8" },
+    );
+    expect(out).toContain("WROTE");
+    const t = JSON.parse(readFileSync(transfer, "utf8"));
+    expect(t.schema).toBe("oniq.arap-step-11d-transfer/1");
+    expect(t.characters.map((c: { name: string }) => c.name)).toEqual(["shrinker", "walker"]);
+    expect(t.characters[1].stripJpegBase64.length).toBeGreaterThan(100);
+    const pdf = join(dir, "rebuilt.pdf");
+    const out2 = execFileSync(
+      "python3",
+      [REPORT, "unused", pdf, "--from-transfer", transfer, "--digest", "test-digest"],
+      { encoding: "utf8", env: { ...process.env, CHROME_BIN: "" } },
+    );
+    expect(out2).toContain("WROTE");
+    expect(readFileSync(pdf).subarray(0, 5).toString()).toBe("%PDF-");
   });
   it("the report builder writes a PDF from the diagnoses without Chrome", () => {
     const pdf = join(dir, "ONIQ_Step_11D_Diagnosis_Report.pdf");

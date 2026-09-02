@@ -22,6 +22,15 @@ name: arap step 11d diagnosis
 # One credential: GITHUB_TOKEN, packages:read, to pull from GHCR.
 
 on:
+  # A push of this stage to the working branch runs it once, with the defaults
+  # below, so the diagnosis exists before anything is merged. Dispatch by hand
+  # for any other stems or motion.
+  push:
+    branches: [claude/check-56jtg5]
+    paths:
+      - ".github/workflows/arap-step-11d-diagnosis.yml"
+      - "runtime/arap-cpu/qc/walking_diagnosis.py"
+      - "runtime/arap-cpu/qc/diagnosis_report.py"
   workflow_dispatch:
     inputs:
       corpus_manifest:
@@ -77,7 +86,7 @@ jobs:
       - name: "The driver, on record"
         env:
           DIGEST: ${{ steps.digest.outputs.digest }}
-          MOTION: ${{ inputs.motion }}
+          MOTION: ${{ inputs.motion || 'examples/config/motion/zombie.yaml' }}
         run: |
           set -euo pipefail
           echo "::group::${MOTION} (from inside the image)"
@@ -89,7 +98,7 @@ jobs:
 
       - name: "The corpus, by derived key, from the owner's manifest"
         env:
-          CORPUS_MANIFEST: ${{ inputs.corpus_manifest }}
+          CORPUS_MANIFEST: ${{ inputs.corpus_manifest || 'remotion/fixtures/arap-eligibility/corpus/OWNER_AUTHORIZED_GATEWAY_CORPUS.manifest.json' }}
         run: |
           set -euo pipefail
           mkdir -p corpus out/qc && chmod 0777 corpus out out/qc
@@ -101,8 +110,8 @@ jobs:
       - name: "Gateway characters: rig, silhouette, WALKING render, statistics, diagnosis"
         env:
           DIGEST: ${{ steps.digest.outputs.digest }}
-          STEMS: ${{ inputs.stems }}
-          MOTION: ${{ inputs.motion }}
+          STEMS: ${{ inputs.stems || '87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot002,87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot004' }}
+          MOTION: ${{ inputs.motion || 'examples/config/motion/zombie.yaml' }}
         run: |
           set -euo pipefail
           run_in_image() {
@@ -136,7 +145,7 @@ jobs:
       - name: "Reference character: the same driver, the same measurements"
         env:
           DIGEST: ${{ steps.digest.outputs.digest }}
-          MOTION: ${{ inputs.motion }}
+          MOTION: ${{ inputs.motion || 'examples/config/motion/zombie.yaml' }}
         run: |
           set -euo pipefail
           mkdir -p out/qc/reference-char1 && chmod 0777 out/qc/reference-char1
