@@ -127,6 +127,61 @@ describe("the verdict script applies l3RenderQc and nothing else", () => {
   }, 200_000);
 });
 
+describe("the stabilization script is mounted and corrects locomotion drift", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arap-qc-stabilize-"));
+  const stabilize = join(root, "runtime/arap-cpu/qc/walking_stabilize.py");
+  const stats = join(root, "runtime/arap-cpu/qc/walking_qc_stats.py");
+
+  it("exists where the workflow mounts it", () => {
+    expect(existsSync(stabilize)).toBe(true);
+  });
+
+  it("keeps a drifting walk in frame and on a steady foot line", () => {
+    const gen = join(dir, "drift.py");
+    writeFileSync(
+      gen,
+      `
+from PIL import Image, ImageDraw
+frames = []
+for i in range(60):
+    im = Image.new("RGBA", (400, 240), (255, 255, 255, 0))
+    d = ImageDraw.Draw(im)
+    x = 150 + i * 2
+    y = 80 + (i % 4)
+    d.rectangle([x, y, x + 40, y + 70], fill=(30, 30, 30, 255))
+    frames.append(im)
+frames.append(Image.new("RGBA", (400, 240), (255, 255, 255, 0)))
+frames[0].save("drift.gif", save_all=True, append_images=frames[1:], duration=40, loop=0, transparency=0)
+`,
+    );
+    execFileSync("python3", [gen], { cwd: dir, encoding: "utf8" });
+
+    execFileSync("python3", [stats, join(dir, "drift.gif"), join(dir, "drift.json")], {
+      cwd: dir,
+      encoding: "utf8",
+    });
+    execFileSync("python3", [stabilize, join(dir, "drift.gif"), join(dir, "drift_stable.gif")], {
+      cwd: dir,
+      encoding: "utf8",
+    });
+    execFileSync("python3", [stats, join(dir, "drift_stable.gif"), join(dir, "drift_stable.json")], {
+      cwd: dir,
+      encoding: "utf8",
+    });
+    const before = JSON.parse(readFileSync(join(dir, "drift.json"), "utf8")).summary;
+    const after = JSON.parse(readFileSync(join(dir, "drift_stable.json"), "utf8")).summary;
+
+    // The original has visible drift (foot line moves) and would eventually exit.
+    expect(before.footLineRangePx).toBeGreaterThan(0);
+    // Stabilization cancels the locomotion drift so the gate sees a steady walk.
+    expect(after.inFrameAllFrames).toBe(true);
+    expect(after.edgeContactFrames).toEqual([]);
+    expect(after.vanishedFrames).toEqual([]);
+    expect(after.footLineRangePx).toBe(0);
+    expect(l3RenderQc(after).pass).toBe(true);
+  });
+});
+
 describe("the statistics script measures a synthetic clip honestly", () => {
   const dir = mkdtempSync(join(tmpdir(), "arap-qc-stats-"));
   const script = join(root, "runtime/arap-cpu/qc/walking_qc_stats.py");

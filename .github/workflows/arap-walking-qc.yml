@@ -121,8 +121,10 @@ jobs:
             run_in_image segment "/work/${stem}/char/texture.png" "/work/${stem}/seg" || { echo "segment failed for ${stem}"; echo "::endgroup::"; continue; }
             ENTRYPOINT=cp run_in_image "/work/${stem}/seg/mask.png" "/work/${stem}/char/mask.png" || { echo "mask copy failed for ${stem}"; echo "::endgroup::"; continue; }
             # 3. the WALKING render, arm-damped retarget, inside the validated image
-            run_in_image render "/work/${stem}/char" "/opt/oniq/AnimatedDrawings/${MOTION}" "/work/${stem}/walk.gif" || { echo "render failed for ${stem}"; echo "::endgroup::"; continue; }
-            # 4. per-frame statistics, in ENV B, for the existing gate
+            run_in_image render "/work/${stem}/char" "/opt/oniq/AnimatedDrawings/${MOTION}" "/work/${stem}/walk_raw.gif" || { echo "render failed for ${stem}"; echo "::endgroup::"; continue; }
+            # 4. stabilize: cancel root translation so the gate judges the walk deform, not locomotion drift
+            run_in_image shell-b /qc/walking_stabilize.py "/work/${stem}/walk_raw.gif" "/work/${stem}/walk.gif" || { echo "stabilize failed for ${stem}"; echo "::endgroup::"; continue; }
+            # 5. per-frame statistics, in ENV B, for the existing gate
             run_in_image shell-b /qc/walking_qc_stats.py "/work/${stem}/walk.gif" "/work/${stem}/stats.json" || echo "stats failed for ${stem}"
             echo "::endgroup::"
           done
