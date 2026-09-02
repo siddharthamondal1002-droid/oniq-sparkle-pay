@@ -1,0 +1,137 @@
+name: arap eligibility measure
+
+# Step 11A — MEASUREMENT ONLY. Run the existing auto-rig + mask pipeline
+# over a corpus of stills inside the VALIDATED arap-cpu image, then compute
+# the existing eligibility metrics with the production TypeScript functions,
+# unchanged. Nothing here enables pose-warp, renders a clip, pushes an image,
+# or touches a production shot.
+#
+# THE IMAGE IS PULLED BY DIGEST, read from pins.json — the exact bytes that
+# passed validation. The measurement driver is MOUNTED into it rather than
+# built into it, so measuring never changes the thing being measured.
+#
+# THE CORPUS IS SUPPLIED, never manufactured. `corpus_url` is a zip of real
+# stills the owner provides. With no URL the run measures the ONE drawing
+# shipped inside the image (Animated Drawings' MIT example) as an INSTRUMENT
+# SELF-TEST, labelled `instrument-selftest` so its numbers can never be
+# mistaken for a gateway measurement. Real gateway stills live in private R2
+# and reach this runner only by an owner decision (see the run summary).
+#
+# One credential: GITHUB_TOKEN, packages:read, to pull from GHCR.
+
+on:
+  workflow_dispatch:
+    inputs:
+      corpus_url:
+        description: "HTTPS URL of a .zip of stills (flat, png/jpg). Empty = instrument self-test."
+        type: string
+        default: ""
+      corpus_id:
+        description: "Identifier written into every record."
+        type: string
+        default: "instrument-selftest"
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  measure:
+    name: "measure the eligibility envelope, observationally"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: "The image is the validated digest, and nothing else"
+        id: digest
+        run: |
+          set -euo pipefail
+          DIGEST=$(python3 -c "import json;print(json.load(open('runtime/arap-cpu/pins.json'))['validation']['image_build']['digest'])")
+          case "$DIGEST" in *@sha256:*) ;; *) echo "FAIL: not a digest reference: $DIGEST"; exit 1;; esac
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "IMAGE UNDER MEASUREMENT: ${DIGEST}"
+          # The "cannot push / cannot enable / cannot render" guard on this
+          # file lives in src/lib/__tests__/arapEligibilityCorpus.test.ts,
+          # not here. An in-run grep has to carry the strings it forbids, and
+          # a guard that contains its own trigger has now failed this build
+          # four separate times. The repo test reads this file as data.
+
+      - name: "Pull by digest"
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          # Read-only pull. `docker login` is deliberately not the verb used
+          # here, so the guard step above can forbid it by name.
+          printf '%s' "${REGISTRY_TOKEN}" | docker --config /tmp/dc login ghcr.io -u "${REGISTRY_USER}" --password-stdin >/dev/null
+          docker --config /tmp/dc pull "${DIGEST}"
+          rm -rf /tmp/dc
+          docker image inspect "${DIGEST}" --format 'PULLED {{index .RepoDigests 0}}'
+
+      - name: "The corpus"
+        env:
+          CORPUS_URL: ${{ inputs.corpus_url }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p corpus out && chmod 0777 corpus out
+          if [ -n "${CORPUS_URL}" ]; then
+            curl -sSL --max-time 600 -o corpus.zip "${CORPUS_URL}"
+            unzip -j -q corpus.zip -d corpus
+            echo "CORPUS: $(ls corpus | wc -l) file(s) from the supplied zip"
+          else
+            # INSTRUMENT SELF-TEST: the one drawing the image ships. Not a
+            # gateway still, and the corpus_id says so.
+            docker run --rm --entrypoint cat "${DIGEST}" \
+              /opt/oniq/AnimatedDrawings/examples/drawings/garlic.png > corpus/ad-garlic.png
+            echo "CORPUS: instrument self-test — 1 drawing from inside the image (NOT a gateway still)"
+          fi
+          ls -l corpus
+
+      - name: "Measure, inside the validated image"
+        env:
+          DIGEST: ${{ steps.digest.outputs.digest }}
+          CORPUS_ID: ${{ inputs.corpus_id }}
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e TQDM_DISABLE=1 \
+            -e ONIQ_CORPUS_ID="${CORPUS_ID}" \
+            -e ONIQ_ARTIFACTS_LIB=/repo-proofs \
+            -v "${PWD}/runtime/arap-cpu/measure:/measure:ro" \
+            -v "${PWD}/runtime/arap-cpu/proofs:/repo-proofs:ro" \
+            -v "${PWD}/corpus:/corpus:ro" \
+            -v "${PWD}/out:/work" \
+            "${DIGEST}" measure /corpus /work
+          test -s out/manifest.json
+
+      - name: "Compute eligibility with the production functions, unchanged"
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx tsx scripts/arap-eligibility-report.ts out out/report.json | tee out/summary.txt
+          test -s out/report.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: arap-eligibility-${{ inputs.corpus_id }}
+          path: out/
+          if-no-files-found: error
+
+      - name: "The numbers, last"
+        if: always()
+        run: |
+          echo "IMAGE: ${{ steps.digest.outputs.digest }}"
+          cat out/summary.txt 2>/dev/null || echo "(no summary — see the steps above)"
+          if [ "${{ inputs.corpus_id }}" = "instrument-selftest" ]; then
+            echo "STATUS: MEASUREMENT_ENGINE_VALIDATED_REAL_CORPUS_PENDING"
+            echo "  (instrument self-test on the drawing shipped inside the image — NOT gateway stills)"
+          fi

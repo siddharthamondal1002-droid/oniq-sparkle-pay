@@ -26,6 +26,7 @@ MIN_DET_SCORE = 0.50
 MIN_KPT_CONF_MEAN = 0.30
 
 sys.path.insert(0, os.environ.get("ONIQ_ARAP_SCRIPTS", "/opt/oniq/scripts"))
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent))
 os.environ.setdefault("AD_MODEL_STORE", "/opt/oniq/model-store")
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
@@ -83,16 +84,20 @@ if cfg_path.is_file():
             fail.append("the mask is the whole crop (fill >= 0.999) — this is the "
                         "measured failure of AD's classical threshold segmenter on "
                         "painterly art, and means the silhouette is unusable")
-        # The shape src/lib/arapProvider.ts's AutorigArtifacts names, so the
-        # eligibility layer can be checked against a real rig.
-        (OUT / "eligibility_input.json").write_text(json.dumps({
-            "bbox": {"x": r["bbox"][0], "y": r["bbox"][1],
-                     "width": r["crop_wh"][0], "height": r["crop_wh"][1]},
-            "mask": {"width": int(mask.shape[1]), "height": int(mask.shape[0]),
-                     "data": (mask > 127).astype(np.uint8).flatten().tolist()},
-            "joints": {j["name"]: {"x": j["loc"][0], "y": j["loc"][1]}
-                       for j in cfg["skeleton"]},
-        }))
+        # The shape src/lib/arapProvider.ts's AutorigArtifacts names, written
+        # through the ONE definition of it. The first version of this wrote
+        # bbox as {x, y, width, height}; AutorigArtifacts is [l, t, r, b] and
+        # computeEligibilityMetrics destructures a tuple, so every artifact
+        # this image produced would have been rejected as "invalid bbox".
+        from arap_artifacts import artifacts_record, write_record
+        l, t, rr, bb = r["bbox"]
+        write_record(OUT / "eligibility_input.json", artifacts_record(
+            still_id=src.stem, candidate=0, primary=True,
+            original_wh=(0, 0), working_wh=(0, 0), bbox_ltrb=(l, t, rr, bb),
+            det_score=r["det_score"], det_count=1, mask_u8=mask,
+            mask_source="classical", skeleton=cfg["skeleton"],
+            kpt_conf_mean=r.get("kpt_conf_mean"), kpt_conf_min=r.get("kpt_conf_min"),
+        ))
         print("WROTE", OUT / "eligibility_input.json")
 
 if fail:

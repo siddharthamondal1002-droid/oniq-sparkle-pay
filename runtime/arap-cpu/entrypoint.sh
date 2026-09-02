@@ -53,6 +53,7 @@ ONIQ ARAP CPU runtime — zero-GPU character motion.
   render <char_dir> <motion> <out>   BVH retarget + ARAP + OSMesa    (ENV B)
   proofs                             run every proof in this image
   benchmark [out.gif]                render a reference clip, measure it
+  measure <corpus_dir> <out_dir>     Step 11A: eligibility evidence     (ENV A)
   versions                           what is installed, per environment
   shell-a | shell-b                  a python REPL in ENV A / ENV B
 
@@ -80,6 +81,16 @@ case "$cmd" in
     ;;
   benchmark)
     AD_DIR="$(ad_view)" exec "$ARAP" "$PROOFS/benchmark.py" "${1:-/work/benchmark.gif}"
+    ;;
+  measure)
+    # Step 11A. The driver is MOUNTED, not baked in, so the image under
+    # measurement stays the validated digest. It measures and writes; it
+    # renders nothing and decides nothing — eligibility is computed
+    # afterwards by the production TypeScript functions, unchanged.
+    [ $# -eq 2 ] || { echo "usage: measure <corpus_dir> <out_dir>" >&2; exit 2; }
+    driver="${ONIQ_MEASURE_DRIVER:-/measure/measure_eligibility.py}"
+    [ -f "$driver" ] || { echo "measure: driver not mounted at $driver" >&2; exit 2; }
+    exec "$AUTORIG" "$driver" "$1" "$2"
     ;;
   proofs)
     # Ordered cheapest-first so a broken image fails fast, and so a failure
