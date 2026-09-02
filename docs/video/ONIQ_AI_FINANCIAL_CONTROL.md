@@ -2550,3 +2550,56 @@ stage for the whole 14–27 August era, and August's films were produced on
 it. The next film's credit movement is the measurement to record here.
 
 GPU spend for this change: $0 — the GPU leaves the path entirely.
+
+---
+
+## 2026-09-02 — first film on the gateway: measured, and what it did not spend
+
+Job `64874747`, "The Last Gaslamp", 9 shots, 60s. The first story to finish
+after five consecutive failures at `still 1`. Run
+[33588651080](https://github.com/siddharthamondal1002-droid/oniq-sparkle-pay/actions/runs/33588651080),
+12 minutes end to end, 24,561,240 bytes delivered.
+
+| Line item | Count | Cost |
+| --- | --- | --- |
+| Gateway stills | 9 | Lovable credits — not exposed by the API, still unmeasured |
+| Narration + dialogue | 9 voices | ₹0 — local Piper (`STORY_LOCAL_TTS=only`) |
+| **Veo clips** | **0** | **₹0** |
+| RunPod GPU | 0 jobs | $0 |
+
+`gpu_video_jobs` had **zero** rows in the window, which is the direct proof
+that the stills came from the gateway and the GPU was out of the path.
+
+### The ₹0 on Veo is a defect, not a saving
+
+`IN_HOUSE_MOTION` is still `on`, so motion routed to in-house LTX — and the
+guard added the same day refused all nine clips, correctly: in-house motion
+animates a still by its BUCKET KEY, and a gateway still has none.
+
+```
+MOTION_VALIDATE FAIL: 0/9 shots have a character-motion source, 9 still-only,
+                      6 FAIL (action calls for motion but rendered still-only)
+```
+
+The guard did its job — no GPU job claimed only to fail its own download, the
+film still completed, the reason was named. But a movie-grade film rendered as
+nine Ken Burns stills is not the product. **Setting `IN_HOUSE_MOTION=off`
+routes motion to Veo and fixes it**, and that is an owner decision because of
+what it costs: at the measured ₹9.56/second, this one 60-second film's nine
+requested clips are roughly 50–60 Veo-seconds, about **₹480–570**. August
+billed ₹1,626 for the whole month because only ~4% of shots reached Veo.
+Flipping the flag makes every movie-grade shot a Veo shot. Not done here.
+
+### Two log defects this run exposed, both fixed
+
+- The guard message ran to 142 characters against the caller's
+  `slice(0, 140)`, so all nine lines ended `IN_HOUSE_MOTION=o` — the slice ate
+  the `ff` off the one word naming the fix. Now 132 characters, pinned by a
+  test that asserts the length rather than the wording.
+- Every shot logged `referenceResolved:false` with no reason, which reads as a
+  broken character anchor and cost a real investigation to clear. It was
+  correct: the job carried `actor_refs = false` and a null `cast_json` — no
+  character was attached — and a Victorian lamplighter matches nothing in the
+  regional owner-asset map. The line now names which of the two it is.
+
+GPU spend for this entry: $0.
