@@ -198,8 +198,10 @@ RUN /opt/oniq/venv-autorig/bin/pip install --no-cache-dir --no-deps \
 
 # Animated Drawings at the commit pins.json names. MIT code and MIT weights;
 # the repo has been archived read-only since 2025-09, so this commit is
-# stable. Cloned, then the .git directory is dropped — the image ships the
-# tree, not the history.
+# stable. Cloned, then trimmed: .git (the image ships the tree, not the
+# history), media/ (51 MB of README GIFs) and tests/. examples/ STAYS — it
+# carries the BVH drivers and the motion configs the runner names, and the
+# character the benchmark rigs.
 RUN git clone --quiet https://github.com/facebookresearch/AnimatedDrawings \
       /opt/oniq/AnimatedDrawings && \
     git -C /opt/oniq/AnimatedDrawings checkout --quiet \
@@ -207,7 +209,9 @@ RUN git clone --quiet https://github.com/facebookresearch/AnimatedDrawings \
     test "$(git -C /opt/oniq/AnimatedDrawings rev-parse HEAD)" \
        = "b859684857519c7424da51a0b0862fbd1fd258f4" && \
     cp /opt/oniq/AnimatedDrawings/LICENSE /opt/oniq/model-store/LICENSE.AnimatedDrawings && \
-    rm -rf /opt/oniq/AnimatedDrawings/.git && \
+    rm -rf /opt/oniq/AnimatedDrawings/.git \
+           /opt/oniq/AnimatedDrawings/media \
+           /opt/oniq/AnimatedDrawings/tests && \
     test -f /opt/oniq/AnimatedDrawings/examples/bvh/fair1/zombie.bvh
 
 # The ONIQ side: the reference runners and the ONE retarget config with a

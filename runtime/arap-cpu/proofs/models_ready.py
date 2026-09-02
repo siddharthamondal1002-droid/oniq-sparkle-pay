@@ -67,6 +67,17 @@ if os.access(STORE, os.W_OK):
 else:
     print(f"PROOF model store not writable by uid {os.getuid()}")
 
+# The AD checkout, for the same reason: the runner chdirs into it and
+# writes a scene config, so it MUST be reached through the writable symlink
+# view rather than directly. If this ever becomes writable the view stops
+# being load-bearing and a job can rewrite the code it runs.
+ad = Path(os.environ.get("AD_DIR", "/opt/oniq/AnimatedDrawings"))
+if os.access(ad, os.W_OK):
+    fail.append(f"{ad} is writable by uid {os.getuid()} — a job could rewrite "
+                f"the Animated Drawings code it runs")
+else:
+    print(f"PROOF AD checkout not writable by uid {os.getuid()}")
+
 if fail:
     for f in fail:
         print("FAIL:", f)

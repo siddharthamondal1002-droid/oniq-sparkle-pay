@@ -9,6 +9,36 @@
 # impossible from outside.
 set -euo pipefail
 
+# A WRITABLE VIEW OVER A READ-ONLY CHECKOUT.
+#
+# l3_animate_reference.py writes its assembled scene config (_l3_mvc.yaml)
+# INTO the Animated Drawings directory and chdirs there, because AD resolves
+# its own configs relative to the working directory. /opt/oniq is root-owned
+# and stripped of write bits and the job runs as uid 10001, so pointing the
+# runner straight at the checkout fails with EACCES on every render.
+#
+# MEASURED 2026-09-02: as uid 65534 against a read-only checkout, a render
+# through this symlink farm completed in 68.4 s with byte-identical output
+# (1,971,306 bytes) to the same render run as root against a writable one.
+# Every real file stays read-only behind its symlink; only the directory
+# holding them is writable, which is exactly the amount of write access the
+# runner actually needs.
+#
+# _l3_mvc.yaml is skipped deliberately. A stale one in the source would be
+# symlinked, and the write would then follow the link back into the
+# read-only tree — which is how this was mis-diagnosed as fixed once.
+ad_view() {
+  view="${ONIQ_AD_VIEW:-/tmp/oniq-ad-view}"
+  rm -rf "$view"
+  mkdir -p "$view"
+  for entry in "$AD_DIR"/*; do
+    base="$(basename "$entry")"
+    [ "$base" = "_l3_mvc.yaml" ] && continue
+    ln -s "$entry" "$view/$base"
+  done
+  printf '%s' "$view"
+}
+
 AUTORIG=/opt/oniq/venv-autorig/bin/python
 ARAP=/opt/oniq/venv-arap/bin/python
 SCRIPTS=/opt/oniq/scripts
@@ -46,10 +76,10 @@ case "$cmd" in
   render)
     [ $# -eq 3 ] || { echo "usage: render <char_dir> <motion_cfg> <out.gif>" >&2; exit 2; }
     exec "$ARAP" "$SCRIPTS/l3_animate_reference.py" \
-      "$AD_DIR" "$1" "$2" "$SCRIPTS/retarget_armdamped_reference.yaml" "$3"
+      "$(ad_view)" "$1" "$2" "$SCRIPTS/retarget_armdamped_reference.yaml" "$3"
     ;;
   benchmark)
-    exec "$ARAP" "$PROOFS/benchmark.py" "${1:-/work/benchmark.gif}"
+    AD_DIR="$(ad_view)" exec "$ARAP" "$PROOFS/benchmark.py" "${1:-/work/benchmark.gif}"
     ;;
   proofs)
     # Ordered cheapest-first so a broken image fails fast, and so a failure
@@ -60,7 +90,7 @@ case "$cmd" in
     "$AUTORIG" "$PROOFS/models_ready.py"
     "$ARAP"    "$PROOFS/osmesa_render.py"
     "$AUTORIG" "$PROOFS/autorig_smoke.py"
-    "$ARAP"    "$PROOFS/benchmark.py" "${1:-/work/benchmark.gif}"
+    AD_DIR="$(ad_view)" "$ARAP" "$PROOFS/benchmark.py" "${1:-/work/benchmark.gif}"
     echo "ALL PROOFS PASSED"
     ;;
   versions)

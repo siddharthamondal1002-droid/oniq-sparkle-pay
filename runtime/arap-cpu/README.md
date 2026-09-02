@@ -86,6 +86,16 @@ on CPU with no display and no GPU. `proofs/benchmark.py` and
 `proofs/osmesa_render.py` were both run against that environment and pass;
 they are not scripts written blind.
 
+**Re-run as uid 65534 against a read-only checkout: 68.4 s, byte-identical
+output.** This one matters more than it looks. `l3_animate_reference.py`
+writes its assembled scene config _into_ the Animated Drawings directory and
+`chdir`s there, so pointing the runner at a root-owned, write-stripped
+`/opt/oniq` fails with `EACCES` on every render. `entrypoint.sh`'s `ad_view()`
+builds a symlink farm: the directory is writable, every real file behind it is
+not. The first attempt at this test ran as **root**, which ignores permission
+bits — it passed while writing straight through a stale symlink back into the
+read-only tree, and proved nothing. The non-root re-run is the evidence.
+
 **Still PENDING, and not to be described otherwise:**
 
 - **ENV A**, because `download.pytorch.org` answers `403 CONNECT` under this
