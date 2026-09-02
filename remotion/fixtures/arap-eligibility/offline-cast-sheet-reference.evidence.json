@@ -1,0 +1,169 @@
+{
+  "schema": "oniq.arap-evidence/1",
+  "corpusId": "OFFLINE_CAST_SHEET_REFERENCE",
+  "label": "OFFLINE_CAST_SHEET_REFERENCE",
+  "population": "offline-reference",
+  "provenance": {
+    "instrument": "src/lib/__tests__/arapProvider.test.ts + MOTION_CPU_CORPUS.md",
+    "measuredAt": "2026-08-22",
+    "note": "n=6 approved cast-sheet characters, recorded numbers not re-processed pixels (the sheet images are not in the repository). The thresholds (65% bbox fill, core joints) were derived from this same corpus and are PROVISIONAL. Cast sheets are not representative of gateway traffic. This package validates the engine's gate and aggregation mechanics; it establishes no production eligibility rate. magician appears in MOTION_CPU_CORPUS.md (det 0.894, right_knee/right_foot off-mask) but not in the repository's verbatim fixture, and is therefore not carried here."
+  },
+  "records": [
+    {
+      "schema": "oniq.arap-evidence/1",
+      "status": "AVAILABLE",
+      "source": {
+        "corpusId": "OFFLINE_CAST_SHEET_REFERENCE",
+        "stillId": "aladdin_hand"
+      },
+      "provenance": {
+        "instrument": "recorded: src/lib/__tests__/arapProvider.test.ts CORPUS (verbatim) + MOTION_CPU_CORPUS.md confidences",
+        "measuredAt": "2026-08-22",
+        "note": "cast-sheet cut-out on a plain background; autorig_reference.py + rembg u2netp mask; metrics derived by hand in that run"
+      },
+      "candidate": 0,
+      "primary": true,
+      "evidence": {
+        "kind": "precomputed",
+        "bboxFillPct": 57.0,
+        "jointsOutsideMask": ["left_elbow"]
+      },
+      "confidence": {
+        "detector": null,
+        "detections": 1,
+        "keypointMean": null,
+        "keypointMin": null
+      }
+    },
+    {
+      "schema": "oniq.arap-evidence/1",
+      "status": "AVAILABLE",
+      "source": {
+        "corpusId": "OFFLINE_CAST_SHEET_REFERENCE",
+        "stillId": "aladdin_auto"
+      },
+      "provenance": {
+        "instrument": "recorded: src/lib/__tests__/arapProvider.test.ts CORPUS (verbatim) + MOTION_CPU_CORPUS.md confidences",
+        "measuredAt": "2026-08-22",
+        "note": "cast-sheet cut-out on a plain background; autorig_reference.py + rembg u2netp mask; metrics derived by hand in that run"
+      },
+      "candidate": 0,
+      "primary": true,
+      "evidence": {
+        "kind": "precomputed",
+        "bboxFillPct": 57.0,
+        "jointsOutsideMask": ["right_hand"]
+      },
+      "confidence": {
+        "detector": 0.995,
+        "detections": 1,
+        "keypointMean": 0.86,
+        "keypointMin": 0.57
+      }
+    },
+    {
+      "schema": "oniq.arap-evidence/1",
+      "status": "AVAILABLE",
+      "source": {
+        "corpusId": "OFFLINE_CAST_SHEET_REFERENCE",
+        "stillId": "morgiana"
+      },
+      "provenance": {
+        "instrument": "recorded: src/lib/__tests__/arapProvider.test.ts CORPUS (verbatim) + MOTION_CPU_CORPUS.md confidences",
+        "measuredAt": "2026-08-22",
+        "note": "cast-sheet cut-out on a plain background; autorig_reference.py + rembg u2netp mask; metrics derived by hand in that run"
+      },
+      "candidate": 0,
+      "primary": true,
+      "evidence": {
+        "kind": "precomputed",
+        "bboxFillPct": 51.7,
+        "jointsOutsideMask": []
+      },
+      "confidence": {
+        "detector": 0.992,
+        "detections": 1,
+        "keypointMean": 0.87,
+        "keypointMin": 0.67
+      }
+    },
+    {
+      "schema": "oniq.arap-evidence/1",
+      "status": "AVAILABLE",
+      "source": {
+        "corpusId": "OFFLINE_CAST_SHEET_REFERENCE",
+        "stillId": "mother"
+      },
+      "provenance": {
+        "instrument": "recorded: src/lib/__tests__/arapProvider.test.ts CORPUS (verbatim) + MOTION_CPU_CORPUS.md confidences",
+        "measuredAt": "2026-08-22",
+        "note": "cast-sheet cut-out on a plain background; autorig_reference.py + rembg u2netp mask; metrics derived by hand in that run"
+      },
+      "candidate": 0,
+      "primary": true,
+      "evidence": {
+        "kind": "precomputed",
+        "bboxFillPct": 74.8,
+        "jointsOutsideMask": []
+      },
+      "confidence": {
+        "detector": 0.991,
+        "detections": 1,
+        "keypointMean": 0.81,
+        "keypointMin": 0.54
+      }
+    },
+    {
+      "schema": "oniq.arap-evidence/1",
+      "status": "AVAILABLE",
+      "source": {
+        "corpusId": "OFFLINE_CAST_SHEET_REFERENCE",
+        "stillId": "fisherman"
+      },
+      "provenance": {
+        "instrument": "recorded: src/lib/__tests__/arapProvider.test.ts CORPUS (verbatim) + MOTION_CPU_CORPUS.md confidences",
+        "measuredAt": "2026-08-22",
+        "note": "cast-sheet cut-out on a plain background; autorig_reference.py + rembg u2netp mask; metrics derived by hand in that run"
+      },
+      "candidate": 0,
+      "primary": true,
+      "evidence": {
+        "kind": "precomputed",
+        "bboxFillPct": 53.4,
+        "jointsOutsideMask": ["left_shoulder", "left_foot"]
+      },
+      "confidence": {
+        "detector": 0.983,
+        "detections": 1,
+        "keypointMean": 0.78,
+        "keypointMin": 0.39
+      }
+    },
+    {
+      "schema": "oniq.arap-evidence/1",
+      "status": "AVAILABLE",
+      "source": {
+        "corpusId": "OFFLINE_CAST_SHEET_REFERENCE",
+        "stillId": "lampJinni"
+      },
+      "provenance": {
+        "instrument": "recorded: src/lib/__tests__/arapProvider.test.ts CORPUS (verbatim) + MOTION_CPU_CORPUS.md confidences",
+        "measuredAt": "2026-08-22",
+        "note": "cast-sheet cut-out on a plain background; autorig_reference.py + rembg u2netp mask; metrics derived by hand in that run"
+      },
+      "candidate": 0,
+      "primary": true,
+      "evidence": {
+        "kind": "precomputed",
+        "bboxFillPct": 67.3,
+        "jointsOutsideMask": []
+      },
+      "confidence": {
+        "detector": 0.998,
+        "detections": 1,
+        "keypointMean": 0.74,
+        "keypointMin": 0.47
+      }
+    }
+  ]
+}

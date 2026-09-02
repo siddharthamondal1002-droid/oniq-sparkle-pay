@@ -145,10 +145,18 @@ jobs:
           # This build takes no secret, so this proves an invariant rather
           # than clearing a suspicion — and it is the check that would catch
           # someone adding one later.
-          if docker image inspect "${IMAGE}:${GITHUB_SHA}" \
-               --format '{{json .Config.Env}}' | grep -qiE 'token|secret|key='; then
-            echo "FAIL: an image environment variable names a credential"; exit 1
-          fi
+          # MEASURED 2026-09-02 (run 33618976434): the grep this replaces
+          # failed the build on GPG_KEY, which the OFFICIAL python base image
+          # sets to the Python release manager's PUBLIC signing fingerprint.
+          # A guard that cries wolf on its own base image gets deleted by the
+          # third person who hits it. no_baked_credential.py keeps the broad
+          # pattern (a bare "key" still trips it) and resolves the conflict
+          # with a per-name allowlist that carries its reason — and it also
+          # reports any variable the image was not expected to carry, which
+          # the grep never did.
+          docker image inspect "${IMAGE}:${GITHUB_SHA}" \
+            --format '{{json .Config.Env}}' \
+            | python3 runtime/arap-cpu/proofs/no_baked_credential.py
           if docker history --no-trunc "${IMAGE}:${GITHUB_SHA}" | grep -qiE 'build-arg|token='; then
             echo "FAIL: build history carries a build argument"; exit 1
           fi
@@ -167,8 +175,13 @@ jobs:
           # owned by the runner user. Without it every write into /work is
           # EACCES.
           mkdir -p out && chmod 0777 out
-          docker run --rm -v "${PWD}/out:/work" "${IMAGE}:${GITHUB_SHA}" \
-            proofs /work/benchmark.gif
+          # TQDM_DISABLE: the render's progress bar is written to a
+          # non-TTY here, so tqdm emits a LINE per update rather than
+          # rewriting one — two renders of it was the bulk of a 2724-line
+          # log and buried the measurements this step exists to produce.
+          # It changes no image content, only what the container prints.
+          docker run --rm -e TQDM_DISABLE=1 -v "${PWD}/out:/work" \
+            "${IMAGE}:${GITHUB_SHA}" proofs /work/benchmark.gif
           # No `|| true` anywhere here: a benchmark that could not write its
           # own output is a failure, not a footnote.
           test -s out/benchmark.gif
@@ -257,6 +270,8 @@ jobs:
           DIGEST=$(docker image inspect "${IMAGE}:${GITHUB_SHA}" \
             --format '{{index .RepoDigests 0}}')
           echo "PUBLISHED: ${DIGEST}"
+          # Hand it to the final step, which prints it where it can be read.
+          echo "DIGEST=${DIGEST}" >> "${GITHUB_ENV}"
           {
             echo "### ARAP CPU runtime published"
             echo ""
@@ -270,3 +285,19 @@ jobs:
       - name: "Disk after"
         if: always()
         run: df -B1 --output=source,size,used,avail,target / /mnt || true
+
+      # LAST, deliberately. The digest and the benchmark are what anyone
+      # reads this run for, and before this they sat behind ~750 lines of
+      # docker-push layer chatter. A result you have to page backwards
+      # through a log to find is one that gets taken on trust instead.
+      #
+      # The printing lives in a FILE, not in a `python3 -c` string here.
+      # The first attempt was inline, its quoting broke, and bash parsed
+      # the Python as shell — so the one step whose job was to report a
+      # successful build was the only step that failed in it.
+      - name: "The numbers, last"
+        if: always()
+        run: |
+          set -euo pipefail
+          python3 runtime/arap-cpu/proofs/print_numbers.py \
+            out/benchmark.json torch-wheels.json "${DIGEST:-}"

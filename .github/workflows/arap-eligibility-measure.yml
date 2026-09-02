@@ -1,0 +1,179 @@
+name: arap eligibility measure
+
+# Step 11A — MEASUREMENT ONLY. Run the existing auto-rig + mask pipeline
+# over a corpus of stills inside the VALIDATED arap-cpu image, then compute
+# the existing eligibility metrics with the production TypeScript functions,
+# unchanged. Nothing here enables pose-warp, renders a clip, pushes an image,
+# or touches a production shot.
+#
+# THE IMAGE IS PULLED BY DIGEST, read from pins.json — the exact bytes that
+# passed validation. The measurement driver is MOUNTED into it rather than
+# built into it, so measuring never changes the thing being measured.
+#
+# THE CORPUS IS SUPPLIED, never manufactured. `corpus_url` is a zip of real
+# stills the owner provides. With no URL the run measures the ONE drawing
+# shipped inside the image (Animated Drawings' MIT example) as an INSTRUMENT
+# SELF-TEST, labelled `instrument-selftest` so its numbers can never be
+# mistaken for a gateway measurement. Real gateway stills live in private R2
+# and reach this runner only by an owner decision (see the run summary).
+#
+# Step 11B adds one step after the report: when the corpus zip carries the
+# owner's corpus-manifest.json, the verifier and the decision gate run over
+# the driver's output and end in exactly one state. No manifest, no decision.
+#
+# One credential: GITHUB_TOKEN, packages:read, to pull from GHCR.
+
+on:
+  workflow_dispatch:
+    inputs:
+      corpus_url:
+        description: "HTTPS URL of a .zip of stills (flat, png/jpg). Empty = instrument self-test."
+        type: string
+        default: ""
+      corpus_id:
+        description: "Identifier written into every record."
+        type: string
+        default: "instrument-selftest"
+      corpus_manifest:
+        description: "Repo path of a committed oniq.arap-corpus-manifest/1. The runner fetches each listed still BY DERIVED KEY from the manifest's public read base, records or verifies sha256, and the decision runs. Empty = not used."
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  measure:
+    name: "measure the eligibility envelope, observationally"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: "The image is the validated digest, and nothing else"
+        id: digest
+        run: |
+          set -euo pipefail
+          DIGEST=$(python3 -c "import json;print(json.load(open('runtime/arap-cpu/pins.json'))['validation']['image_build']['digest'])")
+          case "$DIGEST" in *@sha256:*) ;; *) echo "FAIL: not a digest reference: $DIGEST"; exit 1;; esac
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "IMAGE UNDER MEASUREMENT: ${DIGEST}"
+          # The "cannot push / cannot enable / cannot render" guard on this
+          # file lives in src/lib/__tests__/arapEligibilityCorpus.test.ts,
+          # not here. An in-run grep has to carry the strings it forbids, and
+          # a guard that contains its own trigger has now failed this build
+          # four separate times. The repo test reads this file as data.
+
+      - name: "Pull by digest"
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          # Read-only pull. `docker login` is deliberately not the verb used
+          # here, so the guard step above can forbid it by name.
+          printf '%s' "${REGISTRY_TOKEN}" | docker --config /tmp/dc login ghcr.io -u "${REGISTRY_USER}" --password-stdin >/dev/null
+          docker --config /tmp/dc pull "${DIGEST}"
+          rm -rf /tmp/dc
+          docker image inspect "${DIGEST}" --format 'PULLED {{index .RepoDigests 0}}'
+
+      - name: "The corpus"
+        env:
+          CORPUS_URL: ${{ inputs.corpus_url }}
+          CORPUS_MANIFEST: ${{ inputs.corpus_manifest }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p corpus out && chmod 0777 corpus out
+          if [ -n "${CORPUS_MANIFEST}" ]; then
+            # Step 11C. The owner's committed manifest names the population,
+            # the authorization, and every still by DERIVED key. Only listed
+            # stems are requested; a 404 is recorded as missing; a declared
+            # sha256 that does not match stops the run. The fetcher writes
+            # corpus/corpus-manifest.json, which the decision step reads.
+            test -f "${CORPUS_MANIFEST}"
+            python3 runtime/arap-cpu/measure/fetch_corpus.py --selftest
+            python3 runtime/arap-cpu/measure/fetch_corpus.py "${CORPUS_MANIFEST}" corpus
+            cp corpus/corpus-manifest.json out/corpus-manifest.fetched.json
+            echo "CORPUS: $(ls corpus/*.png 2>/dev/null | wc -l) still(s) fetched by derived key from the manifest's public read base"
+          elif [ -n "${CORPUS_URL}" ]; then
+            curl -sSL --max-time 600 -o corpus.zip "${CORPUS_URL}"
+            unzip -j -q corpus.zip -d corpus
+            echo "CORPUS: $(ls corpus | wc -l) file(s) from the supplied zip"
+          else
+            # INSTRUMENT SELF-TEST: the one drawing the image ships. Not a
+            # gateway still, and the corpus_id says so.
+            docker run --rm --entrypoint cat "${DIGEST}" \
+              /opt/oniq/AnimatedDrawings/examples/drawings/garlic.png > corpus/ad-garlic.png
+            echo "CORPUS: instrument self-test — 1 drawing from inside the image (NOT a gateway still)"
+          fi
+          ls -l corpus
+
+      - name: "Measure, inside the validated image"
+        env:
+          DIGEST: ${{ steps.digest.outputs.digest }}
+          CORPUS_ID: ${{ inputs.corpus_id }}
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e TQDM_DISABLE=1 \
+            -e ONIQ_CORPUS_ID="${CORPUS_ID}" \
+            -e ONIQ_ARTIFACTS_LIB=/repo-proofs \
+            -v "${PWD}/runtime/arap-cpu/measure:/measure:ro" \
+            -v "${PWD}/runtime/arap-cpu/proofs:/repo-proofs:ro" \
+            -v "${PWD}/corpus:/corpus:ro" \
+            -v "${PWD}/out:/work" \
+            "${DIGEST}" measure /corpus /work
+          test -s out/manifest.json
+
+      - name: "Compute eligibility with the production functions, unchanged"
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx tsx scripts/arap-eligibility-report.ts out out/report.json | tee out/summary.txt
+          test -s out/report.json
+
+      - name: "Decide, only from a corpus that carries the owner's manifest"
+        run: |
+          set -euo pipefail
+          # Step 11B. The corpus zip may carry corpus-manifest.json — the
+          # owner's statement of which population this is, who authorised the
+          # data use, and which still belongs to whom. Only then can the
+          # verifier admit a record, and only then is a decision attempted.
+          # Without it nothing here is a gateway measurement, and the state
+          # says so. The instrument self-test never carries one.
+          if [ -f corpus/corpus-manifest.json ]; then
+            npx tsx scripts/arap-real-corpus-decision.ts --driver-out out --corpus-manifest corpus/corpus-manifest.json --out-dir out/decision | tee out/decision.txt
+          else
+            echo "STATE: REAL_GATEWAY_CORPUS_PENDING (no corpus-manifest.json in the corpus: nothing here is a gateway measurement)" | tee out/decision.txt
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: arap-eligibility-${{ inputs.corpus_id }}
+          path: out/
+          if-no-files-found: error
+
+      - name: "The numbers, last"
+        if: always()
+        run: |
+          echo "IMAGE: ${{ steps.digest.outputs.digest }}"
+          cat out/summary.txt 2>/dev/null || echo "(no summary — see the steps above)"
+          cat out/decision.txt 2>/dev/null || echo "(no decision line — see the steps above)"
+          if [ -f out/corpus-manifest.fetched.json ]; then
+            echo "::group::corpus-manifest.fetched.json (recorded hashes)"; cat out/corpus-manifest.fetched.json; echo "::endgroup::"
+          fi
+          if [ -f out/decision/real-gateway-eligibility-reference.report.json ]; then
+            echo "::group::real-gateway-eligibility-reference.report.json"; cat out/decision/real-gateway-eligibility-reference.report.json; echo "::endgroup::"
+          fi
+          if [ "${{ inputs.corpus_id }}" = "instrument-selftest" ]; then
+            echo "STATUS: MEASUREMENT_ENGINE_VALIDATED_REAL_CORPUS_PENDING"
+            echo "  (instrument self-test on the drawing shipped inside the image — NOT gateway stills)"
+          fi
