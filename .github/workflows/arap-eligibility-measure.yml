@@ -129,7 +129,8 @@ jobs:
             -v "${PWD}/runtime/arap-cpu/proofs:/repo-proofs:ro" \
             -v "${PWD}/corpus:/corpus:ro" \
             -v "${PWD}/out:/work" \
-            "${DIGEST}" measure /corpus /work
+            --entrypoint /opt/oniq/venv-autorig/bin/python \
+            "${DIGEST}" /measure/measure_eligibility.py /corpus /work
           test -s out/manifest.json
 
       - name: "Compute eligibility with the production functions, unchanged"
