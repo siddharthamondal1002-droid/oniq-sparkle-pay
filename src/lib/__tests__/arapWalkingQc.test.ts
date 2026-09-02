@@ -42,6 +42,9 @@ describe("the WALKING QC workflow is read as data", () => {
     );
     expect(code).toContain('case "${stem}" in *[!A-Za-z0-9_-]*)');
     expect(code).toContain('default: "examples/config/motion/zombie.yaml"');
+    // The silhouette lands in the rig's directory from INSIDE the image, as its uid.
+    expect(code).toContain("ENTRYPOINT=cp run_in_image");
+    expect(code).not.toMatch(/^\s*cp "out\/qc/m);
   });
 });
 
