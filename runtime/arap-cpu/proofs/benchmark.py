@@ -12,9 +12,21 @@ measured on a 2-core container (2026-09-02: 779 frames in 72.6 s, foreground
 0.1107, inter-frame mean abs diff 1.579, 0 static frames of 210) so that
 only a genuinely broken render trips them — a slower runner is not a defect.
 
+WHAT DOES *NOT* TRANSFER ACROSS HOSTS: the exact bytes. Two runs on the
+reference container produced byte-identical output (1,971,306 bytes), and
+that is a real determinism result — but it is a WITHIN-HOST one. The
+reference container renders on Mesa 25.1.7 from Ubuntu 24.04; this image is
+built on Debian bookworm and carries a different Mesa, and a different
+software rasteriser is entitled to different pixels. So the wall-clock and
+the byte count are RECORDED for comparison and never asserted against the
+native figures; determinism is proved where the claim is actually valid, by
+rendering twice HERE and comparing the two. Set ONIQ_ARAP_DETERMINISM=1 for
+that second pass (the `proofs` entrypoint does).
+
 Usage:  benchmark.py [out.gif]
 Env:    AD_DIR, ONIQ_ARAP_SCRIPTS, ONIQ_ARAP_CHAR, ONIQ_ARAP_MOTION
 """
+import hashlib
 import json
 import os
 import subprocess
@@ -89,7 +101,28 @@ render_s = stats.get("RENDER_SECONDS", wall)
 # Named for what it measures so nobody reads it as render throughput.
 gif_fps = (n / render_s) if render_s else 0.0
 
+# The renderer that actually produced these pixels, on record — so a
+# comparison against the native baseline is made on the right axis rather
+# than by assuming the two hosts rasterise alike.
+gl = {}
+try:
+    import subprocess as _sp
+    _probe = _sp.run(
+        [sys.executable, str(Path(__file__).with_name("osmesa_render.py"))],
+        env=env, capture_output=True, text=True, timeout=120,
+    )
+    for line in _probe.stdout.splitlines():
+        if line.startswith("GL_VERSION"):
+            gl["version"] = line.split(None, 1)[1].strip()
+        elif line.startswith("GL_RENDERER"):
+            gl["renderer"] = line.split(None, 1)[1].strip()
+except Exception as e:  # noqa: BLE001  — a probe failure is not a render failure
+    gl["error"] = str(e)[:120]
+
+digest = hashlib.sha256(OUT.read_bytes()).hexdigest()
+
 report = {
+    "gl": gl, "output_sha256": digest,
     "gif_frames": n, "frame_size": f"{w}x{h}",
     "render_seconds": round(render_s, 1), "wall_seconds": round(wall, 1),
     "gif_frames_per_render_second": round(gif_fps, 2),
@@ -116,6 +149,25 @@ if diffs and static / len(diffs) > MAX_STATIC_FRACTION:
                 f"{MAX_STATIC_FRACTION:.0%}")
 if gif_fps < MIN_GIF_FPS:
     fail.append(f"{gif_fps:.2f} gif-frames/render-second, floor {MIN_GIF_FPS}")
+
+# DETERMINISM, proved where the claim holds: the same image, twice.
+if os.environ.get("ONIQ_ARAP_DETERMINISM") == "1" and not fail:
+    second = OUT.with_name(OUT.stem + "-again" + OUT.suffix)
+    argv2 = list(argv); argv2[-1] = str(second)
+    print("RUN (second pass, determinism)")
+    p2 = subprocess.run(argv2, env=env, capture_output=True, text=True)
+    if p2.returncode != 0 or not second.is_file():
+        fail.append(f"the second render exited {p2.returncode} — cannot check determinism")
+    else:
+        d2 = hashlib.sha256(second.read_bytes()).hexdigest()
+        print(f"DETERMINISM run1={digest}")
+        print(f"DETERMINISM run2={d2}")
+        if d2 != digest:
+            fail.append("two renders of the same input in the same image "
+                        "produced different bytes — the pipeline is not deterministic")
+        else:
+            print("PROOF determinism: two renders, byte-identical output")
+        second.unlink(missing_ok=True)
 
 if fail:
     for f in fail:

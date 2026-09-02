@@ -180,7 +180,18 @@
         "max_rss_mb": 1126,
         "output_bytes": 1971306,
         "reads": "The runner writes its scene config into the VIEW, not the checkout, so /opt/oniq can stay read-only to uid 10001 and a job cannot rewrite the code it runs. Verified as a non-root uid because root ignores permission bits \u2014 an earlier run as root passed while writing straight through a stale symlink into the read-only tree, and proved nothing."
-      }
+      },
+      "output_sha256": "42f73372e0fecb95fccb4062913a2051b0dc443697d444ff0684c6389bb6e417",
+      "gl": {
+        "version": "3.3 (Core Profile) Mesa 25.1.7-1ubuntu2~24.04.2",
+        "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+        "note": "An UBUNTU 24.04 Mesa. The image is built on Debian bookworm and carries a different one; deb.debian.org is unreachable from here (000) so its exact version is not recorded rather than guessed."
+      },
+      "render_seconds_observed": {
+        "runs": [72.6, 72.5, 69.4, 68.4, 94.0],
+        "note": "Four separate renders of the SAME input on the same container, spanning 68.4-94.0 s purely with load. Wall-clock is therefore recorded and compared loosely, never asserted: the benchmark's throughput floor is 0.5 gif-frames/render-second against a measured 2.24-3.08, so only a broken render trips it."
+      },
+      "byte_identity_scope": "WITHIN-HOST. Every run above produced 1,971,306 bytes and sha256 42f73372..., which is a real determinism result for this Mesa. It is NOT a prediction about the image: a different software rasteriser is entitled to different pixels. So the in-image benchmark proves determinism where the claim is valid \u2014 by rendering twice inside the image and comparing those two \u2014 and never against the figure above."
     },
     "env_a_stack": {
       "status": "PENDING \u2014 CI",
@@ -197,6 +208,10 @@
     "torch_hash_pin": {
       "status": "PENDING \u2014 first CI build records the hashes",
       "why": "See envs.autorig.torch.hash_pin_why. The build prints RECORD-ONLY lines; those hashes go into envs.autorig.torch.wheels and the next build enforces them."
+    },
+    "in_image_determinism": {
+      "status": "PENDING \u2014 CI",
+      "why": "benchmark.py renders twice under ONIQ_ARAP_DETERMINISM=1 (set by the `proofs` entrypoint) and fails if the two differ. Verified to work on the reference container 2026-09-02: two renders, sha256 42f73372... both times."
     }
   }
 }

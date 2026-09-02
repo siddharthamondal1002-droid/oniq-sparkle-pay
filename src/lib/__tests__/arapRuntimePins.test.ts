@@ -172,6 +172,43 @@ describe("the two environments stay separate", () => {
   });
 });
 
+describe("determinism is claimed where it actually holds", () => {
+  // The reference container renders on an Ubuntu Mesa; the image is built on
+  // Debian bookworm and carries a different one, and a different software
+  // rasteriser may legitimately produce different pixels. Asserting the
+  // image's bytes against the native figure would read that difference as a
+  // defect. So the gate is two renders INSIDE the image.
+  const benchmark = readFileSync(join(root, "runtime/arap-cpu/proofs/benchmark.py"), "utf8");
+  const entrypoint = readFileSync(join(root, "runtime/arap-cpu/entrypoint.sh"), "utf8");
+
+  it("renders twice and compares, rather than trusting one run", () => {
+    expect(benchmark).toContain("ONIQ_ARAP_DETERMINISM");
+    expect(benchmark).toContain("second render");
+    expect(benchmark).toContain("produced different bytes");
+  });
+
+  it("the proofs entrypoint turns that second pass on", () => {
+    expect(entrypoint).toContain("ONIQ_ARAP_DETERMINISM=1");
+  });
+
+  it("pins.json scopes the native byte-identity claim to its own host", () => {
+    const scope = (pins.validation.env_b_render as unknown as { byte_identity_scope: string })
+      .byte_identity_scope;
+    expect(scope).toMatch(/WITHIN-HOST/);
+  });
+
+  it("wall-clock is recorded as a range, not a single number to match", () => {
+    const runs = (
+      pins.validation.env_b_render as unknown as {
+        render_seconds_observed: { runs: number[] };
+      }
+    ).render_seconds_observed.runs;
+    expect(runs.length).toBeGreaterThanOrEqual(3);
+    // The spread is the point: a gate on any single figure would be noise.
+    expect(Math.max(...runs) - Math.min(...runs)).toBeGreaterThan(10);
+  });
+});
+
 describe("the image is not in production yet", () => {
   it("story-worker.yml declares no container", () => {
     // OWNER DIRECTIVE 2026-09-02: build and validate the runtime as a

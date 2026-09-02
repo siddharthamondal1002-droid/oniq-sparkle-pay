@@ -90,7 +90,8 @@ case "$cmd" in
     "$AUTORIG" "$PROOFS/models_ready.py"
     "$ARAP"    "$PROOFS/osmesa_render.py"
     "$AUTORIG" "$PROOFS/autorig_smoke.py"
-    AD_DIR="$(ad_view)" "$ARAP" "$PROOFS/benchmark.py" "${1:-/work/benchmark.gif}"
+    AD_DIR="$(ad_view)" ONIQ_ARAP_DETERMINISM=1 \
+      "$ARAP" "$PROOFS/benchmark.py" "${1:-/work/benchmark.gif}"
     echo "ALL PROOFS PASSED"
     ;;
   versions)

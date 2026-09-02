@@ -86,6 +86,21 @@ on CPU with no display and no GPU. `proofs/benchmark.py` and
 `proofs/osmesa_render.py` were both run against that environment and pass;
 they are not scripts written blind.
 
+**Wall-clock is not a gate.** The same input rendered on the same container
+five times spans **68.4–94.0 s**, purely with load. The benchmark's floor is
+0.5 gif-frames/render-second against a measured 2.24–3.08, so only a broken
+render trips it; the seconds are recorded for comparison, never asserted.
+
+**Byte-identity is a within-host claim.** Every run above produced
+1,971,306 bytes, sha256 `42f73372…` — real determinism for _this_ Mesa
+(`25.1.7`, an Ubuntu 24.04 package). It is not a prediction about the image,
+which is built on Debian bookworm and carries a different Mesa, and a
+different software rasteriser is entitled to different pixels. So the
+in-image benchmark proves determinism where the claim is valid: it renders
+**twice inside the image** and fails if those two differ. Comparing the
+image's bytes against the figure above would be the wrong axis, and would
+read a legitimate Mesa difference as a defect.
+
 **Re-run as uid 65534 against a read-only checkout: 68.4 s, byte-identical
 output.** This one matters more than it looks. `l3_animate_reference.py`
 writes its assembled scene config _into_ the Animated Drawings directory and
