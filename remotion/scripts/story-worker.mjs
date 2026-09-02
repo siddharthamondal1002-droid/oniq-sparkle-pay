@@ -1114,12 +1114,65 @@ function motionRoute() {
   });
 }
 
+/**
+ * THE MOTION ENGINE'S FUSE, and why one film may not discover the same outage
+ * nine times.
+ *
+ * MEASURED 2026-09-01: a dead RunPod endpoint does not fail fast. It reports
+ * `initializing` and holds — a single still waited 25 minutes before giving up.
+ * A shot list asks for motion PER SHOT, so an endpoint that cannot start a
+ * worker costs that wait on every shot, and a nine-shot film would spend its
+ * whole time budget learning one fact. The film would not merely lose its
+ * motion; it would lose itself.
+ *
+ * Until 2026-09-02 this was hidden: a gateway still had no bucket key, so the
+ * in-house pairing refused instantly and nothing ever reached the endpoint.
+ * Storing the still (supabase/functions/_shared/stillStore.ts) removes that
+ * structural block and makes the endpoint reachable again — which is correct,
+ * and which is exactly why the outage now needs a fuse of its own.
+ *
+ * ONE ATTEMPT DECIDES THE FILM. The first in-house clip that fails for an
+ * ENGINE reason blows the fuse and every later shot carries as a still without
+ * asking again. A CONTENT refusal does not blow it: a prompt the model declined
+ * says nothing about whether the next prompt will be, and the ep3 finding is
+ * that refusals are luck rather than verdicts.
+ *
+ * Per run, deliberately — a module-scope flag in a process that renders exactly
+ * one job. Nothing to reset, and nothing that can leak into another film.
+ */
+let inHouseMotionFuse = null;
+
+/**
+ * An engine failure is one the NEXT shot would hit identically: the endpoint
+ * cannot start, cannot be reached, or has nothing to animate. A refusal of this
+ * shot's content is not one of those.
+ */
+function isEngineOutage(message) {
+  return /not configured|unavailable|initializ|no frame|took too long|timed? ?out|502|503|504|ECONN|fetch failed|needs the still in the bucket/i.test(
+    String(message),
+  );
+}
+
 async function generateClip(shot, stillFile, shotSeconds, shotId, noWatermark = false, stillKey = null) {
   const route = motionRoute();
   if (route.engine === 'blocked') {
     // Honest in-house failure. The caller already treats a thrown clip as
     // "this shot carries as a still", so the film still completes.
     throw new Error(`in-house motion unavailable (${route.reason}) — no provider fallback`);
+  }
+  // AFTER `blocked`, deliberately. A blocked route means the stage may not run
+  // at all and is the more fundamental refusal; the fuse only narrows a route
+  // that is otherwise permitted. Ordering them the other way also moved the
+  // first `route.engine === 'in-house'` above the blocked throw, which is
+  // pinned — nothing may sit between that check and its throw.
+  if (route.engine === 'in-house' && inHouseMotionFuse) {
+    // POINTS AT THE DIAGNOSIS, does not repeat it. Re-quoting the first
+    // failure pushed this past the caller's 140-character slice, so every
+    // later shot logged a truncated copy of a sentence already printed in
+    // full — nine mangled duplicates of one good line. The reason is on shot 1
+    // and in MOTION_FUSE; here, the useful fact is only that we did not ask
+    // again.
+    throw new Error('in-house motion already failed this film (see shot 1)');
   }
   if (route.engine === 'in-house' && !stillKey) {
     // THE PAIRING THAT CANNOT WORK, refused here rather than discovered on
@@ -2778,6 +2831,20 @@ if (offline) {
           }
         } catch (err) {
           clipError = String(err?.message ?? err).slice(0, 140);
+          // BLOW THE FUSE on an engine outage, so shot 2 does not re-learn what
+          // shot 1 just established at the cost of the film's clock. Recorded
+          // once, in words, where a reader is already looking.
+          if (
+            motionRoute().engine === 'in-house' &&
+            !inHouseMotionFuse &&
+            isEngineOutage(clipError)
+          ) {
+            inHouseMotionFuse = clipError;
+            console.log(
+              `  MOTION_FUSE: in-house motion is down — the remaining ` +
+                `${plan.shots.length - (i + 1)} shot(s) carry as stills without asking again`,
+            );
+          }
           console.log(`  clip ${i + 1}: still carries the shot (${clipError})`);
         }
       }

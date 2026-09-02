@@ -2603,3 +2603,59 @@ Flipping the flag makes every movie-grade shot a Veo shot. Not done here.
   regional owner-asset map. The line now names which of the two it is.
 
 GPU spend for this entry: $0.
+
+---
+
+## 2026-09-02 — the gateway still gets a key, and a dead engine gets a fuse
+
+Two changes, no new provider and no new spend.
+
+### The gateway problem
+
+In-house motion does not take a frame: `story-motion` re-derives the still's
+BUCKET KEY and animates whatever object is there. A gateway still was bytes and
+nothing else, so `key` came back null and every clip refused. The key belongs
+to the SHOT — `inHouseMotion.stillIdFor(jobId, sceneId, shotId)` — never to the
+engine, so the gateway now writes the same key the GPU would have
+(`_shared/stillStore.ts`).
+
+The rule that made this look impossible was already obsolete. `characterRef.ts`
+says "the media bucket's write credentials live in the endpoint alone — by
+design, so no browser and no edge function can put an object where a worker
+will read one". `story-reference-publish` has held `R2_ACCESS_KEY_ID` and PUT
+into that very bucket since it shipped. The credential was always here;
+believing otherwise cost a film its motion.
+
+Failure is soft in every direction: unconfigured, unreachable, refused,
+unverified, or simply not a PNG all yield `key: null` plus a reason, and the
+film renders classic. The frame is drawn and paid for before storage runs —
+losing it to protect a key nobody has yet would be a bad trade.
+
+### The fuse — why this needed a companion change
+
+Storing the still makes the RunPod endpoint REACHABLE again. On its own that
+would have made the next film worse, not better. A dead endpoint does not fail
+fast: it reports `initializing` and holds, and one still waited 25 minutes on
+2026-09-01. Motion is requested per shot, so nine shots would spend the film's
+whole clock learning one fact — the film would not merely lose its motion, it
+would lose itself.
+
+So the first in-house clip that fails for an ENGINE reason now blows a
+per-film fuse and the remaining shots carry as stills without asking again.
+A CONTENT refusal does not blow it: the ep3 finding is that refusals are luck,
+not verdicts. Measured on the offline film — one diagnosis, nine skips:
+
+```
+MOTION_FUSE: in-house motion is down — the remaining 9 shot(s) carry as stills
+clip 1: ... a gateway still has no key — set IN_HOUSE_MOTION=off (Veo) or STILL_PROVIDER=in_house
+clip 2: ... already failed this film (see shot 1)
+```
+
+### What this still does not do
+
+It does not make the GPU work, and it is not a spend decision. The structural
+incompatibility is gone; the operational one is not. Motion renders when the
+RunPod endpoint can start a worker, or when `IN_HOUSE_MOTION=off` routes the
+stage to Veo at the measured ₹9.56/second. Neither is done here.
+
+GPU spend for this entry: $0.

@@ -96,6 +96,11 @@ import {
   MAX_SEED,
   generateStill,
   pollStill,
+  // ONE KEY SCHEME. oniqImage names every still the GPU worker draws; the
+  // gateway now writes the SAME name, because the key belongs to the shot and
+  // not to the engine. Restating the scheme here would be the drift that cost
+  // the motion stage its input in the first place.
+  stillKeyFor,
   submitStill,
 } from "../_shared/oniqImage.ts";
 import { CAPABILITY_MARKER } from "../_shared/referenceOutcome.ts";
@@ -114,6 +119,8 @@ import {
   inlineReference,
 } from "../_shared/gatewayImage.ts";
 import { readStillProvider, routeStill } from "../_shared/stillRoute.ts";
+import { bytesOfBase64, readStillStoreEnv, storeStill } from "../_shared/stillStore.ts";
+import { openStillStore } from "../_shared/stillStoreClient.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -549,6 +556,7 @@ Deno.serve(async (req) => {
             { fetchImpl: fetch },
             { negativePrompt, referenceDataUrl },
           );
+          const kept = await keepStill(stillId, drawn.data);
           return json({
             configured: true,
             ...engineShape,
@@ -558,11 +566,14 @@ Deno.serve(async (req) => {
             done: true,
             mime: drawn.mime,
             data: drawn.data,
-            // Nothing was written to a bucket, so there is no key. Said as
-            // null rather than omitted: a caller that goes looking for the
-            // still under some derived path must find an explicit "there
-            // isn't one" instead of an undefined it can misread as a bug.
-            key: null,
+            // THE KEY, when the frame could be kept. Null when it could not,
+            // said explicitly rather than omitted: a caller that goes looking
+            // for the still under some derived path must find "there isn't
+            // one" instead of an undefined it can misread as a bug. `stored`
+            // carries WHY, so a film that renders classic can be explained
+            // without reading this function.
+            key: kept.key,
+            stored: kept.stored,
             conditioned: Boolean(referenceKey),
             referenceUnresolved,
             referenceVersion: referenceKey ? characterRefVersion : null,
@@ -654,12 +665,14 @@ Deno.serve(async (req) => {
           { fetchImpl: fetch },
           { negativePrompt, referenceDataUrl },
         );
+        const kept = await keepStill(stillId, drawn.data);
         return json({
           configured: true,
           ...engineShape,
           mime: drawn.mime,
           data: drawn.data,
-          key: null,
+          key: kept.key,
+          stored: kept.stored,
           conditioned: Boolean(referenceKey),
           referenceUnresolved,
           referenceVersion: referenceKey ? characterRefVersion : null,
@@ -736,6 +749,43 @@ Deno.serve(async (req) => {
     return json({ error: "Something went sideways — try again" }, 500);
   }
 });
+/**
+ * Put a gateway-drawn frame where the motion stage looks for it.
+ *
+ * THE GATEWAY PROBLEM, closed. In-house motion does not take a frame: it
+ * re-derives the still's BUCKET KEY and animates whatever object is there. A
+ * gateway still used to be bytes and nothing else, so `key` was null and every
+ * clip in a movie-grade film refused — measured 2026-09-02, job 64874747, nine
+ * shots, nine refusals. The key is a property of the SHOT (inHouseMotion's
+ * stillIdFor), never of the engine, so the fix is for the gateway to write the
+ * same key the GPU would have.
+ *
+ * ONE HELPER, called by both gateway branches. The bounded path and the
+ * start/poll path must agree about where a still lands, and two copies of this
+ * are two chances for one of them to fall behind — the same reason
+ * engineFailure below is shared.
+ *
+ * SOFT, ALWAYS. The frame is drawn and paid for before this runs. Storage that
+ * is unconfigured, unreachable or slow yields `key: null` and a reason; it
+ * never turns a good still into a failed shot. The film then renders classic,
+ * which is what it did before this existed.
+ */
+async function keepStill(stillId: string | undefined, data: string) {
+  if (!stillId) return { key: null, stored: "no-shot-identity" };
+  const store = readStillStoreEnv((k) => Deno.env.get(k));
+  if ("missing" in store) {
+    return { key: null, stored: `still-store-not-configured (${store.missing.join(", ")})` };
+  }
+  const outcome = await storeStill(
+    stillKeyFor(stillId),
+    bytesOfBase64(data),
+    openStillStore(store),
+  );
+  if (outcome.stored) return { key: outcome.key, stored: "ok" };
+  console.error("story-still store", outcome.reason);
+  return { key: null, stored: outcome.reason };
+}
+
 /**
  * One engine failure, worded one way. Shared by the bounded path and the
  * resume path so the two can never drift — the worker's retry ladder reads
