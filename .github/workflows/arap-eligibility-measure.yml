@@ -34,6 +34,10 @@ on:
         description: "Identifier written into every record."
         type: string
         default: "instrument-selftest"
+      corpus_manifest:
+        description: "Repo path of a committed oniq.arap-corpus-manifest/1. The runner fetches each listed still BY DERIVED KEY from the manifest's public read base, records or verifies sha256, and the decision runs. Empty = not used."
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -82,11 +86,23 @@ jobs:
       - name: "The corpus"
         env:
           CORPUS_URL: ${{ inputs.corpus_url }}
+          CORPUS_MANIFEST: ${{ inputs.corpus_manifest }}
           DIGEST: ${{ steps.digest.outputs.digest }}
         run: |
           set -euo pipefail
           mkdir -p corpus out && chmod 0777 corpus out
-          if [ -n "${CORPUS_URL}" ]; then
+          if [ -n "${CORPUS_MANIFEST}" ]; then
+            # Step 11C. The owner's committed manifest names the population,
+            # the authorization, and every still by DERIVED key. Only listed
+            # stems are requested; a 404 is recorded as missing; a declared
+            # sha256 that does not match stops the run. The fetcher writes
+            # corpus/corpus-manifest.json, which the decision step reads.
+            test -f "${CORPUS_MANIFEST}"
+            python3 runtime/arap-cpu/measure/fetch_corpus.py --selftest
+            python3 runtime/arap-cpu/measure/fetch_corpus.py "${CORPUS_MANIFEST}" corpus
+            cp corpus/corpus-manifest.json out/corpus-manifest.fetched.json
+            echo "CORPUS: $(ls corpus/*.png 2>/dev/null | wc -l) still(s) fetched by derived key from the manifest's public read base"
+          elif [ -n "${CORPUS_URL}" ]; then
             curl -sSL --max-time 600 -o corpus.zip "${CORPUS_URL}"
             unzip -j -q corpus.zip -d corpus
             echo "CORPUS: $(ls corpus | wc -l) file(s) from the supplied zip"
@@ -151,6 +167,12 @@ jobs:
           echo "IMAGE: ${{ steps.digest.outputs.digest }}"
           cat out/summary.txt 2>/dev/null || echo "(no summary — see the steps above)"
           cat out/decision.txt 2>/dev/null || echo "(no decision line — see the steps above)"
+          if [ -f out/corpus-manifest.fetched.json ]; then
+            echo "::group::corpus-manifest.fetched.json (recorded hashes)"; cat out/corpus-manifest.fetched.json; echo "::endgroup::"
+          fi
+          if [ -f out/decision/real-gateway-eligibility-reference.report.json ]; then
+            echo "::group::real-gateway-eligibility-reference.report.json"; cat out/decision/real-gateway-eligibility-reference.report.json; echo "::endgroup::"
+          fi
           if [ "${{ inputs.corpus_id }}" = "instrument-selftest" ]; then
             echo "STATUS: MEASUREMENT_ENGINE_VALIDATED_REAL_CORPUS_PENDING"
             echo "  (instrument self-test on the drawing shipped inside the image — NOT gateway stills)"

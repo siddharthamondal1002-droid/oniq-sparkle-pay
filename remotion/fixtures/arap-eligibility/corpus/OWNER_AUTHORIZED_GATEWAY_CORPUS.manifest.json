@@ -1,0 +1,128 @@
+{
+  "schema": "oniq.arap-corpus-manifest/1",
+  "population": "gateway",
+  "corpusId": "OWNER_AUTHORIZED_GATEWAY_CORPUS",
+  "label": "OWNER_AUTHORIZED_GATEWAY_CORPUS",
+  "readBase": "https://pub-375e3f0f9afb47cca77889b3a03b2b2e.r2.dev",
+  "authorization": {
+    "grantedBy": "owner",
+    "grantedAt": "2026-09-02",
+    "scope": "owner-only",
+    "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+    "note": "Owner directive 2026-09-02 (Step 11C): the 18 owner-owned stills of the two ready films are the first authorised production corpus. The other user's 27 stills are out of scope and are not listed here; the verifier refuses any record outside this scope."
+  },
+  "provenance": {
+    "instrument": "runtime/arap-cpu/measure/fetch_corpus.py on a GitHub runner, then the in-image driver at the validated digest",
+    "note": "Keys are DERIVED, not guessed: the worker names a shot's still shot000..shot008 (zero-based, one per shot) and the edge function keys it story/still/<jobId>-s-<stem>.png. readBase is the bucket's public read base, recorded as public configuration in oniq-gpu-worker/validation/frame_pull.py; it is the base the application itself reads artifacts from. sha256 per still is RECORDED by the fetch on first run and VERIFIED against on every later run."
+  },
+  "stills": {
+    "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot000": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+      "sceneId": "s",
+      "shotId": "shot000"
+    },
+    "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot001": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+      "sceneId": "s",
+      "shotId": "shot001"
+    },
+    "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot002": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+      "sceneId": "s",
+      "shotId": "shot002"
+    },
+    "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot003": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+      "sceneId": "s",
+      "shotId": "shot003"
+    },
+    "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot004": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+      "sceneId": "s",
+      "shotId": "shot004"
+    },
+    "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot005": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+      "sceneId": "s",
+      "shotId": "shot005"
+    },
+    "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot006": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+      "sceneId": "s",
+      "shotId": "shot006"
+    },
+    "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot007": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+      "sceneId": "s",
+      "shotId": "shot007"
+    },
+    "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot008": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+      "sceneId": "s",
+      "shotId": "shot008"
+    },
+    "64874747-44af-4086-a58a-250d2e7eec08-s-shot000": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+      "sceneId": "s",
+      "shotId": "shot000"
+    },
+    "64874747-44af-4086-a58a-250d2e7eec08-s-shot001": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+      "sceneId": "s",
+      "shotId": "shot001"
+    },
+    "64874747-44af-4086-a58a-250d2e7eec08-s-shot002": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+      "sceneId": "s",
+      "shotId": "shot002"
+    },
+    "64874747-44af-4086-a58a-250d2e7eec08-s-shot003": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+      "sceneId": "s",
+      "shotId": "shot003"
+    },
+    "64874747-44af-4086-a58a-250d2e7eec08-s-shot004": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+      "sceneId": "s",
+      "shotId": "shot004"
+    },
+    "64874747-44af-4086-a58a-250d2e7eec08-s-shot005": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+      "sceneId": "s",
+      "shotId": "shot005"
+    },
+    "64874747-44af-4086-a58a-250d2e7eec08-s-shot006": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+      "sceneId": "s",
+      "shotId": "shot006"
+    },
+    "64874747-44af-4086-a58a-250d2e7eec08-s-shot007": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+      "sceneId": "s",
+      "shotId": "shot007"
+    },
+    "64874747-44af-4086-a58a-250d2e7eec08-s-shot008": {
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+      "sceneId": "s",
+      "shotId": "shot008"
+    }
+  }
+}
