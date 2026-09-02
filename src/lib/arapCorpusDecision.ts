@@ -423,7 +423,7 @@ export function compareWithOffline(
 export const GATEWAY_STATES = [
   "REAL_GATEWAY_CORPUS_PENDING",
   "REAL_GATEWAY_CORPUS_MEASURED",
-  "ARAP_ELIGIBILITY_GATE_SUPPORTED",
+  "ARAP_ELIGIBILITY_SUPPORTED",
   "ARAP_AS_SELECTIVE_PROVIDER",
   "GATEWAY_INPUT_CONSTRAINT_REQUIRED",
   "REAL_CORPUS_INSUFFICIENT",
@@ -432,7 +432,8 @@ export type GatewayState = (typeof GATEWAY_STATES)[number];
 export type TerminalState = Exclude<GatewayState, "REAL_GATEWAY_CORPUS_MEASURED">;
 
 /**
- * DECISION-RULE PARAMETERS — PROVISIONAL, and not ARAP thresholds. The ARAP
+ * DECISION-RULE PARAMETERS — CONFIRMED by owner directive 2026-09-02 (Step
+ * 11C), and not ARAP thresholds. The ARAP
  * envelope (the bbox-fill ceiling, the core joints) is untouched and lives in
  * arapProvider.ts; this module carries no copy of it. These decide only how a
  * measured rate is READ:
@@ -448,13 +449,17 @@ export type TerminalState = Exclude<GatewayState, "REAL_GATEWAY_CORPUS_MEASURED"
  * needs the UPPER bound at or below it; everything between is CASE B. At n=6
  * only a unanimous result decides A or C; at n=18, A needs 14 and C allows 4.
  * Reading a point estimate instead would call 7/9 "strong" on nine stills.
- * Owner to confirm these before the first real decision is acted on.
+ * Confirmed by the owner on 2026-09-02: the LOWER bound decides CASE A, the
+ * point estimate is informational and never decides on its own, and MISSING,
+ * UNAUTHORIZED and MALFORMED records are outside the denominator. Changing any
+ * of these is an owner decision, recorded here with its date.
  */
 export const DECISION_RULE = {
   minMeasured: 6,
   majority: 0.5,
   z: Z95,
-  standing: "PROVISIONAL — owner to confirm before the first real decision",
+  standing:
+    "CONFIRMED — owner directive 2026-09-02 (Step 11C): lower Wilson bound decides, point estimate informational",
 } as const;
 
 export type GatewayDecision = {
@@ -543,8 +548,8 @@ export function decideGatewayState(real: RealCorpusReport | null): GatewayDecisi
   const describe = `${eligible}/${measured} eligible over ${DENOMINATOR}, 95% interval [${interval.lo}, ${interval.hi}], majority line ${m}`;
   if (interval.lo >= m) {
     return {
-      state: "ARAP_ELIGIBILITY_GATE_SUPPORTED",
-      path: [...path, "ARAP_ELIGIBILITY_GATE_SUPPORTED"],
+      state: "ARAP_ELIGIBILITY_SUPPORTED",
+      path: [...path, "ARAP_ELIGIBILITY_SUPPORTED"],
       reasons: [
         `lower bound ${interval.lo} ≥ ${m}: the gateway corpus frequently satisfies the existing envelope (${describe})`,
       ],

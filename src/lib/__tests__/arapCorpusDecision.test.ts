@@ -118,8 +118,8 @@ describe("the 11B modules are cut off from routing, and the policy literals are 
     expect(read("src/lib/motionRuntime.ts")).toContain("allowPoseWarp: false");
     expect(read("src/lib/motionRuntime.ts")).not.toContain("allowPoseWarp: true");
   });
-  it("the decision rule is named provisional, and is not an ARAP threshold", () => {
-    expect(DECISION_RULE.standing).toMatch(/PROVISIONAL/);
+  it("the decision rule is the one the owner confirmed on 2026-09-02, and is not an ARAP threshold", () => {
+    expect(DECISION_RULE.standing).toMatch(/CONFIRMED — owner directive 2026-09-02/);
     expect(DECISION_RULE.minMeasured).toBe(6);
     expect(DECISION_RULE.majority).toBe(0.5);
     expect(Object.keys(DECISION_RULE)).not.toContain("maxBboxFillPct");
@@ -409,7 +409,7 @@ describe("the decision gate ends in exactly one state and never skips one", () =
   });
   it("reads the interval, not the point estimate: at n=6 only a unanimous result decides A or C", () => {
     expect(terminal(decideGatewayState(realOf(kOfN(6, 6)))).state).toBe(
-      "ARAP_ELIGIBILITY_GATE_SUPPORTED",
+      "ARAP_ELIGIBILITY_SUPPORTED",
     );
     expect(terminal(decideGatewayState(realOf(kOfN(5, 6)))).state).toBe(
       "ARAP_AS_SELECTIVE_PROVIDER",
@@ -426,7 +426,7 @@ describe("the decision gate ends in exactly one state and never skips one", () =
   });
   it("at n=18 (the owner's current gateway stills) A needs 14, C allows 4, B is everything between", () => {
     expect(terminal(decideGatewayState(realOf(kOfN(14, 18)))).state).toBe(
-      "ARAP_ELIGIBILITY_GATE_SUPPORTED",
+      "ARAP_ELIGIBILITY_SUPPORTED",
     );
     expect(terminal(decideGatewayState(realOf(kOfN(13, 18)))).state).toBe(
       "ARAP_AS_SELECTIVE_PROVIDER",
@@ -447,7 +447,7 @@ describe("the decision gate ends in exactly one state and never skips one", () =
       ...Array.from({ length: 27 }, (_, i) => rawRecord({ id: `o${i}`, owner: OTHER, fill: 80 })),
     ];
     const d = terminal(decideGatewayState(realOf(records)));
-    expect(d.state).toBe("ARAP_ELIGIBILITY_GATE_SUPPORTED");
+    expect(d.state).toBe("ARAP_ELIGIBILITY_SUPPORTED");
     expect(d.measured).toBe(6);
     expect(d.eligible).toBe(6);
     expect(d.caveats.some((c) => /27 record\(s\) UNAUTHORIZED/.test(c))).toBe(true);
@@ -497,14 +497,14 @@ describe("the decision CLI", () => {
       JSON.stringify(rawPackage(kOfN(6, 6), { label: "SYNTHETIC-NOT-A-GATEWAY-STILL" })),
     );
     const out = run("--package", file, "--out-dir", dir);
-    expect(out).toContain("STATE: ARAP_ELIGIBILITY_GATE_SUPPORTED");
+    expect(out).toContain("STATE: ARAP_ELIGIBILITY_SUPPORTED");
     expect(existsSync(join(dir, "real-gateway-eligibility-reference.evidence.json"))).toBe(true);
     const written = JSON.parse(
       readFileSync(join(dir, "real-gateway-eligibility-reference.report.json"), "utf8"),
     );
     expect(written.decision.path).toEqual([
       "REAL_GATEWAY_CORPUS_MEASURED",
-      "ARAP_ELIGIBILITY_GATE_SUPPORTED",
+      "ARAP_ELIGIBILITY_SUPPORTED",
     ]);
     expect(written.report.denominator).toBe("MEASURED_VALID_RECORDS");
     expect(written.comparison.populationsMerged).toBe(false);

@@ -117,7 +117,7 @@ REAL_GATEWAY_CORPUS_PENDING          no gateway package; a package not declared
         ↓
 REAL_GATEWAY_CORPUS_MEASURED         at least one authorised valid record measured
         ├── REAL_CORPUS_INSUFFICIENT             measured < 6
-        ├── ARAP_ELIGIBILITY_GATE_SUPPORTED      interval lower bound ≥ 0.5
+        ├── ARAP_ELIGIBILITY_SUPPORTED      interval lower bound ≥ 0.5
         ├── ARAP_AS_SELECTIVE_PROVIDER           interval straddles 0.5
         └── GATEWAY_INPUT_CONSTRAINT_REQUIRED    interval upper bound ≤ 0.5
 ```
@@ -126,8 +126,9 @@ The rule reads the Wilson 95% interval of eligible over
 `MEASURED_VALID_RECORDS`, not the point estimate: at n = 6 only a unanimous
 result decides A or C; at n = 18, A needs 14 eligible and C allows at most 4. Its parameters (`minMeasured: 6`, `majority: 0.5`, 95%) are
 **decision-rule parameters, not ARAP thresholds**, they live in
-`DECISION_RULE`, and they are marked PROVISIONAL: the owner confirms them
-before the first real decision is acted on. `OFFLINE_CAST_SHEET_REFERENCE`
+`DECISION_RULE`, and were **confirmed by owner directive on 2026-09-02** (Step 11C): the
+lower Wilson bound decides CASE A, the point estimate is informational only,
+and MISSING, UNAUTHORIZED and MALFORMED records stay outside the denominator. `OFFLINE_CAST_SHEET_REFERENCE`
 cannot reach `REAL_GATEWAY_CORPUS_MEASURED` whatever it scores; a test pins
 that with the real fixture.
 
@@ -234,3 +235,50 @@ each file restored byte for byte. Validated image digest, unchanged:
 ```
 ghcr.io/siddharthamondal1002-droid/oniq-sparkle-pay/arap-cpu@sha256:d0fb43f5f0b2252ff62fc5bee15e121de2ece6d21711de39801d25878d520955
 ```
+
+## Step 11C — the authorised corpus, and where it stopped
+
+Owner directive 2026-09-02: the first authorised production corpus is the
+**18 owner-owned stills** of the two ready films (`87c2b756…`, 9 shots, and
+`64874747…`, 9 shots); the other user's 27 stay out of scope; the decision
+rule above is confirmed as written. This section records what that run
+established and where it stopped, so the next attempt starts from facts.
+
+- **The keys are derivable, not guessed.** The worker names a shot's still
+  `shot000`…`shot008` (zero-based, one per shot) and the edge function keys
+  it `story/still/<jobId>-s-<stem>.png`, so the 18 keys follow from the two
+  job ids alone. Whether each object actually landed is a fact only a fetch
+  can establish; a key that answers 404 is a `MISSING` record, never a
+  silently shortened corpus.
+- **The public read base is recorded public configuration**, in
+  `oniq-gpu-worker/validation/frame_pull.py` (`RECORDED_PUBLIC_BASE`), the
+  same base the application itself reads artifacts from with no credential.
+  The Actions-variables API is refused by the agent proxy, so a session
+  cannot read the repository variable directly.
+- **This session was not permitted to fetch the stills**, and did not: its
+  permission layer refused the probe of those keys, and routing around that
+  would be exactly the bypass the brief forbids. No gateway pixel was read.
+- **This session cannot pull the validated image either.** A Docker daemon
+  runs here, but GHCR answers `denied` to the session's GitHub credential,
+  which carries no package-read scope. The in-image driver therefore runs
+  only in GitHub Actions (whose token has `packages: read`) or on a machine
+  holding such a token. `workflow_dispatch` needs the workflow on `main`; a
+  run from the working branch would need a `push` trigger added to it.
+- **State: `REAL_GATEWAY_CORPUS_PENDING`.** Supplied 0, measured 0,
+  denominator `MEASURED_VALID_RECORDS` = 0, production eligibility
+  `NOT MEASURED`.
+
+What produces the measurement, each an owner action:
+
+1. Allow the session to fetch the 18 keys from the public read base (a
+   permission rule), or export them by hand per the runbook above; either way
+   the corpus manifest names `OWNER_AUTHORIZED_GATEWAY_CORPUS`, scope
+   `owner-only`, the owner's user id, the 18 stems, and each file's sha256.
+2. Give the measurement a runner that can pull the image: merge the working
+   branch (or the workflow, the scripts and `runtime/arap-cpu/measure`) to
+   `main` and dispatch with `corpus_url`, or add a `push` trigger for the
+   branch, or run the three workflow commands on a Docker host with a
+   package-read token.
+3. Hand the two `real-gateway-eligibility-reference.*.json` files back; the
+   verifier, the report, the comparison and the decision then run here in
+   seconds.
