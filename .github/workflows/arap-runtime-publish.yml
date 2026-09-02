@@ -175,8 +175,13 @@ jobs:
           # owned by the runner user. Without it every write into /work is
           # EACCES.
           mkdir -p out && chmod 0777 out
-          docker run --rm -v "${PWD}/out:/work" "${IMAGE}:${GITHUB_SHA}" \
-            proofs /work/benchmark.gif
+          # TQDM_DISABLE: the render's progress bar is written to a
+          # non-TTY here, so tqdm emits a LINE per update rather than
+          # rewriting one — two renders of it was the bulk of a 2724-line
+          # log and buried the measurements this step exists to produce.
+          # It changes no image content, only what the container prints.
+          docker run --rm -e TQDM_DISABLE=1 -v "${PWD}/out:/work" \
+            "${IMAGE}:${GITHUB_SHA}" proofs /work/benchmark.gif
           # No `|| true` anywhere here: a benchmark that could not write its
           # own output is a failure, not a footnote.
           test -s out/benchmark.gif
@@ -278,3 +283,39 @@ jobs:
       - name: "Disk after"
         if: always()
         run: df -B1 --output=source,size,used,avail,target / /mnt || true
+
+      # LAST, deliberately. The digest and the benchmark are what anyone
+      # reads this run for, and before this they sat behind ~750 lines of
+      # docker-push layer chatter. A result you have to page backwards
+      # through a log to find is one that gets taken on trust instead.
+      - name: "The numbers, last"
+        if: always()
+        run: |
+          set -euo pipefail
+          echo "=================== ARAP CPU RUNTIME ==================="
+          if [ -f out/benchmark.json ]; then
+            python3 -c "
+          import json
+          b = json.load(open('out/benchmark.json'))
+          for k in ('render_seconds','wall_seconds','max_rss_mb','gif_frames',
+                    'frame_size','output_bytes','output_sha256',
+                    'foreground_fraction_mean','interframe_mean_abs_diff',
+                    'static_frames','compared_pairs','gif_frames_per_render_second'):
+              print(f'  {k:<28} {b.get(k)}')
+          print(f"  {'gl_version':<28} {b.get('gl',{}).get('version')}")
+          print(f"  {'gl_renderer':<28} {b.get('gl',{}).get('renderer')}")
+          "
+          else
+            echo "  (no benchmark.json — the proofs step did not complete)"
+          fi
+          if [ -f torch-wheels.json ]; then
+            python3 -c "
+          import json
+          m = json.load(open('torch-wheels.json'))
+          print(f"  {'torch hash_pinned':<28} {m.get('hash_pinned')}")
+          for n, wd in sorted(m.get('wheels', {}).items()):
+              if n in ('torch', 'torchvision'):
+                  print(f'  {n:<28} {wd.get("version")} {wd.get("sha256")}')
+          "
+          fi
+          echo "========================================================"
