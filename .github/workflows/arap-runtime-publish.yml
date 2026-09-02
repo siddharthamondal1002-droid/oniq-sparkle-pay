@@ -157,7 +157,26 @@ jobs:
       - name: "Every proof in the image"
         run: |
           set -euo pipefail
-          docker run --rm "${IMAGE}:${GITHUB_SHA}" proofs
+          # MOUNTED, so the artifact the proofs gate on is the artifact that
+          # leaves the run. Unmounted, `proofs` rendered into a container
+          # filesystem that was then discarded and a SEPARATE render produced
+          # the kept clip — so the downloadable evidence was never the
+          # evidence anything passed on.
+          #
+          # 0777 because the image runs as uid 10001 and a bind mount arrives
+          # owned by the runner user. Without it every write into /work is
+          # EACCES.
+          mkdir -p out && chmod 0777 out
+          docker run --rm -v "${PWD}/out:/work" "${IMAGE}:${GITHUB_SHA}" \
+            proofs /work/benchmark.gif
+          # No `|| true` anywhere here: a benchmark that could not write its
+          # own output is a failure, not a footnote.
+          test -s out/benchmark.gif
+          test -s out/benchmark.json
+          echo "### in-image benchmark" >> "${GITHUB_STEP_SUMMARY}"
+          echo '```json' >> "${GITHUB_STEP_SUMMARY}"
+          cat out/benchmark.json >> "${GITHUB_STEP_SUMMARY}"
+          echo '```' >> "${GITHUB_STEP_SUMMARY}"
 
       - name: "The torch pin state, into the summary"
         if: always()
@@ -197,15 +216,6 @@ jobs:
           name: torch-wheels
           path: torch-wheels.json
           if-no-files-found: warn
-
-      - name: "The benchmark clip, kept"
-        if: always()
-        run: |
-          set -euo pipefail
-          mkdir -p out
-          docker run --rm -v "${PWD}/out:/work" "${IMAGE}:${GITHUB_SHA}" \
-            benchmark /work/benchmark.gif || true
-          ls -l out || true
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -209,6 +209,45 @@ describe("determinism is claimed where it actually holds", () => {
   });
 });
 
+describe("the evidence that leaves CI is the evidence that passed", () => {
+  const workflow = readFileSync(join(root, ".github/workflows/arap-runtime-publish.yml"), "utf8");
+
+  it("runs the proofs against a mounted volume", () => {
+    // Unmounted, `proofs` rendered into a container filesystem that was
+    // discarded and a SEPARATE run produced the uploaded clip — so the
+    // downloadable artifact was never the one anything passed on.
+    const proofsStep = workflow.slice(
+      workflow.indexOf("Every proof in the image"),
+      workflow.indexOf("The torch pin state"),
+    );
+    expect(proofsStep).toContain("/out:/work");
+    expect(proofsStep).toContain("proofs /work/benchmark.gif");
+    expect(proofsStep).toContain("test -s out/benchmark.gif");
+    expect(proofsStep).toContain("test -s out/benchmark.json");
+  });
+
+  it("never swallows a benchmark failure", () => {
+    // The step this replaced ended `|| true`, which would have hidden the
+    // EACCES a uid-10001 write into a runner-owned mount produces.
+    // Comment lines excluded: the step's own comment EXPLAINS why `|| true`
+    // is wrong here, and a naive line scan fails on that explanation.
+    const benchLines = workflow
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("#"))
+      .filter((l) => l.includes("benchmark") && l.includes("|| true"));
+    expect(benchLines).toEqual([]);
+    expect(workflow).toContain("chmod 0777 out");
+  });
+
+  it("the benchmark records what the gate asks it to record", () => {
+    const bench = readFileSync(join(root, "runtime/arap-cpu/proofs/benchmark.py"), "utf8");
+    for (const field of ["max_rss_mb", "render_seconds", "output_sha256", '"gl"']) {
+      expect(bench, field).toContain(field);
+    }
+    expect(bench).toContain('OUT.with_suffix(".json")');
+  });
+});
+
 describe("the image is not in production yet", () => {
   it("story-worker.yml declares no container", () => {
     // OWNER DIRECTIVE 2026-09-02: build and validate the runtime as a

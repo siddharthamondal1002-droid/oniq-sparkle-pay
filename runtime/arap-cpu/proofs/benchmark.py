@@ -135,6 +135,19 @@ report = {
 }
 print("BENCHMARK " + json.dumps(report))
 
+# The same numbers as a FILE beside the clip, not only a log line. The gate
+# records wall-clock, peak RSS, GL version and the output hash for later
+# comparison, and a comparison you have to transcribe out of a scrolling log
+# is one nobody makes.
+report_path = OUT.with_suffix(".json")
+try:
+    report_path.write_text(json.dumps(report, indent=2) + "\n")
+    print("WROTE", report_path)
+except OSError as e:
+    # Not fatal: the numbers are already on stdout. But say so, because a
+    # silently missing report is how "we recorded it" becomes untrue.
+    print(f"WARN could not write {report_path}: {e}")
+
 fail = []
 if n < MIN_FRAMES:
     fail.append(f"{n} frames, floor {MIN_FRAMES}")
