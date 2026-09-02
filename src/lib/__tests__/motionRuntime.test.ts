@@ -176,6 +176,10 @@ describe("resolveShotMotion — explicit outcomes, no ambiguous success", () => 
       total: 5,
       validatedClips: 1,
       rigSourced: 1,
+      // The CPU generalist, counted apart from the measured specialists so a
+      // film can say WHICH free tier carried a shot. Zero here and in
+      // production until a CPU runner is provisioned.
+      poseWarpSourced: 0,
       failed: 1,
       fallback: 1,
       notRequested: 1,
