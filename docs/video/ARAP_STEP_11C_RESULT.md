@@ -129,6 +129,12 @@ figure: 22.2 % over `MEASURED_VALID_RECORDS`, with the interval above.
 
 ## WALKING render QC
 
+_Step 11D (run 33662521801) established why both failed: the driver's root
+translation under the fixed reference camera, which fails the reference
+character on the same reasons. See `ARAP_STEP_11D_DIAGNOSIS.md` and the
+checked-in `ONIQ_Step_11D_Diagnosis_Report.pdf`. The verdicts below stand as
+recorded._
+
 Run 33654209597 (`arap-walking-qc.yml` at `21e99575`, same digest) rigged
 each eligible primary with the image's own auto-rig, replaced the rig's
 classical mask with the u2netp silhouette the envelope mandates, rendered
