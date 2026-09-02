@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "ARAP CPU runtime — the single source of truth for every pin in this image.",
+    "ARAP CPU runtime \u2014 the single source of truth for every pin in this image.",
     "The Dockerfile reads it, the proofs assert against it, and",
     "src/lib/__tests__/arapRuntimePins.test.ts fails if it drifts from",
     "arapProvider.ts's ARAP_L3_RUN spec. A pin is a measurement, never a memory:",
@@ -10,7 +10,7 @@
   "image": {
     "registry": "ghcr.io",
     "repository": "siddharthamondal1002-droid/oniq-sparkle-pay/arap-cpu",
-    "role": "standalone worker-runtime artifact — NOT referenced by story-worker.yml",
+    "role": "standalone worker-runtime artifact \u2014 NOT referenced by story-worker.yml",
     "platform": "linux/amd64"
   },
   "base": {
@@ -20,7 +20,7 @@
   "envs": {
     "autorig": {
       "path": "/opt/oniq/venv-autorig",
-      "role": "ENV A — drawn-humanoid detection + pose estimation + silhouette. Produces char_cfg.yaml / texture.png / mask.png.",
+      "role": "ENV A \u2014 drawn-humanoid detection + pose estimation + silhouette. Produces char_cfg.yaml / texture.png / mask.png.",
       "numpy": "1.23.5",
       "torch": {
         "spec": "torch==1.13.1+cpu",
@@ -29,7 +29,7 @@
         "cpu_only": true,
         "no_fallback_why": [
           "MEASURED 2026-09-02: PyPI holds NO cpu-only torch 1.13.1 for linux",
-          "x86_64 — the only manylinux wheel is torch-1.13.1-cp310-cp310-manylinux1_x86_64.whl",
+          "x86_64 \u2014 the only manylinux wheel is torch-1.13.1-cp310-cp310-manylinux1_x86_64.whl",
           "at 887450534 bytes, which is the CUDA 11.7 build. The +cpu local version",
           "exists ONLY on PyTorch's own index, download.pytorch.org.",
           "The '+cpu' local version in the spec is the structural guarantee: PyPI",
@@ -44,21 +44,26 @@
         "mmcv-full": "1.6.2",
         "mmdet": "2.28.2",
         "mmpose": "0.29.0",
-        "onnxruntime": "1.16.3"
+        "onnxruntime": "1.16.3",
+        "Cython": "0.29.37"
       },
       "mmcv_build": {
         "from_source": true,
-        "env": { "MMCV_WITH_OPS": "1", "FORCE_CUDA": "0" },
+        "env": {
+          "MMCV_WITH_OPS": "1",
+          "FORCE_CUDA": "0"
+        },
         "flags": ["--no-binary", "mmcv-full", "--no-build-isolation"],
-        "why": "MEASURED 2026-09-02: download.openmmlab.com answers 403 CONNECT under this project's network policy, and PyPI ships mmcv-full 1.6.2 as an sdist only (no cp310 wheel). Source is the only route, and it must build against the ALREADY-INSTALLED cpu torch — hence --no-build-isolation."
+        "why": "MEASURED 2026-09-02: download.openmmlab.com answers 403 CONNECT under this project's network policy, and PyPI ships mmcv-full 1.6.2 as an sdist only (no cp310 wheel). Source is the only route, and it must build against the ALREADY-INSTALLED cpu torch \u2014 hence --no-build-isolation."
       },
       "mmpose_no_deps_why": "mmpose 0.29.0 pulls chumpy, which is 3D-mesh only and does not build on numpy 1.23.5. The auto-rig uses the 2D top-down path.",
-      "xtcocotools_rebuild_why": "Its published wheel is compiled against a different numpy ABI; rebuilt from source so it links numpy 1.23.5."
+      "xtcocotools_rebuild_why": "Its published wheel is compiled against a different numpy ABI; rebuilt from source so it links numpy 1.23.5.",
+      "cython_why": "MEASURED 2026-09-02: with --no-build-isolation pip provisions no build environment, so the pycocotools/xtcocotools source builds get no Cython and die on a missing generated _mask.c. Pinned because it is a build input like any other."
     },
     "arap": {
       "path": "/opt/oniq/venv-arap",
-      "role": "ENV B — BVH retarget, ARAP 2D deform, headless OSMesa render. Consumes ENV A's character dir, produces the clip.",
-      "no_torch_why": "animated_drawings.render needs OpenGL, numpy, scipy, skimage and shapely — not torch. Keeping torch out of ENV B is the reason the split exists, and is what lets the two numpy pins coexist.",
+      "role": "ENV B \u2014 BVH retarget, ARAP 2D deform, headless OSMesa render. Consumes ENV A's character dir, produces the clip.",
+      "no_torch_why": "animated_drawings.render needs OpenGL, numpy, scipy, skimage and shapely \u2014 not torch. Keeping torch out of ENV B is the reason the split exists, and is what lets the two numpy pins coexist.",
       "measured": {
         "where": "this container, 2026-09-02, python 3.10.20",
         "note": "Every version below is a `pip freeze` of the environment that actually produced the render recorded in `validation`."
@@ -89,7 +94,10 @@
   "system": {
     "apt": ["libosmesa6", "libglu1-mesa", "libgl1", "ffmpeg"],
     "ffmpeg_why": "l3_animate_reference.py writes a gif; the host muxes to mp4 because OpenCV's h264 encoder is not always present.",
-    "gl_env": { "PYOPENGL_PLATFORM": "osmesa", "MESA_GL_VERSION_OVERRIDE": "3.3" }
+    "gl_env": {
+      "PYOPENGL_PLATFORM": "osmesa",
+      "MESA_GL_VERSION_OVERRIDE": "3.3"
+    }
   },
   "source": {
     "animated_drawings": {
@@ -127,7 +135,7 @@
       "bytes": 4574861,
       "install_to": "/opt/oniq/model-store/u2netp.onnx",
       "license": "code MIT (rembg) / U^2-Net weights Apache-2.0",
-      "license_provenance": "OSS_MODEL_LICENSES.md — rembg code VERIFIED MIT; U^2-Net weights recorded as Apache-2.0, marked UNVERIFIED there.",
+      "license_provenance": "OSS_MODEL_LICENSES.md \u2014 rembg code VERIFIED MIT; U^2-Net weights recorded as Apache-2.0, marked UNVERIFIED there.",
       "why_mandatory": "MEASURED: AD's classical threshold mask FAILED on 6/6 ONIQ painterly cast sheets (100% fill). arapProvider.ts records mask: 'rembg-u2netp' for this reason.",
       "url_provenance": "Read from remotion/scripts/segment_reference.py's recorded setup block."
     }
@@ -154,15 +162,15 @@
       "reads": "Headless OSMesa GL, the arm-damped retarget config, the zombie.bvh WALKING driver and the ARAP deform all produce real, moving pixels on CPU with no display and no GPU."
     },
     "env_a_stack": {
-      "status": "PENDING — CI",
+      "status": "PENDING \u2014 CI",
       "why": "ENV A needs torch 1.13.1+cpu from download.pytorch.org, which answers 403 CONNECT under this container's network policy (measured 2026-09-02, agent-proxy recentRelayFailures). It is reachable from a GitHub Actions runner, so the build is CI's to do. No claim is made about ENV A until the publish workflow's proofs pass."
     },
     "image_build": {
-      "status": "PENDING — CI",
+      "status": "PENDING \u2014 CI",
       "why": "No docker daemon in this container (/var/run/docker.sock absent, measured 2026-09-02). The image cannot be built or benchmarked here."
     },
     "benchmark_200_frame": {
-      "status": "PENDING — CI",
+      "status": "PENDING \u2014 CI",
       "why": "Runs inside the built image, against the same 4-core shape the reference figures came from."
     }
   }

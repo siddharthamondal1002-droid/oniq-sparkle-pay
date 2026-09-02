@@ -132,7 +132,7 @@ RUN /usr/bin/env python3 -m venv /opt/oniq/venv-autorig && \
 # numpy goes in before every C extension below, so each one compiles against
 # the ABI it will actually run on.
 RUN /opt/oniq/venv-autorig/bin/pip install --no-cache-dir \
-      "setuptools==65.7.0" "wheel==0.38.4" && \
+      "setuptools==65.7.0" "wheel==0.38.4" "Cython==0.29.37" && \
     /opt/oniq/venv-autorig/bin/pip install --no-cache-dir \
       "numpy==1.23.5" \
       "opencv-python-headless==4.9.0.80" \
@@ -162,12 +162,25 @@ RUN MMCV_WITH_OPS=1 FORCE_CUDA=0 \
 # extension is the failure this project has already paid for once. Building
 # both from source with --no-build-isolation links them to the numpy that is
 # actually installed.
+# CYTHON IS INSTALLED ABOVE AND IT IS NOT OPTIONAL. MEASURED 2026-09-02:
+# --no-build-isolation means pip does NOT provision a build environment, so
+# a source build that needs Cython simply does not get it — pycocotools
+# fails with `cc1: fatal error: pycocotools/_mask.c: No such file or
+# directory`, because Cython never ran to generate the C from the .pyx.
+# --no-deps on pycocotools for a different reason: its dependency
+# resolution otherwise UPGRADES matplotlib and Pillow off the pins set
+# above (measured: matplotlib 3.7.5 -> 3.10.9, Pillow 9.5.0 -> 12.3.0).
+# Both are already installed at their pinned versions, so nothing is lost.
 RUN /opt/oniq/venv-autorig/bin/pip install --no-cache-dir --no-binary pycocotools \
-      --no-build-isolation "pycocotools==2.0.7" && \
+      --no-build-isolation --no-deps "pycocotools==2.0.7" && \
     /opt/oniq/venv-autorig/bin/pip install --no-cache-dir \
       "json_tricks==3.17.3" "munkres==1.1.4" && \
     /opt/oniq/venv-autorig/bin/pip install --no-cache-dir --no-binary xtcocotools \
-      --no-build-isolation --no-deps "xtcocotools==1.14.3"
+      --no-build-isolation --no-deps "xtcocotools==1.14.3" && \
+    /opt/oniq/venv-autorig/bin/python -c \
+      "import numpy; from pycocotools import mask; from xtcocotools.coco import COCO; \
+       assert numpy.__version__=='1.23.5', numpy.__version__; \
+       print('cocotools C extensions load against numpy', numpy.__version__)"
 
 # mmdet with its deps already satisfied above; mmpose WITHOUT deps, because
 # mmpose 0.29.0 requires chumpy — a 3D-mesh-only package that does not build
