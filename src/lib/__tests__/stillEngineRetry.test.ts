@@ -433,11 +433,24 @@ describe("G — the app may not ask for more than the engine takes", () => {
   it("story-still refuses an over-length ask as STEPPABLE, without a GPU job", () => {
     // 422 is the ladder's step-down signal: ask again with a shorter rung.
     // A 5xx would have burned three paid attempts on an unchanging answer.
-    expect(stillFn).toMatch(/if \(prompt\.length > MAX_ASK_CHARS\) \{/);
+    //
+    // THE CEILING IS PER ENGINE since the 2026-09-01 directive restored the
+    // gateway alongside the GPU. The invariant this test protects is
+    // unchanged and is the reason MAX_ASK_CHARS exists: story-still must
+    // refuse what the chosen engine would refuse, at the edge, for free —
+    // never invent a number of its own. So it still imports both ceilings
+    // rather than writing either one down.
+    expect(stillFn).toMatch(/const askCeiling = usingGateway \? MAX_GATEWAY_ASK_CHARS : MAX_ASK_CHARS;/);
+    expect(stillFn).toMatch(/if \(prompt\.length > askCeiling\) \{/);
     expect(stillFn).toMatch(/retryable: false,\s*\n\s*\},\s*\n\s*422,/);
+    // The GPU's ceiling comes from the module that mirrors contract.py, and
+    // the gateway's from the module that owns the gateway call. Neither is a
+    // literal here — a second copy of a contract number is the drift that
+    // caused the measured 27% failure rate in the first place.
     expect(stillFn).not.toMatch(/MAX_PROMPT = 2000/);
-    // and it imports the ceiling rather than keeping its own
+    expect(stillFn).not.toMatch(/askCeiling = \d/);
     expect(stillFn).toMatch(/MAX_ASK_CHARS,/);
+    expect(stillFn).toMatch(/MAX_GATEWAY_ASK_CHARS,/);
   });
 
   it("the worker builds every rung inside the ceiling — 1900 is gone", () => {

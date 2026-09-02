@@ -769,7 +769,20 @@ describe("ting's fallback is gated, classified, and priced", () => {
   it("goes through the classifier and the decision, not a bare !res.ok", () => {
     expect(TING).toMatch(/classifyClaudeFailure\(/);
     expect(TING).toMatch(/failoverDecision\(/);
-    expect(TING).toMatch(/if \(gate\.eligible && !hasAttachment\)/);
+    // ATTACHMENTS FAIL OVER TOO since the attachment-drop fix on main: the
+    // trigger is `gate.eligible` alone, and hasAttachment now decides only
+    // HOW the message is bridged, not whether there is a second engine at
+    // all. ting/index.ts records why — a Ting message carrying a photo or a
+    // PDF previously had no fallback and simply died whenever Anthropic was
+    // out, and the reason it was excluded (a bridge that flattened content to
+    // text) was fixed at the bridge instead.
+    //
+    // What this test exists to guard is UNCHANGED, and is why the pin moves
+    // rather than goes: the trigger must be the classified decision and never
+    // a bare `!res.ok`. Both branches are pinned, so the gate being consulted
+    // at all stays asserted rather than only the path that fails over.
+    expect(TING).toMatch(/if \(gate\.eligible\) \{/);
+    expect(TING).toMatch(/if \(!gate\.eligible\) \{/);
   });
 
   it("reads the owner gate from the environment", () => {

@@ -389,6 +389,16 @@ const STILL_WAIT_MS = 25 * 60_000;
  */
 async function drawStill(payload) {
   const started = await edge('story-still', { ...payload, action: 'start' });
+  // THE GATEWAY ANSWERS IN ONE CALL. A gateway draw is one request measured in
+  // seconds, so `start` comes back with the frame already on it and there is
+  // no engine job to poll — polling one would earn a 400 and, worse, a second
+  // image if the function ever chose to redraw instead. The GPU is the engine
+  // that needs the resume pair, and it is the only one that gets it.
+  //
+  // Keyed off `done` rather than off `provider`, so this stays right if a
+  // third engine ever answers synchronously: what matters is whether a frame
+  // arrived, not whose it was.
+  if (started.done && started.data) return started;
   const t0 = Date.now();
   for (;;) {
     if (Date.now() - t0 > STILL_WAIT_MS) {
@@ -1048,6 +1058,38 @@ function audioPlanFor(shot) {
  * exactly as a refused clip already does. Spending Google's metered key on
  * work the owner routed to hardware they already pay for is the one outcome
  * this must never produce.
+ *
+ * OWNER DIRECTIVE, 2026-09-01: set IN_HOUSE_MOTION=off, so motion routes to
+ * story-clip (Veo) rather than ONIQ's own LTX. The in-house endpoint spent
+ * the day unable to start a worker — the GHCR image was private, so every
+ * pull failed and the worker sat in `initializing` forever — and a film
+ * whose motion engine cannot start is a film of stills.
+ *
+ * WHAT THIS COSTS, measured rather than estimated. The August billing export
+ * prices Veo Fast 720p with Audio at 170 seconds for Rs 1,625.99, i.e.
+ * Rs 9.56 per second of generated video. With STORY_MOVIE=select only
+ * motion-selected shots reach it, which is why August's bill was Rs 1,626
+ * and not the ~Rs 33,000 an all-Veo month would have cost.
+ *
+ * WHAT IT DOES NOT FIX, said plainly because the flag invites the opposite
+ * assumption: this directive changes which engine ANIMATES a frame. It does
+ * not make frames exist. Both failures on 2026-09-01 died at `still 1`,
+ * before motion was ever reached, and Veo is image-to-video — it needs a
+ * starting frame or it has nothing to do.
+ *
+ * THE STILL STAGE WAS FIXED SEPARATELY, later the same day. A second owner
+ * directive (2026-09-01, see supabase/functions/_shared/stillRoute.ts) routed
+ * stills back to the Lovable gateway and took the GPU out of the still path,
+ * so a frame now exists without a RunPod worker having to start. The two
+ * directives are independent on purpose: STILL_PROVIDER picks who draws,
+ * IN_HOUSE_MOTION picks who animates, and neither falls back to the other.
+ *
+ * ONE PAIRING IS IMPOSSIBLE and generateClip refuses it below: in-house
+ * motion animates a still by its BUCKET KEY, and a gateway still is bytes
+ * that were never stored.
+ *
+ * The flag lives in the repository variable IN_HOUSE_MOTION, not in this
+ * file — story-worker.yml reads `${{ vars.IN_HOUSE_MOTION }}`.
  */
 /**
  * The renderer's shotId is `<jobId>:<stem>`; story-motion wants identifiers it
@@ -1072,12 +1114,37 @@ function motionRoute() {
   });
 }
 
-async function generateClip(shot, stillFile, shotSeconds, shotId, noWatermark = false) {
+async function generateClip(shot, stillFile, shotSeconds, shotId, noWatermark = false, stillKey = null) {
   const route = motionRoute();
   if (route.engine === 'blocked') {
     // Honest in-house failure. The caller already treats a thrown clip as
     // "this shot carries as a still", so the film still completes.
     throw new Error(`in-house motion unavailable (${route.reason}) — no provider fallback`);
+  }
+  if (route.engine === 'in-house' && !stillKey) {
+    // THE PAIRING THAT CANNOT WORK, refused here rather than discovered on
+    // the GPU. In-house motion does not take a frame: story-motion RE-DERIVES
+    // the still's bucket key from the job token's id plus the scene and shot,
+    // and animates whatever object is at that key. That is what keeps a
+    // bucket path from ever travelling — and it means the still must have
+    // been written into the bucket by the in-house STILL engine.
+    //
+    // A gateway still is returned as bytes and written nowhere (story-still
+    // answers `key: null` and says so explicitly). Sending story-motion after
+    // it names an object that was never created: the worker's download fails
+    // after the job is claimed, so the cost is a queued GPU job and a
+    // confusing error instead of this sentence.
+    //
+    // Not a fallback to Veo, deliberately: which engine animates is an owner
+    // setting (IN_HOUSE_MOTION), and a worker that silently switched provider
+    // because a still lacked a key would be choosing where the money goes.
+    // The caller treats a thrown clip as "this shot carries as a still", so
+    // the film still finishes — as classic Ken Burns, which is exactly what
+    // it would have been anyway.
+    throw new Error(
+      'in-house motion needs a still in the bucket; this frame came from the ' +
+        'gateway (key: null) — set STILL_PROVIDER=in_house or IN_HOUSE_MOTION=off',
+    );
   }
   if (route.engine === 'in-house') {
     // ONIQ's own GPU. Identifiers only — story-motion recomputes the still's
@@ -2626,7 +2693,16 @@ if (offline) {
             ` — clip REQUESTED (${motionPlan.reason})`,
         );
         try {
-          const got = await generateClip(shot, stillFile, shotSeconds, `${job.id}:${stem}`, job.no_watermark);
+          const got = await generateClip(
+            shot,
+            stillFile,
+            shotSeconds,
+            `${job.id}:${stem}`,
+            job.no_watermark,
+            // Whether the frame exists in the bucket, which is the only thing
+            // in-house motion can animate. A gateway still has no key.
+            still?.key ?? null,
+          );
           const clipFile = path.join(assetRoot, `${stem}.clip.mp4`);
           fs.writeFileSync(clipFile, Buffer.from(got.data, 'base64'));
           const clipSeconds = secondsOf(clipFile);

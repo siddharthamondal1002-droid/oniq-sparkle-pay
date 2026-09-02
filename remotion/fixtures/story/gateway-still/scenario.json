@@ -1,0 +1,82 @@
+{
+  "name": "gateway stills \u2014 a synchronous engine, no GPU anywhere in the path",
+  "_why": "OWNER DIRECTIVE 2026-09-01: stills route back to the Lovable gateway and the GPU leaves the still path, because the RunPod worker had never drawn a frame on the current endpoint and every film was dying at `still 1`. The gateway answers in ONE call \u2014 `start` carries the frame \u2014 so this scenario proves the worker takes it without polling. The failure it exists to catch is expensive: a worker that polled a synchronous engine would earn a 400 per shot, and a future `poll` that redrew instead of refusing would bill a second image per shot forever. `key: null` is the other half \u2014 a gateway still is bytes that were never stored, so in-house motion cannot animate one. This is a CLASSIC grade, which is what the directive's era actually shipped: gateway stills under ONIQ's own Ken Burns, with Veo reserved for movie grade. Ten shots rather than three because the duration pre-gate refuses a film whose measured narration is under 50% of the sellable 60s minimum \u2014 the older three-shot scenarios predate that gate and now die before the still stage they were written to exercise.",
+  "_run": "STORY_FIXTURES=fixtures/story/gateway-still node scripts/story-worker.mjs",
+  "job": {
+    "id": "dry-1",
+    "prompt": "a brave mouse in a bakery",
+    "shotCount": 10,
+    "grade": "classic",
+    "requestedSeconds": 60
+  },
+  "plan": {
+    "title": "The Mouse Under the Bakery",
+    "setting": "a warm old bakery at night, flour dust in the lamplight",
+    "shots": [
+      {
+        "still": "A small brown mouse peers out from under a wooden floorboard of a dark bakery.",
+        "narration": "Under the floorboards of an old bakery there lived a very small and a very brave little brown mouse."
+      },
+      {
+        "still": "Wide view of the dark bakery at night, moonlight lying flat across the flour-dusted counters.",
+        "narration": "Every night when the baker went home and locked the door, she came out to see what the world had left."
+      },
+      {
+        "still": "The mouse carries a crumb twice its own size across the wide wooden floor.",
+        "narration": "And every night she carried home one crumb, which to a mouse is a very great treasure indeed to keep."
+      },
+      {
+        "still": "A tall shelf of copper bowls above, seen from the mouse's low vantage on the floor.",
+        "narration": "But this night the shelf above her held a bowl of something warmer and sweeter than any crumb she knew."
+      },
+      {
+        "still": "The mouse begins to climb a knotted apron string hanging from a hook on the wall.",
+        "narration": "So she took hold of the apron string that hung there and she began to climb, paw over careful paw."
+      },
+      {
+        "still": "Halfway up the string, the mouse pauses as the string sways over the dark drop below.",
+        "narration": "Halfway up, the string swung out over the dark, and she held very still until the swinging stopped again."
+      },
+      {
+        "still": "The mouse reaches the shelf edge beside a wide bowl of soft rising dough.",
+        "narration": "At the top she found the bowl, and in the bowl a soft pale hill of dough, rising slowly in the cold."
+      },
+      {
+        "still": "A single lamp flickers on downstairs; long shadows stretch across the bakery floor below.",
+        "narration": "Then a lamp came on below her, and the shadows on the floor grew long and thin and reached for the wall."
+      },
+      {
+        "still": "The mouse pinches off one small piece of dough and holds it against her chest.",
+        "narration": "She took one small piece, no larger than her own two paws, and she held it close against her chest."
+      },
+      {
+        "still": "The mouse slips back beneath the floorboard, the small pale piece of dough held safe.",
+        "narration": "And down she went, under the boards, home again, with the finest treasure that bakery had ever given away."
+      }
+    ]
+  },
+  "still": [
+    {
+      "synchronous": true
+    }
+  ],
+  "_expect": {
+    "exit": 0,
+    "calls": {
+      "still": 10,
+      "voice": 10,
+      "clip": 0,
+      "plot": 1
+    },
+    "log": [
+      "story-plot #1 ok",
+      "story-still #10 ok",
+      "story-voice #10 ok"
+    ],
+    "absent": [
+      "FAIL",
+      "unknown engineJobId"
+    ],
+    "film": true
+  }
+}

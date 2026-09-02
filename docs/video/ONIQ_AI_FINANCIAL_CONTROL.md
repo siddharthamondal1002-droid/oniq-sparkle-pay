@@ -2427,3 +2427,126 @@ weakened by accident.
 Entries above this line are history and are left as written.
 
 GPU spend on 2026-09-01: the harness removal is $0 — no worker, no job.
+
+---
+
+## 2026-09-01 — motion routed to Veo (owner directive)
+
+`IN_HOUSE_MOTION` set to `off`, so `routeMotion` answers `external` and
+motion goes to `story-clip` (Veo 3.1 Fast) rather than ONIQ's own LTX.
+The repository variable is the switch; `story-worker.yml` reads
+`${{ vars.IN_HOUSE_MOTION }}`, so this is a settings change and no deploy.
+
+WHY. The in-house endpoint could not start a worker all day. The GHCR
+package was PRIVATE, so every pull was refused and the worker sat in
+`initializing` indefinitely — `{"idle":0,"initializing":1,"ready":0,
+"running":0,"throttled":0}` measured three times between 19:34 and 19:51.
+Two user films died at `still 1`. A film whose motion engine cannot start
+is a film of stills.
+
+WHAT IT COSTS, from the August billing export rather than an estimate:
+
+| SKU                                 | Usage      | Cost      |
+| ----------------------------------- | ---------- | --------- |
+| Veo Fast Generation 720p with Audio | 170 second | ₹1,625.99 |
+
+**₹9.56 per second of generated video.** With `STORY_MOVIE=select` only
+motion-selected shots reach Veo, which is why August billed ₹1,626 rather
+than the ~₹33,000 an all-Veo month would have cost. August produced 56.0
+minutes of finished video across 31 jobs and 485 shots; at 170 Veo-seconds
+that is roughly 21 clips, about 4% of shots. The hybrid is what keeps the
+other 96% cheap.
+
+A SAVING NOT YET TAKEN: the SKU is _with Audio_, and `story-clip` plays
+every result MUTED because narration is the clock in `StoryFilm`. Audio is
+being bought and discarded on every clip. Worth checking whether a
+non-audio SKU is priced lower before the next film.
+
+WHAT THIS DOES NOT FIX. Stills remain in-house. `story-still` calls RunPod
+and has no other provider — the fallback was removed deliberately so the
+stage could not silently outsource — and Veo is image-to-video, needing a
+starting frame. While the RunPod worker cannot draw, no story job completes
+on any motion setting. This directive decides which engine animates frames
+once they exist; it does not make them exist.
+
+GPU spend for this change: $0. It is a variable, not a job.
+
+---
+
+## 2026-09-01 — stills routed back to the Lovable gateway (owner directive)
+
+The owner's words: _"look I want old version back where in-house snd veo
+both was there without gpu"_. That names the 14–27 August shape — stills
+drawn through `ai.gateway.lovable.dev` on `LOVABLE_API_KEY`, motion either
+ONIQ's own Remotion Ken Burns (classic grade) or Veo (movie grade), and no
+GPU anywhere in the path.
+
+**Whose money: Lovable credits** — the same pool `story-voice` and
+`translate` already spend. Not the metered Google key (that is the
+2026-08-09 incident this repo's `CLAUDE.md` opens with), and not RunPod.
+
+This SUPERSEDES the 2026-08-27 fully-in-house directive **for the still
+stage only**. Motion routing is unchanged: the directive above this one
+stands.
+
+WHY, measured rather than assumed. The GPU worker has never drawn a frame
+on this configuration. Both films on 2026-09-01 (jobs `e09a0dcf`,
+`4b335729`) died at `still 1` with the endpoint reporting
+`{"initializing":1,"ready":0,"running":0}` for the whole 25-minute wait —
+the image pull never finished, so no GPU second was ever spent on drawing
+and no timeout could have helped. Veo is image-to-video and needs a
+starting frame, so while stills cannot be drawn NO story completes on any
+motion setting. This is the stage that unblocks everything downstream of
+the entry above.
+
+### What survives of the 2026-08-27 directive: all of its reasoning
+
+That directive deleted the previous provider rather than leaving it as a
+fallback, because "a stage that can silently outsource is the behaviour the
+directive ends". That is still right, and the second engine is back as a
+**choice**, never as a safety net:
+
+- one engine is picked from `STILL_PROVIDER` **before anything is called**
+  (`supabase/functions/_shared/stillRoute.ts` — pure, and tested);
+- a chosen engine that is not configured **fails**. It does not fall
+  through to the other one, in either direction. A `STILL_PROVIDER` typo
+  blocks rather than defaulting, so a slip cannot decide which account
+  pays;
+- every reply names the engine that drew the frame, in `provider`. The
+  failure this is built against is not "the wrong engine ran" — it is "the
+  wrong engine ran and nothing said so".
+
+`STILL_PROVIDER` unset means `gateway`, which is this directive in force.
+Set it to `in_house` to put the GPU back in the path once the endpoint can
+actually start a worker.
+
+### What the gateway cannot do, reported per request
+
+| Input               | In-house                  | Gateway                             |
+| ------------------- | ------------------------- | ----------------------------------- |
+| `seed`              | real, reproducible        | none — `seedHonoured: false`        |
+| `negativePrompt`    | conditioning tensor       | a sentence in the ask               |
+| `referenceStrength` | a dial                    | none                                |
+| character reference | bucket **key** to the GPU | **bytes**, inlined by the edge fn   |
+| bucket key out      | `key` — motion animates it| `key: null` — nothing was stored    |
+| prompt ceiling      | 1000 (worker contract)    | 2000                                |
+
+The reference reaches both engines from the SAME `characterRefId` through
+the same server-side allowlist; only the last hop differs. A caller still
+supplies a name from a closed set and never a path, a URL or bytes.
+
+Because a gateway still is never written to a bucket, **in-house motion
+cannot animate one** — `story-motion` re-derives the still's key and would
+claim a GPU job only to fail its own download. The worker now refuses that
+pairing out loud instead, and does not silently switch the shot to Veo:
+which engine animates is an owner setting, not a worker's improvisation.
+
+### Cost
+
+Per-image gateway pricing is not published in a form this repo has
+measured, so no rupee figure is stated here rather than a guessed one. What
+is known: it is the Lovable credit pool, it is the same pool that ran this
+stage for the whole 14–27 August era, and August's films were produced on
+it. The next film's credit movement is the measurement to record here.
+
+GPU spend for this change: $0 — the GPU leaves the path entirely.
