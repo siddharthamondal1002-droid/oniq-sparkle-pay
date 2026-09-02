@@ -121,6 +121,11 @@ jobs:
           CORPUS_ID: ${{ inputs.corpus_id }}
         run: |
           set -euo pipefail
+          # The driver is invoked directly in ENV A. The pinned image was built
+          # before the `measure` entrypoint command existed, so its entrypoint
+          # still reports "unknown command: measure". ENV A itself is unchanged
+          # and validated; calling the venv's python on the mounted driver runs
+          # the same code the entrypoint would have exec'd.
           docker run --rm \
             -e TQDM_DISABLE=1 \
             -e ONIQ_CORPUS_ID="${CORPUS_ID}" \
@@ -129,7 +134,8 @@ jobs:
             -v "${PWD}/runtime/arap-cpu/proofs:/repo-proofs:ro" \
             -v "${PWD}/corpus:/corpus:ro" \
             -v "${PWD}/out:/work" \
-            "${DIGEST}" measure /corpus /work
+            --entrypoint /opt/oniq/venv-autorig/bin/python \
+            "${DIGEST}" /measure/measure_eligibility.py /corpus /work
           test -s out/manifest.json
 
       - name: "Compute eligibility with the production functions, unchanged"
