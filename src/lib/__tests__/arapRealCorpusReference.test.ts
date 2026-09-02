@@ -22,6 +22,7 @@ import {
 } from "../arapCorpusDecision";
 import type { CorpusReport } from "../arapEligibilityCorpus";
 import { ARAP_ELIGIBILITY } from "../arapProvider";
+import { l3RenderQc } from "../motionCost";
 
 const root = process.cwd();
 const read = (p: string) => readFileSync(join(root, p), "utf8");
@@ -139,5 +140,53 @@ describe("the corpus the run measured is the corpus the owner authorised", () =>
     }
     expect(fetched.readBaseHost).toMatch(/^[a-z0-9-]+\.r2\.dev$/);
     expect(read(FETCHED)).not.toContain("bb483798");
+  });
+});
+
+describe("the WALKING render QC reference — run 33654209597 on the two eligible primaries", () => {
+  const qc = JSON.parse(
+    read("remotion/fixtures/arap-eligibility/real-gateway-walking-qc-reference.json"),
+  ) as {
+    passed: number;
+    failed: number;
+    characters: number;
+    verdicts: {
+      stem: string;
+      rendered: boolean;
+      pass: boolean;
+      reasons: string[];
+      escalateTo: number | null;
+      summary: Parameters<typeof l3RenderQc>[0] & {
+        fillMinPct: number;
+        largestFillDropPct: number;
+      };
+    }[];
+  };
+  it("both eligible primaries rendered, and both failed the existing gate", () => {
+    expect(qc).toMatchObject({ characters: 2, passed: 0, failed: 2 });
+    expect(qc.verdicts.map((v) => v.stem)).toEqual([
+      `${FILM_PRESENT}-s-shot002`,
+      `${FILM_PRESENT}-s-shot004`,
+    ]);
+    for (const v of qc.verdicts) {
+      expect(v.rendered).toBe(true);
+      expect(v.pass).toBe(false);
+      expect(v.escalateTo).toBe(4);
+      expect(v.reasons[0]).toBe("character left the frame or vanished on some frames");
+    }
+  });
+  it("each verdict re-derives from its statistics through l3RenderQc as it stands", () => {
+    for (const v of qc.verdicts) {
+      const again = l3RenderQc(v.summary);
+      expect(again.pass).toBe(v.pass);
+      expect(again.reasons).toEqual(v.reasons);
+      expect(again.escalateTo).toBe(v.escalateTo);
+    }
+  });
+  it("the fill declined gradually to nothing — the walked-out-of-view signature, not a sudden crumple", () => {
+    for (const v of qc.verdicts) {
+      expect(v.summary.fillMinPct).toBeLessThan(0.01);
+      expect(v.summary.largestFillDropPct).toBeLessThan(0.5);
+    }
   });
 });

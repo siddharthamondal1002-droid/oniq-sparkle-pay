@@ -91,8 +91,13 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "${STEMS}" ] || { echo "no stems given: nothing to QC"; exit 0; }
+          # Everything that touches out/qc runs INSIDE the image, as its own uid:
+          # a directory the rig creates belongs to uid 10001, and the runner
+          # cannot write into it (run 33653722341: "Permission denied" on the
+          # mask copy). ENTRYPOINT=<binary> swaps the image's entrypoint for a
+          # plain tool such as cp, still as that uid.
           run_in_image() {
-            docker run --rm -e TQDM_DISABLE=1 \
+            docker run --rm -e TQDM_DISABLE=1 ${ENTRYPOINT:+--entrypoint "${ENTRYPOINT}"} \
               -v "${PWD}/corpus:/corpus:ro" \
               -v "${PWD}/runtime/arap-cpu/qc:/qc:ro" \
               -v "${PWD}/out/qc:/work" \
@@ -114,7 +119,7 @@ jobs:
             # 2. the provider-mandated silhouette (u2netp) replaces the classical mask the
             #    rig wrote — the classical one measured 100% fill on painterly art
             run_in_image segment "/work/${stem}/char/texture.png" "/work/${stem}/seg" || { echo "segment failed for ${stem}"; echo "::endgroup::"; continue; }
-            cp "out/qc/${stem}/seg/mask.png" "out/qc/${stem}/char/mask.png"
+            ENTRYPOINT=cp run_in_image "/work/${stem}/seg/mask.png" "/work/${stem}/char/mask.png" || { echo "mask copy failed for ${stem}"; echo "::endgroup::"; continue; }
             # 3. the WALKING render, arm-damped retarget, inside the validated image
             run_in_image render "/work/${stem}/char" "/opt/oniq/AnimatedDrawings/${MOTION}" "/work/${stem}/walk.gif" || { echo "render failed for ${stem}"; echo "::endgroup::"; continue; }
             # 4. per-frame statistics, in ENV B, for the existing gate

@@ -1,0 +1,84 @@
+{
+  "schema": "oniq.arap-walking-qc/1",
+  "gate": "src/lib/motionCost.ts l3RenderQc, default thresholds",
+  "motion": "WALKING (examples/bvh/fair1/zombie.bvh via examples/config/motion/zombie.yaml, arm-damped retarget)",
+  "characters": 2,
+  "passed": 0,
+  "failed": 2,
+  "verdicts": [
+    {
+      "stem": "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot002",
+      "rendered": true,
+      "pass": false,
+      "reasons": [
+        "character left the frame or vanished on some frames",
+        "foot line roamed 16% of canvas (> 15% \u2014 unstable deform)"
+      ],
+      "escalateTo": 4,
+      "summary": {
+        "clip": "walk.gif",
+        "frames": 270,
+        "bodyFrames": 269,
+        "frameSize": [500, 500],
+        "meanFillPct": 12.534,
+        "inFrameAllFrames": false,
+        "footLineRangePx": 80,
+        "frameSizePx": 500,
+        "fillMinPct": 0.005,
+        "fillMaxPct": 15.706,
+        "largestFillDropPct": 0.335,
+        "vanishedFrames": [
+          237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254,
+          255, 256
+        ],
+        "edgeContactFrames": [
+          159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176,
+          177, 178
+        ],
+        "interframeMeanAbsDiff": 1.178,
+        "staticPairs": 0,
+        "comparedPairs": 269
+      }
+    },
+    {
+      "stem": "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot004",
+      "rendered": true,
+      "pass": false,
+      "reasons": ["character left the frame or vanished on some frames"],
+      "escalateTo": 4,
+      "summary": {
+        "clip": "walk.gif",
+        "frames": 590,
+        "bodyFrames": 589,
+        "frameSize": [500, 500],
+        "meanFillPct": 4.881,
+        "inFrameAllFrames": false,
+        "footLineRangePx": 63,
+        "frameSizePx": 500,
+        "fillMinPct": 0,
+        "fillMaxPct": 6.038,
+        "largestFillDropPct": 0.099,
+        "vanishedFrames": [
+          526, 527, 528, 529, 530, 531, 532, 533, 534, 535, 536, 537, 538, 539, 540, 541, 542, 543,
+          544, 545
+        ],
+        "edgeContactFrames": [
+          346, 347, 348, 349, 350, 351, 352, 353, 354, 355, 356, 357, 358, 359, 360, 361, 362, 363,
+          364, 365
+        ],
+        "interframeMeanAbsDiff": 0.728,
+        "staticPairs": 7,
+        "comparedPairs": 589
+      }
+    }
+  ],
+  "note": "Isolated renders outside production routing. A pass here enables nothing; a fail is recorded as the existing gate's escalation and is not acted on.",
+  "provenance": {
+    "run": 33654209597,
+    "workflow": ".github/workflows/arap-walking-qc.yml",
+    "commit": "21e99575d2567dca75c0e5e72f766631863d4880",
+    "image": "ghcr.io/siddharthamondal1002-droid/oniq-sparkle-pay/arap-cpu@sha256:d0fb43f5f0b2252ff62fc5bee15e121de2ece6d21711de39801d25878d520955",
+    "artifact": "arap-walking-qc, id 9856183625 (clips, rig directories, per-frame statistics)",
+    "note": "verdicts.json as the run printed it, with this provenance block added; the vanished/edge frame lists are the first twenty the statistics script records"
+  }
+}

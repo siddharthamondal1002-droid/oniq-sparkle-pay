@@ -118,7 +118,7 @@ figure: 22.2 % over `MEASURED_VALID_RECORDS`, with the interval above.
   grammar entry, not a claim that these shots asked to walk. It runs in
   `arap-walking-qc.yml`: rig, u2netp silhouette, WALKING render inside the
   same digest, judged by the existing `l3RenderQc`. Its verdicts are
-  appended below when they exist.
+  below.
 - **The grammar stays WALKING.** Eligibility answered "can this character
   safely deform" for two of nine; it says nothing about what motion has
   been demonstrated.
@@ -129,4 +129,53 @@ figure: 22.2 % over `MEASURED_VALID_RECORDS`, with the interval above.
 
 ## WALKING render QC
 
-_Pending: the two eligible primaries have not yet been rendered._
+Run 33654209597 (`arap-walking-qc.yml` at `21e99575`, same digest) rigged
+each eligible primary with the image's own auto-rig, replaced the rig's
+classical mask with the u2netp silhouette the envelope mandates, rendered
+the WALKING driver (zombie.bvh, arm-damped retarget) headlessly, measured
+every frame in ENV B, and judged with the existing `l3RenderQc` at its
+default thresholds. The verdicts, as the run printed them, are in
+`remotion/fixtures/arap-eligibility/real-gateway-walking-qc-reference.json`;
+the clips, rig directories and per-frame statistics are in the run's
+artifact.
+
+| shot | frames | mean fill | fill min / max | largest per-frame drop | foot range  | edge contact from | vanished from | verdict                                                     |
+| ---- | ------ | --------- | -------------- | ---------------------- | ----------- | ----------------- | ------------- | ----------------------------------------------------------- |
+| 002  | 270    | 12.5 %    | 0.005 / 15.7 % | 0.34 pt                | 80 / 500 px | frame 159         | frame 237     | **FAIL**: left the frame or vanished; foot line roamed 16 % |
+| 004  | 590    | 4.9 %     | 0 / 6.0 %      | 0.10 pt                | 63 / 500 px | frame 346         | frame 526     | **FAIL**: left the frame or vanished                        |
+
+**0 of 2 passed.** The rig itself was fine on both (detector 0.970 and
+0.916, the same primaries the measurement scored), the silhouette was the
+measured one (57.2 % on shot 002), the render produced real moving pixels
+(inter-frame difference 1.18 and 0.73, at most 7 static pairs of 589), and
+the mean fill sat above the gate's 4 % collapse floor. What failed is that
+in both clips the character reached the canvas edge and, some 80 to 180
+frames later, was gone. The fill declined gradually to nothing; the largest
+frame-to-frame loss was a third of a percentage point. That is the
+walked-out-of-view signature, not the sudden crumple of a torn mesh.
+
+What the evidence does not establish is why. Two readings fit the numbers
+and only the frames can separate them: the ARAP deform drifting the figure
+off its ground under the walk, which is the instability the gate exists to
+catch, or the driver's scene translation carrying a correctly deforming
+figure out of the fixed reference camera. The gate is deliberately blind to
+that distinction and fails closed; under the brief, a failed render remains
+a failure even when eligibility passed, and it is recorded as such. Frame
+inspection of the artifact's clips is the next step, and it is a human one.
+
+So Step 11 answers, for this corpus: **no real character has yet passed the
+isolated WALKING QC.** Nothing is enabled, and nothing was going to be
+enabled by a pass either.
+
+## Where this leaves ARAP
+
+- **Eligibility: `ARAP_AS_SELECTIVE_PROVIDER`**, 2 of 9 over
+  `MEASURED_VALID_RECORDS`, with an interval that straddles the majority
+  line.
+- **Render QC: 0 of 2.** Both eligible characters failed the existing gate
+  on the one grammar entry.
+- **Grammar: WALKING**, unchanged. **Production: off**, unchanged.
+- A Step 12 design for a selective provider is not warranted by this
+  evidence until at least one real character survives the render gate; the
+  frame inspection above decides whether that is a deform problem or a
+  camera problem, and those have different fixes and different owners.
