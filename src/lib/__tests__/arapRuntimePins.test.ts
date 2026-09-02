@@ -261,38 +261,89 @@ describe("the image is not in production yet", () => {
 
   it("records honestly what has been proven and what has not", () => {
     // This used to pin a fixed list of stages as PENDING, and it correctly
-    // FAILED when run 33618976434 actually built the image and proved ENV A.
-    // A frozen list is the wrong shape — it makes real progress look like a
-    // regression. What must not drift is the HONESTY, so that is what is
-    // asserted: the genuinely unproven stages stay PENDING, every status
-    // uses a recognised vocabulary, and a PASS that is only partial has to
-    // say what it did not cover.
+    // FAILED when a build actually proved them. A frozen list makes real
+    // progress look like a regression. What must not drift is the HONESTY,
+    // so that is what is asserted.
     expect(pins.validation.env_b_render.status).toBe("PASS");
 
-    // Nothing has run these yet. They come from the in-image proofs, which
-    // no completed build has reached.
-    for (const key of ["benchmark_200_frame", "in_image_determinism"]) {
-      expect(pins.validation[key].status, key).toMatch(/^PENDING/);
-    }
-
-    // No status may be blank or free-form: it starts PASS, PENDING or
-    // BLOCKED, so "what state is this in" is always answerable.
+    // No status may be blank or free-form: it starts PASS, PENDING, BLOCKED
+    // or INFORMATIONAL, so "what state is this in" is always answerable.
     for (const [key, entry] of Object.entries(pins.validation)) {
       if (key.startsWith("$")) continue;
-      expect(entry.status, key).toMatch(/^(PASS|PENDING|BLOCKED)\b/);
+      expect(entry.status, key).toMatch(/^(PASS|PENDING|BLOCKED|INFORMATIONAL)\b/);
     }
 
-    // A partial PASS must carry its own caveat. env_a_stack passed at BUILD
-    // time while autorig_smoke.py never ran, and a reader has to be able to
-    // see that from the record rather than from the commit message.
-    const envA = pins.validation.env_a_stack as unknown as {
-      status: string;
-      proved?: string[];
-      not_yet?: string;
-    };
-    if (envA.status.startsWith("PASS")) {
-      expect(envA.proved?.length ?? 0).toBeGreaterThan(0);
-      expect(envA.not_yet, "a partial PASS must say what it did not cover").toBeTruthy();
+    // A PASS must carry evidence. Anything claiming PASS names the run that
+    // produced it or the measurements it rests on — never the word alone.
+    for (const [key, entry] of Object.entries(pins.validation)) {
+      if (key.startsWith("$") || !entry.status.startsWith("PASS")) continue;
+      const e = entry as unknown as Record<string, unknown>;
+      const hasEvidence =
+        Boolean(e.run) || Boolean(e.measured) || Boolean(e.proved) || Boolean(e.where);
+      expect(hasEvidence, `${key} claims PASS without naming its evidence`).toBe(true);
     }
+  });
+
+  it("the validated stages cannot quietly regress to PENDING", () => {
+    // The runtime-validation gate is closed on measured results from a real
+    // build. If someone reopens it by blanking these back to PENDING, or by
+    // dropping the figures that justify the PASS, this fails rather than the
+    // record silently softening.
+    const bench = pins.validation.benchmark_in_image as unknown as {
+      status: string;
+      run?: string;
+      digest?: string;
+      measured?: Record<string, unknown>;
+    };
+    expect(bench.status).toBe("PASS");
+    expect(bench.run).toBeTruthy();
+    expect(bench.digest).toMatch(/@sha256:[0-9a-f]{64}$/);
+    for (const field of [
+      "render_seconds",
+      "wall_seconds",
+      "max_rss_mb",
+      "gif_frames",
+      "frame_size",
+      "output_bytes",
+      "output_sha256",
+      "foreground_fraction_mean",
+      "interframe_mean_abs_diff",
+      "static_frames",
+      "gif_frames_per_render_second",
+      "gl_version",
+      "gl_renderer",
+    ]) {
+      expect(bench.measured?.[field], `benchmark is missing ${field}`).toBeDefined();
+    }
+    // A truncated display value is not a measurement.
+    expect(bench.measured?.output_sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(bench.measured?.static_frames).toBe(0);
+
+    const det = pins.validation.in_image_determinism as unknown as {
+      status: string;
+      scope: string;
+      not_asserted: string;
+    };
+    expect(det.status).toBe("PASS");
+    // The scope is the whole point: two renders in the SAME image.
+    expect(det.scope).toMatch(/WITHIN-IMAGE/);
+    expect(det.scope).toMatch(/TWICE/);
+    // And cross-host byte identity must never become a requirement.
+    expect(det.not_asserted).toMatch(/Cross-host byte identity is NOT a requirement/);
+  });
+
+  it("keeps wall-clock out of the correctness gate", () => {
+    // The performance gate is throughput with a floor of 0.5
+    // gif-frames/render-second, measured at 4.36. Seconds are recorded.
+    const bench = readFileSync(join(root, "runtime/arap-cpu/proofs/benchmark.py"), "utf8");
+    expect(bench).toContain("MIN_GIF_FPS = 0.5");
+    expect(bench).not.toContain("MIN_RENDER_SECONDS");
+    const ref = pins.validation.reference_comparison as unknown as {
+      status: string;
+      recorded_not_asserted: Record<string, string>;
+    };
+    expect(ref.status).toMatch(/^INFORMATIONAL/);
+    expect(Object.keys(ref.recorded_not_asserted)).toContain("render_seconds");
+    expect(Object.keys(ref.recorded_not_asserted)).toContain("output_sha256");
   });
 });

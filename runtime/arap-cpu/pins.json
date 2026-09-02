@@ -196,32 +196,83 @@
       "byte_identity_scope": "WITHIN-HOST. Every run above produced 1,971,306 bytes and sha256 42f73372..., which is a real determinism result for this Mesa. It is NOT a prediction about the image: a different software rasteriser is entitled to different pixels. So the in-image benchmark proves determinism where the claim is valid \u2014 by rendering twice inside the image and comparing those two \u2014 and never against the figure above."
     },
     "env_a_stack": {
-      "status": "PASS (build-time) \u2014 run 33618976434",
+      "status": "PASS",
       "proved": [
         "torch 1.13.1+cpu installed from PyTorch's index; torch.version.cuda is None",
         "mmcv-full 1.6.2 built from source; mmcv.ops.nms imports",
         "pycocotools 2.0.7 and xtcocotools 1.14.3 built from source and importable against numpy 1.23.5",
         "mmdet 2.28.2 and mmpose 0.29.0 import with numpy 1.23.5",
         "both .mar models sha256-verified, unpacked, and LOADED on CPU by prepare_detector_config.py",
-        "AnimatedDrawings at the pinned commit, carrying zombie.bvh"
+        "AnimatedDrawings at the pinned commit, carrying zombie.bvh",
+        "autorig_smoke.py rigged a real drawing end to end on CPU inside the image (run 33624902426), which the earlier run never reached"
       ],
-      "not_yet": "autorig_smoke.py \u2014 the end-to-end rig of a real drawing \u2014 did NOT run: the credential-guard false positive failed the job before the proofs step."
+      "run": "33624902426"
     },
     "image_build": {
-      "status": "PASS (built) / PENDING (pushed)",
-      "why": "Run 33618976434 built the models stage and it started as uid 10001. Nothing was pushed, because the credential guard's false positive failed the job first \u2014 which is the fail-closed ordering working: no digest exists for an image whose proofs did not complete."
-    },
-    "benchmark_200_frame": {
-      "status": "PENDING \u2014 CI",
-      "why": "Runs inside the built image, against the same 4-core shape the reference figures came from."
+      "status": "PASS",
+      "run": "33624902426",
+      "digest": "ghcr.io/siddharthamondal1002-droid/oniq-sparkle-pay/arap-cpu@sha256:d0fb43f5f0b2252ff62fc5bee15e121de2ece6d21711de39801d25878d520955",
+      "note": "Pinned by DIGEST, never by tag. Earlier digest sha256:35d137e4067cf6123731a513a46a39f8a193a9e4f063fa8673507fe6eed8f557 (run 33620800520) is a DIFFERENT image: proofs/print_numbers.py was added to the COPYed proofs directory between the two, so the content genuinely changed. Cross-build reproducibility of an unchanged tree remains UNTESTED \u2014 a prediction that the workflow-only build would reproduce 35d137e4 was never checked."
     },
     "torch_hash_pin": {
-      "status": "PASS (recorded) / PENDING (enforced)",
-      "why": "Run 33618976434 measured both hashes and they are locked above. The ENFORCE half is not proven until a build re-downloads and matches them \u2014 that is the next build, and it is the reason the next build exists."
+      "status": "PASS",
+      "run": "33624902426",
+      "enforced": true,
+      "wheels": {
+        "torch": "1.13.1+cpu 11692523b87c45b79ddfb5148b12a713d85235d399915490d94e079521f7e014",
+        "torchvision": "0.14.1+cpu a49c36369b48720304cda4085bba4a05b42ff295400feae89e0ee8683051f923"
+      },
+      "note": "The image reports hash_pinned=true and pins_match.py reads that manifest back out of the FINISHED image. The build re-downloaded both wheels and matched the locked hashes."
     },
     "in_image_determinism": {
-      "status": "PENDING \u2014 CI",
-      "why": "benchmark.py renders twice under ONIQ_ARAP_DETERMINISM=1 (set by the `proofs` entrypoint) and fails if the two differ. Verified to work on the reference container 2026-09-02: two renders, sha256 42f73372... both times."
+      "status": "PASS",
+      "run": "33624902426",
+      "scope": "WITHIN-IMAGE. benchmark.py renders the SAME input TWICE inside the SAME image under ONIQ_ARAP_DETERMINISM=1 and fails if the two outputs are not byte-identical.",
+      "result": "The gate passed, so the second render hashed identically to the first (a2209f3891f269e968dac37aca864fdfb5f69d037cc8440bd58762ab9d2368df). That equality is deduced from the gate passing rather than read off the comparison line, and is recorded as such.",
+      "not_asserted": "Cross-host byte identity is NOT a requirement and must not become one. The runner renders on Mesa 22.3.6 / LLVM 15.0.6; the native reference on Mesa 25.1.7 / LLVM 20.1.2. A different software rasteriser is entitled to different pixels, and it produced 308 different bytes here on an otherwise structurally identical render."
+    },
+    "benchmark_in_image": {
+      "status": "PASS",
+      "run": "33624902426",
+      "digest": "ghcr.io/siddharthamondal1002-droid/oniq-sparkle-pay/arap-cpu@sha256:d0fb43f5f0b2252ff62fc5bee15e121de2ece6d21711de39801d25878d520955",
+      "measured": {
+        "render_seconds": 48.4,
+        "wall_seconds": 48.6,
+        "max_rss_mb": 1174.0,
+        "gif_frames": 211,
+        "frame_size": "500x500",
+        "output_bytes": 1971614,
+        "output_sha256": "a2209f3891f269e968dac37aca864fdfb5f69d037cc8440bd58762ab9d2368df",
+        "foreground_fraction_mean": 0.1113,
+        "interframe_mean_abs_diff": 1.586,
+        "static_frames": 0,
+        "compared_pairs": 210,
+        "gif_frames_per_render_second": 4.36,
+        "gl_version": "3.3 (Core Profile) Mesa 22.3.6",
+        "gl_renderer": "llvmpipe (LLVM 15.0.6, 256 bits)"
+      },
+      "gate": "Structural floors only: >=100 gif frames, foreground >=0.02, inter-frame >=0.20, <=10% identical pairs, >=0.5 gif-frames/render-second. Wall-clock and byte count are RECORDED, never asserted.",
+      "note": "Every value above was printed by run 33624902426's own 'The numbers, last' step. None is derived, rounded or inferred."
+    },
+    "reference_comparison": {
+      "status": "INFORMATIONAL \u2014 not a gate",
+      "structural_identical": {
+        "gif_frames": "211 both",
+        "frame_size": "500x500 both",
+        "foreground_fraction_mean": "0.1113 both",
+        "static_frames": "0 of 210 both"
+      },
+      "structural_close": {
+        "interframe_mean_abs_diff": "in-image 1.586 vs native 1.579 (+0.44%)"
+      },
+      "recorded_not_asserted": {
+        "output_bytes": "in-image 1971614 vs native 1971306 (+308, +0.0156%)",
+        "output_sha256": "in-image a2209f38... vs native 42f73372... \u2014 different Mesa, expected",
+        "max_rss_mb": "in-image 1174.0 vs native 1125-1129",
+        "render_seconds": "in-image 48.4 vs native 68.4-94.0 (the runner is faster)",
+        "gl": "in-image Mesa 22.3.6 / LLVM 15.0.6 vs native Mesa 25.1.7 / LLVM 20.1.2"
+      },
+      "why": "These differences are the reason cross-host byte identity was never made a gate. Had step 8 asserted the native byte count, this build would have failed for no defect at all."
     }
   }
 }
