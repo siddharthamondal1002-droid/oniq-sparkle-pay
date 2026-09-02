@@ -126,9 +126,23 @@ export function planShotMotion(
   };
 }
 
+/**
+ * WHERE A SHOT'S MOTION CAME FROM — the observability vocabulary.
+ *
+ * `pose-warp` was added 2026-09-02 so the CPU generalist is distinguishable
+ * from the eleven measured specialists in telemetry. Both are free, both are
+ * character motion, and a film that reports only "rig" cannot tell you which
+ * one carried a shot — which is the same blindness that let nine motionless
+ * Gaslamp shots report a number instead of a problem.
+ *
+ * `none` stays exactly what it was: camera and parallax carried the shot, and
+ * that is NOT character motion. It is not renamed to camera_only here because
+ * motionValidate.ts filters on it (`r.source === "none"`) and the string is
+ * the contract between the two.
+ */
 export type ShotMotionOutcome = {
   status: MotionStatus;
-  source: "clip" | "rig" | "none";
+  source: "clip" | "rig" | "pose-warp" | "none";
   provider: string | null;
   fallbackReason: string | null;
 };
@@ -175,6 +189,8 @@ export type FilmMotionSummary = {
   total: number;
   validatedClips: number;
   rigSourced: number;
+  /** Shots carried by the ARAP CPU generalist. Zero until a runner exists. */
+  poseWarpSourced: number;
   failed: number;
   fallback: number;
   notRequested: number;
@@ -185,7 +201,9 @@ export function summarizeShotMotion(outcomes: ShotMotionOutcome[]): FilmMotionSu
   return {
     total: outcomes.length,
     validatedClips: count("VALIDATED"),
-    rigSourced: count("GENERATED"),
+    rigSourced: outcomes.filter((o) => o.status === "GENERATED" && o.source === "rig").length,
+  /** The CPU generalist, counted apart from the measured specialists. */
+  poseWarpSourced: outcomes.filter((o) => o.source === "pose-warp").length,
     failed: count("FAILED"),
     fallback: count("FALLBACK"),
     notRequested: count("NOT_REQUESTED"),

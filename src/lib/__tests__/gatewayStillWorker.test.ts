@@ -143,3 +143,46 @@ describe("an absent character reference says WHY, not just false", () => {
     expect(audit).toMatch(/if \(!pick\) \{/);
   });
 });
+
+describe("a dead motion engine costs one attempt, not one per shot", () => {
+  it("blows a fuse on the first ENGINE outage and stops asking", () => {
+    // MEASURED 2026-09-01: a dead RunPod endpoint does not fail fast — it
+    // reports `initializing` and holds; one still waited 25 minutes. Motion is
+    // requested per shot, so nine shots would spend the film's whole clock
+    // learning one fact. Until the still was stored this was hidden, because a
+    // keyless gateway still refused instantly and never reached the endpoint.
+    expect(RENDERER).toContain("let inHouseMotionFuse = null;");
+    expect(generateClip).toContain("route.engine === 'in-house' && inHouseMotionFuse");
+    expect(RENDERER).toContain("MOTION_FUSE:");
+  });
+
+  it("is checked BEFORE the endpoint is called, or it saves nothing", () => {
+    const fuseAt = generateClip.indexOf("inHouseMotionFuse");
+    const motionAt = generateClip.indexOf("'story-motion'");
+    expect(fuseAt).toBeGreaterThan(-1);
+    expect(motionAt).toBeGreaterThan(-1);
+    expect(fuseAt).toBeLessThan(motionAt);
+  });
+
+  it("does NOT blow on a content refusal — those are luck, not verdicts", () => {
+    // The ep3 finding: the same prompt refused once and passed a moment later.
+    // A shot the model declined says nothing about the next shot, so treating
+    // it as an outage would silently cost a film every remaining clip.
+    const outage = RENDERER.slice(
+      RENDERER.indexOf("function isEngineOutage("),
+      RENDERER.indexOf("async function generateClip("),
+    );
+    expect(outage).toMatch(/not configured|unavailable/);
+    expect(outage).toMatch(/50[234]/);
+    for (const contentWord of ["PROHIBITED", "SAFETY", "refused"]) {
+      expect(outage, contentWord).not.toContain(contentWord);
+    }
+  });
+
+  it("only fuses the in-house engine, never Veo", () => {
+    // Veo failing is a different fact about a different provider, and the two
+    // must not share a fuse — one outage must not mute the other engine.
+    const blown = RENDERER.slice(RENDERER.indexOf("BLOW THE FUSE"), RENDERER.indexOf("MOTION_FUSE:"));
+    expect(blown).toContain("=== 'in-house'");
+  });
+});
