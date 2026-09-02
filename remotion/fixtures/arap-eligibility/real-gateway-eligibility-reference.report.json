@@ -1,0 +1,713 @@
+{
+  "report": {
+    "schema": "oniq.arap-real-corpus-report/1",
+    "evidencePackageVersion": "oniq.arap-evidence/1",
+    "measurementSchema": "oniq.arap-eligibility-measurement/2",
+    "population": "gateway",
+    "corpusId": "OWNER_AUTHORIZED_GATEWAY_CORPUS",
+    "label": "OWNER_AUTHORIZED_GATEWAY_CORPUS",
+    "scope": "gateway stills, authorised export OWNER_AUTHORIZED_GATEWAY_CORPUS; every rate over MEASURED_VALID_RECORDS",
+    "provenance": {
+      "instrument": "runtime/arap-cpu/measure/measure_eligibility.py",
+      "measuredAt": "2026-09-02T16:07:06.000Z",
+      "note": "Keys are DERIVED, not guessed: the worker names a shot's still shot000..shot008 (zero-based, one per shot) and the edge function keys it story/still/<jobId>-s-<stem>.png. readBase is the bucket's public read base, recorded as public configuration in oniq-gpu-worker/validation/frame_pull.py; it is the base the application itself reads artifacts from. sha256 per still is RECORDED by the fetch on first run and VERIFIED against on every later run. Run 33646171242 (2026-09-02): 9 of 18 keys answered 200 \u2014 all nine shots of the 2026-08-31 film (704x480 PNG) \u2014 and all nine of the 2026-09-02 film answered 404. The nine hashes recorded here are verified on every later run; the nine absent keys stay listed and are classified MISSING. \u2014 driver corpus_id OWNER_AUTHORIZED_GATEWAY_CORPUS"
+    },
+    "authorization": {
+      "grantedBy": "owner",
+      "grantedAt": "2026-09-02",
+      "scope": "owner-only",
+      "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
+      "note": "Owner directive 2026-09-02 (Step 11C): the 18 owner-owned stills of the two ready films are the first authorised production corpus. The other user's 27 stills are out of scope and are not listed here; the verifier refuses any record outside this scope."
+    },
+    "thresholds": {
+      "maxBboxFillPct": 65,
+      "coreJoints": ["shoulder", "hip", "knee", "foot"]
+    },
+    "verification": {
+      "ok": true,
+      "problems": [],
+      "checksFailed": {
+        "schema": 0,
+        "stillId": 0,
+        "provenance": 0,
+        "authorization": 0,
+        "evidence": 0,
+        "dimensions": 0,
+        "bbox": 0,
+        "mask": 0,
+        "joints": 0,
+        "jointConfidence": 0,
+        "detectorConfidence": 0,
+        "poseWarpInputs": 0
+      },
+      "poseWarpInputsMissing": {
+        "framing": 21,
+        "characterCount": 12,
+        "occluded": 21,
+        "stylized": 21,
+        "nonFrontal": 21,
+        "longSidePx": 12,
+        "armsAgainstTorso": 21
+      }
+    },
+    "counts": {
+      "supplied": 21,
+      "valid": 9,
+      "measured": 9,
+      "notMeasured": {
+        "missing": 12,
+        "unauthorized": 0,
+        "malformed": 0
+      },
+      "eligible": 2,
+      "rejected": 7
+    },
+    "denominator": "MEASURED_VALID_RECORDS",
+    "eligibleRate": 0.2222222222222222,
+    "eligibleRateInterval95": {
+      "lo": 0.0632,
+      "hi": 0.5474
+    },
+    "primaryOnly": {
+      "measured": 6,
+      "eligible": 2,
+      "eligibleRate": 0.3333333333333333
+    },
+    "bboxFillPct": {
+      "n": 9,
+      "min": 9.419191919191919,
+      "max": 71.70212765957447,
+      "mean": 38.6796,
+      "median": 37.5143,
+      "histogram": {
+        "0-10%": 1,
+        "10-20%": 1,
+        "20-30%": 1,
+        "30-40%": 2,
+        "40-50%": 1,
+        "50-60%": 2,
+        "70-80%": 1
+      }
+    },
+    "jointsOutsideMask": {
+      "count": {
+        "n": 9,
+        "min": 0,
+        "max": 16,
+        "mean": 3.7778,
+        "median": 1,
+        "histogram": {
+          "0": 3,
+          "1": 2,
+          "2": 1,
+          "5": 1,
+          "9": 1,
+          "16": 1
+        }
+      },
+      "byJoint": {
+        "root": 1,
+        "hip": 1,
+        "torso": 1,
+        "neck": 1,
+        "right_shoulder": 2,
+        "right_elbow": 2,
+        "right_hand": 2,
+        "left_shoulder": 1,
+        "left_elbow": 2,
+        "left_hand": 2,
+        "right_hip": 2,
+        "right_knee": 3,
+        "right_foot": 6,
+        "left_hip": 2,
+        "left_knee": 3,
+        "left_foot": 3
+      }
+    },
+    "rejectionDistribution": {
+      "bbox_fill_exceeded": 1,
+      "core_joint_outside_mask": 6
+    },
+    "failureClasses": {
+      "detector_failure": 3,
+      "core_joint_outside_mask": 6,
+      "bbox_fill_exceeded": 1,
+      "missing": 9
+    },
+    "upstreamBlockers": {
+      "framing_unknown": 9,
+      "multiple_character": 6
+    },
+    "detectionsPerStill": {
+      "n": 18,
+      "min": 0,
+      "max": 2,
+      "mean": 0.5,
+      "median": 0,
+      "histogram": {
+        "0": 12,
+        "1": 3,
+        "2": 3
+      }
+    },
+    "multiCharacterStills": 3,
+    "perStill": [
+      {
+        "stillId": "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot000",
+        "candidate": null,
+        "primary": false,
+        "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+        "sceneId": "s",
+        "shotId": "shot000",
+        "status": "MISSING",
+        "measured": false,
+        "eligible": null,
+        "bboxFillPct": null,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": ["NO_HUMANOID_DETECTED"],
+        "classes": ["detector_failure"],
+        "upstream": [],
+        "confidence": {
+          "detections": 0
+        }
+      },
+      {
+        "stillId": "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot001",
+        "candidate": 0,
+        "primary": true,
+        "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+        "sceneId": "s",
+        "shotId": "shot001",
+        "status": "AVAILABLE",
+        "measured": true,
+        "eligible": false,
+        "bboxFillPct": 11.981068614261003,
+        "jointsOutsideMask": [
+          "root",
+          "hip",
+          "torso",
+          "neck",
+          "right_shoulder",
+          "right_elbow",
+          "right_hand",
+          "left_shoulder",
+          "left_elbow",
+          "left_hand",
+          "right_hip",
+          "right_knee",
+          "right_foot",
+          "left_hip",
+          "left_knee",
+          "left_foot"
+        ],
+        "coreJointsOutsideMask": [
+          "hip",
+          "right_shoulder",
+          "left_shoulder",
+          "right_hip",
+          "right_knee",
+          "right_foot",
+          "left_hip",
+          "left_knee",
+          "left_foot"
+        ],
+        "reasons": [
+          "core joints off the silhouette: hip, right_shoulder, left_shoulder, right_hip, right_knee, right_foot, left_hip, left_knee, left_foot (degenerate solve class)"
+        ],
+        "classes": ["core_joint_outside_mask"],
+        "upstream": ["framing_unknown"],
+        "confidence": {
+          "detector": 0.6249,
+          "detections": 1,
+          "keypointMean": 0.625,
+          "keypointMin": 0.2704
+        }
+      },
+      {
+        "stillId": "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot002",
+        "candidate": 0,
+        "primary": true,
+        "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+        "sceneId": "s",
+        "shotId": "shot002",
+        "status": "AVAILABLE",
+        "measured": true,
+        "eligible": true,
+        "bboxFillPct": 57.17454890788224,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": [],
+        "classes": [],
+        "upstream": ["framing_unknown"],
+        "confidence": {
+          "detector": 0.9703,
+          "detections": 1,
+          "keypointMean": 0.6932,
+          "keypointMin": 0.4904
+        }
+      },
+      {
+        "stillId": "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot003",
+        "candidate": null,
+        "primary": false,
+        "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+        "sceneId": "s",
+        "shotId": "shot003",
+        "status": "MISSING",
+        "measured": false,
+        "eligible": null,
+        "bboxFillPct": null,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": ["NO_HUMANOID_DETECTED"],
+        "classes": ["detector_failure"],
+        "upstream": [],
+        "confidence": {
+          "detections": 0
+        }
+      },
+      {
+        "stillId": "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot004",
+        "candidate": 0,
+        "primary": true,
+        "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+        "sceneId": "s",
+        "shotId": "shot004",
+        "status": "AVAILABLE",
+        "measured": true,
+        "eligible": true,
+        "bboxFillPct": 37.51427836377669,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": [],
+        "classes": [],
+        "upstream": ["multiple_character", "framing_unknown"],
+        "confidence": {
+          "detector": 0.9157,
+          "detections": 2,
+          "keypointMean": 0.3304,
+          "keypointMin": 0.091
+        }
+      },
+      {
+        "stillId": "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot004",
+        "candidate": 1,
+        "primary": false,
+        "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+        "sceneId": "s",
+        "shotId": "shot004",
+        "status": "AVAILABLE",
+        "measured": true,
+        "eligible": false,
+        "bboxFillPct": 71.70212765957447,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": [
+          "silhouette is a merged blob (71.7% bbox fill > 65% \u2014 limbs not separated, ARAP collapse class)"
+        ],
+        "classes": ["bbox_fill_exceeded"],
+        "upstream": ["multiple_character", "framing_unknown"],
+        "confidence": {
+          "detector": 0.5543,
+          "detections": 2,
+          "keypointMean": 0.6778,
+          "keypointMin": 0.4078
+        }
+      },
+      {
+        "stillId": "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot005",
+        "candidate": 0,
+        "primary": true,
+        "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+        "sceneId": "s",
+        "shotId": "shot005",
+        "status": "AVAILABLE",
+        "measured": true,
+        "eligible": false,
+        "bboxFillPct": 9.419191919191919,
+        "jointsOutsideMask": [
+          "right_shoulder",
+          "right_elbow",
+          "right_hand",
+          "right_hip",
+          "right_knee",
+          "right_foot",
+          "left_hip",
+          "left_knee",
+          "left_foot"
+        ],
+        "coreJointsOutsideMask": [
+          "right_shoulder",
+          "right_hip",
+          "right_knee",
+          "right_foot",
+          "left_hip",
+          "left_knee",
+          "left_foot"
+        ],
+        "reasons": [
+          "core joints off the silhouette: right_shoulder, right_hip, right_knee, right_foot, left_hip, left_knee, left_foot (degenerate solve class)"
+        ],
+        "classes": ["core_joint_outside_mask"],
+        "upstream": ["framing_unknown"],
+        "confidence": {
+          "detector": 0.8929,
+          "detections": 1,
+          "keypointMean": 0.5003,
+          "keypointMin": 0.2551
+        }
+      },
+      {
+        "stillId": "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot006",
+        "candidate": null,
+        "primary": false,
+        "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+        "sceneId": "s",
+        "shotId": "shot006",
+        "status": "MISSING",
+        "measured": false,
+        "eligible": null,
+        "bboxFillPct": null,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": ["NO_HUMANOID_DETECTED"],
+        "classes": ["detector_failure"],
+        "upstream": [],
+        "confidence": {
+          "detections": 0
+        }
+      },
+      {
+        "stillId": "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot007",
+        "candidate": 0,
+        "primary": true,
+        "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+        "sceneId": "s",
+        "shotId": "shot007",
+        "status": "AVAILABLE",
+        "measured": true,
+        "eligible": false,
+        "bboxFillPct": 29.386779674135994,
+        "jointsOutsideMask": ["right_foot"],
+        "coreJointsOutsideMask": ["right_foot"],
+        "reasons": ["core joints off the silhouette: right_foot (degenerate solve class)"],
+        "classes": ["core_joint_outside_mask"],
+        "upstream": ["multiple_character", "framing_unknown"],
+        "confidence": {
+          "detector": 0.7617,
+          "detections": 2,
+          "keypointMean": 0.6961,
+          "keypointMin": 0.1997
+        }
+      },
+      {
+        "stillId": "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot007",
+        "candidate": 1,
+        "primary": false,
+        "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+        "sceneId": "s",
+        "shotId": "shot007",
+        "status": "AVAILABLE",
+        "measured": true,
+        "eligible": false,
+        "bboxFillPct": 59.355345911949684,
+        "jointsOutsideMask": ["right_foot"],
+        "coreJointsOutsideMask": ["right_foot"],
+        "reasons": ["core joints off the silhouette: right_foot (degenerate solve class)"],
+        "classes": ["core_joint_outside_mask"],
+        "upstream": ["multiple_character", "framing_unknown"],
+        "confidence": {
+          "detector": 0.6116,
+          "detections": 2,
+          "keypointMean": 0.7631,
+          "keypointMin": 0.4097
+        }
+      },
+      {
+        "stillId": "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot008",
+        "candidate": 0,
+        "primary": true,
+        "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+        "sceneId": "s",
+        "shotId": "shot008",
+        "status": "AVAILABLE",
+        "measured": true,
+        "eligible": false,
+        "bboxFillPct": 30.383923754720378,
+        "jointsOutsideMask": ["left_elbow", "right_foot"],
+        "coreJointsOutsideMask": ["right_foot"],
+        "reasons": ["core joints off the silhouette: right_foot (degenerate solve class)"],
+        "classes": ["core_joint_outside_mask"],
+        "upstream": ["multiple_character", "framing_unknown"],
+        "confidence": {
+          "detector": 0.8173,
+          "detections": 2,
+          "keypointMean": 0.6823,
+          "keypointMin": 0.3331
+        }
+      },
+      {
+        "stillId": "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot008",
+        "candidate": 1,
+        "primary": false,
+        "jobId": "87c2b756-a832-48dc-b97b-7a3235ddee5c",
+        "sceneId": "s",
+        "shotId": "shot008",
+        "status": "AVAILABLE",
+        "measured": true,
+        "eligible": false,
+        "bboxFillPct": 41.1988993003723,
+        "jointsOutsideMask": ["left_hand", "right_knee", "right_foot", "left_knee", "left_foot"],
+        "coreJointsOutsideMask": ["right_knee", "right_foot", "left_knee", "left_foot"],
+        "reasons": [
+          "core joints off the silhouette: right_knee, right_foot, left_knee, left_foot (degenerate solve class)"
+        ],
+        "classes": ["core_joint_outside_mask"],
+        "upstream": ["multiple_character", "framing_unknown"],
+        "confidence": {
+          "detector": 0.687,
+          "detections": 2,
+          "keypointMean": 0.7262,
+          "keypointMin": 0.3886
+        }
+      },
+      {
+        "stillId": "64874747-44af-4086-a58a-250d2e7eec08-s-shot000",
+        "candidate": null,
+        "primary": false,
+        "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+        "sceneId": null,
+        "shotId": null,
+        "status": "MISSING",
+        "measured": false,
+        "eligible": null,
+        "bboxFillPct": null,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": [
+          "NOT_IN_DRIVER_OUTPUT \u2014 listed in the corpus manifest, absent from the corpus the driver saw"
+        ],
+        "classes": ["missing"],
+        "upstream": []
+      },
+      {
+        "stillId": "64874747-44af-4086-a58a-250d2e7eec08-s-shot001",
+        "candidate": null,
+        "primary": false,
+        "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+        "sceneId": null,
+        "shotId": null,
+        "status": "MISSING",
+        "measured": false,
+        "eligible": null,
+        "bboxFillPct": null,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": [
+          "NOT_IN_DRIVER_OUTPUT \u2014 listed in the corpus manifest, absent from the corpus the driver saw"
+        ],
+        "classes": ["missing"],
+        "upstream": []
+      },
+      {
+        "stillId": "64874747-44af-4086-a58a-250d2e7eec08-s-shot002",
+        "candidate": null,
+        "primary": false,
+        "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+        "sceneId": null,
+        "shotId": null,
+        "status": "MISSING",
+        "measured": false,
+        "eligible": null,
+        "bboxFillPct": null,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": [
+          "NOT_IN_DRIVER_OUTPUT \u2014 listed in the corpus manifest, absent from the corpus the driver saw"
+        ],
+        "classes": ["missing"],
+        "upstream": []
+      },
+      {
+        "stillId": "64874747-44af-4086-a58a-250d2e7eec08-s-shot003",
+        "candidate": null,
+        "primary": false,
+        "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+        "sceneId": null,
+        "shotId": null,
+        "status": "MISSING",
+        "measured": false,
+        "eligible": null,
+        "bboxFillPct": null,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": [
+          "NOT_IN_DRIVER_OUTPUT \u2014 listed in the corpus manifest, absent from the corpus the driver saw"
+        ],
+        "classes": ["missing"],
+        "upstream": []
+      },
+      {
+        "stillId": "64874747-44af-4086-a58a-250d2e7eec08-s-shot004",
+        "candidate": null,
+        "primary": false,
+        "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+        "sceneId": null,
+        "shotId": null,
+        "status": "MISSING",
+        "measured": false,
+        "eligible": null,
+        "bboxFillPct": null,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": [
+          "NOT_IN_DRIVER_OUTPUT \u2014 listed in the corpus manifest, absent from the corpus the driver saw"
+        ],
+        "classes": ["missing"],
+        "upstream": []
+      },
+      {
+        "stillId": "64874747-44af-4086-a58a-250d2e7eec08-s-shot005",
+        "candidate": null,
+        "primary": false,
+        "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+        "sceneId": null,
+        "shotId": null,
+        "status": "MISSING",
+        "measured": false,
+        "eligible": null,
+        "bboxFillPct": null,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": [
+          "NOT_IN_DRIVER_OUTPUT \u2014 listed in the corpus manifest, absent from the corpus the driver saw"
+        ],
+        "classes": ["missing"],
+        "upstream": []
+      },
+      {
+        "stillId": "64874747-44af-4086-a58a-250d2e7eec08-s-shot006",
+        "candidate": null,
+        "primary": false,
+        "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+        "sceneId": null,
+        "shotId": null,
+        "status": "MISSING",
+        "measured": false,
+        "eligible": null,
+        "bboxFillPct": null,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": [
+          "NOT_IN_DRIVER_OUTPUT \u2014 listed in the corpus manifest, absent from the corpus the driver saw"
+        ],
+        "classes": ["missing"],
+        "upstream": []
+      },
+      {
+        "stillId": "64874747-44af-4086-a58a-250d2e7eec08-s-shot007",
+        "candidate": null,
+        "primary": false,
+        "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+        "sceneId": null,
+        "shotId": null,
+        "status": "MISSING",
+        "measured": false,
+        "eligible": null,
+        "bboxFillPct": null,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": [
+          "NOT_IN_DRIVER_OUTPUT \u2014 listed in the corpus manifest, absent from the corpus the driver saw"
+        ],
+        "classes": ["missing"],
+        "upstream": []
+      },
+      {
+        "stillId": "64874747-44af-4086-a58a-250d2e7eec08-s-shot008",
+        "candidate": null,
+        "primary": false,
+        "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
+        "sceneId": null,
+        "shotId": null,
+        "status": "MISSING",
+        "measured": false,
+        "eligible": null,
+        "bboxFillPct": null,
+        "jointsOutsideMask": [],
+        "coreJointsOutsideMask": [],
+        "reasons": [
+          "NOT_IN_DRIVER_OUTPUT \u2014 listed in the corpus manifest, absent from the corpus the driver saw"
+        ],
+        "classes": ["missing"],
+        "upstream": []
+      }
+    ],
+    "caveats": ["12 record(s) MISSING or MALFORMED: NOT MEASURED, never counted as ineligible"]
+  },
+  "comparison": {
+    "schema": "oniq.arap-corpus-comparison/1",
+    "populationsMerged": false,
+    "offline": {
+      "label": "OFFLINE_CAST_SHEET_REFERENCE",
+      "population": "offline-reference",
+      "n": 6,
+      "eligible": 3,
+      "rejected": 3,
+      "eligibleRate": 0.5,
+      "interval95": {
+        "lo": 0.1876,
+        "hi": 0.8124
+      },
+      "standing": "PROVISIONAL_REFERENCE"
+    },
+    "gateway": {
+      "label": "OWNER_AUTHORIZED_GATEWAY_CORPUS",
+      "population": "gateway",
+      "n": 9,
+      "eligible": 2,
+      "rejected": 7,
+      "eligibleRate": 0.2222222222222222,
+      "interval95": {
+        "lo": 0.0632,
+        "hi": 0.5474
+      },
+      "standing": "MEASURED"
+    },
+    "productionEligibility": 0.2222222222222222,
+    "note": "Two populations, reported side by side and never summed. The offline cast-sheet reference is provisional evidence the thresholds were derived from; only the gateway population can state a production eligibility rate, and only over MEASURED_VALID_RECORDS."
+  },
+  "decision": {
+    "state": "ARAP_AS_SELECTIVE_PROVIDER",
+    "path": ["REAL_GATEWAY_CORPUS_MEASURED", "ARAP_AS_SELECTIVE_PROVIDER"],
+    "reasons": [
+      "interval straddles 0.5: a meaningful subset satisfies the existing envelope (2/9 eligible over MEASURED_VALID_RECORDS, 95% interval [0.0632, 0.5474], majority line 0.5); ARAP would be a selective provider with fail-closed fallback, never the path for every character"
+    ],
+    "measured": 9,
+    "eligible": 2,
+    "eligibleRate": 0.2222,
+    "interval95": {
+      "lo": 0.0632,
+      "hi": 0.5474
+    },
+    "denominator": "MEASURED_VALID_RECORDS",
+    "rule": {
+      "minMeasured": 6,
+      "majority": 0.5,
+      "z": 1.959964,
+      "standing": "CONFIRMED \u2014 owner directive 2026-09-02 (Step 11C): lower Wilson bound decides, point estimate informational"
+    },
+    "caveats": ["12 record(s) MISSING or MALFORMED: NOT MEASURED, never counted as ineligible"],
+    "failureClasses": {
+      "detector_failure": 3,
+      "core_joint_outside_mask": 6,
+      "bbox_fill_exceeded": 1,
+      "missing": 9
+    },
+    "upstreamBlockers": {
+      "framing_unknown": 9,
+      "multiple_character": 6
+    }
+  }
+}
