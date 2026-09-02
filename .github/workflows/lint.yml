@@ -75,5 +75,8 @@ jobs:
       - name: ffmpeg (for the story dry-run clip fixture)
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
 
+      - name: Python deps (for ARAP WALKING QC fixture tests)
+        run: sudo apt-get install -y --no-install-recommends python3-pil python3-numpy
+
       - name: Tests
         run: npm test
