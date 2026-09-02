@@ -260,9 +260,39 @@ describe("the image is not in production yet", () => {
   });
 
   it("records honestly what has been proven and what has not", () => {
+    // This used to pin a fixed list of stages as PENDING, and it correctly
+    // FAILED when run 33618976434 actually built the image and proved ENV A.
+    // A frozen list is the wrong shape — it makes real progress look like a
+    // regression. What must not drift is the HONESTY, so that is what is
+    // asserted: the genuinely unproven stages stay PENDING, every status
+    // uses a recognised vocabulary, and a PASS that is only partial has to
+    // say what it did not cover.
     expect(pins.validation.env_b_render.status).toBe("PASS");
-    for (const key of ["env_a_stack", "image_build", "benchmark_200_frame", "torch_hash_pin"]) {
+
+    // Nothing has run these yet. They come from the in-image proofs, which
+    // no completed build has reached.
+    for (const key of ["benchmark_200_frame", "in_image_determinism"]) {
       expect(pins.validation[key].status, key).toMatch(/^PENDING/);
+    }
+
+    // No status may be blank or free-form: it starts PASS, PENDING or
+    // BLOCKED, so "what state is this in" is always answerable.
+    for (const [key, entry] of Object.entries(pins.validation)) {
+      if (key.startsWith("$")) continue;
+      expect(entry.status, key).toMatch(/^(PASS|PENDING|BLOCKED)\b/);
+    }
+
+    // A partial PASS must carry its own caveat. env_a_stack passed at BUILD
+    // time while autorig_smoke.py never ran, and a reader has to be able to
+    // see that from the record rather than from the commit message.
+    const envA = pins.validation.env_a_stack as unknown as {
+      status: string;
+      proved?: string[];
+      not_yet?: string;
+    };
+    if (envA.status.startsWith("PASS")) {
+      expect(envA.proved?.length ?? 0).toBeGreaterThan(0);
+      expect(envA.not_yet, "a partial PASS must say what it did not cover").toBeTruthy();
     }
   });
 });

@@ -145,10 +145,18 @@ jobs:
           # This build takes no secret, so this proves an invariant rather
           # than clearing a suspicion — and it is the check that would catch
           # someone adding one later.
-          if docker image inspect "${IMAGE}:${GITHUB_SHA}" \
-               --format '{{json .Config.Env}}' | grep -qiE 'token|secret|key='; then
-            echo "FAIL: an image environment variable names a credential"; exit 1
-          fi
+          # MEASURED 2026-09-02 (run 33618976434): the grep this replaces
+          # failed the build on GPG_KEY, which the OFFICIAL python base image
+          # sets to the Python release manager's PUBLIC signing fingerprint.
+          # A guard that cries wolf on its own base image gets deleted by the
+          # third person who hits it. no_baked_credential.py keeps the broad
+          # pattern (a bare "key" still trips it) and resolves the conflict
+          # with a per-name allowlist that carries its reason — and it also
+          # reports any variable the image was not expected to carry, which
+          # the grep never did.
+          docker image inspect "${IMAGE}:${GITHUB_SHA}" \
+            --format '{{json .Config.Env}}' \
+            | python3 runtime/arap-cpu/proofs/no_baked_credential.py
           if docker history --no-trunc "${IMAGE}:${GITHUB_SHA}" | grep -qiE 'build-arg|token='; then
             echo "FAIL: build history carries a build argument"; exit 1
           fi

@@ -39,16 +39,18 @@
         ],
         "wheels": {
           "torch": {
-            "sha256": null,
-            "version": "1.13.1+cpu"
+            "sha256": "11692523b87c45b79ddfb5148b12a713d85235d399915490d94e079521f7e014",
+            "version": "1.13.1+cpu",
+            "url": "https://download-r2.pytorch.org/whl/cpu/torch-1.13.1%2Bcpu-cp310-cp310-linux_x86_64.whl"
           },
           "torchvision": {
-            "sha256": null,
-            "version": "0.14.1+cpu"
+            "sha256": "a49c36369b48720304cda4085bba4a05b42ff295400feae89e0ee8683051f923",
+            "version": "0.14.1+cpu",
+            "url": "https://download-r2.pytorch.org/whl/cpu/torchvision-0.14.1%2Bcpu-cp310-cp310-linux_x86_64.whl"
           }
         },
-        "hash_pin_status": "RECORD_ON_FIRST_BUILD",
-        "hash_pin_why": "torch is the ONLY asset here not hash-pinned in advance, because download.pytorch.org answers 403 CONNECT under this container's network policy and its wheels could not be streamed and hashed like the .mar models were. The first CI build RECORDS the sha256 pip reports and stamps the image hash_pinned:false; copying those hashes in here and rebuilding moves torch to ENFORCE, where a changed wheel fails the build. Until then torch is version-pinned only \u2014 which is fail-closed against a CUDA substitution but is NOT reproducibility, and must not be described as it."
+        "hash_pin_status": "ENFORCED",
+        "hash_pin_why": "RECORDED by run 33618976434 (2026-09-02) and locked here. pip's own --report measured both wheels as +cpu builds from PyTorch's index, which is the substitution check passing on real bytes rather than on a specifier. From now on a changed wheel FAILS the build, exactly as a changed .mar would."
       },
       "pip": {
         "setuptools": "65.7.0",
@@ -194,20 +196,28 @@
       "byte_identity_scope": "WITHIN-HOST. Every run above produced 1,971,306 bytes and sha256 42f73372..., which is a real determinism result for this Mesa. It is NOT a prediction about the image: a different software rasteriser is entitled to different pixels. So the in-image benchmark proves determinism where the claim is valid \u2014 by rendering twice inside the image and comparing those two \u2014 and never against the figure above."
     },
     "env_a_stack": {
-      "status": "PENDING \u2014 CI",
-      "why": "ENV A needs torch 1.13.1+cpu from download.pytorch.org, which answers 403 CONNECT under this container's network policy (measured 2026-09-02, agent-proxy recentRelayFailures). It is reachable from a GitHub Actions runner, so the build is CI's to do. No claim is made about ENV A until the publish workflow's proofs pass."
+      "status": "PASS (build-time) \u2014 run 33618976434",
+      "proved": [
+        "torch 1.13.1+cpu installed from PyTorch's index; torch.version.cuda is None",
+        "mmcv-full 1.6.2 built from source; mmcv.ops.nms imports",
+        "pycocotools 2.0.7 and xtcocotools 1.14.3 built from source and importable against numpy 1.23.5",
+        "mmdet 2.28.2 and mmpose 0.29.0 import with numpy 1.23.5",
+        "both .mar models sha256-verified, unpacked, and LOADED on CPU by prepare_detector_config.py",
+        "AnimatedDrawings at the pinned commit, carrying zombie.bvh"
+      ],
+      "not_yet": "autorig_smoke.py \u2014 the end-to-end rig of a real drawing \u2014 did NOT run: the credential-guard false positive failed the job before the proofs step."
     },
     "image_build": {
-      "status": "PENDING \u2014 CI",
-      "why": "No docker daemon in this container (/var/run/docker.sock absent, measured 2026-09-02). The image cannot be built or benchmarked here."
+      "status": "PASS (built) / PENDING (pushed)",
+      "why": "Run 33618976434 built the models stage and it started as uid 10001. Nothing was pushed, because the credential guard's false positive failed the job first \u2014 which is the fail-closed ordering working: no digest exists for an image whose proofs did not complete."
     },
     "benchmark_200_frame": {
       "status": "PENDING \u2014 CI",
       "why": "Runs inside the built image, against the same 4-core shape the reference figures came from."
     },
     "torch_hash_pin": {
-      "status": "PENDING \u2014 first CI build records the hashes",
-      "why": "See envs.autorig.torch.hash_pin_why. The build prints RECORD-ONLY lines; those hashes go into envs.autorig.torch.wheels and the next build enforces them."
+      "status": "PASS (recorded) / PENDING (enforced)",
+      "why": "Run 33618976434 measured both hashes and they are locked above. The ENFORCE half is not proven until a build re-downloads and matches them \u2014 that is the next build, and it is the reason the next build exists."
     },
     "in_image_determinism": {
       "status": "PENDING \u2014 CI",
