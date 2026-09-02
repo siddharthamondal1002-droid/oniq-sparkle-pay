@@ -1141,9 +1141,14 @@ async function generateClip(shot, stillFile, shotSeconds, shotId, noWatermark = 
     // The caller treats a thrown clip as "this shot carries as a still", so
     // the film still finishes — as classic Ken Burns, which is exactly what
     // it would have been anyway.
+    // UNDER 140 CHARACTERS, DELIBERATELY. The caller records a clip failure as
+    // `String(err.message).slice(0, 140)`, and the first version of this ran to
+    // 143 — so every log line ended `IN_HOUSE_MOTION=o`, cutting the `ff` off
+    // the one word that tells a reader what to set. A message whose fix is
+    // truncated is not a message.
     throw new Error(
-      'in-house motion needs a still in the bucket; this frame came from the ' +
-        'gateway (key: null) — set STILL_PROVIDER=in_house or IN_HOUSE_MOTION=off',
+      'in-house motion needs the still in the bucket; a gateway still has no key' +
+        ' — set IN_HOUSE_MOTION=off (Veo) or STILL_PROVIDER=in_house',
     );
   }
   if (route.engine === 'in-house') {
@@ -2312,6 +2317,33 @@ if (offline) {
         const cast = castShot([shot.still, shot.narration, plan.setting ?? ''], { max: 1 });
         const pick = cast[0] ?? null;
         refAudit.referenceResolved = Boolean(pick);
+        // WHY THERE IS NO REFERENCE, in words, when there is none.
+        //
+        // MEASURED 2026-09-02 on job 64874747: all nine shots logged
+        // `{referenceResolved:false, referenceFetched:false,
+        // referenceAttached:false, generationConditioned:false}` and it read as
+        // a broken anchor. It was not. That film ("The last lamplighter in a
+        // city that just got electricity") carried `actor_refs = false` and a
+        // null `cast_json` — no character was ever attached — and a Victorian
+        // lamplighter matches nothing in ONIQ's regional owner-asset map either.
+        // Four `false`s were the CORRECT answer and cost a real investigation
+        // to establish, because the line could not say so.
+        //
+        // The two cases look identical in flags and are opposite in meaning:
+        //
+        //   the job never asked      nothing is wrong; there is nothing to anchor
+        //   the job asked and missed the anchor a film wanted did not arrive
+        //
+        // So the reason is named. `jobRequested` is reported and NOT used as a
+        // condition: casting is a local text match that spends nothing, and
+        // narrowing when it runs would be a behaviour change hiding inside a
+        // logging fix.
+        if (!pick) {
+          refAudit.jobRequested = job.actor_refs === true;
+          refAudit.reason = refAudit.jobRequested
+            ? 'NO_OWNER_ASSET_MATCHED_THIS_SHOT'
+            : 'JOB_ATTACHED_NO_CHARACTER';
+        }
         if (pick) {
           refAudit.characterRefId = pick.actor.characterRefId;
           refAudit.styleRefId = pick.actor.styleRefId;
