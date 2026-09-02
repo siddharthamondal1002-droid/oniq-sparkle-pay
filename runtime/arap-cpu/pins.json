@@ -36,7 +36,19 @@
           "cannot satisfy it at all, so a reachability failure on the PyTorch index",
           "STOPS the build instead of silently substituting the 887 MB CUDA wheel.",
           "That substitution is the failure mode this pin exists to make impossible."
-        ]
+        ],
+        "wheels": {
+          "torch": {
+            "sha256": null,
+            "version": "1.13.1+cpu"
+          },
+          "torchvision": {
+            "sha256": null,
+            "version": "0.14.1+cpu"
+          }
+        },
+        "hash_pin_status": "RECORD_ON_FIRST_BUILD",
+        "hash_pin_why": "torch is the ONLY asset here not hash-pinned in advance, because download.pytorch.org answers 403 CONNECT under this container's network policy and its wheels could not be streamed and hashed like the .mar models were. The first CI build RECORDS the sha256 pip reports and stamps the image hash_pinned:false; copying those hashes in here and rebuilding moves torch to ENFORCE, where a changed wheel fails the build. Until then torch is version-pinned only \u2014 which is fail-closed against a CUDA substitution but is NOT reproducibility, and must not be described as it."
       },
       "pip": {
         "setuptools": "65.7.0",
@@ -181,6 +193,10 @@
     "benchmark_200_frame": {
       "status": "PENDING \u2014 CI",
       "why": "Runs inside the built image, against the same 4-core shape the reference figures came from."
+    },
+    "torch_hash_pin": {
+      "status": "PENDING \u2014 first CI build records the hashes",
+      "why": "See envs.autorig.torch.hash_pin_why. The build prints RECORD-ONLY lines; those hashes go into envs.autorig.torch.wheels and the next build enforces them."
     }
   }
 }

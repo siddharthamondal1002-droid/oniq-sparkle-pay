@@ -102,6 +102,15 @@ RUN python3 -m venv /opt/oniq/venv-arap && \
 # ---------------------------------------------------------------------
 # ENV A. torch goes in FIRST and ALONE, from PyTorch's own CPU index.
 #
+# --report IS HOW THE ONE UNHASHABLE ASSET GETS HASHED. Every other
+# artifact in this image carries a sha256 measured by streaming it, but the
+# CPU wheels live on download.pytorch.org, which answers 403 CONNECT under
+# the network policy of the container that authored this build — so their
+# hashes could not be known in advance. `pip install --report` (verified on
+# the pinned pip 24.0) writes the sha256 of everything it actually
+# downloaded WITHOUT changing what gets installed. verify_torch_pins.py
+# reads it further down: record on the first build, enforce thereafter.
+#
 # THE '+cpu' IS THE GATE, NOT A PREFERENCE. MEASURED 2026-09-02: PyPI holds
 # no cpu-only torch 1.13.1 for linux x86_64 — its single manylinux wheel is
 # the 887,450,534-byte CUDA 11.7 build. Because PyPI has no '+cpu' local
@@ -114,6 +123,7 @@ RUN python3 -m venv /opt/oniq/venv-arap && \
 RUN /usr/bin/env python3 -m venv /opt/oniq/venv-autorig && \
     /opt/oniq/venv-autorig/bin/pip install --no-cache-dir --upgrade "pip==24.0" && \
     ( /opt/oniq/venv-autorig/bin/pip install --no-cache-dir \
+        --report /opt/oniq/torch-report.json \
         --index-url https://download.pytorch.org/whl/cpu \
         "torch==1.13.1+cpu" "torchvision==0.14.1+cpu" \
       || { echo "BLOCKED: torch 1.13.1 CPU artifact unavailable from permitted source"; \
@@ -224,6 +234,13 @@ COPY --chown=root:root remotion/scripts/retarget_armdamped_reference.yaml /opt/o
 COPY --chown=root:root runtime/arap-cpu/proofs/                       /opt/oniq/proofs/
 COPY --chown=root:root runtime/arap-cpu/entrypoint.sh                 /opt/oniq/entrypoint.sh
 RUN chmod 0755 /opt/oniq/entrypoint.sh
+
+# Hash-pin torch from the report the install above wrote. This runs here
+# rather than beside that install so that editing a proof does not
+# invalidate the cached mmcv source build, which is the expensive layer.
+RUN /usr/local/bin/python3 /opt/oniq/proofs/verify_torch_pins.py \
+      /opt/oniq/torch-report.json /opt/oniq/pins.json /opt/oniq/torch-wheels.json && \
+    rm -f /opt/oniq/torch-report.json
 
 ENV PYOPENGL_PLATFORM=osmesa \
     MESA_GL_VERSION_OVERRIDE=3.3 \

@@ -60,6 +60,34 @@ for name, ver in sorted(PINS["envs"]["arap"]["freeze"].items()):
         fail.append(f"ENV B: {name} is {got}, pinned {ver}")
 print(f"PROOF ENV B: {len(PINS['envs']['arap']['freeze'])} pins checked")
 
+# The torch manifest verify_torch_pins.py baked in. This is read back from
+# the FINISHED image, so it reports what the image actually carries rather
+# than what a build step said on its way past.
+man_p = Path("/opt/oniq/torch-wheels.json")
+if not man_p.is_file():
+    fail.append("no /opt/oniq/torch-wheels.json — the torch pin step did not run")
+else:
+    man = json.loads(man_p.read_text())
+    want_w = PINS["envs"]["autorig"]["torch"].get("wheels", {})
+    locked = {k: v for k, v in want_w.items() if v.get("sha256")}
+    if locked:
+        if not man.get("hash_pinned"):
+            fail.append("pins.json locks torch hashes but the image is not "
+                        "stamped hash_pinned — the build recorded instead of enforcing")
+        for name, pin in locked.items():
+            got_sha = (man.get("wheels", {}).get(name.lower()) or {}).get("sha256")
+            if got_sha != pin["sha256"]:
+                fail.append(f"image torch wheel {name} sha256 {got_sha} != pin {pin['sha256']}")
+            else:
+                print(f"PROOF image torch wheel {name} sha256 matches the pin")
+    else:
+        # Not a failure: this is the documented first-build state. It IS
+        # something the image must say out loud, so nobody reads a green
+        # publish as "torch is reproducible".
+        print("NOTE torch is version-pinned only in this image "
+              f"(hash_pinned={man.get('hash_pinned')}). pins.json records no "
+              "wheel hashes yet; see envs.autorig.torch.hash_pin_why.")
+
 ad = Path(PINS["source"]["animated_drawings"]["path_in_image"])
 if not (ad / "examples/bvh/fair1/zombie.bvh").is_file():
     fail.append("the WALKING driver (zombie.bvh) is not in the AD checkout")

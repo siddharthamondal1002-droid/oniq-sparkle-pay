@@ -27,7 +27,16 @@ import { ARAP_L3_RUN } from "../arapProvider";
 const root = process.cwd();
 const pins = JSON.parse(readFileSync(join(root, "runtime/arap-cpu/pins.json"), "utf8")) as {
   envs: {
-    autorig: { numpy: string; torch: { spec: string; index_url: string; cpu_only: boolean } };
+    autorig: {
+      numpy: string;
+      torch: {
+        spec: string;
+        index_url: string;
+        cpu_only: boolean;
+        hash_pin_status: string;
+        wheels: Record<string, { sha256: string | null; version: string }>;
+      };
+    };
     arap: { freeze: Record<string, string> };
   };
   system: { gl_env: Record<string, string> };
@@ -118,6 +127,41 @@ describe("torch is CPU-only, and cannot silently become the CUDA build", () => {
   });
 });
 
+describe("torch is the one asset that could not be hashed in advance", () => {
+  // download.pytorch.org is 403 CONNECT from the container that authored
+  // this build, so torch's wheels could not be streamed and hashed the way
+  // the .mar models were. The build closes that with pip's own report:
+  // record on the first build, enforce after. These tests hold the contract
+  // so the "record" half cannot quietly become permanent.
+  const wheels = pins.envs.autorig.torch.wheels;
+
+  it("names the wheels it intends to pin", () => {
+    expect(Object.keys(wheels).sort()).toEqual(["torch", "torchvision"]);
+    expect(wheels.torch.version).toBe("1.13.1+cpu");
+    expect(wheels.torchvision.version).toBe("0.14.1+cpu");
+  });
+
+  it("any recorded hash is a real sha256, never a placeholder", () => {
+    for (const [name, w] of Object.entries(wheels)) {
+      if (w.sha256 !== null) {
+        expect(w.sha256, `${name} sha256`).toMatch(/^[0-9a-f]{64}$/);
+      }
+    }
+  });
+
+  it("the status agrees with whether hashes are actually present", () => {
+    const locked = Object.values(wheels).every((w) => w.sha256 !== null);
+    expect(pins.envs.autorig.torch.hash_pin_status).toBe(
+      locked ? "ENFORCED" : "RECORD_ON_FIRST_BUILD",
+    );
+  });
+
+  it("the build asks pip for the hashes and checks them", () => {
+    expect(dockerfile).toContain("--report /opt/oniq/torch-report.json");
+    expect(dockerfile).toContain("verify_torch_pins.py");
+  });
+});
+
 describe("the two environments stay separate", () => {
   it("pins a different numpy in each, which is why they are two", () => {
     expect(pins.envs.autorig.numpy).not.toBe(pins.envs.arap.freeze.numpy);
@@ -141,7 +185,7 @@ describe("the image is not in production yet", () => {
 
   it("records honestly what has been proven and what has not", () => {
     expect(pins.validation.env_b_render.status).toBe("PASS");
-    for (const key of ["env_a_stack", "image_build", "benchmark_200_frame"]) {
+    for (const key of ["env_a_stack", "image_build", "benchmark_200_frame", "torch_hash_pin"]) {
       expect(pins.validation[key].status, key).toMatch(/^PENDING/);
     }
   });

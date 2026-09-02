@@ -159,6 +159,45 @@ jobs:
           set -euo pipefail
           docker run --rm "${IMAGE}:${GITHUB_SHA}" proofs
 
+      - name: "The torch pin state, into the summary"
+        if: always()
+        run: |
+          set -euo pipefail
+          # The first build RECORDS the wheel hashes rather than enforcing
+          # them, because they could not be measured before this build
+          # existed. Those hashes are the deliverable of that build, so they
+          # go somewhere readable instead of only into a build log that
+          # scrolls: copy them into runtime/arap-cpu/pins.json
+          # envs.autorig.torch.wheels and rebuild to move torch to ENFORCE.
+          docker run --rm --entrypoint cat "${IMAGE}:${GITHUB_SHA}" \
+            /opt/oniq/torch-wheels.json > torch-wheels.json
+          cat torch-wheels.json
+          {
+            echo "### torch wheels, as installed"
+            echo ""
+            python3 - <<'PY'
+          import json
+          m = json.load(open("torch-wheels.json"))
+          print("- hash pinned:", "**yes**" if m.get("hash_pinned") else "**NO — recorded only**")
+          print("")
+          print("| wheel | version | sha256 |")
+          print("|---|---|---|")
+          for name, w in sorted(m.get("wheels", {}).items()):
+              print(f"| `{name}` | `{w.get('version')}` | `{w.get('sha256')}` |")
+          if not m.get("hash_pinned"):
+              print("")
+              print("Copy these into `runtime/arap-cpu/pins.json` "
+                    "`envs.autorig.torch.wheels` and rebuild to enforce them.")
+          PY
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: torch-wheels
+          path: torch-wheels.json
+          if-no-files-found: warn
+
       - name: "The benchmark clip, kept"
         if: always()
         run: |

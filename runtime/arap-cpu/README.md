@@ -104,6 +104,8 @@ read-only tree, and proved nothing. The non-root re-run is the evidence.
   the build is CI's to do.
 - **The image build**, because `/var/run/docker.sock` does not exist here.
 - **The in-image benchmark**, which runs inside the built image.
+- **The torch hash pin**, which the first build records and the second
+  enforces (above).
 
 ## The torch pin is a gate, not a preference
 
@@ -124,6 +126,30 @@ rather than quietly baking an 887 MB CUDA torch into a CPU-only runtime.
 Three separate assertions then check the installed result — version string,
 `torch.version.cuda is None`, and the absence of any bundled CUDA library —
 because a version string alone would not catch a substitution.
+
+### …but fail-closed is not yet reproducible
+
+Being unable to install the wrong torch is not the same as installing a known
+torch. Every other artifact here carries a sha256 measured by streaming it;
+torch could not, because its wheels live on the one host this container cannot
+reach. So it is pinned in two steps:
+
+|             |                                                                                                                                                                                                    |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **RECORD**  | `pins.json` holds `null`. The build prints the sha256 `pip install --report` measured and stamps the image `hash_pinned: false`. **This is not a pass** — the hash has been learned, not verified. |
+| **ENFORCE** | `pins.json` holds a sha256. A changed wheel fails the build, exactly as a changed `.mar` would.                                                                                                    |
+
+The first CI build is a RECORD build. Its recorded hashes appear in the job
+summary and as a `torch-wheels.json` artifact; copying them into
+`envs.autorig.torch.wheels` and rebuilding moves torch to ENFORCE.
+`pins_match.py` reads the manifest back out of the finished image, so the
+image reports its own state rather than a build step's claim, and
+`arapRuntimePins.test.ts` fails if `hash_pin_status` ever disagrees with
+whether hashes are actually present.
+
+Until that second build, **torch is version-pinned only** — safe against a
+CUDA substitution, but not reproducible, and it should not be described as
+reproducible.
 
 ## Provenance
 
