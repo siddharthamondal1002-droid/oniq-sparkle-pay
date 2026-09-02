@@ -190,3 +190,54 @@ describe("the WALKING render QC reference — run 33654209597 on the two eligibl
     }
   });
 });
+
+describe("the Step 11D diagnosis reference — run 33662521801, the reference character beside", () => {
+  const dx = JSON.parse(
+    read("remotion/fixtures/arap-eligibility/real-gateway-walking-diagnosis-reference.json"),
+  ) as {
+    characters: {
+      name: string;
+      diagnosis: {
+        reading: string;
+        exitSide: string | null;
+        firstEdgeContact: number | null;
+        preEdge: {
+          heightRelStd: number;
+          fillRelStd: number;
+          centroidDriftXPxPerFrame: number;
+          footLineRangePx: number;
+        };
+      };
+      verdict: { pass: boolean; reasons: string[] } | null;
+    }[];
+  };
+  it("carries both eligible primaries and the reference character", () => {
+    expect(dx.characters.map((c) => c.name)).toEqual([
+      `${FILM_PRESENT}-s-shot002`,
+      `${FILM_PRESENT}-s-shot004`,
+      "reference-char1",
+    ]);
+  });
+  it("every clip, the reference included, reads TRANSLATION_DOMINANT with a held silhouette and a steady drift to the exit edge", () => {
+    for (const c of dx.characters) {
+      expect(c.diagnosis.reading, c.name).toBe("TRANSLATION_DOMINANT");
+      expect(c.diagnosis.exitSide, c.name).toBe("right");
+      expect(c.diagnosis.firstEdgeContact, c.name).not.toBeNull();
+      expect(c.diagnosis.preEdge.heightRelStd, c.name).toBeLessThan(0.03);
+      expect(c.diagnosis.preEdge.fillRelStd, c.name).toBeLessThan(0.02);
+      expect(c.diagnosis.preEdge.centroidDriftXPxPerFrame, c.name).toBeGreaterThan(0.5);
+      expect(c.diagnosis.preEdge.footLineRangePx, c.name).toBeLessThan(30);
+    }
+  });
+  it("the reference character fails the existing gate on the same reasons as the gateway characters", () => {
+    const ref = dx.characters.find((c) => c.name === "reference-char1");
+    expect(ref?.verdict?.pass).toBe(false);
+    expect(ref?.verdict?.reasons[0]).toBe("character left the frame or vanished on some frames");
+    for (const c of dx.characters) expect(c.verdict?.pass, c.name).toBe(false);
+  });
+  it("the checked-in report exists at the repository root and is a PDF", () => {
+    const pdf = readFileSync(join(root, "ONIQ_Step_11D_Diagnosis_Report.pdf"));
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+    expect(pdf.length).toBeGreaterThan(100_000);
+  });
+});

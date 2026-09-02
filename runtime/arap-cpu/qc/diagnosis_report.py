@@ -1,0 +1,269 @@
+#!/usr/bin/env python3
+"""
+Step 11D — assemble the diagnosis into one PDF.
+
+    diagnosis_report.py <qc_dir> <out.pdf> [--title T] [--run-url URL] [--digest D] [--extra key=value ...]
+
+Runner side, python3 + PIL. Reads <qc_dir>/<name>/diagnosis.json (and, where
+present, stats.json from the QC gate and rig.json from the auto-rig) for every
+subdirectory, draws the centroid / height / fill trajectories as PNG charts,
+embeds the contact sheets, and prints one HTML document to PDF with headless
+Chrome when the runner has it. Without Chrome it falls back to a PIL
+multi-page PDF of rendered pages, so a report is always produced.
+
+The report states what was measured and which reading the numbers support.
+It changes nothing: no gate, no threshold, no routing.
+"""
+import base64
+import html
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+from PIL import Image, ImageDraw
+
+
+def chart(series, labels, out: Path, title: str, w=900, h=260, marks=None):
+    """A plain polyline chart. series: list of lists of (x, y|None)."""
+    im = Image.new("RGB", (w, h), (255, 255, 255))
+    d = ImageDraw.Draw(im)
+    pad_l, pad_r, pad_t, pad_b = 60, 20, 30, 30
+    xs = [x for s in series for x, y in s if y is not None]
+    ys = [y for s in series for x, y in s if y is not None]
+    if not xs:
+        d.text((10, 10), f"{title}: no data", fill=(0, 0, 0))
+        im.save(out)
+        return
+    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+    if y1 == y0:
+        y1 = y0 + 1
+    def px(x): return pad_l + (x - x0) / max(1, x1 - x0) * (w - pad_l - pad_r)
+    def py(y): return h - pad_b - (y - y0) / (y1 - y0) * (h - pad_t - pad_b)
+    d.rectangle([pad_l, pad_t, w - pad_r, h - pad_b], outline=(200, 200, 200))
+    d.text((8, 8), title, fill=(0, 0, 0))
+    d.text((8, pad_t), f"{y1:.0f}", fill=(90, 90, 90))
+    d.text((8, h - pad_b - 10), f"{y0:.0f}", fill=(90, 90, 90))
+    d.text((pad_l, h - pad_b + 6), f"frame {x0}", fill=(90, 90, 90))
+    d.text((w - pad_r - 80, h - pad_b + 6), f"frame {x1}", fill=(90, 90, 90))
+    colours = [(30, 90, 200), (200, 60, 30), (30, 150, 60)]
+    for k, s in enumerate(series):
+        pts = [(px(x), py(y)) for x, y in s if y is not None]
+        if len(pts) > 1:
+            d.line(pts, fill=colours[k % 3], width=2)
+        d.text((pad_l + 10 + 160 * k, pad_t + 4), labels[k], fill=colours[k % 3])
+    for m in marks or []:
+        if m["x"] is not None:
+            d.line([(px(m["x"]), pad_t), (px(m["x"]), h - pad_b)], fill=(120, 120, 120), width=1)
+            d.text((px(m["x"]) + 3, pad_t + 20), m["label"], fill=(120, 120, 120))
+    im.save(out)
+
+
+def b64(path: Path) -> str:
+    return base64.b64encode(path.read_bytes()).decode()
+
+
+def load(qc_dir: Path):
+    chars = []
+    for sub in sorted(p for p in qc_dir.iterdir() if p.is_dir()):
+        dpath = sub / "diagnosis.json"
+        if not dpath.exists():
+            continue
+        d = json.loads(dpath.read_text())
+        stats = json.loads((sub / "stats.json").read_text())["summary"] if (sub / "stats.json").exists() else None
+        rig = json.loads((sub / "rig.json").read_text()) if (sub / "rig.json").exists() else None
+        verdict = None
+        vpath = qc_dir / "verdicts.json"
+        if vpath.exists():
+            for v in json.loads(vpath.read_text()).get("verdicts", []):
+                if v["stem"] == sub.name:
+                    verdict = v
+        chars.append({"name": sub.name, "dir": sub, "diagnosis": d["diagnosis"], "frames": d["frames"], "stats": stats, "rig": rig, "verdict": verdict})
+    return chars
+
+
+def finding(chars) -> str:
+    """The one paragraph the numbers support, computed from the readings — never typed in."""
+    ref = [c for c in chars if c["name"].startswith("reference")]
+    gw = [c for c in chars if not c["name"].startswith("reference")]
+    readings = {c["name"]: c["diagnosis"]["reading"] for c in chars}
+    all_translation = chars and all(r == "TRANSLATION_DOMINANT" for r in readings.values())
+    ref_fails_gate = bool(ref) and any(c["verdict"] and not c["verdict"]["pass"] for c in ref)
+    gw_fail = [c["name"] for c in gw if c["verdict"] and not c["verdict"]["pass"]]
+    out = ["<h2>Finding</h2>"]
+    if all_translation and ref and ref_fails_gate:
+        out.append("<p><b>The walk-off is the driver's, not the characters'.</b> Every clip measured here, the gateway characters and the reference character the image ships alike, "
+                   "reads TRANSLATION_DOMINANT: the silhouette's centroid drifts steadily toward the exit edge while its height and fill hold, and the foot line stays put until the exit. "
+                   "The reference character, which passes the runtime's own render floors, fails the existing render gate on the same reasons as the gateway characters. "
+                   "Under this driver and the fixed reference camera the gate's in-frame and foot-line criteria fail any character, so Step 11C's verdicts on these characters are not evidence of deform drift.</p>")
+        out.append("<p>What the numbers do not say: whether the deform is <em>good</em>. They say the mesh kept its shape while it walked, and that the gate as applied cannot see past the camera. "
+                   "Which fix to take is the owner's decision: follow the character with the camera, neutralise the driver's root translation for QC renders, or measure in a character-centred frame. Each changes the QC setup, none changes the envelope.</p>")
+    elif all_translation:
+        out.append("<p>Every clip reads TRANSLATION_DOMINANT, but no reference render is present to show the driver behaves the same on a known-good character. Render the reference before concluding.</p>")
+    else:
+        out.append("<p>Readings differ across clips: " + html.escape(json.dumps(readings)) + ". A DEFORM_DOMINANT or MIXED reading on a gateway character is evidence the gate saw a real deform problem; read those frames first.</p>")
+    if gw_fail:
+        out.append("<p class=meta>Gateway characters the existing gate failed: " + html.escape(", ".join(gw_fail)) + ". Those verdicts stand as recorded; this report explains them, it does not overturn them.</p>")
+    return "".join(out)
+
+
+def build_html(chars, opts, tmp: Path) -> str:
+    parts = [f"<h1>{html.escape(opts['title'])}</h1>",
+             "<p class=meta>Generated by the arap-step-11d-diagnosis workflow. Image: <code>" + html.escape(opts.get("digest", "")) + "</code>" +
+             (f" · <a href='{html.escape(opts['run_url'])}'>run</a>" if opts.get("run_url") else "") + "</p>",
+             "<h2>Question</h2><p>Step 11C's render gate failed both eligible gateway characters with <em>character left the frame or vanished</em>. "
+             "The gate cannot tell a mesh that drifts off its ground from a correct mesh that the BVH root carries out of a fixed camera's view. "
+             "This report measures the two readings apart, per clip, and compares each gateway character with the reference character rendered by the same driver in the same image.</p>",
+             "<h2>Summary</h2><table><tr><th>clip</th><th>reading</th><th>first edge</th><th>gone</th><th>exit</th><th>drift x px/f</th><th>height rel. std</th><th>fill rel. std</th><th>height Δ</th><th>fill Δ</th><th>gate</th></tr>"]
+    for c in chars:
+        dx, pe = c["diagnosis"], c["diagnosis"]["preEdge"]
+        gate = "n/a" if not c["verdict"] else ("PASS" if c["verdict"]["pass"] else "FAIL")
+        parts.append(f"<tr><td>{html.escape(c['name'])}</td><td><b>{dx['reading']}</b></td><td>{dx['firstEdgeContact']}</td><td>{dx['firstVanish']}</td><td>{dx['exitSide']}</td>"
+                     f"<td>{pe['centroidDriftXPxPerFrame']}</td><td>{pe['heightRelStd']}</td><td>{pe['fillRelStd']}</td><td>{pe['heightChangeFirstToLastQuarter']:+.3f}</td><td>{pe['fillChangeFirstToLastQuarter']:+.3f}</td><td>{gate}</td></tr>")
+    parts.append("</table>")
+    parts.append(finding(chars))
+    for k, v in (opts.get("extra") or {}).items():
+        parts.append(f"<p class=meta><b>{html.escape(k)}</b>: {html.escape(v)}</p>")
+    for c in chars:
+        dx, pe, rows = c["diagnosis"], c["diagnosis"]["preEdge"], c["frames"]
+        parts.append(f"<h2>{html.escape(c['name'])}</h2><p><b>{dx['reading']}</b> — {html.escape(dx['why'])}.</p>")
+        if c["rig"]:
+            r = c["rig"]
+            parts.append(f"<p class=meta>rig: detector {r.get('det_score')}, keypoint mean {r.get('kpt_conf_mean')}, min {r.get('kpt_conf_min')}, crop {r.get('crop_wh')}</p>")
+        if c["stats"]:
+            s = c["stats"]
+            parts.append(f"<p class=meta>gate statistics: mean fill {s['meanFillPct']}%, min {s['fillMinPct']}%, foot range {s['footLineRangePx']}/{s['frameSizePx']} px, static pairs {s['staticPairs']}/{s['comparedPairs']}</p>")
+        if c["verdict"]:
+            parts.append("<p class=meta>gate verdict: " + html.escape("; ".join(c["verdict"]["reasons"]) or "pass") + "</p>")
+        marks = [{"x": dx["firstEdgeContact"], "label": "edge"}, {"x": dx["firstVanish"], "label": "gone"}]
+        c1, c2, c3 = tmp / f"{c['name']}-cx.png", tmp / f"{c['name']}-h.png", tmp / f"{c['name']}-fill.png"
+        chart([[(r["i"], r["cx"]) for r in rows], [(r["i"], r["cy"]) for r in rows]], ["centroid x", "centroid y"], c1, "silhouette centroid (px)", marks=marks)
+        chart([[(r["i"], r["height"] or None) for r in rows], [(r["i"], r["width"] or None) for r in rows]], ["height", "width"], c2, "silhouette height and width (px)", marks=marks)
+        chart([[(r["i"], 100 * r["fill"]) for r in rows]], ["fill %"], c3, "silhouette fill (% of canvas)", marks=marks)
+        for p in (c1, c2, c3):
+            parts.append(f"<img src='data:image/png;base64,{b64(p)}' style='width:100%;max-width:900px'>")
+        for sheet, mime in (("sheet-overview.png", "png"), ("sheet-exit.png", "png"), ("strip.jpg", "jpeg")):
+            sp = c["dir"] / sheet
+            if sp.exists():
+                parts.append(f"<p class=meta>{sheet}</p><img src='data:image/{mime};base64,{b64(sp)}' style='width:100%'>")
+    parts.append("<h2>What this does and does not change</h2><p>Nothing. The envelope, the render gate and production routing are untouched; allowPoseWarp stays false. "
+                 "The reading is evidence for the next decision, which is the owner's: whether the QC render should follow the character or neutralise the driver's root translation before the gate is applied.</p>")
+    css = "body{font-family:Helvetica,Arial,sans-serif;font-size:11px;margin:24px;color:#111}h1{font-size:20px}h2{font-size:14px;margin-top:22px}table{border-collapse:collapse}td,th{border:1px solid #bbb;padding:3px 6px;font-size:10px}.meta{color:#444}code{font-size:9px}"
+    return f"<!doctype html><html><head><meta charset='utf-8'><title>{html.escape(opts['title'])}</title><style>{css}</style></head><body>{''.join(parts)}</body></html>"
+
+
+def to_pdf(html_path: Path, out: Path, tmp: Path, chars) -> str:
+    chrome = os.environ.get("CHROME_BIN") or shutil.which("google-chrome") or shutil.which("google-chrome-stable") or shutil.which("chromium-browser") or shutil.which("chromium")
+    if chrome:
+        r = subprocess.run([chrome, "--headless=new", "--disable-gpu", "--no-sandbox", f"--print-to-pdf={out}", "--no-pdf-header-footer", html_path.as_uri()], capture_output=True, text=True, timeout=180)
+        if out.exists() and out.stat().st_size > 0:
+            return f"chrome ({chrome})"
+        print("chrome failed:", r.stderr[-500:])
+    # Fallback: one PIL page per chart/sheet, plus a text page.
+    pages = []
+    text = Image.new("RGB", (1240, 1754), (255, 255, 255))
+    d = ImageDraw.Draw(text)
+    y = 40
+    for c in chars:
+        dx, pe = c["diagnosis"], c["diagnosis"]["preEdge"]
+        for line in [f"{c['name']}", f"  reading: {dx['reading']}", f"  {dx['why']}", f"  first edge {dx['firstEdgeContact']}  gone {dx['firstVanish']}  exit {dx['exitSide']}", f"  pre-edge: drift x {pe['centroidDriftXPxPerFrame']} px/f, height rel std {pe['heightRelStd']}, fill rel std {pe['fillRelStd']}, height change {pe['heightChangeFirstToLastQuarter']:+.3f}, fill change {pe['fillChangeFirstToLastQuarter']:+.3f}", ""]:
+            d.text((40, y), line[:150], fill=(0, 0, 0))
+            y += 18
+    pages.append(text)
+    for p in sorted(tmp.glob("*.png")) + [s for c in chars for s in (c["dir"] / "sheet-overview.png", c["dir"] / "sheet-exit.png", c["dir"] / "strip.jpg") if s.exists()]:
+        pages.append(Image.open(p).convert("RGB"))
+    pages[0].save(out, "PDF", save_all=True, append_images=pages[1:])
+    return "pil-fallback"
+
+
+def build_transfer(qc_dir: Path, out: Path, meta: dict) -> None:
+    """Everything the PDF needs, as one JSON the CI log can carry back: diagnoses
+    with their per-frame rows, gate statistics, rig confidences, verdicts, and
+    each clip's small JPEG strip as base64. No clip bytes, no masks."""
+    chars = []
+    for c in load(qc_dir):
+        strip_path = c["dir"] / "strip.jpg"
+        chars.append({
+            "name": c["name"],
+            "diagnosis": c["diagnosis"],
+            "frames": c["frames"],
+            "stats": c["stats"],
+            "rig": c["rig"],
+            "verdict": c["verdict"],
+            "stripJpegBase64": b64(strip_path) if strip_path.exists() else None,
+        })
+    out.write_text(json.dumps({"schema": "oniq.arap-step-11d-transfer/1", **meta, "characters": chars}) + "\n")
+
+
+def unpack_transfer(transfer: Path, into: Path) -> Path:
+    """Rebuild the per-character directories the builder reads, from a transfer file."""
+    t = json.loads(transfer.read_text())
+    into.mkdir(parents=True, exist_ok=True)
+    verdicts = []
+    for c in t["characters"]:
+        d = into / c["name"]
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "diagnosis.json").write_text(json.dumps({"diagnosis": c["diagnosis"], "frames": c["frames"]}))
+        if c.get("stats"):
+            (d / "stats.json").write_text(json.dumps({"summary": c["stats"], "frames": []}))
+        if c.get("rig"):
+            (d / "rig.json").write_text(json.dumps(c["rig"]))
+        if c.get("stripJpegBase64"):
+            (d / "strip.jpg").write_bytes(base64.b64decode(c["stripJpegBase64"]))
+        if c.get("verdict"):
+            verdicts.append(c["verdict"])
+    (into / "verdicts.json").write_text(json.dumps({"verdicts": verdicts}))
+    return into
+
+
+def main(argv) -> int:
+    if len(argv) < 3:
+        print(__doc__)
+        return 2
+    if argv[1] == "--build-transfer":
+        # diagnosis_report.py --build-transfer <qc_dir> <transfer.json> [--digest D] [--run-url U]
+        meta = {}
+        if "--digest" in argv:
+            meta["digest"] = argv[argv.index("--digest") + 1]
+        if "--run-url" in argv:
+            meta["runUrl"] = argv[argv.index("--run-url") + 1]
+        build_transfer(Path(argv[2]), Path(argv[3]), meta)
+        print(f"WROTE {argv[3]} ({Path(argv[3]).stat().st_size} bytes)")
+        return 0
+    # Absolute: Chrome is handed a file URI, and a relative path has none.
+    qc_dir, out = Path(argv[1]), Path(argv[2]).resolve()
+    if "--from-transfer" in argv:
+        qc_dir = unpack_transfer(Path(argv[argv.index("--from-transfer") + 1]), Path(tempfile.mkdtemp(prefix="arap-11d-unpacked-")))
+    opts = {"title": "ONIQ Step 11D — WALKING render diagnosis", "extra": {}}
+    i = 3
+    while i < len(argv):
+        if argv[i] == "--title":
+            opts["title"] = argv[i + 1]; i += 2
+        elif argv[i] == "--run-url":
+            opts["run_url"] = argv[i + 1]; i += 2
+        elif argv[i] == "--digest":
+            opts["digest"] = argv[i + 1]; i += 2
+        elif argv[i] == "--extra":
+            k, _, v = argv[i + 1].partition("="); opts["extra"][k] = v; i += 2
+        else:
+            i += 1
+    chars = load(qc_dir)
+    if not chars:
+        print("FAIL: no diagnosis.json under", qc_dir)
+        return 1
+    tmp = Path(tempfile.mkdtemp(prefix="arap-11d-"))
+    doc = build_html(chars, opts, tmp)
+    html_path = out.with_suffix(".html")
+    html_path.write_text(doc)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    how = to_pdf(html_path, out, tmp, chars)
+    print(f"WROTE {out} ({out.stat().st_size} bytes, via {how}); html beside it")
+    print("SUMMARY " + json.dumps({c["name"]: c["diagnosis"]["reading"] for c in chars}))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))
