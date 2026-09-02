@@ -25,7 +25,9 @@
       "bytes": 402617,
       "width": 704,
       "height": 480,
-      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner",
+      "sha256Verified": true,
+      "fetched": true
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot001": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
@@ -36,7 +38,9 @@
       "bytes": 437633,
       "width": 704,
       "height": 480,
-      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner",
+      "sha256Verified": true,
+      "fetched": true
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot002": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
@@ -47,7 +51,9 @@
       "bytes": 388491,
       "width": 704,
       "height": 480,
-      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner",
+      "sha256Verified": true,
+      "fetched": true
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot003": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
@@ -58,7 +64,9 @@
       "bytes": 348123,
       "width": 704,
       "height": 480,
-      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner",
+      "sha256Verified": true,
+      "fetched": true
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot004": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
@@ -69,7 +77,9 @@
       "bytes": 374888,
       "width": 704,
       "height": 480,
-      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner",
+      "sha256Verified": true,
+      "fetched": true
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot005": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
@@ -80,7 +90,9 @@
       "bytes": 371391,
       "width": 704,
       "height": 480,
-      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner",
+      "sha256Verified": true,
+      "fetched": true
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot006": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
@@ -91,7 +103,9 @@
       "bytes": 398168,
       "width": 704,
       "height": 480,
-      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner",
+      "sha256Verified": true,
+      "fetched": true
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot007": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
@@ -102,7 +116,9 @@
       "bytes": 409002,
       "width": 704,
       "height": 480,
-      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner",
+      "sha256Verified": true,
+      "fetched": true
     },
     "87c2b756-a832-48dc-b97b-7a3235ddee5c-s-shot008": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
@@ -113,70 +129,108 @@
       "bytes": 378856,
       "width": 704,
       "height": 480,
-      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner"
+      "recordedBy": "run 33646171242 (2026-09-02T15:06:42Z), fetch_corpus.py on the runner",
+      "sha256Verified": true,
+      "fetched": true
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot000": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
       "shotId": "shot000",
-      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped",
+      "fetched": false,
+      "missing": "HTTP 404 at the derived key"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot001": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
       "shotId": "shot001",
-      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped",
+      "fetched": false,
+      "missing": "HTTP 404 at the derived key"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot002": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
       "shotId": "shot002",
-      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped",
+      "fetched": false,
+      "missing": "HTTP 404 at the derived key"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot003": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
       "shotId": "shot003",
-      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped",
+      "fetched": false,
+      "missing": "HTTP 404 at the derived key"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot004": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
       "shotId": "shot004",
-      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped",
+      "fetched": false,
+      "missing": "HTTP 404 at the derived key"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot005": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
       "shotId": "shot005",
-      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped",
+      "fetched": false,
+      "missing": "HTTP 404 at the derived key"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot006": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
       "shotId": "shot006",
-      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped",
+      "fetched": false,
+      "missing": "HTTP 404 at the derived key"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot007": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
       "shotId": "shot007",
-      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped",
+      "fetched": false,
+      "missing": "HTTP 404 at the derived key"
     },
     "64874747-44af-4086-a58a-250d2e7eec08-s-shot008": {
       "ownerUserId": "d3b58345-b17d-4322-a81c-751965c226af",
       "jobId": "64874747-44af-4086-a58a-250d2e7eec08",
       "sceneId": "s",
       "shotId": "shot008",
-      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped"
+      "observed": "HTTP 404 at the derived key on run 33646171242 (2026-09-02T15:06:42Z); listed so it is classified MISSING, never dropped",
+      "fetched": false,
+      "missing": "HTTP 404 at the derived key"
     }
+  },
+  "readBaseHost": "pub-375e3f0f9afb47cca77889b3a03b2b2e.r2.dev",
+  "fetchedAt": "2026-09-02T16:05:35Z",
+  "fetchSummary": {
+    "listed": 18,
+    "fetched": 9,
+    "missing": 9,
+    "missingStems": [
+      "64874747-44af-4086-a58a-250d2e7eec08-s-shot000",
+      "64874747-44af-4086-a58a-250d2e7eec08-s-shot001",
+      "64874747-44af-4086-a58a-250d2e7eec08-s-shot002",
+      "64874747-44af-4086-a58a-250d2e7eec08-s-shot003",
+      "64874747-44af-4086-a58a-250d2e7eec08-s-shot004",
+      "64874747-44af-4086-a58a-250d2e7eec08-s-shot005",
+      "64874747-44af-4086-a58a-250d2e7eec08-s-shot006",
+      "64874747-44af-4086-a58a-250d2e7eec08-s-shot007",
+      "64874747-44af-4086-a58a-250d2e7eec08-s-shot008"
+    ]
   }
 }

@@ -1,0 +1,146 @@
+name: arap walking qc
+
+# Step 11C, step 11 — ISOLATED render QC of real, eligible gateway characters
+# with the ONE grammar entry (WALKING), outside production routing. It exists
+# to answer the failure mode Phase 6 measured: an auto-rig that looks right
+# and still collapses at the ARAP deform. A correct skeleton is not enough.
+#
+# THE IMAGE IS PULLED BY DIGEST from pins.json — the validated bytes. The QC
+# statistics script is MOUNTED, not baked in. The verdict is the EXISTING
+# post-render gate, l3RenderQc in src/lib/motionCost.ts, applied on the
+# runner with its default thresholds; nothing here invents a threshold.
+#
+# The corpus is the owner's committed manifest (see arap-eligibility-measure):
+# only listed stems are fetched, by derived key, and only the stems named in
+# `stems` are rendered — the eligible primaries the measurement reported.
+#
+# A pass here ENABLES NOTHING. allowPoseWarp stays false, no provider is
+# registered, no shot is routed. A fail is the gate's own escalation, recorded.
+#
+# One credential: GITHUB_TOKEN, packages:read, to pull from GHCR.
+
+on:
+  workflow_dispatch:
+    inputs:
+      corpus_manifest:
+        description: "Repo path of the committed oniq.arap-corpus-manifest/1."
+        type: string
+        default: "remotion/fixtures/arap-eligibility/corpus/OWNER_AUTHORIZED_GATEWAY_CORPUS.manifest.json"
+      stems:
+        description: "Comma-separated still stems to QC — the eligible PRIMARY candidates from the measurement report."
+        type: string
+        default: ""
+      motion:
+        description: "Motion config inside the Animated Drawings checkout. WALKING is the only grammar entry."
+        type: string
+        default: "examples/config/motion/zombie.yaml"
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  qc:
+    name: "isolated WALKING renders, judged by the existing gate"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: "The image is the validated digest, and nothing else"
+        id: digest
+        run: |
+          set -euo pipefail
+          DIGEST=$(python3 -c "import json;print(json.load(open('runtime/arap-cpu/pins.json'))['validation']['image_build']['digest'])")
+          case "$DIGEST" in *@sha256:*) ;; *) echo "FAIL: not a digest reference: $DIGEST"; exit 1;; esac
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "IMAGE UNDER QC: ${DIGEST}"
+
+      - name: "Pull by digest"
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          printf '%s' "${REGISTRY_TOKEN}" | docker --config /tmp/dc login ghcr.io -u "${REGISTRY_USER}" --password-stdin >/dev/null
+          docker --config /tmp/dc pull "${DIGEST}"
+          rm -rf /tmp/dc
+          docker image inspect "${DIGEST}" --format 'PULLED {{index .RepoDigests 0}}'
+
+      - name: "The corpus, by derived key, from the owner's manifest"
+        env:
+          CORPUS_MANIFEST: ${{ inputs.corpus_manifest }}
+        run: |
+          set -euo pipefail
+          mkdir -p corpus out/qc && chmod 0777 corpus out out/qc
+          test -f "${CORPUS_MANIFEST}"
+          python3 runtime/arap-cpu/measure/fetch_corpus.py --selftest
+          python3 runtime/arap-cpu/measure/fetch_corpus.py "${CORPUS_MANIFEST}" corpus
+          cp corpus/corpus-manifest.json out/corpus-manifest.fetched.json
+
+      - name: "Rig, silhouette, WALKING render, statistics — one character at a time"
+        env:
+          DIGEST: ${{ steps.digest.outputs.digest }}
+          STEMS: ${{ inputs.stems }}
+          MOTION: ${{ inputs.motion }}
+        run: |
+          set -euo pipefail
+          [ -n "${STEMS}" ] || { echo "no stems given: nothing to QC"; exit 0; }
+          run_in_image() {
+            docker run --rm -e TQDM_DISABLE=1 \
+              -v "${PWD}/corpus:/corpus:ro" \
+              -v "${PWD}/runtime/arap-cpu/qc:/qc:ro" \
+              -v "${PWD}/out/qc:/work" \
+              "${DIGEST}" "$@"
+          }
+          IFS=',' read -ra LIST <<< "${STEMS}"
+          for raw in "${LIST[@]}"; do
+            stem="$(echo "${raw}" | tr -d '[:space:]')"
+            [ -n "${stem}" ] || continue
+            case "${stem}" in *[!A-Za-z0-9_-]*) echo "FAIL: stem ${stem} is not a plain id"; exit 1;; esac
+            echo "::group::${stem}"
+            mkdir -p "out/qc/${stem}" && chmod 0777 "out/qc/${stem}"
+            if [ ! -f "corpus/${stem}.png" ]; then
+              echo "NO STILL for ${stem} (not fetched — see the corpus step); recorded as a failed QC"
+              echo "::endgroup::"; continue
+            fi
+            # 1. auto-rig: highest-scored detection, the same primary the measurement reported
+            run_in_image rig "/corpus/${stem}.png" "/work/${stem}/char" || { echo "rig failed for ${stem}"; echo "::endgroup::"; continue; }
+            # 2. the provider-mandated silhouette (u2netp) replaces the classical mask the
+            #    rig wrote — the classical one measured 100% fill on painterly art
+            run_in_image segment "/work/${stem}/char/texture.png" "/work/${stem}/seg" || { echo "segment failed for ${stem}"; echo "::endgroup::"; continue; }
+            cp "out/qc/${stem}/seg/mask.png" "out/qc/${stem}/char/mask.png"
+            # 3. the WALKING render, arm-damped retarget, inside the validated image
+            run_in_image render "/work/${stem}/char" "/opt/oniq/AnimatedDrawings/${MOTION}" "/work/${stem}/walk.gif" || { echo "render failed for ${stem}"; echo "::endgroup::"; continue; }
+            # 4. per-frame statistics, in ENV B, for the existing gate
+            run_in_image shell-b /qc/walking_qc_stats.py "/work/${stem}/walk.gif" "/work/${stem}/stats.json" || echo "stats failed for ${stem}"
+            echo "::endgroup::"
+          done
+
+      - name: "Judge with the existing gate, unchanged"
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx tsx scripts/arap-walking-qc.ts out/qc out/qc/verdicts.json | tee out/qc/summary.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: arap-walking-qc
+          path: out/
+          if-no-files-found: error
+
+      - name: "The verdicts, last"
+        if: always()
+        run: |
+          echo "IMAGE: ${{ steps.digest.outputs.digest }}"
+          cat out/qc/summary.txt 2>/dev/null || echo "(no summary — see the steps above)"
+          if [ -f out/qc/verdicts.json ]; then
+            echo "::group::verdicts.json"; cat out/qc/verdicts.json; echo "::endgroup::"
+          fi
+          echo "NOTE: a pass here enables nothing. Pose-warp stays disabled in the planner; no provider is registered."

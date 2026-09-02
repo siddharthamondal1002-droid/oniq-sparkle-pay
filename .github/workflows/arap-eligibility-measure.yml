@@ -121,7 +121,16 @@ jobs:
           CORPUS_ID: ${{ inputs.corpus_id }}
         run: |
           set -euo pipefail
+          # THE IMAGE PREDATES THE `measure` VERB. The validated digest was built
+          # before Step 11A added `measure` to entrypoint.sh, and the image is
+          # not rebuilt for a measurement harness (owner boundary). So the
+          # mounted driver is invoked DIRECTLY through the image's ENV A
+          # python — the same interpreter the verb would have used — with the
+          # image's own environment (AD_MODEL_STORE, uid 10001) untouched.
+          # Measured 2026-09-02, run 33646171242: `measure` answered
+          # "unknown command" and nothing was measured.
           docker run --rm \
+            --entrypoint /opt/oniq/venv-autorig/bin/python \
             -e TQDM_DISABLE=1 \
             -e ONIQ_CORPUS_ID="${CORPUS_ID}" \
             -e ONIQ_ARTIFACTS_LIB=/repo-proofs \
@@ -129,7 +138,7 @@ jobs:
             -v "${PWD}/runtime/arap-cpu/proofs:/repo-proofs:ro" \
             -v "${PWD}/corpus:/corpus:ro" \
             -v "${PWD}/out:/work" \
-            "${DIGEST}" measure /corpus /work
+            "${DIGEST}" /measure/measure_eligibility.py /corpus /work
           test -s out/manifest.json
 
       - name: "Compute eligibility with the production functions, unchanged"

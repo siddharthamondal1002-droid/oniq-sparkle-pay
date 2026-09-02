@@ -238,6 +238,9 @@ ghcr.io/siddharthamondal1002-droid/oniq-sparkle-pay/arap-cpu@sha256:d0fb43f5f0b2
 
 ## Step 11C — the authorised corpus, and where it stopped
 
+_Superseded on 2026-09-02: the corpus was fetched on the runner and measured; see
+`ARAP_STEP_11C_RESULT.md`. What follows records the state before that run._
+
 Owner directive 2026-09-02: the first authorised production corpus is the
 **18 owner-owned stills** of the two ready films (`87c2b756…`, 9 shots, and
 `64874747…`, 9 shots); the other user's 27 stay out of scope; the decision
