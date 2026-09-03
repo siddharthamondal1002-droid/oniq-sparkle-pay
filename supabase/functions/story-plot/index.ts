@@ -57,7 +57,7 @@
 // requested duration, and the count is passed in. A second shot planner living
 // in a system prompt would drift from the first one and nobody would notice
 // until a Story came back the wrong length.
-import { callGemini, callClaude, langInstruction } from "../_shared/llm.ts";
+import { callGemini, callClaude, SUPPORTED_LANGS } from "../_shared/llm.ts";
 import { orchestratePlan } from "../_shared/planOrchestrator.ts";
 import { verifyJobToken } from "../_shared/jobToken.ts";
 
@@ -81,6 +81,31 @@ const corsHeaders = {
  * the fourth. The fix is a verbatim description repeated in every prompt, and
  * the model writing the plan is the only thing positioned to write it once.
  */
+/**
+ * THE FILM'S LANGUAGE (owner directive, 2026-09-03). What is SPOKEN — every
+ * `narration` and every `dialogue.line` — is written in the language, in its
+ * script, as natural speech, because a voice in that language reads it. What
+ * is SEEN stays English: `setting`, every `lock`, every `still`, `motion` and
+ * `vfx` feed an image model that reads English, and a Hindi still prompt is a
+ * worse picture, not a Hindi picture. The shared langInstruction() is for chat
+ * replies and would have translated the whole JSON; this one draws the line
+ * where the film does. English, or an unknown code, adds nothing.
+ */
+function storyLanguageInstruction(lang: string): string {
+  const code = (lang ?? "").toLowerCase().trim();
+  if (!code || code === "en") return "";
+  const name = SUPPORTED_LANGS[code];
+  if (!name) return "";
+  return (
+    `\n\nFILM LANGUAGE: ${name}. Write every \`narration\` and every \`dialogue.line\` in ${name}, ` +
+    `in the ${name} script, as natural spoken ${name} — a ${name} voice reads them aloud. ` +
+    `\`title\` and \`logline\` may be in ${name}. Keep EVERYTHING ELSE in English — \`setting\`, ` +
+    `every \`lock\`, every \`still\`, every \`motion\` and \`vfx\` — because those feed an image ` +
+    `model that reads English. Character names may be ${name} names written in Latin letters ` +
+    `inside \`still\` and \`lock\`, and in ${name} script inside \`narration\` and \`dialogue\`.`
+  );
+}
+
 const SYSTEM = [
   "You are Ting 🔮, ONIQ's built-in assistant, working as a story editor for ONIQ Lores.",
   "You turn one line from a user into a shootable plan for a short animated film.",
@@ -294,7 +319,10 @@ Deno.serve(async (req) => {
       });
       const verdict = gate.ok ? contentVerdict(textOf(gate.data)) : null;
       if (!verdict) {
-        console.error("story-plot content gate did not answer", String(gate.ok ? "unparseable" : gate.reason));
+        console.error(
+          "story-plot content gate did not answer",
+          String(gate.ok ? "unparseable" : gate.reason),
+        );
         return json({ error: "The story check is unavailable right now — try again later." }, 503);
       }
       if (verdict.blocked) {
@@ -320,7 +348,7 @@ Deno.serve(async (req) => {
         : "";
 
     const opts = {
-      system: SYSTEM + langInstruction(lang),
+      system: SYSTEM + storyLanguageInstruction(lang),
       messages: [
         {
           role: "user" as const,
@@ -409,7 +437,7 @@ Deno.serve(async (req) => {
     if (!plan && shots > SINGLE_CALL_MAX_SHOTS && (hasClaude || hasGemini)) {
       const isVerbatim = narrations.length === shots;
       const spineSystem =
-        (isVerbatim ? SPINE_SYSTEM_VERBATIM : SPINE_SYSTEM) + langInstruction(lang);
+        (isVerbatim ? SPINE_SYSTEM_VERBATIM : SPINE_SYSTEM) + storyLanguageInstruction(lang);
       const spineUser = isVerbatim
         ? `Write ONLY the structure — title, logline, setting, and cast locks — for a ` +
           `${shots}-shot film of this story. The narration is already written; do NOT ` +
@@ -488,7 +516,7 @@ Deno.serve(async (req) => {
         const results = await Promise.all(
           groups.map(async (b) => {
             const res = await call({
-              system: BATCH_SYSTEM + langInstruction(lang),
+              system: BATCH_SYSTEM + storyLanguageInstruction(lang),
               messages: [
                 {
                   role: "user",
@@ -510,7 +538,8 @@ Deno.serve(async (req) => {
               noRetry: true, // orchestrator owns retries — one attempt, no budget doubling
               timeoutMs,
             });
-            if (!res.ok) return { reason: `batch ${b.from + 1}: ${String(res.reason ?? "failed")}` };
+            if (!res.ok)
+              return { reason: `batch ${b.from + 1}: ${String(res.reason ?? "failed")}` };
             const parsed = parseShots(textOf(res.data), b.beats.length);
             if ("reason" in parsed) return { reason: parsed.reason + cutNote(res.data) };
             return parsed;
@@ -582,7 +611,10 @@ Deno.serve(async (req) => {
         const r = parsePlan(textOf(first.data), shots);
         if ("plan" in r) plan = r.plan;
         else
-          tried.push({ engine: "anthropic", reason: (r.reason + cutNote(first.data)).slice(0, 160) });
+          tried.push({
+            engine: "anthropic",
+            reason: (r.reason + cutNote(first.data)).slice(0, 160),
+          });
       } else {
         const why = String(first.reason ?? "failed");
         tried.push({

@@ -492,6 +492,9 @@ async function claimJob() {
         grade: got.grade === 'movie' ? 'movie' : 'classic',
         verbatim: got.verbatim === true,
         platePath: got.platePath ?? null,
+        // The film's language (owner directive, 2026-09-03), from the claim.
+        // Absent on an older story-callback: English, as every such film was.
+        language: typeof got.language === 'string' && got.language ? got.language : 'en',
       };
     } catch (e) {
       // 409 means another runner won the race, or Supabase re-dispatched a job
@@ -507,7 +510,7 @@ async function claimJob() {
   }
 
   const queued = await db(
-    'story_jobs?status=eq.queued&order=created_at.asc&limit=1&select=id,user_id,prompt,requested_seconds,shot_count,cast_json,no_watermark,grade,verbatim,plate_path',
+    'story_jobs?status=eq.queued&order=created_at.asc&limit=1&select=id,user_id,prompt,requested_seconds,shot_count,cast_json,no_watermark,grade,verbatim,plate_path,language',
   );
   if (!queued || queued.length === 0) return null;
   const row = queued[0];
@@ -523,6 +526,7 @@ async function claimJob() {
     grade: row.grade === 'movie' ? 'movie' : 'classic',
     verbatim: row.verbatim === true,
     platePath: row.plate_path ?? null,
+    language: typeof row.language === 'string' && row.language ? row.language : 'en',
   };
 }
 
@@ -1948,6 +1952,9 @@ if (offline) {
         planRes = await edge('story-plot', {
           prompt: job.prompt,
           shots,
+          // Narration and dialogue in the film's language; image prompts stay
+          // English inside story-plot. English sends nothing, as before.
+          ...(job.language && job.language !== 'en' ? { lang: job.language } : {}),
           ...(verbatimChunks ? { narrations: verbatimChunks } : {}),
           ...(Array.isArray(job.castJson) && job.castJson.length ? { reuse: job.castJson } : {}),
         });
@@ -2051,7 +2058,23 @@ if (offline) {
     // when it is used at all it still flips to local exactly once,
     // mid-film, if the bucket dies, and stays there so voices do not
     // flip-flop between shots.
-    let ttsEngine = process.env.STORY_LOCAL_TTS === 'only' ? 'local' : 'cloud';
+    // OWNER DIRECTIVE 2026-09-03 (films in other languages): a film whose
+    // language is not English is voiced by the CLOUD voice, whatever
+    // STORY_LOCAL_TTS says. Every in-house voice is an English model — the
+    // narrator, the 904-speaker cast, the GPU worker's baked narrator — and
+    // Piper has no voice for any Indian language, so "local" for a Hindi film
+    // would be an English voice reading Latin phonemes over Devanagari. The
+    // English rule below is untouched: the 2026-08-27 in-house directive still
+    // decides English films, and voiceEngineFor() in src/lib/storyLanguages.ts
+    // is the one place both rules live.
+    const filmLanguage = typeof job.language === 'string' && job.language ? job.language : 'en';
+    const cloudForLanguage = filmLanguage !== 'en';
+    let ttsEngine = cloudForLanguage
+      ? 'cloud'
+      : process.env.STORY_LOCAL_TTS === 'only' ? 'local' : 'cloud';
+    if (cloudForLanguage) {
+      console.log(`  voice engine: cloud (film language ${filmLanguage}; the in-house voices are English only)`);
+    }
 
     // DIALOGUE VOICES. A shot may carry a spoken line (plan.shots[i].dialogue,
     // written by story-plot's movie grammar). It is voiced with a DIFFERENT
@@ -2137,6 +2160,12 @@ if (offline) {
           const msg = String(err?.message ?? err);
           const dry = /story-voice: 502/.test(msg) || /story-voice: 429/.test(msg);
           if (!dry) throw err;
+          // NO STEP-DOWN FOR ANOTHER LANGUAGE. Piper would carry a Hindi film
+          // as English phonemes, which is worse than no film: the job fails
+          // with the reason, and the user's time comes back.
+          if (cloudForLanguage) {
+            throw new Error(`cloud voice unavailable for a ${filmLanguage} film: ${msg.slice(0, 120)}`);
+          }
           if (!(await localTts())) throw err;
           ttsEngine = 'local';
           console.log(`  voice ${i + 1}: cloud quota dry — in-house piper carries the film from here`);
