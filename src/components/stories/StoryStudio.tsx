@@ -57,6 +57,7 @@ import { VideoClips, type ClipSeed } from "@/components/stories/VideoClips";
 import { VideoPlans } from "@/components/stories/VideoPlans";
 import { openInApp } from "@/lib/miniapps";
 import { MAX_PROMPT_CHARS, packNarrations, verbatimFits } from "@/lib/verbatimNarration";
+import { FILM_LANGUAGES, type FilmLanguage } from "@/lib/storyLanguages";
 import {
   DEFAULT_STORY_SECONDS,
   MAX_STORY_SECONDS,
@@ -244,6 +245,10 @@ export function StoryStudio() {
   // Ting. The toggle only arms when the text's spoken length fits the
   // purchased seconds; the claim RPC re-checks the same band server-side.
   const [verbatim, setVerbatim] = useState(false);
+  // The film's language (owner directive, 2026-09-03). English is the
+  // in-house voice; every other language is the cloud voice, because no
+  // in-house voice exists for it. The list is the set a voice exists for.
+  const [language, setLanguage] = useState<FilmLanguage>("en");
   // Cinematic controls (engineering mode). Empty by default, which keeps the
   // outgoing request byte-for-byte what it was before the panel existed.
   // Excluded in verbatim mode: there the prompt IS the narration.
@@ -440,6 +445,9 @@ export function StoryStudio() {
         // product.
         _grade: "movie",
         ...(verbatim ? { _verbatim: true } : {}),
+        // Only when it is not English, so a database that predates the column
+        // still claims an English film exactly as it always did.
+        ...(language !== "en" ? { _language: language } : {}),
       });
       if (rpcError) {
         setError(rpcError.message);
@@ -756,6 +764,35 @@ export function StoryStudio() {
               </button>
             )}
             {plateError ? <p className="mt-1 text-[11px] text-amber-300">{plateError}</p> : null}
+          </div>
+          {/* FILM LANGUAGE (owner directive, 2026-09-03). Narration and dialogue
+          in the picked language, spoken by the cloud voice; English keeps the
+          in-house voice. Only languages a voice exists for are offered. */}
+          <div className="mt-2 rounded-2xl border border-border bg-card/50 px-3 py-2.5">
+            <span className="block text-xs font-semibold text-foreground">🗣️ Spoken in</span>
+            <div
+              className="mt-1.5 flex flex-wrap gap-1.5"
+              role="radiogroup"
+              aria-label="Film language"
+            >
+              {FILM_LANGUAGES.map((l) => (
+                <button
+                  key={l.code}
+                  type="button"
+                  role="radio"
+                  aria-checked={language === l.code}
+                  onClick={() => setLanguage(l.code)}
+                  className={
+                    "rounded-full border px-2.5 py-1 text-[11px] font-semibold " +
+                    (language === l.code
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border text-muted-foreground")
+                  }
+                >
+                  {l.native}
+                </button>
+              ))}
+            </div>
           </div>
           {/* MY WORDS — verbatim mode (owner directive, 2026-08-14). The typed
           text is a finished story, narrated exactly as written: the worker

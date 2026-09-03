@@ -5851,6 +5851,7 @@ export type Database = {
       claim_story_seconds: {
         Args: {
           _grade?: string
+          _language?: string
           _prompt: string
           _requested_seconds: number
           _verbatim?: boolean

@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     // the row to `generating` — one round trip, and no read credential.
     if (action === "claim") {
       const got = await fetch(
-        `${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}&select=id,prompt,requested_seconds,shot_count,status,cast_json,no_watermark,grade,verbatim`,
+        `${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}&select=id,prompt,requested_seconds,shot_count,status,cast_json,no_watermark,grade,verbatim,language`,
         { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
       );
       if (!got.ok) return json({ error: "could not read the job" }, 502);
@@ -107,6 +107,9 @@ Deno.serve(async (req) => {
         // Verbatim mode (owner directive, 2026-08-14): the prompt IS the
         // narration, sliced not retold. Absent or false = the normal path.
         verbatim: job.verbatim === true,
+        // The film's language (owner directive, 2026-09-03). A row from before
+        // the column reads as English, which is what every such film was.
+        language: typeof job.language === "string" && job.language ? job.language : "en",
       });
     }
 

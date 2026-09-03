@@ -2522,14 +2522,14 @@ actually start a worker.
 
 ### What the gateway cannot do, reported per request
 
-| Input               | In-house                  | Gateway                             |
-| ------------------- | ------------------------- | ----------------------------------- |
-| `seed`              | real, reproducible        | none — `seedHonoured: false`        |
-| `negativePrompt`    | conditioning tensor       | a sentence in the ask               |
-| `referenceStrength` | a dial                    | none                                |
-| character reference | bucket **key** to the GPU | **bytes**, inlined by the edge fn   |
-| bucket key out      | `key` — motion animates it| `key: null` — nothing was stored    |
-| prompt ceiling      | 1000 (worker contract)    | 2000                                |
+| Input               | In-house                   | Gateway                           |
+| ------------------- | -------------------------- | --------------------------------- |
+| `seed`              | real, reproducible         | none — `seedHonoured: false`      |
+| `negativePrompt`    | conditioning tensor        | a sentence in the ask             |
+| `referenceStrength` | a dial                     | none                              |
+| character reference | bucket **key** to the GPU  | **bytes**, inlined by the edge fn |
+| bucket key out      | `key` — motion animates it | `key: null` — nothing was stored  |
+| prompt ceiling      | 1000 (worker contract)     | 2000                              |
 
 The reference reaches both engines from the SAME `characterRefId` through
 the same server-side allowlist; only the last hop differs. A caller still
@@ -2560,12 +2560,12 @@ after five consecutive failures at `still 1`. Run
 [33588651080](https://github.com/siddharthamondal1002-droid/oniq-sparkle-pay/actions/runs/33588651080),
 12 minutes end to end, 24,561,240 bytes delivered.
 
-| Line item | Count | Cost |
-| --- | --- | --- |
-| Gateway stills | 9 | Lovable credits — not exposed by the API, still unmeasured |
-| Narration + dialogue | 9 voices | ₹0 — local Piper (`STORY_LOCAL_TTS=only`) |
-| **Veo clips** | **0** | **₹0** |
-| RunPod GPU | 0 jobs | $0 |
+| Line item            | Count    | Cost                                                       |
+| -------------------- | -------- | ---------------------------------------------------------- |
+| Gateway stills       | 9        | Lovable credits — not exposed by the API, still unmeasured |
+| Narration + dialogue | 9 voices | ₹0 — local Piper (`STORY_LOCAL_TTS=only`)                  |
+| **Veo clips**        | **0**    | **₹0**                                                     |
+| RunPod GPU           | 0 jobs   | $0                                                         |
 
 `gpu_video_jobs` had **zero** rows in the window, which is the direct proof
 that the stills came from the gateway and the GPU was out of the path.
@@ -2659,3 +2659,29 @@ RunPod endpoint can start a worker, or when `IN_HOUSE_MOTION=off` routes the
 stage to Veo at the measured ₹9.56/second. Neither is done here.
 
 GPU spend for this entry: $0.
+
+---
+
+## 2026-09-03 — films in other languages use the cloud voice (owner directive)
+
+Owner directive, 2026-09-03, after the question "why can a video not be made in
+any other language": a Story whose language is not English is voiced by the
+cloud voice (Gemini TTS through the Lovable gateway, `story-voice`). English
+films are unchanged and stay on the in-house Piper engine under the 2026-08-27
+in-house directive.
+
+Why a provider decision was unavoidable: every in-house voice ONIQ owns is an
+English model — the story worker's narrator and 904-speaker cast, and the GPU
+worker's baked-in narrator — and Piper's catalogue has no voice for any Indian
+language. The in-house translator would have produced the words; the only
+in-house voice would then have read Hindi as English phonemes.
+
+What spends: the cloud voice, per spoken line, only for films whose language is
+not English. Stills, plot and render are unchanged. There is deliberately no
+step-down to Piper for such a film — the job fails with the reason and the
+user's time comes back — because a mispronounced film is worse than none.
+
+Languages offered: the intersection of the translator's list with the languages
+the cloud voice documents (en, hi, bn, mr, ta, te), pinned in
+`src/lib/storyLanguages.ts`, the `story_jobs.language` CHECK constraint and
+`claim_story_seconds`. Extend only with evidence the voice speaks the language.
