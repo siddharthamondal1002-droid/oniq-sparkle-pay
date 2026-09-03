@@ -210,7 +210,7 @@ describe("the CSP frames exactly these players and loads none of their scripts",
 
   it("builds a player URL in one file only", () => {
     const offenders = sourceFiles.filter((p) =>
-      /player\.vimeo\.com\/video|dailymotion\.com\/embed\/|player\.twitch\.tv\/\?|archive\.org\/embed\//.test(
+      /player\.vimeo\.com\/video|geo\.dailymotion\.com\/player\.html|player\.twitch\.tv\/\?|archive\.org\/embed\//.test(
         codeOf(p),
       ),
     );

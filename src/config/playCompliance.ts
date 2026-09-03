@@ -385,7 +385,7 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
     avoidable: true,
   },
   {
-    host: "www.dailymotion.com",
+    host: "geo.dailymotion.com",
     triggeredBy:
       "A Dailymotion card becoming the current item on Watch or on the Home watch face, or a Dailymotion link the user added to a genre of their own.",
     sends:
