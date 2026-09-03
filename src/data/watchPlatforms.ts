@@ -138,7 +138,9 @@ export const WATCH_PLATFORMS: WatchPlatform[] = [
   {
     id: "josh",
     name: "Josh",
-    url: "https://www.myjosh.in/",
+    // The apex domain: www.myjosh.in answered 502 on 2026-09-03; myjosh.in
+    // and share.myjosh.in both served the app's own page.
+    url: "https://myjosh.in/",
     description: "Indian short video, music and dance, from VerSe.",
     kind: "short",
     emoji: "🕺",
