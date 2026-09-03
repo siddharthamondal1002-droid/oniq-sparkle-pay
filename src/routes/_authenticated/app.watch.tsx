@@ -918,8 +918,17 @@ function Header() {
       <div className="mt-3 text-[11px] uppercase tracking-wider text-primary/80">watch 📺</div>
       <h1 className="font-display text-2xl font-bold">channels, not a channel</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Plays in YouTube&apos;s own player. ONIQ keeps the list, not the stream.
+        Plays in each platform&apos;s own player. ONIQ keeps the list, not the stream.
       </p>
+      {/* THE LIBRARY (owner mission, 2026-09-03): saved videos across
+          providers, Continue, Inbox, Resurface, collections, threads. */}
+      <Link
+        to="/app/watch/library"
+        data-testid="watch-library-link"
+        className="press mt-3 inline-flex min-h-10 items-center gap-1 rounded-full border border-primary/50 bg-primary/15 px-4 py-2 text-sm font-semibold text-primary"
+      >
+        📚 Your library — Continue · Inbox · Resurface
+      </Link>
     </div>
   );
 }

@@ -127,6 +127,8 @@ export type EmbedSrcOptions = {
   muted: boolean;
   /** window.location.hostname — Twitch's player refuses to load without the embedding host as `parent`. */
   host: string;
+  /** Resume position in seconds, where the player supports one (Vimeo, Dailymotion, Twitch videos, Archive). */
+  startSeconds?: number;
 };
 
 const enc = encodeURIComponent;
@@ -139,28 +141,30 @@ const enc = encodeURIComponent;
 export function embedSrc(e: EmbedRef, o: EmbedSrcOptions): string {
   const a = o.autoplay ? "1" : "0";
   const m = o.muted ? "1" : "0";
+  const start = o.startSeconds && o.startSeconds > 0 ? Math.floor(o.startSeconds) : 0;
   switch (e.platform) {
     case "vimeo":
       // dnt=1 is Vimeo's own Do-Not-Track flag: no session cookie, no
       // analytics on the viewer. title/byline/portrait off keeps the frame a
-      // player rather than a card.
-      return `https://player.vimeo.com/video/${enc(e.video)}?autoplay=${a}&muted=${m}&playsinline=1&dnt=1&title=0&byline=0&portrait=0`;
+      // player rather than a card. #t= is Vimeo's own resume fragment.
+      return `https://player.vimeo.com/video/${enc(e.video)}?autoplay=${a}&muted=${m}&playsinline=1&dnt=1&title=0&byline=0&portrait=0${start ? `#t=${start}s` : ""}`;
     case "dailymotion": {
       const path = "video" in e ? `video/${enc(e.video)}` : `playlist/${enc(e.playlist)}`;
-      // api=postMessage: the player reports `event=ended` to the page, which
-      // is what the loop rotates on. No SDK script is involved.
-      return `https://www.dailymotion.com/embed/${path}?autoplay=${a}&mute=${m}&queue-autoplay-next=1&queue-enable=0&ui-logo=0&api=postMessage`;
+      // api=postMessage: the player reports `event=ended` and `timeupdate` to
+      // the page, which is what the loop and progress ride. No SDK script.
+      return `https://www.dailymotion.com/embed/${path}?autoplay=${a}&mute=${m}&queue-autoplay-next=1&queue-enable=0&ui-logo=0&api=postMessage${start && "video" in e ? `&start=${start}` : ""}`;
     }
     case "twitch": {
       const what = "channel" in e ? `channel=${enc(e.channel)}` : `video=${enc(e.video)}`;
       const auto = o.autoplay ? "true" : "false";
       const mute = o.muted ? "true" : "false";
-      return `https://player.twitch.tv/?${what}&parent=${enc(o.host)}&autoplay=${auto}&muted=${mute}`;
+      const at = start && "video" in e ? `&time=${start}s` : "";
+      return `https://player.twitch.tv/?${what}&parent=${enc(o.host)}&autoplay=${auto}&muted=${mute}${at}`;
     }
     case "archive":
       // The Archive's player has no mute parameter, and an unmuted autoplay
       // is refused by every browser, so an archive item waits for a tap.
-      return `https://archive.org/embed/${enc(e.item)}`;
+      return `https://archive.org/embed/${enc(e.item)}${start ? `?start=${start}` : ""}`;
   }
 }
 
@@ -279,6 +283,58 @@ export function listenForEmbedEnded(
     if (e.platform === "dailymotion" && ev.origin === DAILYMOTION_ORIGIN) {
       const s = typeof ev.data === "string" ? ev.data : "";
       if (/(^|&)event=(ended|video_end)(&|$)/.test(s)) onEnded();
+    }
+  };
+  const onLoad = () => {
+    if (e.platform === "vimeo") subscribeVimeo();
+  };
+  window.addEventListener("message", onMessage);
+  frame.addEventListener("load", onLoad);
+  return () => {
+    window.removeEventListener("message", onMessage);
+    frame.removeEventListener("load", onLoad);
+  };
+}
+
+/**
+ * Hear a player report its POSITION, for resume and the Continue surface —
+ * the same postMessage channel as ENDED. Vimeo posts `timeupdate` with
+ * seconds and duration once subscribed; Dailymotion posts
+ * `event=timeupdate&time=…&duration=…`. Twitch and the Archive report
+ * nothing, and the person marks a position by hand instead.
+ */
+export function listenForEmbedTime(
+  e: EmbedRef,
+  frame: HTMLIFrameElement,
+  onTime: (seconds: number, duration: number | null) => void,
+): () => void {
+  const subscribeVimeo = () => {
+    frame.contentWindow?.postMessage(
+      JSON.stringify({ method: "addEventListener", value: "timeupdate" }),
+      VIMEO_ORIGIN,
+    );
+  };
+  const onMessage = (ev: MessageEvent) => {
+    if (ev.source !== frame.contentWindow) return;
+    if (e.platform === "vimeo" && ev.origin === VIMEO_ORIGIN) {
+      const d = (typeof ev.data === "string" ? safeJson(ev.data) : ev.data) as {
+        event?: string;
+        data?: { seconds?: number; duration?: number };
+      } | null;
+      if (!d || typeof d !== "object") return;
+      if (d.event === "ready") subscribeVimeo();
+      if (d.event === "timeupdate" && typeof d.data?.seconds === "number") {
+        onTime(d.data.seconds, typeof d.data.duration === "number" ? d.data.duration : null);
+      }
+      return;
+    }
+    if (e.platform === "dailymotion" && ev.origin === DAILYMOTION_ORIGIN) {
+      const s = typeof ev.data === "string" ? ev.data : "";
+      if (!/(^|&)event=timeupdate(&|$)/.test(s)) return;
+      const params = new URLSearchParams(s);
+      const t = Number(params.get("time"));
+      const dur = Number(params.get("duration"));
+      if (Number.isFinite(t)) onTime(t, Number.isFinite(dur) && dur > 0 ? dur : null);
     }
   };
   const onLoad = () => {

@@ -34,7 +34,9 @@ export type AiSurface =
   /** The internal Runway tool. An admin screen still generates AI content. */
   | "runway_admin_output"
   /** Home — the Originals face of the front-door loop card. */
-  | "home_originals_loop";
+  | "home_originals_loop"
+  /** Watch library — "Ask ONIQ about this video", answered from the person's own notes. */
+  | "watch_ai_output";
 
 export function AiOutputReport({
   surface,

@@ -207,7 +207,18 @@ export const WORLDS_LIVE = FEATURE_CARDS.filter((c) => c.status === "live").leng
  */
 export const DELIBERATELY_ABSENT = [
   "Shop — a Plug category, not a surface of its own.",
-  "Watch — removed from the app entirely. Not 'coming soon': there is no narrower version planned, and a permanent coming-soon card is a promise nobody is keeping.",
+  // CORRECTED 2026-09-03. This line used to say Watch was removed entirely,
+  // which stopped being true on 2026-08-16 (owner directive: the channel
+  // player came back, India only) and is further from true now that Watch
+  // carries a personal library — saved references across YouTube, Vimeo,
+  // Nebula and the Internet Archive with progress, collections, threads and
+  // notes (owner mission, 2026-09-03). What is still true, and still the
+  // rule: Watch is NOT advertised on the listing. No card, no screenshot, no
+  // live-TV or streaming wording, no claim about anybody else's catalogue.
+  // ONIQ is an independent organisation layer over links people save;
+  // playback is each platform's own player, and the listing says nothing
+  // that a reviewer could read as ONIQ offering third-party video.
+  "Watch — in the app for India only, and deliberately NOT advertised: no card, no screenshot, no live-TV or streaming wording. It is a personal library over links the person saves, played in each platform's own player; the listing makes no claim about third-party video.",
   "Glance — removed from the app entirely.",
 ] as const;
 
@@ -292,7 +303,7 @@ ONIQ is not affiliated with, endorsed by, or sponsored by any third-party app, b
    * feature, and the least likely to be looked at.
    */
   screenshotChecklist: [
-    "No Watch player or channel grid — the surface is gone.",
+    "No Watch player, channel grid or library screenshot — Watch is India-only and not advertised; a screenshot of another platform's player in ONIQ reads as ONIQ offering that platform's video.",
     "No Glance card — the surface is gone.",
     "No Scan & Pay, Receive or payment tile — owner directive 2026-08-17 hid every pay-by-QR entry point, so a screenshot showing one advertises a surface a reviewer cannot navigate to. This rule has now flipped twice; check src/data/appRegistry.ts (oniq-upi hidden) for what is actually true on the day.",
     "Any checkout screenshot showing a card or netbanking payment is Razorpay against a real-world order. Do not screenshot a payment for anything digital — Play requires Play Billing for that.",
@@ -330,6 +341,14 @@ export const BANNED_CLAIMS = [
   "live tv",
   "tv genres",
   "watch live",
+  // Watch library, 2026-09-03: claims that would read as infringement or as
+  // ONIQ offering other platforms' catalogues. ONIQ downloads nothing and
+  // hosts nothing; it organises links the person saves.
+  "download any video",
+  "download youtube videos",
+  "watch anything for free",
+  "free movies from anywhere",
+  "access paid content for free",
   "guaranteed",
   "ats-optimised",
   "ats-optimized",

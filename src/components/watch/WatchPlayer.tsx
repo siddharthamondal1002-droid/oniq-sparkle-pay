@@ -54,6 +54,7 @@ import {
   embedKey,
   embedSrc,
   listenForEmbedEnded,
+  listenForEmbedTime,
   sendEmbedCommand,
   type EmbedRef,
 } from "@/data/watchEmbeds";
@@ -107,7 +108,12 @@ export type WatchPlayerHandle = {
   mute: () => void;
   unMute: () => void;
   isMuted: () => boolean;
+  /** Where playback is, in seconds, or null when the player does not say. */
+  currentTime: () => number | null;
 };
+
+/** How often a playing YouTube video reports its position to onProgress. */
+const PROGRESS_POLL_MS = 5000;
 
 export function WatchPlayer({
   item,
@@ -115,6 +121,8 @@ export function WatchPlayer({
   controls = true,
   onAdvance,
   onReady,
+  startSeconds,
+  onProgress,
   className = "h-full w-full",
 }: {
   item: Playable;
@@ -126,6 +134,18 @@ export function WatchPlayer({
   onAdvance?: (reason: AdvanceReason) => void;
   /** Handed the player once it exists, for mute/pause buttons outside the frame. */
   onReady?: (handle: WatchPlayerHandle | null) => void;
+  /**
+   * Resume here (owner mission, 2026-09-03: the Watch library's Continue).
+   * Honoured by YouTube videos, Vimeo, Dailymotion videos, Twitch videos and
+   * the Archive; a live feed or a playlist ignores it.
+   */
+  startSeconds?: number;
+  /**
+   * Playback position, as the player reports it — YouTube polled every few
+   * seconds while playing, Vimeo and Dailymotion over postMessage. Twitch
+   * and the Archive report nothing.
+   */
+  onProgress?: (seconds: number, duration: number | null) => void;
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -134,10 +154,15 @@ export function WatchPlayer({
   // and restart the video mid-play.
   const advanceRef = useRef(onAdvance);
   const readyRef = useRef(onReady);
+  const progressRef = useRef(onProgress);
   useEffect(() => {
     advanceRef.current = onAdvance;
     readyRef.current = onReady;
-  }, [onAdvance, onReady]);
+    progressRef.current = onProgress;
+  }, [onAdvance, onReady, onProgress]);
+  // The start position is read once, when the player mounts; a later change
+  // must not rebuild the player mid-play.
+  const startRef = useRef(startSeconds ?? 0);
 
   const hostId = `yt-${useId().replace(/[:]/g, "")}`;
   const kind = item.kind;
@@ -220,6 +245,7 @@ export function WatchPlayer({
         autoplay,
         muted: true,
         host: window.location.hostname,
+        startSeconds: startRef.current,
       });
       frame.title = name;
       frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
@@ -230,6 +256,7 @@ export function WatchPlayer({
       host.innerHTML = "";
       host.appendChild(frame);
       let mutedFlag = true;
+      let lastTime: number | null = null;
       readyRef.current?.({
         play: () => sendEmbedCommand(embed, frame, "play"),
         pause: () => sendEmbedCommand(embed, frame, "pause"),
@@ -242,16 +269,23 @@ export function WatchPlayer({
           mutedFlag = false;
         },
         isMuted: () => mutedFlag,
+        currentTime: () => lastTime,
       });
       const stop = listenForEmbedEnded(embed, frame, () => advanceRef.current?.("ended"));
+      const stopTime = listenForEmbedTime(embed, frame, (seconds, duration) => {
+        lastTime = seconds;
+        progressRef.current?.(seconds, duration);
+      });
       return () => {
         stop();
+        stopTime();
         teardown();
       };
     }
 
     // PLAYLIST / VIDEO PATH. The playlist case is what loops; a single video
     // ends and the caller's rotation moves it on. Same player either way.
+    let progressTimer: number | null = null;
     const div = document.createElement("div");
     div.id = hostId;
     div.style.cssText = "position:absolute;inset:0;width:100%;height:100%";
@@ -268,6 +302,9 @@ export function WatchPlayer({
           ...(kind === "video" ? { videoId: ref } : {}),
           playerVars: {
             ...(kind === "playlist" ? { list: ref, listType: "playlist" } : {}),
+            ...(kind === "video" && startRef.current > 0
+              ? { start: Math.floor(startRef.current) }
+              : {}),
             autoplay: autoplay ? 1 : 0,
             // MUTED, always. An unmuted autoplay is refused by every browser
             // and by the Android WebView, so this is what autoplay means —
@@ -294,6 +331,26 @@ export function WatchPlayer({
             onError: () => advanceRef.current?.("error"),
             onStateChange: (e: any) => {
               if (e?.data === 0) advanceRef.current?.("ended");
+              // PROGRESS. Polled only while PLAYING (state 1) so a paused or
+              // ended video reports nothing; the timer clears itself otherwise.
+              if (progressTimer) {
+                window.clearInterval(progressTimer);
+                progressTimer = null;
+              }
+              if (e?.data === 1 && progressRef.current) {
+                progressTimer = window.setInterval(() => {
+                  try {
+                    const p = playerRef.current;
+                    const t = p?.getCurrentTime?.();
+                    const d = p?.getDuration?.();
+                    if (typeof t === "number") {
+                      progressRef.current?.(t, typeof d === "number" && d > 0 ? d : null);
+                    }
+                  } catch {
+                    /* noop */
+                  }
+                }, PROGRESS_POLL_MS);
+              }
             },
           },
         });
@@ -302,7 +359,10 @@ export function WatchPlayer({
       }
     });
 
-    return teardown;
+    return () => {
+      if (progressTimer) window.clearInterval(progressTimer);
+      teardown();
+    };
     // hostId is stable for the component's life; `name` only labels the frame.
     // Re-creating the player on either would restart playback.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -346,6 +406,14 @@ function handleOf(p: any): WatchPlayerHandle {
         return typeof p.isMuted === "function" ? !!p.isMuted() : true;
       } catch {
         return true;
+      }
+    },
+    currentTime: () => {
+      try {
+        const t = p.getCurrentTime?.();
+        return typeof t === "number" && Number.isFinite(t) ? t : null;
+      } catch {
+        return null;
       }
     },
   };

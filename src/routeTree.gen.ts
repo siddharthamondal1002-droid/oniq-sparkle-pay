@@ -78,6 +78,7 @@ import { Route as AuthenticatedAppPrivacyGrievanceRouteImport } from './routes/_
 import { Route as AuthenticatedAppPrivacyNoticeRouteImport } from './routes/_authenticated/app.privacy.notice'
 import { Route as AuthenticatedAppPrivacyParentalConsentRouteImport } from './routes/_authenticated/app.privacy.parental-consent'
 import { Route as AuthenticatedAppUUserIdRouteImport } from './routes/_authenticated/app.u.$userId'
+import { Route as AuthenticatedAppWatchLibraryRouteImport } from './routes/_authenticated/app.watch_.library'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 
 const IndexRoute = IndexRouteImport.update({
@@ -446,6 +447,12 @@ const AuthenticatedAppUUserIdRoute = AuthenticatedAppUUserIdRouteImport.update({
   path: '/u/$userId',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppWatchLibraryRoute =
+  AuthenticatedAppWatchLibraryRouteImport.update({
+    id: '/watch_/library',
+    path: '/watch/library',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const LovableEmailQueueProcessRoute =
   LovableEmailQueueProcessRouteImport.update({
     id: '/lovable/email/queue/process',
@@ -520,6 +527,7 @@ export interface FileRoutesByFullPath {
   '/app/privacy/notice': typeof AuthenticatedAppPrivacyNoticeRoute
   '/app/privacy/parental-consent': typeof AuthenticatedAppPrivacyParentalConsentRoute
   '/app/u/$userId': typeof AuthenticatedAppUUserIdRoute
+  '/app/watch/library': typeof AuthenticatedAppWatchLibraryRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/app/chat/': typeof AuthenticatedAppChatIndexRoute
   '/app/food/': typeof AuthenticatedAppFoodIndexRoute
@@ -589,6 +597,7 @@ export interface FileRoutesByTo {
   '/app/privacy/notice': typeof AuthenticatedAppPrivacyNoticeRoute
   '/app/privacy/parental-consent': typeof AuthenticatedAppPrivacyParentalConsentRoute
   '/app/u/$userId': typeof AuthenticatedAppUUserIdRoute
+  '/app/watch/library': typeof AuthenticatedAppWatchLibraryRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/app/chat': typeof AuthenticatedAppChatIndexRoute
   '/app/food': typeof AuthenticatedAppFoodIndexRoute
@@ -662,6 +671,7 @@ export interface FileRoutesById {
   '/_authenticated/app/privacy/notice': typeof AuthenticatedAppPrivacyNoticeRoute
   '/_authenticated/app/privacy/parental-consent': typeof AuthenticatedAppPrivacyParentalConsentRoute
   '/_authenticated/app/u/$userId': typeof AuthenticatedAppUUserIdRoute
+  '/_authenticated/app/watch_/library': typeof AuthenticatedAppWatchLibraryRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/_authenticated/app/chat/': typeof AuthenticatedAppChatIndexRoute
   '/_authenticated/app/food/': typeof AuthenticatedAppFoodIndexRoute
@@ -735,6 +745,7 @@ export interface FileRouteTypes {
     | '/app/privacy/notice'
     | '/app/privacy/parental-consent'
     | '/app/u/$userId'
+    | '/app/watch/library'
     | '/lovable/email/queue/process'
     | '/app/chat/'
     | '/app/food/'
@@ -804,6 +815,7 @@ export interface FileRouteTypes {
     | '/app/privacy/notice'
     | '/app/privacy/parental-consent'
     | '/app/u/$userId'
+    | '/app/watch/library'
     | '/lovable/email/queue/process'
     | '/app/chat'
     | '/app/food'
@@ -876,6 +888,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/privacy/notice'
     | '/_authenticated/app/privacy/parental-consent'
     | '/_authenticated/app/u/$userId'
+    | '/_authenticated/app/watch_/library'
     | '/lovable/email/queue/process'
     | '/_authenticated/app/chat/'
     | '/_authenticated/app/food/'
@@ -1394,6 +1407,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppUUserIdRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/watch_/library': {
+      id: '/_authenticated/app/watch_/library'
+      path: '/watch/library'
+      fullPath: '/app/watch/library'
+      preLoaderRoute: typeof AuthenticatedAppWatchLibraryRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/lovable/email/queue/process': {
       id: '/lovable/email/queue/process'
       path: '/lovable/email/queue/process'
@@ -1478,6 +1498,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppPrivacyNoticeRoute: typeof AuthenticatedAppPrivacyNoticeRoute
   AuthenticatedAppPrivacyParentalConsentRoute: typeof AuthenticatedAppPrivacyParentalConsentRoute
   AuthenticatedAppUUserIdRoute: typeof AuthenticatedAppUUserIdRoute
+  AuthenticatedAppWatchLibraryRoute: typeof AuthenticatedAppWatchLibraryRoute
   AuthenticatedAppFoodIndexRoute: typeof AuthenticatedAppFoodIndexRoute
 }
 
@@ -1518,6 +1539,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppPrivacyParentalConsentRoute:
     AuthenticatedAppPrivacyParentalConsentRoute,
   AuthenticatedAppUUserIdRoute: AuthenticatedAppUUserIdRoute,
+  AuthenticatedAppWatchLibraryRoute: AuthenticatedAppWatchLibraryRoute,
   AuthenticatedAppFoodIndexRoute: AuthenticatedAppFoodIndexRoute,
 }
 
