@@ -2671,9 +2671,20 @@ if (offline) {
       const stillWhere = still.fromPlate
         ? 'your photo (no bucket copy — this shot cannot be animated)'
         : (still.key ?? 'unnamed');
+      // WHY THERE IS NO KEY, from the function's own mouth. story-still returns
+      // `stored` beside a null key — "no-shot-identity", "still-not-png",
+      // "still-store-not-configured (...)", "still-store-unreachable (...)" —
+      // and until 2026-09-03 the worker dropped it: job 0a884e2d logged nine
+      // `STILL_KEY=unnamed` and the reason had to be dug out of the edge log.
+      // A response with no `stored` field at all is the older function still
+      // deployed, which is worth naming as such rather than guessing.
+      const stillStore =
+        !still.fromPlate && still.key == null
+          ? ` STILL_STORE=${still.stored ?? 'absent-from-response (function predates the still store)'}`
+          : '';
       console.log(
         `  still ${i + 1}/${plan.shots.length}${still.fromPlate ? ' (your photo)' : ''}` +
-          ` STILL_KEY=${stillWhere}`,
+          ` STILL_KEY=${stillWhere}${stillStore}`,
       );
       // PORTRAIT REFRAME (FIX 1) — a conditioned still inherits the owner
       // reference's ASPECT (landscape ref -> 1344x768), so reframe it to the
