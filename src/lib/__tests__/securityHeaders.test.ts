@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { EMBED_HOSTS } from "@/data/watchEmbeds";
+import { EMBED_FRAME_HOSTS, EMBED_HOSTS } from "@/data/watchEmbeds";
 import { THIRD_PARTY_REQUESTS } from "@/config/playCompliance";
 import {
   CSP_DIRECTIVES,
@@ -38,6 +38,11 @@ describe("the policy names what the app actually loads", () => {
   it("frames every Watch player host, from the same list the players use", () => {
     const frames = directive(csp, "frame-src");
     for (const h of Object.values(EMBED_HOSTS)) expect(frames).toContain(`https://${h}`);
+    // And every host a player REDIRECTS to: Dailymotion's embed URL answers
+    // 301 to geo.dailymotion.com, and a policy that names only the first hop
+    // shows a black frame (owner screenshot, 2026-09-03).
+    for (const h of EMBED_FRAME_HOSTS) expect(frames).toContain(`https://${h}`);
+    expect(frames).toContain("https://geo.dailymotion.com");
     expect(frames).toContain("https://www.youtube-nocookie.com");
     expect(frames).toContain("https://www.youtube.com");
   });

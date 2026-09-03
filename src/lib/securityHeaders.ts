@@ -48,7 +48,7 @@
  *                app posts a form off-origin (Razorpay runs in its own frame).
  *   frame-ancestors 'none' on production: ONIQ is never framed.
  */
-import { EMBED_HOSTS } from "@/data/watchEmbeds";
+import { EMBED_FRAME_HOSTS } from "@/data/watchEmbeds";
 
 /** Hosts that get the policy ENFORCED. Everything else gets report-only. */
 export const PRODUCTION_HOSTS: readonly string[] = ["oniqhub.com", "www.oniqhub.com"];
@@ -62,7 +62,8 @@ export const PREVIEW_FRAME_ANCESTORS: readonly string[] = [
   "https://*.gptengineer.app",
 ];
 
-const PLAYER_ORIGINS = Object.values(EMBED_HOSTS).map((h) => `https://${h}`);
+// Redirect targets included — see EMBED_FRAME_HOSTS for the Dailymotion case.
+const PLAYER_ORIGINS = EMBED_FRAME_HOSTS.map((h) => `https://${h}`);
 
 export const CSP_DIRECTIVES: Readonly<Record<string, readonly string[]>> = {
   "default-src": ["'self'"],
