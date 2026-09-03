@@ -229,9 +229,6 @@
     }
   },
   "src/routes/_authenticated/app.earn.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 7
-    },
     "react-hooks/purity": {
       "count": 1
     },
@@ -255,9 +252,6 @@
     }
   },
   "src/routes/_authenticated/app.jobs.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 1
-    },
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
@@ -313,9 +307,6 @@
   "src/routes/_authenticated/app.study.tsx": {
     "no-control-regex": {
       "count": 1
-    },
-    "oniq/a11y-type-scale": {
-      "count": 38
     },
     "react-hooks/immutability": {
       "count": 1

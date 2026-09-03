@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Play, Clapperboard } from "lucide-react";
 import { LORE_COLLECTIONS, type LoreVideo } from "@/data/lores";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
@@ -224,10 +224,14 @@ function LoresPage() {
   // Hook above every return, always. rules-of-hooks is a release blocker here.
   const { tab: wanted } = Route.useSearch();
   const [tab, setTab] = useState<TabId>(wanted ?? "originals");
-  // A deep link while already mounted still lands on the tab it named.
-  useEffect(() => {
+  // A deep link while already mounted still lands on the tab it named. The
+  // adjustment happens during render on the search change (React's "adjust
+  // state when a prop changes" pattern), not in an effect.
+  const [seenWanted, setSeenWanted] = useState(wanted);
+  if (wanted !== seenWanted) {
+    setSeenWanted(wanted);
     if (wanted) setTab(wanted);
-  }, [wanted]);
+  }
 
   return (
     <OniqCanvas world="lores" className="pb-28">

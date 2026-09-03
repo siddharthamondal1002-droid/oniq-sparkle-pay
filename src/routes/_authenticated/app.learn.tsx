@@ -78,7 +78,7 @@ function LearnScreen() {
         subtitle={t("smart.subtitle", "shop & speak any language")}
         back="/app"
       >
-        <div role="tablist" aria-label="Scout sections" className="flex gap-2">
+        <div role="tablist" aria-label="Scout sections" className="snap-rail -mx-5 gap-2 px-5">
           {(
             [
               ["scout", t("smart.tab.scout", "price scout 🛒")],
@@ -91,9 +91,9 @@ function LearnScreen() {
               role="tab"
               active={tab === k}
               onClick={() => setTab(k as Tab)}
-              className="min-h-11 min-w-0 flex-1 basis-0 justify-center"
+              className="min-h-11"
             >
-              <span className="truncate">{label}</span>
+              {label}
             </OniqChip>
           ))}
         </div>

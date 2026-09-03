@@ -1,9 +1,16 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useImperativeHandle,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft,
   Send,
   Paperclip,
   X,
@@ -17,6 +24,17 @@ import {
 } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { toast } from "sonner";
+import {
+  OniqAIOrb,
+  OniqCanvas,
+  OniqCard,
+  OniqChip,
+  OniqHeader,
+  OniqProgressRing,
+  OniqSkeleton,
+  OniqSkeletonRows,
+  OniqStoryRail,
+} from "@/components/oniq";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage, withReason } from "@/lib/edgeError";
 import { compressToJpeg } from "@/lib/imageCompress";
@@ -557,6 +575,14 @@ function useLearnerProfiles() {
   });
 }
 
+/** The launchers TutorChat owns, handed to the cockpit drawn above the chat. */
+type TutorLeadApi = {
+  /** The existing practice picker (quick quiz → full paper → mock), optionally at a subject. */
+  openPractice: (subject?: string) => void;
+  focusComposer: () => void;
+  scopeTutor: (subject: string, chapter?: string) => void;
+};
+
 function StudyScreen() {
   const { data: profiles, isLoading } = useLearnerProfiles();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -567,6 +593,14 @@ function StudyScreen() {
   // Called after them, the hook count grew the moment loading finished and
   // React threw "Rendered more hooks than during the previous render".
   const { t } = useT();
+  // The cockpit's figures are the same quiz_attempts read ProgressDashboard
+  // makes, shared through react-query: real numbers or nothing. Above the
+  // early returns, like every other hook here.
+  const { data: attempts } = useAttempts();
+  // Handed to the cockpit's tiles; TutorChat fills it in (useImperativeHandle).
+  const tutorApi = useRef<TutorLeadApi | null>(null);
+  // "This week" is measured from the moment the screen opened.
+  const [now] = useState(() => Date.now());
 
   const allProfiles = profiles ?? [];
 
@@ -580,9 +614,10 @@ function StudyScreen() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-sm text-muted-foreground">Loading…</div>
-      </div>
+      <OniqCanvas world="study" className="h-screen px-5 pt-8">
+        <OniqSkeleton className="h-36 w-full" />
+        <OniqSkeletonRows rows={2} className="mt-4" />
+      </OniqCanvas>
     );
   }
 
@@ -590,83 +625,80 @@ function StudyScreen() {
     // Same reason as ModalCard: with State Boards expanded this card is far
     // taller than the phone, so the first-run path needs its own scroll too.
     return (
-      <div className="h-screen overflow-y-auto overscroll-contain pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <OniqCanvas
+        world="study"
+        className="h-screen overflow-y-auto overscroll-contain pb-[max(2rem,env(safe-area-inset-bottom))]"
+      >
         <SetupCard onCreated={(p) => setActiveId(p.id)} first />
-      </div>
+      </OniqCanvas>
     );
   }
 
-  const activeIsGovt = active ? isGovtBoard(active.board) : false;
-  const headerName = active?.name ?? t("study.header.default", "Study Buddy");
   const headerSub = active ? `${profileSystemLabel(active)} · ${profileStageLabel(active)}` : null;
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center gap-3 border-b border-border bg-card/40 px-5 pt-12 pb-3 backdrop-blur">
-        <Link
-          to="/app"
-          className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div
-          className={`grid h-9 w-9 place-items-center rounded-xl text-white ${activeIsGovt ? "bg-gradient-to-br from-amber-500 to-yellow-600" : "bg-gradient-to-br from-orange-400 to-pink-500"}`}
-        >
-          <span className="text-base">{activeIsGovt ? "🏛️" : "📚"}</span>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="font-display text-base font-semibold truncate">{headerName}</div>
-          {headerSub && <div className="text-[10px] text-muted-foreground">{headerSub}</div>}
-        </div>
-        <button
-          onClick={() => setShowProgress(true)}
-          aria-label="Progress"
-          className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card"
-        >
-          <BarChart3 className="h-4 w-4" />
-        </button>
-      </header>
-
-      {/* Unified profile chips: every learner_profiles row is a chip. Govt-family gets amber accent + emoji badge. */}
-      <div className="flex items-center gap-2 overflow-x-auto border-b border-border px-4 py-2 no-scrollbar">
-        {allProfiles.map((p) => {
-          const govt = isGovtBoard(p.board);
-          const isActive = p.id === activeId;
-          const base =
-            "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition inline-flex items-center gap-1";
-          const cls = govt
-            ? isActive
-              ? `${base} border-amber-500/60 bg-amber-500/20 text-amber-300`
-              : `${base} border-amber-500/30 bg-amber-500/10 text-amber-200/80`
-            : isActive
-              ? `${base} border-primary/40 bg-primary/15 text-primary`
-              : `${base} border-border bg-card text-muted-foreground`;
-          return (
-            <button key={p.id} onClick={() => setActiveId(p.id)} className={cls}>
-              {govt && <span aria-hidden>{BOARD_EMOJI[p.board] || "🏛️"}</span>}
-              <span>{p.name}</span>
-            </button>
-          );
-        })}
-        {active && (
+    <OniqCanvas world="study" className="flex h-screen flex-col">
+      <OniqHeader
+        size="md"
+        eyebrow="Study"
+        title={t("study.header.default", "Study Buddy")}
+        back="/app"
+        actions={
           <button
-            onClick={() => setEditing(active)}
-            aria-label="Edit profile"
-            className="shrink-0 grid h-7 w-7 place-items-center rounded-full border border-border bg-card text-muted-foreground"
+            onClick={() => setShowProgress(true)}
+            aria-label="Progress"
+            className="tap press inline-flex h-10 items-center gap-1.5 rounded-full oniq-glass px-3 text-[12px] font-semibold text-foreground"
           >
-            <Pencil className="h-3 w-3" />
+            <BarChart3 className="h-4 w-4 text-world" /> Progress
           </button>
-        )}
-        <button
-          onClick={() => setShowAdd(true)}
-          aria-label="Add learner"
-          className="shrink-0 grid h-7 w-7 place-items-center rounded-full border border-border bg-card text-muted-foreground"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
-      </div>
+        }
+      >
+        {/* Unified profile chips: every learner_profiles row is a chip. Govt-family keeps its emoji badge. */}
+        <OniqStoryRail ariaLabel="Learners">
+          {allProfiles.map((p) => {
+            const govt = isGovtBoard(p.board);
+            return (
+              <OniqChip key={p.id} active={p.id === activeId} onClick={() => setActiveId(p.id)}>
+                {govt && <span aria-hidden>{BOARD_EMOJI[p.board] || "🏛️"}</span>}
+                <span>{p.name}</span>
+              </OniqChip>
+            );
+          })}
+          {active && (
+            <button
+              onClick={() => setEditing(active)}
+              aria-label="Edit profile"
+              className="tap press grid h-8 w-8 shrink-0 place-items-center rounded-full oniq-surface text-muted-foreground"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button
+            onClick={() => setShowAdd(true)}
+            aria-label="Add learner"
+            className="tap press grid h-8 w-8 shrink-0 place-items-center rounded-full oniq-surface text-muted-foreground"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </OniqStoryRail>
+      </OniqHeader>
 
-      {active && <TutorChat profile={active} />}
+      {active && (
+        <TutorChat
+          profile={active}
+          apiRef={tutorApi}
+          lead={
+            <StudyCockpit
+              profile={active}
+              sub={headerSub}
+              attempts={attempts}
+              now={now}
+              api={tutorApi}
+              onProgress={() => setShowProgress(true)}
+            />
+          }
+        />
+      )}
 
       {showAdd && (
         <ModalCard onClose={() => setShowAdd(false)}>
@@ -697,6 +729,178 @@ function StudyScreen() {
           <ProgressDashboard profiles={profiles} onClose={() => setShowProgress(false)} />
         </ModalCard>
       )}
+    </OniqCanvas>
+  );
+}
+
+type CockpitTile = {
+  key: string;
+  emoji: string;
+  label: string;
+  hint: string;
+  onClick: () => void;
+};
+
+/**
+ * The learning cockpit drawn above the tutor: a greeting with figures from the
+ * quiz_attempts this screen already reads (never an invented percentage), the
+ * most recent subject to pick back up, and four tiles that open launchers the
+ * chat already owns.
+ */
+function StudyCockpit({
+  profile,
+  sub,
+  attempts,
+  now,
+  api,
+  onProgress,
+}: {
+  profile: LearnerProfile;
+  sub: string | null;
+  attempts: Attempt[] | undefined;
+  now: number;
+  api: RefObject<TutorLeadApi | null>;
+  onProgress: () => void;
+}) {
+  // Newest first, the order useAttempts returns them in.
+  const rows = (attempts ?? []).filter((a) => a.profile_id === profile.id);
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const thisWeek = rows.filter((a) => new Date(a.created_at).getTime() >= weekAgo).length;
+  let num = 0;
+  let den = 0;
+  for (const r of rows) {
+    const s = attemptScore(r);
+    num += s.num;
+    den += s.den;
+  }
+  const accuracy = den > 0 ? Math.round((num / den) * 100) : null;
+  const chapters = new Set(rows.map((r) => r.chapter).filter(Boolean)).size;
+  const recent = rows[0] ?? null;
+  const recentScore = recent ? attemptScore(recent) : null;
+  const govt = isGovtBoard(profile.board);
+  const quizWord = thisWeek === 1 ? "quiz" : "quizzes";
+  const chapterWord = chapters === 1 ? "chapter" : "chapters";
+  const summary =
+    rows.length === 0
+      ? "No quizzes yet — start with a practice quiz below."
+      : `${thisWeek} ${quizWord} this week · ${chapters} ${chapterWord} practised`;
+
+  const tiles: CockpitTile[] = [
+    {
+      key: "quiz",
+      emoji: "📝",
+      label: "Practice quiz",
+      hint: "5 questions on any chapter",
+      onClick: () => api.current?.openPractice(),
+    },
+    {
+      key: "paper",
+      emoji: "📄",
+      label: govt ? "Papers & mocks" : "Full papers",
+      hint: govt ? "30 · 80 · 100 marks, or a timed mock" : "30 · 80 · 100 marks, graded",
+      onClick: () => api.current?.openPractice(),
+    },
+    {
+      key: "progress",
+      emoji: "📊",
+      label: "Progress",
+      hint: "scores by subject and chapter",
+      onClick: onProgress,
+    },
+    {
+      key: "tutor",
+      emoji: "💬",
+      label: "AI Tutor",
+      hint: "ask anything, or snap the problem",
+      onClick: () => api.current?.focusComposer(),
+    },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <OniqCard variant="hero" padding="lg" className="rise">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            {sub && (
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
+                {sub}
+              </div>
+            )}
+            <h2 className="mt-1 font-display text-[22px] leading-tight">
+              Keep learning, {profile.name} 📚
+            </h2>
+            <p className="mt-2 text-[12px] leading-snug text-white/85">{summary}</p>
+          </div>
+          {accuracy !== null && (
+            <div className="shrink-0 rounded-2xl bg-white/15 p-1.5">
+              <OniqProgressRing
+                value={accuracy / 100}
+                size={60}
+                label="Accuracy across your quizzes and papers"
+              >
+                <span className="text-white">{accuracy}%</span>
+              </OniqProgressRing>
+            </div>
+          )}
+        </div>
+      </OniqCard>
+
+      {recent && (
+        <OniqCard variant="tinted" padding="md" className="rise rise-1">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
+            Continue learning
+          </div>
+          <div className="mt-1 truncate font-display text-[16px] leading-tight text-foreground">
+            {recent.subject}
+          </div>
+          <div className="mt-0.5 truncate text-[12px] text-muted-foreground">
+            {recent.chapter ?? recent.topic}
+            {recentScore && recentScore.den > 0
+              ? ` · last score ${recentScore.num}/${recentScore.den}`
+              : ""}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => api.current?.scopeTutor(recent.subject, recent.chapter ?? undefined)}
+              className="press flex-1 rounded-full bg-world py-2 text-[12px] font-semibold text-white world-glow"
+            >
+              Ask the tutor
+            </button>
+            <button
+              type="button"
+              onClick={() => api.current?.openPractice(recent.subject)}
+              className="press flex-1 rounded-full oniq-surface py-2 text-[12px] font-semibold text-foreground"
+            >
+              Practise again
+            </button>
+          </div>
+        </OniqCard>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 rise rise-2">
+        {tiles.map((tile) => (
+          <button
+            key={tile.key}
+            type="button"
+            onClick={tile.onClick}
+            className="press flex min-h-[104px] flex-col items-start gap-2 rounded-2xl oniq-surface p-3 text-start"
+          >
+            {tile.key === "tutor" ? (
+              <OniqAIOrb size="md" still />
+            ) : (
+              <span
+                className="grid h-10 w-10 place-items-center rounded-xl bg-world text-lg text-white world-glow"
+                aria-hidden="true"
+              >
+                {tile.emoji}
+              </span>
+            )}
+            <span className="font-display text-[13px] text-foreground">{tile.label}</span>
+            <span className="text-[11px] leading-snug text-muted-foreground">{tile.hint}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -798,7 +1002,11 @@ function BoardPicker({ board, onChange }: { board: Board; onChange: (b: Board) =
 
 function ModalCard({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
+    <div
+      data-world="study"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
+      onClick={onClose}
+    >
       {/*
         The card MUST be able to scroll. `place-items-center` on a card taller
         than the viewport clips it at BOTH ends with nothing to grab: the Study
@@ -959,7 +1167,7 @@ function SetupCard({
               </option>
             ))}
           </select>
-          <p className="mt-1 text-[10px] text-muted-foreground">
+          <p className="mt-1 text-[11px] text-muted-foreground">
             varies by school — edit anytime from the learner profile.
           </p>
         </>
@@ -1118,7 +1326,7 @@ function EditProfile({
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-[10px] text-muted-foreground">
+            <p className="mt-1 text-[11px] text-muted-foreground">
               pre-filled with Hindi — edit to match this learner's actual 2nd language.
             </p>
           </>
@@ -1149,7 +1357,17 @@ function EditProfile({
   );
 }
 
-function TutorChat({ profile }: { profile: LearnerProfile }) {
+function TutorChat({
+  profile,
+  lead,
+  apiRef,
+}: {
+  profile: LearnerProfile;
+  /** The cockpit drawn above the conversation. */
+  lead?: ReactNode;
+  /** Receives the launchers this chat owns, for the cockpit's tiles. */
+  apiRef?: RefObject<TutorLeadApi | null>;
+}) {
   const { t: tTutor } = useT();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -1176,6 +1394,10 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  // Auto-scroll follows a SEND, not a restore: the cockpit sits at the top of
+  // this scroller, and rehydrating history must not jump past it.
+  const followRef = useRef(false);
 
   const subjects =
     eduSubjectsFor(profile.edu_system_id) ??
@@ -1184,6 +1406,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   // Hydrate chat history from study_messages when the active profile changes.
   useEffect(() => {
     let cancelled = false;
+    followRef.current = false;
     setMessages([]);
     setInput("");
     setAttachment(null);
@@ -1238,6 +1461,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   }, [profile.id]);
 
   useEffect(() => {
+    if (!followRef.current) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
 
@@ -1322,6 +1546,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
       attachment: att ? { kind: att.kind, name: att.name, previewUrl: att.previewUrl } : undefined,
     };
     const next = [...messages, userMsg];
+    followRef.current = true;
     setMessages(next);
     setInput("");
     setAttachment(null);
@@ -1403,31 +1628,47 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
 
   const canSend = !loading && (input.trim().length > 0 || !!attachment);
 
+  // What the cockpit above the chat may trigger — every one an existing path.
+  useImperativeHandle(apiRef, (): TutorLeadApi => ({
+    openPractice: (subject) => {
+      setPickerMode("root");
+      setPickerChapter(null);
+      setPickerSubject(subject && subjects.includes(subject) ? subject : null);
+      setShowQuizPicker(true);
+    },
+    focusComposer: () => inputRef.current?.focus(),
+    scopeTutor: (subject, chapter) => {
+      setTutorScope({ subject, chapter });
+      inputRef.current?.focus();
+      toast.success(
+        chapter ? `tutor scoped to “${chapter}” 🎯` : `tutor scoped to whole ${subject} 🎯`,
+      );
+    },
+  }));
+
   return (
     <>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4">
+        {lead ? <div className="mb-5">{lead}</div> : null}
         {notConfigured ? (
-          <div className="mx-auto mt-8 max-w-sm rounded-2xl border border-border bg-card p-5 text-center">
+          <OniqCard padding="lg" className="mx-auto mt-4 max-w-sm text-center">
             <div className="text-4xl">📚</div>
-            <h2 className="mt-2 font-display text-lg font-bold">Study Buddy needs a key</h2>
+            <h2 className="mt-2 font-display text-[18px] text-foreground">
+              Study Buddy needs a key
+            </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Add <code className="rounded bg-muted px-1">ANTHROPIC_API_KEY</code> in project
               secrets.
             </p>
-          </div>
+          </OniqCard>
         ) : hydrating ? (
-          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+          <div className="py-6 text-center text-[12px] text-muted-foreground">
             loading your chat…
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <div className="grid h-16 w-16 place-items-center rounded-3xl bg-gradient-to-br from-orange-400 to-pink-500 text-white">
-              <span className="text-3xl">📚</span>
-            </div>
-            <h2
-              className="mt-4 font-display text-2xl font-bold text-white"
-              style={{ textShadow: "0 1px 3px rgba(0,0,0,0.85)" }}
-            >
+          <div className="flex flex-col items-center py-6 text-center">
+            <OniqAIOrb size="lg" />
+            <h2 className="mt-4 font-display text-[22px] leading-tight text-foreground">
               Hi {profile.name} 👋
             </h2>
             <p className="mt-2 max-w-xs text-sm text-muted-foreground">
@@ -1452,7 +1693,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                           className="max-h-40 rounded-xl border border-border object-cover"
                         />
                       ) : (
-                        <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-xs">
+                        <div className="inline-flex items-center gap-2 rounded-xl oniq-surface px-3 py-1.5 text-xs text-foreground">
                           <span>{m.attachment.kind === "pdf" ? "📄" : "📝"}</span>
                           <span className="max-w-[180px] truncate">{m.attachment.name}</span>
                         </div>
@@ -1462,9 +1703,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                   {(m.content || m.role === "assistant") && (
                     <div
                       className={`whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm ${
-                        m.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "border border-border bg-card"
+                        m.role === "user" ? "bg-world text-white" : "oniq-surface text-foreground"
                       }`}
                     >
                       {m.content}
@@ -1476,17 +1715,17 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                   */}
                   {m.role === "assistant" && m.content && (
                     <div className="mt-1 flex items-center justify-between gap-2">
-                      <span className="text-[10px] text-muted-foreground">{AI_OUTPUT_LABEL}</span>
+                      <span className="text-[11px] text-muted-foreground">{AI_OUTPUT_LABEL}</span>
                       <AiOutputReport
                         surface="study_ai_output"
                         targetId={profile?.id ?? "unsaved"}
                         context={{ board: profile?.board, classLevel: profile?.class_level }}
-                        className="flex items-center gap-1 rounded-full px-2 py-1 text-[10px] text-muted-foreground disabled:opacity-50"
+                        className="flex items-center gap-1 rounded-full px-2 py-1 text-[11px] text-muted-foreground disabled:opacity-50"
                       />
                     </div>
                   )}
                   {m.role === "assistant" && m.usedVault && (
-                    <div className="mt-1 text-[10px] text-muted-foreground">
+                    <div className="mt-1 text-[11px] text-muted-foreground">
                       📚 from the ONIQ study vault
                     </div>
                   )}
@@ -1495,11 +1734,11 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
             ))}
             {loading && (
               <div className="flex justify-start">
-                <div className="rounded-2xl border border-border bg-card px-4 py-2.5 text-sm text-muted-foreground">
+                <div className="rounded-2xl oniq-surface px-4 py-2.5 text-sm text-muted-foreground">
                   <span className="inline-flex gap-1">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary [animation-delay:150ms]" />
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary [animation-delay:300ms]" />
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-world" />
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-world [animation-delay:150ms]" />
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-world [animation-delay:300ms]" />
                   </span>
                 </div>
               </div>
@@ -1514,14 +1753,14 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
             e.preventDefault();
             if (canSend) ask(input.trim());
           }}
-          className="border-t border-border bg-card/60 p-3 backdrop-blur"
+          className="oniq-glass p-3"
         >
           {/* Tutor-scope chip — visible when a chapter (or whole subject) is
               scoping this chat. Explicit so the student knows the tutor is
               focused, and one-tap to clear. */}
           {tutorScope && (
             <div className="mb-2 flex items-center gap-2">
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-world bg-world-soft px-2.5 py-1 text-[11px] font-medium text-world">
                 <span>🎯</span>
                 <span className="max-w-[220px] truncate">
                   {tutorScope.subject}
@@ -1531,7 +1770,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                   type="button"
                   onClick={() => setTutorScope(null)}
                   aria-label="Clear tutor scope"
-                  className="grid h-4 w-4 place-items-center rounded-full hover:bg-primary/20"
+                  className="grid h-4 w-4 place-items-center rounded-full hover:opacity-70"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -1545,7 +1784,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
             <button
               type="button"
               onClick={() => setShowQuizPicker(true)}
-              className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"
+              className="press inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-world bg-world-soft px-3 py-1.5 text-[12px] font-semibold text-world"
             >
               {tTutor("study.chip.practice", "practice quiz 📝")}
             </button>
@@ -1554,7 +1793,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                 key={s}
                 type="button"
                 onClick={() => setSubjectSheet(s)}
-                className="shrink-0 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-muted"
+                className="press inline-flex shrink-0 items-center whitespace-nowrap rounded-full oniq-surface px-3 py-1.5 text-[12px] font-semibold text-foreground"
               >
                 {s} 📚
               </button>
@@ -1784,7 +2023,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
           )}
 
           {attachment && (
-            <div className="mb-2 flex items-center gap-2 rounded-full border border-border bg-card px-2 py-1 text-xs w-fit">
+            <div className="mb-2 flex w-fit items-center gap-2 rounded-full oniq-surface px-2 py-1 text-xs text-foreground">
               {attachment.kind === "image" && attachment.previewUrl ? (
                 <img src={attachment.previewUrl} alt="" className="h-6 w-6 rounded object-cover" />
               ) : (
@@ -1802,7 +2041,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
             </div>
           )}
 
-          <div className="flex items-center gap-1 rounded-full border border-border bg-input/40 pl-2 pr-1">
+          <div className="flex items-center gap-1 rounded-full oniq-surface pe-1 ps-2">
             <input
               ref={fileRef}
               type="file"
@@ -1823,7 +2062,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               onClick={() => fileRef.current?.click()}
               disabled={loading}
               aria-label="Attach"
-              className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted disabled:opacity-40"
+              className="tap press grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:bg-surface-2 disabled:opacity-40"
             >
               <Paperclip className="h-4 w-4" />
             </button>
@@ -1832,22 +2071,23 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               onClick={() => cameraRef.current?.click()}
               disabled={loading}
               aria-label="Camera"
-              className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted disabled:opacity-40"
+              className="tap press grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:bg-surface-2 disabled:opacity-40"
             >
               <Camera className="h-4 w-4" />
             </button>
             <input
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={tTutor("study.input.placeholder", "ask about your lesson…")}
               disabled={loading}
-              className="flex-1 bg-transparent py-3 text-sm placeholder:text-muted-foreground focus:outline-none"
+              className="min-w-0 flex-1 bg-transparent py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
             <button
               type="submit"
               aria-label="Send message"
               disabled={!canSend}
-              className="grid h-9 w-9 place-items-center rounded-full bg-accent text-accent-foreground disabled:opacity-50"
+              className="press grid h-9 w-9 place-items-center rounded-full bg-world text-white world-glow disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
             </button>
@@ -1975,7 +2215,7 @@ function ChapterPickerPanel({
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                     ch {c.chapter_number}
                   </div>
                   <div className="truncate font-medium">{c.chapter_title}</div>
@@ -2113,7 +2353,7 @@ function SubjectSheet({
               <div className="font-display text-lg font-bold">
                 chapters 📚
                 {chaptersSource === "override" && (
-                  <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 align-middle text-[10px] font-semibold text-emerald-400">
+                  <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 align-middle text-[11px] font-semibold text-emerald-400">
                     your syllabus
                   </span>
                 )}
@@ -2173,7 +2413,7 @@ function SubjectSheet({
               </div>
               <button
                 onClick={() => setPaperFor(null)}
-                className="mt-2 w-full text-[10px] text-muted-foreground"
+                className="mt-2 w-full text-[11px] text-muted-foreground"
               >
                 cancel
               </button>
@@ -2185,7 +2425,7 @@ function SubjectSheet({
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-sm font-semibold">🎯 whole subject</div>
-                <div className="text-[10px] text-muted-foreground">
+                <div className="text-[11px] text-muted-foreground">
                   mixed content across every chapter
                 </div>
               </div>
@@ -2242,12 +2482,12 @@ function SubjectSheet({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                           ch {c.chapter_number}
                         </div>
                         <div className="truncate text-sm font-medium">{c.chapter_title}</div>
                         {b && (
-                          <div className={`mt-0.5 text-[10px] font-semibold ${b.tone}`}>
+                          <div className={`mt-0.5 text-[11px] font-semibold ${b.tone}`}>
                             {b.label}
                           </div>
                         )}
@@ -2642,7 +2882,7 @@ function NotesReader({
     >
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-stone-300 bg-[#f5f1e8]/95 px-4 py-3 backdrop-blur">
         <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-stone-500">
             Chapter {chapterNumber} · {subject}
           </div>
           <div className="truncate font-serif text-base font-semibold text-stone-900">
@@ -3787,7 +4027,7 @@ function PaperModal({
           <X className="h-4 w-4" />
         </button>
         <div className="min-w-0 flex-1 text-center">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             exam mode
           </div>
           <div className="truncate font-display text-sm font-bold">
@@ -3880,7 +4120,7 @@ function PaperModal({
                     ? "solid work — real understanding showing through."
                     : "great practice — every attempt makes the next one easier 💪"}
               </p>
-              {finishing && <div className="mt-2 text-[10px] text-muted-foreground">saving…</div>}
+              {finishing && <div className="mt-2 text-[11px] text-muted-foreground">saving…</div>}
             </div>
 
             <div className="mt-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -3917,7 +4157,7 @@ function PaperModal({
                     <div className="mt-1 line-clamp-2 text-muted-foreground">{qq.question}</div>
                     {r.usedPhoto && r.transcript && (
                       <div className="mt-2 rounded-lg border border-border bg-background/50 px-2 py-1.5">
-                        <div className="text-[10px] font-medium text-muted-foreground">
+                        <div className="text-[11px] font-medium text-muted-foreground">
                           here's what we read from your photo:
                         </div>
                         <div className="mt-0.5 whitespace-pre-wrap text-foreground/90">
@@ -3988,7 +4228,7 @@ function PaperModal({
                   ⊞ all
                 </button>
               </div>
-              <div className="mt-1.5 text-center text-[10px] text-muted-foreground">
+              <div className="mt-1.5 text-center text-[11px] text-muted-foreground">
                 {answeredCount}/{totalQuestions} answered{" "}
                 {savedTick > 0 && <span className="ml-1 text-primary/70">· saved ✓</span>}
               </div>
@@ -4004,7 +4244,7 @@ function PaperModal({
                   <div className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-700">
                     {profileSystemLabel(profile)}
                   </div>
-                  <div className="mt-0.5 text-[10px] uppercase tracking-widest text-stone-600">
+                  <div className="mt-0.5 text-[11px] uppercase tracking-widest text-stone-600">
                     {profile.class_level === "ug"
                       ? "Undergraduate"
                       : profile.class_level === "pg"
@@ -4302,7 +4542,7 @@ function PaperModal({
                   {pdfError}
                 </p>
               )}
-              <p className="text-[10px] leading-relaxed text-muted-foreground">
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
                 the PDF is a clean A4 question paper with ruled answer space. use "open in browser"
                 if you'd rather print on paper.
               </p>
@@ -4410,7 +4650,7 @@ function PaperAnswerArea({
           <button
             type="button"
             onClick={() => photoInputRef.current?.click()}
-            className="shrink-0 rounded-full border border-yellow-400/40 bg-yellow-500/10 px-2 py-1 text-[10px] font-semibold text-yellow-100"
+            className="shrink-0 rounded-full border border-yellow-400/40 bg-yellow-500/10 px-2 py-1 text-[11px] font-semibold text-yellow-100"
           >
             reattach
           </button>
@@ -4431,7 +4671,7 @@ function PaperAnswerArea({
             rows={q.type === "long" ? 8 : 5}
             className="w-full rounded-xl border border-border bg-input/40 px-3 py-2.5 text-sm focus:outline-none"
           />
-          <div className="mt-1 text-right text-[10px] text-muted-foreground">
+          <div className="mt-1 text-right text-[11px] text-muted-foreground">
             {value.length}/6000
           </div>
         </>
@@ -4746,7 +4986,7 @@ function AnswerSheetModal({ paperId, onClose }: { paperId: string; onClose: () =
                       Q{i + 1} ·{" "}
                       {qq.type === "mcq" ? "MCQ" : qq.type === "short" ? "Short" : "Long"}
                       {qq.subject ? (
-                        <span className="ml-1 text-[9px] font-normal text-muted-foreground">
+                        <span className="ml-1 text-[11px] font-normal text-muted-foreground">
                           · {qq.subject}
                         </span>
                       ) : null}
@@ -4762,7 +5002,7 @@ function AnswerSheetModal({ paperId, onClose }: { paperId: string; onClose: () =
                   </div>
 
                   <div className="mt-2 rounded-xl border border-border bg-background/60 px-2.5 py-2">
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                       your answer
                     </div>
                     {qq.type === "mcq" ? (
@@ -4776,7 +5016,7 @@ function AnswerSheetModal({ paperId, onClose }: { paperId: string; onClose: () =
                     ) : (
                       <div className="mt-0.5 whitespace-pre-wrap text-foreground/90">
                         {st.used_photo && (
-                          <span className="mr-1 text-[10px] text-muted-foreground">
+                          <span className="mr-1 text-[11px] text-muted-foreground">
                             (from your photo 📷)
                           </span>
                         )}
@@ -4789,7 +5029,7 @@ function AnswerSheetModal({ paperId, onClose }: { paperId: string; onClose: () =
 
                   {(correctMcq || qq.model_answer) && !full && (
                     <div className="mt-2 rounded-xl border border-green-500/30 bg-green-500/10 px-2.5 py-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-green-300">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-green-300">
                         correct answer
                       </div>
                       <div className="mt-0.5 whitespace-pre-wrap text-foreground/90">
@@ -4799,7 +5039,7 @@ function AnswerSheetModal({ paperId, onClose }: { paperId: string; onClose: () =
                   )}
                   {qq.model_answer && full && (
                     <div className="mt-2 rounded-xl border border-border bg-background/40 px-2.5 py-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         model answer
                       </div>
                       <div className="mt-0.5 whitespace-pre-wrap text-foreground/80">
@@ -4810,7 +5050,7 @@ function AnswerSheetModal({ paperId, onClose }: { paperId: string; onClose: () =
 
                   {qq.rubric_points && qq.rubric_points.length > 0 && (
                     <div className="mt-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         marks were given for
                       </div>
                       <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-foreground/80">
@@ -4927,28 +5167,28 @@ function ProgressDashboard({
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-semibold">{p.name}</div>
-                    <div className="text-[10px] text-muted-foreground">
+                    <div className="text-[11px] text-muted-foreground">
                       {profileSystemLabel(p)} · {profileStageLabel(p)}
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-xl font-display font-bold">{s.accuracy}%</div>
-                    <div className="text-[10px] text-muted-foreground">accuracy</div>
+                    <div className="text-[11px] text-muted-foreground">accuracy</div>
                   </div>
                 </div>
 
                 <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-xl border border-border bg-card p-2">
                     <div className="text-base font-semibold">{s.totalAttempts}</div>
-                    <div className="text-[10px] text-muted-foreground">quizzes</div>
+                    <div className="text-[11px] text-muted-foreground">quizzes</div>
                   </div>
                   <div className="rounded-xl border border-border bg-card p-2">
                     <div className="text-base font-semibold">{s.chaptersPractised}</div>
-                    <div className="text-[10px] text-muted-foreground">chapters</div>
+                    <div className="text-[11px] text-muted-foreground">chapters</div>
                   </div>
                   <div className="rounded-xl border border-border bg-card p-2">
                     <div className="text-base font-semibold">{s.subjects.length}</div>
-                    <div className="text-[10px] text-muted-foreground">subjects</div>
+                    <div className="text-[11px] text-muted-foreground">subjects</div>
                   </div>
                 </div>
 
@@ -5000,7 +5240,7 @@ function ProgressDashboard({
                             className="flex w-full items-center justify-between rounded-lg px-1 py-0.5 text-left text-xs hover:bg-muted active:bg-muted"
                           >
                             <span className="truncate text-primary">
-                              {r.subject} <span className="text-[9px]">· review 📖</span>
+                              {r.subject} <span className="text-[11px]">· review 📖</span>
                             </span>
                             <span className="text-muted-foreground">
                               {when} · {num}/{den}
@@ -5011,7 +5251,7 @@ function ProgressDashboard({
                             <span className="truncate">
                               {r.subject}
                               {isPaper && (
-                                <span className="ml-1 text-[9px] text-muted-foreground">
+                                <span className="ml-1 text-[11px] text-muted-foreground">
                                   · paper
                                 </span>
                               )}
@@ -5591,7 +5831,7 @@ function MockPaperModal({
           <X className="h-4 w-4" />
         </button>
         <div className="min-w-0 flex-1 text-center">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             mock test
           </div>
           <div className="truncate font-display text-sm font-bold">
@@ -5664,7 +5904,7 @@ function MockPaperModal({
                 you scored {totalScored}/{totalMarks}!
               </div>
               <div className="text-xs text-muted-foreground">that's {pct}%</div>
-              {finishing && <div className="mt-2 text-[10px] text-muted-foreground">saving…</div>}
+              {finishing && <div className="mt-2 text-[11px] text-muted-foreground">saving…</div>}
             </div>
 
             <div className="mt-6 space-y-4 pb-6">
@@ -5783,7 +6023,7 @@ function MockPaperModal({
                   submit
                 </button>
               </div>
-              <div className="mt-1.5 text-center text-[10px] text-muted-foreground">
+              <div className="mt-1.5 text-center text-[11px] text-muted-foreground">
                 {answeredCount}/{totalQuestions} answered
               </div>
             </div>
@@ -5797,7 +6037,7 @@ function MockPaperModal({
                   <div className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-700">
                     {profileSystemLabel(profile)}
                   </div>
-                  <div className="mt-0.5 text-[10px] uppercase tracking-widest text-stone-600">
+                  <div className="mt-0.5 text-[11px] uppercase tracking-widest text-stone-600">
                     MOCK TEST
                   </div>
                   <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-[11px] text-stone-800">

@@ -1,10 +1,9 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowDown,
-  ArrowLeft,
   ArrowUp,
   BadgeCheck,
   Briefcase,
@@ -23,6 +22,15 @@ import { toast } from "sonner";
 import { CvPaper } from "@/components/cv/CvPaper";
 import CredentialCsvImport from "@/components/cv/CredentialCsvImport";
 import { SectionOrderList } from "@/components/cv/SectionOrderList";
+import {
+  OniqAIOrb,
+  OniqCanvas,
+  OniqCard,
+  OniqChip,
+  OniqHeader,
+  OniqProgressBar,
+  OniqStoryRail,
+} from "@/components/oniq";
 import { Switch } from "@/components/ui/switch";
 import {
   CV_INCLUDE_DEFAULT,
@@ -71,8 +79,6 @@ import {
   normalizeQualification,
   normalizeSkills,
   normalizeYear,
-
-
   screenInstruction,
   validateGenerated,
   validateIssuer,
@@ -124,6 +130,14 @@ const FIELD_LABEL: Record<CvSensitiveField, string> = {
   noticePeriod: "Notice period",
 };
 
+/**
+ * A dark well for the CV sub-components that still paint their own
+ * white-on-dark text (SectionOrderList, SkillChips, CredentialCsvImport,
+ * JobAppsDirectory). On the dark default theme the well is invisible; in
+ * light mode it keeps them legible until they are restyled on the tokens.
+ */
+const DARK_WELL = "rounded-2xl bg-black/85 p-2 text-white";
+
 function JobsScreen() {
   const { tab: mode } = Route.useSearch();
   const navigate = useNavigate();
@@ -157,21 +171,21 @@ function JobsScreen() {
     staleTime: 60_000,
   });
 
+  const targetLabel = COUNTRIES.find((c) => c.code === target)?.label ?? target;
+
   return (
-    <div className="min-h-dvh bg-[#0E0F13] pb-24 text-white">
-      <header className="flex items-center gap-3 px-4 pt-5">
-        <Link to="/app" className="rounded-full bg-white/5 p-2" aria-label="Back">
-          <ArrowLeft className="size-5" />
-        </Link>
-        <div>
-          <p className="text-[11px] uppercase tracking-wide text-white/40">
-            your {cvWord}, your facts
-          </p>
-          <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <Briefcase className="size-5 text-[#00D4B8]" /> {cvWord} Builder
-          </h1>
-        </div>
-      </header>
+    <OniqCanvas world="jobs" className="pb-24">
+      <OniqHeader
+        eyebrow="Jobs"
+        title={
+          <>
+            <Briefcase className="me-1 inline-block h-6 w-6 align-[-3px] text-world" /> {cvWord}{" "}
+            Builder
+          </>
+        }
+        subtitle={`your ${cvWord}, your facts`}
+        back="/app"
+      />
 
       {/*
         ONE gate, then a mode switch. Both halves of Jobs are 18+ for the same
@@ -184,7 +198,7 @@ function JobsScreen() {
         them for a beat. Content renders only on an affirmative `=== true`.
       */}
       {isAdult === undefined ? (
-        <div className="mx-4 mt-6 flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#16181E] p-6 text-sm text-white/60">
+        <div className="mx-5 mt-6 flex items-center justify-center gap-2 rounded-3xl oniq-surface p-6 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" /> Checking access…
         </div>
       ) : isAdult === false ? (
@@ -197,28 +211,47 @@ function JobsScreen() {
         />
       ) : (
         <>
-          <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto px-4">
-            {(
-              [
-                { id: "cv" as const, label: `${cvWord} builder` },
-                { id: "apps" as const, label: "Job & gig apps" },
-              ]
-            ).map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => navigate({ to: "/app/jobs", search: { tab: m.id } })}
-                className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium ${
-                  mode === m.id ? "bg-[#00D4B8] text-black" : "bg-white/5 text-white/70"
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
+          {/* The cockpit: what this screen is for, and the one fact that shapes it. */}
+          <div className="mt-5 px-5">
+            <OniqCard variant="hero" padding="lg" className="rise">
+              <div className="flex items-center gap-3">
+                <OniqAIOrb size="md" still />
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
+                    Career cockpit
+                  </div>
+                  <h2 className="mt-0.5 font-display text-[22px] leading-tight">
+                    Your {cvWord}, your facts
+                  </h2>
+                </div>
+              </div>
+              <p className="mt-3 text-[12px] leading-relaxed text-white/85">
+                Written to the conventions of {targetLabel}. Nothing is invented — only what you
+                enter.
+              </p>
+            </OniqCard>
           </div>
 
+          <OniqStoryRail className="mt-4 px-5" role="tablist" ariaLabel="Jobs sections">
+            {[
+              { id: "cv" as const, label: `${cvWord} builder` },
+              { id: "apps" as const, label: "Job & gig apps" },
+            ].map((m) => (
+              <OniqChip
+                key={m.id}
+                role="tab"
+                active={mode === m.id}
+                onClick={() => navigate({ to: "/app/jobs", search: { tab: m.id } })}
+              >
+                {m.label}
+              </OniqChip>
+            ))}
+          </OniqStoryRail>
+
           {mode === "apps" ? (
-            <JobAppsDirectory target={target} setTarget={setTarget} />
+            <div className={`mx-5 mt-4 ${DARK_WELL}`}>
+              <JobAppsDirectory target={target} setTarget={setTarget} />
+            </div>
           ) : (
             <CvWorkbench
               target={target}
@@ -229,7 +262,7 @@ function JobsScreen() {
           )}
         </>
       )}
-    </div>
+    </OniqCanvas>
   );
 }
 
@@ -239,49 +272,53 @@ function AgeGateCard({ hasDob, onSaved }: { hasDob: boolean; onSaved: () => void
   const [busy, setBusy] = useState(false);
 
   return (
-    <div className="mx-4 mt-6 rounded-2xl border border-white/10 bg-[#16181E] p-4">
-      <h2 className="text-base font-semibold">The CV tools are for 18 and over</h2>
-      <p className="mt-2 text-sm leading-relaxed text-white/60">
-        Job tools process career data and push opportunities, so we hold them to 18 everywhere — not
-        to the lower digital-consent age some countries use.
-      </p>
-      {hasDob ? (
-        <p className="mt-3 text-sm text-white/50">
-          Your account is under 18. Nothing here is available yet.
+    <div className="mx-5 mt-6">
+      <OniqCard padding="lg" className="rise">
+        <h2 className="font-display text-[16px] leading-tight text-foreground">
+          The CV tools are for 18 and over
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          Job tools process career data and push opportunities, so we hold them to 18 everywhere —
+          not to the lower digital-consent age some countries use.
         </p>
-      ) : (
-        <div className="mt-4">
-          <p className="text-sm text-white/60">
-            We do not have your date of birth on file, so access is closed. Add it once — it cannot
-            be changed afterwards.
+        {hasDob ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Your account is under 18. Nothing here is available yet.
           </p>
-          <input
-            type="date"
-            value={dob}
-            onChange={(e) => setDob(e.target.value)}
-            className="mt-3 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
-          />
-          <button
-            type="button"
-            disabled={!dob || busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await setMyDateOfBirth(dob);
-                toast.success("Date of birth saved");
-                onSaved();
-              } catch (e) {
-                toast.error((e as Error)?.message ?? "Could not save that");
-              } finally {
-                setBusy(false);
-              }
-            }}
-            className="mt-3 w-full rounded-xl bg-[#00D4B8] px-4 py-2 text-sm font-semibold text-black disabled:opacity-40"
-          >
-            {busy ? "Saving…" : "Save date of birth"}
-          </button>
-        </div>
-      )}
+        ) : (
+          <div className="mt-4">
+            <p className="text-sm text-muted-foreground">
+              We do not have your date of birth on file, so access is closed. Add it once — it
+              cannot be changed afterwards.
+            </p>
+            <input
+              type="date"
+              value={dob}
+              onChange={(e) => setDob(e.target.value)}
+              className="mt-3 w-full rounded-2xl border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-world"
+            />
+            <button
+              type="button"
+              disabled={!dob || busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await setMyDateOfBirth(dob);
+                  toast.success("Date of birth saved");
+                  onSaved();
+                } catch (e) {
+                  toast.error((e as Error)?.message ?? "Could not save that");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              className="press mt-3 w-full rounded-full bg-world px-4 py-2.5 text-sm font-semibold text-white world-glow disabled:opacity-40"
+            >
+              {busy ? "Saving…" : "Save date of birth"}
+            </button>
+          </div>
+        )}
+      </OniqCard>
     </div>
   );
 }
@@ -333,8 +370,6 @@ function CvWorkbench({
   const [showCsvImport, setShowCsvImport] = useState(false);
   const dragCredIndex = useRef<number | null>(null);
 
-
-
   useEffect(() => {
     setGenerated(null);
     setFlags([]);
@@ -384,13 +419,13 @@ function CvWorkbench({
         [e.year, "Year"],
       ];
       rowLabels.forEach(([msg, label]) => {
-        if (msg) list.push({ tab: "education", where: `Qualification ${i + 1} · ${label}`, message: msg });
+        if (msg)
+          list.push({ tab: "education", where: `Qualification ${i + 1} · ${label}`, message: msg });
       });
     });
     if (skillsError) list.push({ tab: "skills", where: "Skills", message: skillsError });
     return list;
   }, [credErrors, skillsError]);
-
 
   async function generate() {
     if (hasErrors) {
@@ -486,56 +521,62 @@ function CvWorkbench({
     },
     { key: "rules", label: `${target} rules`, done: true },
   ];
+  // The "rules" tab is reading, not input, so it is not a step towards a CV.
+  const steps = tabs.filter((t) => t.key !== "rules");
+  const stepsDone = steps.filter((t) => t.done).length;
 
   return (
-    <div className="space-y-4 px-4 pt-5">
+    <div className="space-y-4 px-5 pt-5">
       {/* Country */}
-      <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-        <h2 className="text-sm font-semibold">Where are you applying?</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
+      <OniqCard variant="tinted" padding="lg" className="rise rise-1">
+        <h2 className="font-display text-[15px] leading-tight text-foreground">
+          Where are you applying?
+        </h2>
+        <div className="mt-3 flex flex-wrap gap-2" role="radiogroup" aria-label="Target market">
           {COUNTRIES.map((c) => (
-            <button
+            <OniqChip
               key={c.code}
-              type="button"
+              role="radio"
+              active={target === c.code}
               onClick={() => setTarget(c.code as Country)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                target === c.code ? "bg-[#00D4B8] text-black" : "bg-white/5 text-white/70"
-              }`}
             >
               {c.flag} {c.label}
-            </button>
+            </OniqChip>
           ))}
         </div>
-        <p className="mt-3 text-xs leading-relaxed text-white/50">
+        <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
           Fill in whatever you have. Every tab is optional — we write the CV from what you give us.
         </p>
-      </section>
+        <div className="mt-3 flex items-center gap-3">
+          <OniqProgressBar
+            className="flex-1"
+            value={stepsDone / steps.length}
+            label={`${stepsDone} of ${steps.length} sections filled`}
+          />
+          <span className="shrink-0 text-[11px] font-semibold text-muted-foreground">
+            {stepsDone}/{steps.length} filled
+          </span>
+        </div>
+      </OniqCard>
 
       {/* Tabs */}
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+      <OniqStoryRail role="tablist" ariaLabel="CV sections">
         {tabs.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium ${
-              tab === t.key ? "bg-[#00D4B8] text-black" : "bg-white/5 text-white/70"
-            }`}
-          >
+          <OniqChip key={t.key} role="tab" active={tab === t.key} onClick={() => setTab(t.key)}>
             {t.label}
-            {t.done && <Check className={`size-3.5 ${tab === t.key ? "" : "text-[#00D4B8]"}`} />}
-          </button>
+            {t.done && <Check className={`size-3.5 ${tab === t.key ? "" : "text-world"}`} />}
+          </OniqChip>
         ))}
-      </div>
+      </OniqStoryRail>
 
       {/* Validation summary — every invalid field in one place, before export */}
       {issues.length > 0 && (
         <section
           role="alert"
           aria-live="polite"
-          className="rounded-2xl border border-rose-400/30 bg-rose-500/10 p-3"
+          className="rounded-3xl border border-destructive/40 bg-destructive/10 p-3"
         >
-          <p className="flex items-center gap-2 text-xs font-semibold text-rose-200">
+          <p className="flex items-center gap-2 text-[12px] font-semibold text-destructive">
             <AlertTriangle className="size-3.5 shrink-0" />
             {issues.length} field{issues.length === 1 ? "" : "s"} need
             {issues.length === 1 ? "s" : ""} a fix before you generate
@@ -546,22 +587,23 @@ function CvWorkbench({
                 <button
                   type="button"
                   onClick={() => setTab(it.tab)}
-                  className="w-full rounded-lg px-2 py-1 text-left text-[11px] leading-snug text-rose-100/90 hover:bg-white/5"
+                  className="w-full rounded-lg px-2 py-1 text-start text-[11px] leading-snug text-foreground hover:bg-destructive/10"
                 >
-                  <span className="font-medium text-rose-200">{it.where}</span>
-                  <span className="text-rose-100/70"> — {it.message}</span>
+                  <span className="font-medium text-destructive">{it.where}</span>
+                  <span className="text-muted-foreground"> — {it.message}</span>
                 </button>
               </li>
             ))}
           </ul>
-          <p className="mt-1 px-2 text-[10px] text-rose-100/50">Tap any line to jump to that tab.</p>
+          <p className="mt-1 px-2 text-[11px] text-muted-foreground">
+            Tap any line to jump to that tab.
+          </p>
         </section>
       )}
 
-
       {tab === "basics" && (
-        <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-          <h2 className="text-sm font-semibold">About you</h2>
+        <OniqCard padding="lg">
+          <h2 className="font-display text-[15px] leading-tight text-foreground">About you</h2>
           <div className="mt-3 grid gap-2">
             <Field
               label="Full name"
@@ -603,8 +645,8 @@ function CvWorkbench({
           </div>
 
           {prompted.length > 0 && (
-            <div className="mt-4 border-t border-white/5 pt-3">
-              <h3 className="text-xs font-semibold text-white/70">
+            <div className="mt-4 border-t border-border pt-3">
+              <h3 className="text-[12px] font-semibold text-foreground">
                 Usually expected on a {target} CV
               </h3>
               <div className="mt-2 grid gap-2">
@@ -617,7 +659,7 @@ function CvWorkbench({
                         setDeclared({ ...declared, personal: { ...declared.personal, [f]: v } })
                       }
                     />
-                    <p className="px-1 pb-1 text-[11px] leading-relaxed text-white/40">
+                    <p className="px-1 pb-1 text-[11px] leading-relaxed text-muted-foreground">
                       {rules[f].note}
                     </p>
                   </div>
@@ -625,17 +667,17 @@ function CvWorkbench({
               </div>
             </div>
           )}
-        </section>
+        </OniqCard>
       )}
 
       {tab === "education" && (
-        <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-          <h2 className="text-sm font-semibold">Qualifications</h2>
-          <p className="mt-1 text-xs text-white/50">
+        <OniqCard padding="lg">
+          <h2 className="font-display text-[15px] leading-tight text-foreground">Qualifications</h2>
+          <p className="mt-1 text-[12px] text-muted-foreground">
             Degree, diploma, board exam or certificate — add whatever you actually hold.
           </p>
           {declared.credentials.length === 0 && (
-            <p className="mt-3 text-xs text-white/40">
+            <p className="mt-3 text-[12px] text-muted-foreground">
               Nothing added yet. That's fine — you can skip this.
             </p>
           )}
@@ -643,17 +685,17 @@ function CvWorkbench({
             <div
               key={i}
               data-cred-index={i}
-              className={`mt-3 rounded-xl border bg-black/20 p-3 ${
-                dragCred === i ? "border-[#00D4B8]/60 bg-[#00D4B8]/5" : "border-white/5"
+              className={`mt-3 rounded-2xl border p-3 ${
+                dragCred === i ? "border-world bg-world-soft" : "border-border bg-surface-2"
               }`}
             >
               <div className="mb-2 flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/50">
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   <button
                     type="button"
                     data-cred-handle={i}
                     aria-label={`Reorder qualification ${i + 1} of ${declared.credentials.length}. Drag, or use up and down arrow keys.`}
-                    className="cursor-grab touch-none rounded-md p-0.5 text-white/30 outline-none ring-[#00D4B8]/60 hover:text-white/60 focus-visible:ring-2 active:cursor-grabbing"
+                    className="cursor-grab touch-none rounded-md p-0.5 text-muted-foreground outline-none ring-world/60 hover:text-foreground focus-visible:ring-2 active:cursor-grabbing"
                     onPointerDown={(e) => {
                       dragCredIndex.current = i;
                       setDragCred(i);
@@ -694,13 +736,12 @@ function CvWorkbench({
                   Qualification {i + 1}
                 </span>
                 <div className="flex items-center gap-1">
-
                   <button
                     type="button"
                     aria-label="Move up"
                     disabled={i === 0}
                     onClick={() => moveCredential(declared, setDeclared, i, -1)}
-                    className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-white/60 disabled:opacity-30"
+                    className="tap press rounded-full oniq-surface px-2 py-1 text-[11px] text-muted-foreground disabled:opacity-30"
                   >
                     <ArrowUp className="size-3" />
                   </button>
@@ -709,7 +750,7 @@ function CvWorkbench({
                     aria-label="Move down"
                     disabled={i === declared.credentials.length - 1}
                     onClick={() => moveCredential(declared, setDeclared, i, 1)}
-                    className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-white/60 disabled:opacity-30"
+                    className="tap press rounded-full oniq-surface px-2 py-1 text-[11px] text-muted-foreground disabled:opacity-30"
                   >
                     <ArrowDown className="size-3" />
                   </button>
@@ -745,9 +786,7 @@ function CvWorkbench({
                 error={credErrors[i]?.year ?? null}
                 normalize={normalizeYear}
                 onChange={(v) => patchCredential(declared, setDeclared, i, { year: v })}
-
               />
-
 
               <button
                 type="button"
@@ -757,7 +796,7 @@ function CvWorkbench({
                     credentials: declared.credentials.filter((_, j) => j !== i),
                   })
                 }
-                className="mt-2 rounded-full bg-white/5 px-3 py-1 text-[11px] text-white/60"
+                className="press mt-2 rounded-full oniq-surface px-3 py-1 text-[11px] text-muted-foreground"
               >
                 Remove
               </button>
@@ -772,7 +811,7 @@ function CvWorkbench({
                   credentials: [...declared.credentials, { name: "", issuer: "", year: "" }],
                 })
               }
-              className="flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1.5 text-xs"
+              className="press flex items-center gap-1.5 rounded-full bg-world-soft px-3 py-1.5 text-[12px] font-semibold text-world"
             >
               <Plus className="size-3.5" />{" "}
               {declared.credentials.length === 0
@@ -782,58 +821,63 @@ function CvWorkbench({
             <button
               type="button"
               onClick={() => setShowCsvImport((v) => !v)}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs ${
-                showCsvImport ? "bg-[#00D4B8]/20 text-[#00D4B8]" : "bg-white/5"
+              className={`press flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold ${
+                showCsvImport ? "bg-world text-white" : "oniq-surface text-foreground"
               }`}
             >
               <FileUp className="size-3.5" /> Import CSV
             </button>
           </div>
           {showCsvImport && (
-            <CredentialCsvImport
-              existingCount={
-                declared.credentials.filter((c) => c.name.trim() || c.issuer.trim() || c.year.trim())
-                  .length
-              }
-              onClose={() => setShowCsvImport(false)}
-              onImport={(rows, mode) => {
-                const kept =
-                  mode === "append"
-                    ? declared.credentials.filter(
-                        (c) => c.name.trim() || c.issuer.trim() || c.year.trim(),
-                      )
-                    : [];
-                setDeclared({ ...declared, credentials: [...kept, ...rows] });
-                setShowCsvImport(false);
-                toast.success(
-                  `${rows.length} qualification${rows.length === 1 ? "" : "s"} imported ✨`,
-                );
-              }}
-            />
+            <div className={`mt-3 ${DARK_WELL}`}>
+              <CredentialCsvImport
+                existingCount={
+                  declared.credentials.filter(
+                    (c) => c.name.trim() || c.issuer.trim() || c.year.trim(),
+                  ).length
+                }
+                onClose={() => setShowCsvImport(false)}
+                onImport={(rows, mode) => {
+                  const kept =
+                    mode === "append"
+                      ? declared.credentials.filter(
+                          (c) => c.name.trim() || c.issuer.trim() || c.year.trim(),
+                        )
+                      : [];
+                  setDeclared({ ...declared, credentials: [...kept, ...rows] });
+                  setShowCsvImport(false);
+                  toast.success(
+                    `${rows.length} qualification${rows.length === 1 ? "" : "s"} imported ✨`,
+                  );
+                }}
+              />
+            </div>
           )}
           {clean.credentials.length > 0 && (
-            <p className="mt-2 text-[11px] text-white/40">
+            <p className="mt-2 text-[11px] text-muted-foreground">
               {clean.credentials.length} qualification
               {clean.credentials.length === 1 ? "" : "s"} will appear on your {cvWord}.
             </p>
           )}
-        </section>
+        </OniqCard>
       )}
 
       {tab === "work" && (
-        <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+        <OniqCard padding="lg">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Work history</h2>
+            <h2 className="font-display text-[15px] leading-tight text-foreground">Work history</h2>
             {years !== null && (
-              <span className="text-xs text-white/40">≈ {years} yr from your dates</span>
+              <span className="text-[12px] text-muted-foreground">
+                ≈ {years} yr from your dates
+              </span>
             )}
           </div>
-          <p className="mt-1 text-xs text-white/50">
+          <p className="mt-1 text-[12px] text-muted-foreground">
             No experience yet? Leave this empty — we'll write a fresher CV from your qualifications
             and skills.
           </p>
           {declared.roles.map((r, i) => (
-            <div key={i} className="mt-3 rounded-xl border border-white/5 bg-black/20 p-3">
+            <div key={i} className="mt-3 rounded-2xl border border-border bg-surface-2 p-3">
               <Field
                 label="Employer"
                 value={r.employer}
@@ -868,7 +912,7 @@ function CvWorkbench({
                 onClick={() =>
                   setDeclared({ ...declared, roles: declared.roles.filter((_, j) => j !== i) })
                 }
-                className="mt-2 rounded-full bg-white/5 px-3 py-1 text-[11px] text-white/60"
+                className="press mt-2 rounded-full oniq-surface px-3 py-1 text-[11px] text-muted-foreground"
               >
                 Remove
               </button>
@@ -885,16 +929,16 @@ function CvWorkbench({
                 ],
               })
             }
-            className="mt-3 flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1.5 text-xs"
+            className="press mt-3 flex items-center gap-1.5 rounded-full bg-world-soft px-3 py-1.5 text-[12px] font-semibold text-world"
           >
             <Plus className="size-3.5" /> Add a role
           </button>
-        </section>
+        </OniqCard>
       )}
 
       {tab === "skills" && (
-        <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-          <h2 className="text-sm font-semibold">Skills</h2>
+        <OniqCard padding="lg">
+          <h2 className="font-display text-[15px] leading-tight text-foreground">Skills</h2>
           <Field
             label="Comma separated"
             placeholder="e.g. Excel, Tally, spoken English, Python, customer support"
@@ -917,17 +961,19 @@ function CvWorkbench({
 
           {declared.skills.length > 0 && (
             <>
-              <p className="mt-3 text-[11px] text-white/40">
+              <p className="mt-3 text-[11px] text-muted-foreground">
                 Drag a chip (or focus it and press ← / →) to set priority order — the first ones
                 land first on your {cvWord}.
               </p>
-              <SkillChips
-                skills={declared.skills}
-                onChange={(skills) => setDeclared({ ...declared, skills })}
-              />
+              <div className={`mt-2 ${DARK_WELL}`}>
+                <SkillChips
+                  skills={declared.skills}
+                  onChange={(skills) => setDeclared({ ...declared, skills })}
+                />
+              </div>
             </>
           )}
-        </section>
+        </OniqCard>
       )}
 
       {tab === "rules" && (
@@ -944,32 +990,32 @@ function CvWorkbench({
             employer is claiming, so it is shown too — and showing only the
             first one made the whole panel look frozen when the chips changed.
           */}
-          <section className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4">
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-rose-200">
+          <section className="rounded-3xl border border-destructive/40 bg-destructive/10 p-4">
+            <h2 className="flex items-center gap-2 font-display text-[15px] leading-tight text-destructive">
               <ShieldAlert className="size-4" /> Before you apply
             </h2>
-            <p className="mt-2 text-sm font-semibold text-white/90">{LEAD_WARNING}</p>
+            <p className="mt-2 text-sm font-semibold text-foreground">{LEAD_WARNING}</p>
             {SCAM_PATTERNS.map((pat) => (
               <div key={pat.id} className="mt-3">
-                <h3 className="text-xs font-semibold text-white/80">{pat.title}</h3>
-                <ol className="mt-1 list-decimal space-y-0.5 ps-4 text-xs leading-relaxed text-white/55">
+                <h3 className="text-[12px] font-semibold text-foreground">{pat.title}</h3>
+                <ol className="mt-1 list-decimal space-y-0.5 ps-4 text-[12px] leading-relaxed text-muted-foreground">
                   {pat.steps.map((st) => (
                     <li key={st}>{st}</li>
                   ))}
                 </ol>
-                <p className="mt-1 text-xs font-medium text-rose-200/90">{pat.tell}</p>
+                <p className="mt-1 text-[12px] font-medium text-destructive">{pat.tell}</p>
               </div>
             ))}
             {scamGroups.length > 0 && (
-              <div className="mt-4 border-t border-white/10 pt-3">
-                <h3 className="text-xs font-semibold text-white/80">Report it</h3>
+              <div className="mt-4 border-t border-destructive/30 pt-3">
+                <h3 className="text-[12px] font-semibold text-foreground">Report it</h3>
                 {scamGroups.map((g) => {
                   const name = COUNTRIES.find((c) => c.code === g.country)?.label ?? g.country;
                   return (
                     <div key={`${g.axis}-${g.country}`} className="mt-2">
                       {/* Say which question each set of numbers answers. Without
                           this the second group looks like a duplicate. */}
-                      <p className="text-[11px] text-white/45">
+                      <p className="text-[11px] text-muted-foreground">
                         {g.axis === "region"
                           ? `Where you are — ${name}`
                           : `Where you're applying — ${name}`}
@@ -981,7 +1027,7 @@ function CvWorkbench({
                             href={ch.phone ? `tel:${ch.phone}` : ch.url}
                             target={ch.url ? "_blank" : undefined}
                             rel={ch.url ? "noopener noreferrer" : undefined}
-                            className="rounded-full border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100"
+                            className="press rounded-full border border-destructive/40 bg-card px-3 py-1.5 text-[12px] font-medium text-foreground"
                           >
                             {ch.name}
                             {ch.phone ? ` · ${ch.phone}` : " ↗"}
@@ -994,7 +1040,7 @@ function CvWorkbench({
               </div>
             )}
             {scamGroups.length > 0 && (
-              <p className="mt-3 text-[11px] text-white/40">
+              <p className="mt-3 text-[11px] text-muted-foreground">
                 Written from guidance published by{" "}
                 {scamGroups
                   .map((g) => g.source?.authority)
@@ -1019,20 +1065,31 @@ function CvWorkbench({
             )}
           </section>
 
-          <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-            <h2 className="text-sm font-semibold">Local conventions</h2>
-            <p className="mt-2 text-xs leading-relaxed text-white/50">{rules.length.note}</p>
-            <p className="mt-2 text-xs leading-relaxed text-white/50">{rules.referencesNote}</p>
+          <OniqCard padding="lg">
+            <h2 className="font-display text-[15px] leading-tight text-foreground">
+              Local conventions
+            </h2>
+            <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+              {rules.length.note}
+            </p>
+            <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+              {rules.referencesNote}
+            </p>
             {rules.context.map((c) => (
-              <p key={c} className="mt-2 text-xs leading-relaxed text-amber-200/80">
+              <p
+                key={c}
+                className="mt-2 border-s-2 border-world ps-2 text-[12px] leading-relaxed text-foreground/80"
+              >
                 {c}
               </p>
             ))}
-          </section>
+          </OniqCard>
 
-          <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-            <h2 className="text-sm font-semibold">What we leave off, and why</h2>
-            <ul className="mt-2 space-y-2 text-xs leading-relaxed text-white/55">
+          <OniqCard padding="lg">
+            <h2 className="font-display text-[15px] leading-tight text-foreground">
+              What we leave off, and why
+            </h2>
+            <ul className="mt-2 space-y-2 text-[12px] leading-relaxed text-muted-foreground">
               {(
                 ["photo", "dobAge", "maritalReligion", "nationalId", "salary"] as CvSensitiveField[]
               )
@@ -1044,97 +1101,103 @@ function CvWorkbench({
                 )
                 .map((f) => (
                   <li key={f}>
-                    <span className="text-white/80">{FIELD_LABEL[f]}:</span> {rules[f].note}
+                    <span className="text-foreground">{FIELD_LABEL[f]}:</span> {rules[f].note}
                   </li>
                 ))}
             </ul>
-          </section>
+          </OniqCard>
 
           {rules.specials.includes("au_public_sector_star") && (
-            <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-              <h2 className="text-sm font-semibold">
+            <OniqCard padding="lg">
+              <h2 className="font-display text-[15px] leading-tight text-foreground">
                 Australian public sector: selection criteria
               </h2>
-              <p className="mt-2 text-xs leading-relaxed text-white/55">
+              <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
                 Government roles usually want separate written responses. Answer each criterion in
                 STAR order:
               </p>
-              <ul className="mt-2 space-y-1 text-xs text-white/55">
+              <ul className="mt-2 space-y-1 text-[12px] text-muted-foreground">
                 {STAR_STEPS.map((s) => (
                   <li key={s.key}>
-                    <span className="text-white/80">{s.label}</span> — {s.hint}
+                    <span className="text-foreground">{s.label}</span> — {s.hint}
                   </li>
                 ))}
               </ul>
-            </section>
+            </OniqCard>
           )}
           {rules.specials.includes("in_psu_category") && (
-            <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-              <h2 className="text-sm font-semibold">PSU and government forms</h2>
-              <p className="mt-2 text-xs leading-relaxed text-white/55">
+            <OniqCard padding="lg">
+              <h2 className="font-display text-[15px] leading-tight text-foreground">
+                PSU and government forms
+              </h2>
+              <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
                 These forms require a category declaration — {IN_PSU_CATEGORIES.join(", ")} — and
                 often a father's name. That belongs on the prescribed form, not on a private-sector
                 CV.
               </p>
-            </section>
+            </OniqCard>
           )}
 
-          <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-            <h2 className="text-sm font-semibold">How it will be formatted</h2>
-            <ul className="mt-2 list-disc space-y-1 ps-4 text-xs leading-relaxed text-white/55">
+          <OniqCard padding="lg">
+            <h2 className="font-display text-[15px] leading-tight text-foreground">
+              How it will be formatted
+            </h2>
+            <ul className="mt-2 list-disc space-y-1 ps-4 text-[12px] leading-relaxed text-muted-foreground">
               {ATS_RULES.map((r) => (
                 <li key={r}>{r}</li>
               ))}
             </ul>
-            <p className="mt-2 text-[11px] text-white/40">{ATS_HONESTY_LINE}</p>
-          </section>
+            <p className="mt-2 text-[11px] text-muted-foreground">{ATS_HONESTY_LINE}</p>
+          </OniqCard>
         </>
       )}
 
       {/* Section order — drag to decide what a recruiter reads first */}
-      <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-        <h2 className="text-sm font-semibold">Section order</h2>
-        <p className="mt-1 text-xs leading-relaxed text-white/50">
+      <OniqCard padding="lg">
+        <h2 className="font-display text-[15px] leading-tight text-foreground">Section order</h2>
+        <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
           Drag a section (or focus it and press ↑ / ↓) to set the order on your {cvWord}. Empty
           sections are never printed.
         </p>
-        <SectionOrderList
-          order={sectionOrder}
-          onChange={setSectionOrder}
-          emptyKeys={(
-            [
-              ["summary", Boolean(clean.summary || generated?.summary)],
-              ["experience", clean.roles.length > 0 || Boolean(generated?.roles?.length)],
+        <div className={`mt-3 ${DARK_WELL}`}>
+          <SectionOrderList
+            order={sectionOrder}
+            onChange={setSectionOrder}
+            emptyKeys={(
               [
-                "qualifications",
-                clean.credentials.length > 0 || Boolean(generated?.credentials?.length),
-              ],
-              ["skills", clean.skills.length > 0 || Boolean(generated?.skills?.length)],
-            ] as [CvSectionKey, boolean][]
-          )
-            .filter(([, filled]) => !filled)
-            .map(([key]) => key)}
-        />
+                ["summary", Boolean(clean.summary || generated?.summary)],
+                ["experience", clean.roles.length > 0 || Boolean(generated?.roles?.length)],
+                [
+                  "qualifications",
+                  clean.credentials.length > 0 || Boolean(generated?.credentials?.length),
+                ],
+                ["skills", clean.skills.length > 0 || Boolean(generated?.skills?.length)],
+              ] as [CvSectionKey, boolean][]
+            )
+              .filter(([, filled]) => !filled)
+              .map(([key]) => key)}
+          />
+        </div>
         {sectionOrder[0] && (
-          <p className="mt-2 text-[11px] text-white/40">
+          <p className="mt-2 text-[11px] text-muted-foreground">
             {CV_SECTION_LABEL[sectionOrder[0]]} appears first.
           </p>
         )}
-      </section>
+      </OniqCard>
 
       {/* Include in PDF — switch whole sections on or off */}
-      <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-        <h2 className="text-sm font-semibold">Include in PDF</h2>
-        <p className="mt-1 text-xs leading-relaxed text-white/50">
+      <OniqCard padding="lg">
+        <h2 className="font-display text-[15px] leading-tight text-foreground">Include in PDF</h2>
+        <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
           Switch a section off to leave it out of the preview and the exported {cvWord}.
         </p>
         <ul className="mt-3 space-y-2">
           {CV_INCLUDE_KEYS.map((key) => (
             <li
               key={key}
-              className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2.5"
+              className="flex items-center justify-between rounded-2xl bg-surface-2 px-3 py-2.5"
             >
-              <label htmlFor={`include-${key}`} className="text-sm text-white/85">
+              <label htmlFor={`include-${key}`} className="text-sm text-foreground">
                 {CV_INCLUDE_LABEL[key]}
               </label>
               <Switch
@@ -1146,7 +1209,7 @@ function CvWorkbench({
           ))}
         </ul>
         {CV_INCLUDE_KEYS.some((k) => !include[k]) && (
-          <p className="mt-2 text-[11px] text-white/40">
+          <p className="mt-2 text-[11px] text-muted-foreground">
             Left out:{" "}
             {CV_INCLUDE_KEYS.filter((k) => !include[k])
               .map((k) => CV_INCLUDE_LABEL[k])
@@ -1154,12 +1217,12 @@ function CvWorkbench({
             .
           </p>
         )}
-      </section>
+      </OniqCard>
 
       {/* PDF template — style only; page splits stay exactly the same */}
-      <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-        <h2 className="text-sm font-semibold">PDF template</h2>
-        <p className="mt-1 text-xs leading-relaxed text-white/50">
+      <OniqCard padding="lg">
+        <h2 className="font-display text-[15px] leading-tight text-foreground">PDF template</h2>
+        <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
           Pick a layout style. Spacing and page breaks are identical in every template — only the
           styling changes.
         </p>
@@ -1172,21 +1235,19 @@ function CvWorkbench({
                 type="button"
                 onClick={() => setTemplate(t.id)}
                 aria-pressed={active}
-                className={`rounded-xl border p-3 text-left ${
-                  active
-                    ? "border-[#00D4B8] bg-[#00D4B8]/10"
-                    : "border-white/10 bg-white/5"
+                className={`press rounded-2xl border p-3 text-start ${
+                  active ? "border-world bg-world-soft" : "border-border bg-surface-2"
                 }`}
               >
-                <span className="block text-xs font-semibold text-white">{t.label}</span>
-                <span className="mt-1 block text-[11px] leading-relaxed text-white/45">
+                <span className="block text-[12px] font-semibold text-foreground">{t.label}</span>
+                <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
                   {t.description}
                 </span>
               </button>
             );
           })}
         </div>
-      </section>
+      </OniqCard>
 
       {/* Live preview — reflects what you type, before any AI is involved */}
       <CvLivePreview
@@ -1197,24 +1258,24 @@ function CvWorkbench({
         include={include}
       />
 
-
       {/* Assistant — always visible, works with whatever is filled in */}
-      <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+      <OniqCard variant="tinted" padding="lg">
         <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <Sparkles className="size-4 text-[#00D4B8]" /> Write my {cvWord}
+          <h2 className="flex items-center gap-2 font-display text-[15px] leading-tight text-foreground">
+            <Sparkles className="size-4 text-world" /> Write my {cvWord}
           </h2>
           <button
             type="button"
             onClick={() => setAiEnabled((v) => !v)}
-            className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
-              aiEnabled ? "bg-[#00D4B8] text-black" : "bg-white/10 text-white/60"
+            aria-pressed={aiEnabled}
+            className={`press rounded-full px-3 py-1 text-[11px] font-semibold ${
+              aiEnabled ? "bg-world text-white" : "oniq-surface text-muted-foreground"
             }`}
           >
             {aiEnabled ? "On" : "Off"}
           </button>
         </div>
-        <p className="mt-2 text-xs leading-relaxed text-white/50">
+        <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
           It writes from whatever you've filled in and skips the rest. It can only rewrite your own
           facts — it cannot add an employer, title, date or qualification you haven't given it.
         </p>
@@ -1230,48 +1291,48 @@ function CvWorkbench({
               type="button"
               disabled={busy || !hasAnything || hasErrors}
               onClick={generate}
-              className="mt-2 w-full rounded-xl bg-[#00D4B8] px-4 py-2 text-sm font-semibold text-black disabled:opacity-40"
+              className="press mt-2 w-full rounded-full bg-world px-4 py-2.5 text-sm font-semibold text-white world-glow disabled:opacity-40"
             >
               {busy ? "Writing…" : `Generate my ${cvWord}`}
             </button>
             {hasErrors ? (
-              <p className="mt-2 text-[11px] text-rose-300">{firstError}</p>
+              <p className="mt-2 text-[11px] text-destructive">{firstError}</p>
             ) : (
               !hasAnything && (
-                <p className="mt-2 text-[11px] text-white/40">
+                <p className="mt-2 text-[11px] text-muted-foreground">
                   Add a name, a skill, a qualification or a role and this turns on.
                 </p>
               )
             )}
           </>
         )}
-      </section>
+      </OniqCard>
 
       {refusals.length > 0 && (
-        <section className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs leading-relaxed text-amber-100">
+        <section className="rounded-3xl border border-world bg-world-soft p-4 text-[12px] leading-relaxed text-foreground">
           {refusals.map((r) => (
             <p key={r} className="flex items-start gap-2">
-              <X className="mt-0.5 size-3.5 shrink-0" /> {r}
+              <X className="mt-0.5 size-3.5 shrink-0 text-world" /> {r}
             </p>
           ))}
         </section>
       )}
 
       {generated && (
-        <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-          <div className="flex items-center gap-2 text-[11px] font-semibold text-[#00D4B8]">
+        <OniqCard padding="lg">
+          <div className="flex items-center gap-2 text-[11px] font-semibold text-world">
             <Sparkles className="size-3.5" /> AI-generated — check every line before you send it
           </div>
-          <p className="mt-3 whitespace-pre-wrap text-sm text-white/80">{generated.summary}</p>
+          <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">{generated.summary}</p>
           {generated.roles.map((r, i) => (
-            <div key={i} className="mt-3 border-t border-white/5 pt-3">
-              <p className="text-sm font-medium">
+            <div key={i} className="mt-3 border-t border-border pt-3">
+              <p className="text-sm font-medium text-foreground">
                 {r.title} — {r.employer}
               </p>
-              <p className="text-[11px] text-white/40">
+              <p className="text-[11px] text-muted-foreground">
                 {r.start} – {r.end || "present"}
               </p>
-              <ul className="mt-1 list-disc ps-4 text-xs text-white/60">
+              <ul className="mt-1 list-disc ps-4 text-[12px] text-muted-foreground">
                 {r.bullets.map((b, j) => (
                   <li key={j}>{b}</li>
                 ))}
@@ -1279,9 +1340,9 @@ function CvWorkbench({
             </div>
           ))}
           {generated.credentials.length > 0 && (
-            <div className="mt-3 border-t border-white/5 pt-3">
-              <p className="text-xs font-semibold text-white/70">Qualifications</p>
-              <ul className="mt-1 list-disc ps-4 text-xs text-white/60">
+            <div className="mt-3 border-t border-border pt-3">
+              <p className="text-[12px] font-semibold text-foreground">Qualifications</p>
+              <ul className="mt-1 list-disc ps-4 text-[12px] text-muted-foreground">
                 {generated.credentials.map((c, i) => (
                   <li key={i}>
                     {c.name}
@@ -1293,17 +1354,17 @@ function CvWorkbench({
             </div>
           )}
           {generated.skills.length > 0 && (
-            <p className="mt-3 border-t border-white/5 pt-3 text-xs text-white/60">
+            <p className="mt-3 border-t border-border pt-3 text-[12px] text-muted-foreground">
               {generated.skills.join(" · ")}
             </p>
           )}
 
           {flags.length > 0 && (
-            <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3">
-              <p className="flex items-center gap-2 text-xs font-semibold text-red-200">
+            <div className="mt-4 rounded-2xl border border-destructive/40 bg-destructive/10 p-3">
+              <p className="flex items-center gap-2 text-[12px] font-semibold text-destructive">
                 <AlertTriangle className="size-4" /> Check these before exporting
               </p>
-              <ul className="mt-2 space-y-1 text-xs text-red-100/80">
+              <ul className="mt-2 space-y-1 text-[12px] text-foreground">
                 {flags.map((f, i) => (
                   <li key={i}>{f.message}</li>
                 ))}
@@ -1311,7 +1372,7 @@ function CvWorkbench({
             </div>
           )}
 
-          <label className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-white/70">
+          <label className="mt-4 flex items-start gap-2 text-[12px] leading-relaxed text-foreground">
             <input
               type="checkbox"
               checked={attested}
@@ -1324,18 +1385,18 @@ function CvWorkbench({
             type="button"
             disabled={!attested}
             onClick={saveAndAttest}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#00D4B8] px-4 py-2 text-sm font-semibold text-black disabled:opacity-40"
+            className="press mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-world px-4 py-2.5 text-sm font-semibold text-white world-glow disabled:opacity-40"
           >
             <BadgeCheck className="size-4" /> Save and confirm accuracy
           </button>
           <button
             type="button"
             onClick={() => setPreviewing(true)}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white"
+            className="press mt-2 flex w-full items-center justify-center gap-2 rounded-full oniq-surface px-4 py-2.5 text-sm font-semibold text-foreground"
           >
             <FileText className="size-4" /> Preview PDF
           </button>
-          <p className="mt-1 text-center text-[11px] text-white/40">
+          <p className="mt-1 text-center text-[11px] text-muted-foreground">
             Check the layout, then download or share from the preview.
           </p>
           {previewing && (
@@ -1345,22 +1406,21 @@ function CvWorkbench({
               order={sectionOrder}
               template={template}
               include={include}
-
               onClose={() => setPreviewing(false)}
             />
           )}
-          <p className="mt-3 text-[11px] text-white/40">{AI_OUTPUT_LABEL}</p>
+          <p className="mt-3 text-[11px] text-muted-foreground">{AI_OUTPUT_LABEL}</p>
           <AiOutputReport
             surface="cv_ai_output"
             targetId={cvId}
             context={{ target, flagCount: flags.length }}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-xs text-white/70 disabled:opacity-50"
+            className="press mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-surface-2 px-4 py-2 text-[12px] text-muted-foreground disabled:opacity-50"
           />
-          <p className="mt-3 flex items-start gap-2 text-[11px] leading-relaxed text-white/35">
+          <p className="mt-3 flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
             <FileText className="mt-0.5 size-3.5 shrink-0" />
             Export as DOCX unless the posting asks for something else.
           </p>
-        </section>
+        </OniqCard>
       )}
     </div>
   );
@@ -1395,7 +1455,6 @@ function cleanDeclared(d: CvDeclared): CvDeclared {
         year: normalizeYear(c.year),
       })),
     skills: normalizeSkills(d.skills),
-
   };
 }
 
@@ -1446,8 +1505,6 @@ function credIndexAtPoint(x: number, y: number): number | null {
   return Number.isFinite(i) ? i : null;
 }
 
-
-
 function patchRole(
   declared: CvDeclared,
   set: (d: CvDeclared) => void,
@@ -1486,22 +1543,20 @@ function Field({
   const tight = remaining !== null && remaining <= Math.max(10, Math.round(maxLength! * 0.1));
   return (
     <label className="block">
-      <span className="mb-1 flex items-center justify-between gap-2 text-[11px] text-white/40">
+      <span className="mb-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
         <span>{label}</span>
         {(counter || remaining !== null) && (
           <span
             aria-live="polite"
             className={
               remaining !== null && remaining <= 0
-                ? "text-rose-300"
+                ? "text-destructive"
                 : tight
-                  ? "text-amber-300"
-                  : "text-white/35"
+                  ? "text-world"
+                  : "text-muted-foreground"
             }
           >
-            {[counter, remaining !== null ? `${remaining} left` : null]
-              .filter(Boolean)
-              .join(" · ")}
+            {[counter, remaining !== null ? `${remaining} left` : null].filter(Boolean).join(" · ")}
           </span>
         )}
       </span>
@@ -1511,30 +1566,25 @@ function Field({
         placeholder={placeholder}
         maxLength={maxLength}
         aria-invalid={error ? true : undefined}
-        onChange={(e) =>
-          onChange(maxLength ? e.target.value.slice(0, maxLength) : e.target.value)
-        }
+        onChange={(e) => onChange(maxLength ? e.target.value.slice(0, maxLength) : e.target.value)}
         onBlur={() => {
           if (!normalize) return;
           const next = normalize(value);
           if (next !== value) onChange(maxLength ? next.slice(0, maxLength) : next);
         }}
-        className={`w-full resize-y rounded-xl border bg-black/30 px-3 py-2 text-sm outline-none ${
-          error
-            ? "border-rose-400/70 focus:border-rose-400"
-            : "border-white/10 focus:border-[#00D4B8]/60"
+        className={`w-full resize-y rounded-2xl border bg-card px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground ${
+          error ? "border-destructive focus:border-destructive" : "border-border focus:border-world"
         }`}
       />
 
       {error ? (
-        <span className="mt-1 block text-[11px] text-rose-300">{error}</span>
+        <span className="mt-1 block text-[11px] text-destructive">{error}</span>
       ) : hint ? (
-        <span className="mt-1 block text-[11px] text-white/35">{hint}</span>
+        <span className="mt-1 block text-[11px] text-muted-foreground">{hint}</span>
       ) : null}
     </label>
   );
 }
-
 
 /**
  * Live, un-AI'd preview of the CV as it is typed. Purely presentational: it
@@ -1553,7 +1603,6 @@ function CvLivePreview({
   template?: CvTemplateId;
   include?: Partial<CvInclude>;
 }) {
-
   const [showBreaks, setShowBreaks] = useState(true);
   const contact = [declared.email, declared.phone, declared.website, declared.location].filter(
     Boolean,
@@ -1569,68 +1618,66 @@ function CvLivePreview({
     declared.skills.length === 0;
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+    <OniqCard padding="lg">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <FileText className="size-4 text-[#00D4B8]" /> Live preview
+        <h2 className="flex items-center gap-2 font-display text-[15px] leading-tight text-foreground">
+          <FileText className="size-4 text-world" /> Live preview
         </h2>
-        <span className="text-[11px] text-white/40">updates as you type</span>
+        <span className="text-[11px] text-muted-foreground">updates as you type</span>
       </div>
 
       {empty ? (
-        <p className="mt-3 text-xs leading-relaxed text-white/40">
+        <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
           Your {cvWord} appears here as you fill in the tabs — qualification, board, year, skills
           and the rest.
         </p>
       ) : (
         <>
           <div className="mt-3 flex items-center justify-between gap-3">
-            <p className="text-[11px] text-white/40">
+            <p className="text-[11px] text-muted-foreground">
               Dashed lines show where the PDF splits onto the next page.
             </p>
             <button
               type="button"
               onClick={() => setShowBreaks((v) => !v)}
               aria-pressed={showBreaks}
-              className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold ${
-                showBreaks ? "bg-[#00D4B8] text-black" : "bg-white/10 text-white/70"
+              className={`press shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold ${
+                showBreaks ? "bg-world text-white" : "oniq-surface text-foreground"
               }`}
             >
               Page breaks
             </button>
           </div>
-          <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-white">
-          <CvPaper
-            order={order}
-            template={template}
-            include={include}
-            pageBreaks={showBreaks}
-
-            declared={declared}
-
-            cv={{
-              summary: declared.summary,
-              roles: declared.roles.map((r) => ({
-                employer: r.employer,
-                title: r.title,
-                start: r.start,
-                end: r.end,
-                bullets: r.bullets,
-              })),
-              credentials: declared.credentials
-                .filter((c) => c.name.trim() || c.issuer.trim() || c.year.trim())
-                .map((c) => ({
-                  name: c.name.trim(),
-                  issuer: c.issuer.trim(),
-                  year: c.year.trim(),
+          {/* The paper stays white in both themes — it is a preview of a printed page. */}
+          <div className="mt-2 overflow-hidden rounded-2xl border border-border bg-white">
+            <CvPaper
+              order={order}
+              template={template}
+              include={include}
+              pageBreaks={showBreaks}
+              declared={declared}
+              cv={{
+                summary: declared.summary,
+                roles: declared.roles.map((r) => ({
+                  employer: r.employer,
+                  title: r.title,
+                  start: r.start,
+                  end: r.end,
+                  bullets: r.bullets,
                 })),
-              skills: declared.skills,
-            }}
-          />
+                credentials: declared.credentials
+                  .filter((c) => c.name.trim() || c.issuer.trim() || c.year.trim())
+                  .map((c) => ({
+                    name: c.name.trim(),
+                    issuer: c.issuer.trim(),
+                    year: c.year.trim(),
+                  })),
+                skills: declared.skills,
+              }}
+            />
           </div>
         </>
       )}
-
-    </section>
+    </OniqCard>
   );
 }

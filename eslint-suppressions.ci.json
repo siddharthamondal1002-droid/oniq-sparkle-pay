@@ -89,16 +89,6 @@
       "count": 3
     }
   },
-  "src/routes/_authenticated/app.earn.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 7
-    }
-  },
-  "src/routes/_authenticated/app.jobs.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 1
-    }
-  },
   "src/routes/_authenticated/app.privacy.data-rights.tsx": {
     "oniq/a11y-type-scale": {
       "count": 3
@@ -110,11 +100,6 @@
     },
     "oniq/currency-fence": {
       "count": 1
-    }
-  },
-  "src/routes/_authenticated/app.study.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 38
     }
   },
   "src/routes/_authenticated/app.travel.tsx": {
