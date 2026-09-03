@@ -1,33 +1,26 @@
 /**
- * The library must be reachable from Home, not only from the Watch screen's
- * header. Owner, 2026-09-03 evening: "watch new addition not on Home page".
+ * The library's deep links. The Home row that used them was added on
+ * 2026-09-03 ("watch new addition not on Home page") and removed the same
+ * evening on the owner's word ("remove those new buttons from home page
+ * watch its looking ugly"); the Watch screen's header link is the front
+ * door, and the route still honours ?surface= and ?save= for it.
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseSurface, WATCH_SURFACES } from "@/lib/watch/surfaces";
 
 const HOME = readFileSync("src/routes/_authenticated/app.index.tsx", "utf8");
+const WATCH = readFileSync("src/routes/_authenticated/app.watch.tsx", "utf8");
 const ROUTE = readFileSync("src/routes/_authenticated/app.watch_.library.tsx", "utf8");
 const LIB = readFileSync("src/components/watch/library/WatchLibrary.tsx", "utf8");
 
-describe("the Watch library is reachable from Home", () => {
-  it("Home's Watch card carries the library row: Continue, Inbox, Resurface, Save a link", () => {
-    expect(HOME).toContain('data-testid="home-watch-library"');
-    for (const s of ["continue", "inbox", "resurface"]) {
-      expect(HOME).toContain(`openLibrary("${s}")`);
-    }
-    expect(HOME).toContain('data-testid="home-watch-save"');
-    expect(HOME).toMatch(/to: "\/app\/watch\/library", search: \{ save: true \}/);
-  });
-
-  it("the counts hook is called inside WatchPreview, above its render return", () => {
-    const start = HOME.indexOf("function WatchPreview()");
-    const ret = HOME.indexOf("\n  return (", start);
-    const hook = HOME.indexOf("useWatchCounts(userId)", start);
-    expect(start).toBeGreaterThan(-1);
-    expect(ret).toBeGreaterThan(start);
-    expect(hook).toBeGreaterThan(start);
-    expect(hook).toBeLessThan(ret);
+describe("the Watch library's front door", () => {
+  it("is the Watch screen's header link, not a row of buttons on Home (owner, 2026-09-03)", () => {
+    expect(WATCH).toContain('data-testid="watch-library-link"');
+    expect(HOME).not.toContain("home-watch-library");
+    expect(HOME).not.toContain("home-watch-save");
+    expect(HOME).not.toContain("HomeLibraryChip");
+    expect(HOME).not.toContain("useWatchCounts");
   });
 
   it("the route validates ?surface and ?save and hands them to the screen", () => {
