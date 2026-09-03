@@ -4479,6 +4479,7 @@ export type Database = {
           grade: string
           has_bytes: boolean
           id: string
+          language: string
           motion_mode: string | null
           no_watermark: boolean
           paid_seconds_charged: number
@@ -4505,6 +4506,7 @@ export type Database = {
           grade?: string
           has_bytes?: boolean
           id?: string
+          language?: string
           motion_mode?: string | null
           no_watermark?: boolean
           paid_seconds_charged?: number
@@ -4531,6 +4533,7 @@ export type Database = {
           grade?: string
           has_bytes?: boolean
           id?: string
+          language?: string
           motion_mode?: string | null
           no_watermark?: boolean
           paid_seconds_charged?: number
@@ -5851,6 +5854,7 @@ export type Database = {
       claim_story_seconds: {
         Args: {
           _grade?: string
+          _language?: string
           _prompt: string
           _requested_seconds: number
           _verbatim?: boolean
