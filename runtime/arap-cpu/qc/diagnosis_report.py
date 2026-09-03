@@ -156,7 +156,17 @@ def build_html(chars, opts, tmp: Path) -> str:
 
 
 def to_pdf(html_path: Path, out: Path, tmp: Path, chars) -> str:
-    chrome = os.environ.get("CHROME_BIN") or shutil.which("google-chrome") or shutil.which("google-chrome-stable") or shutil.which("chromium-browser") or shutil.which("chromium")
+    # CHROME_BIN unset: use a browser from PATH if there is one. CHROME_BIN set
+    # but EMPTY: no browser, on purpose — the PIL fallback, which depends on
+    # nothing the host happens to carry. The two are different requests, and
+    # `os.environ.get(...) or which(...)` conflated them: an empty string is
+    # falsy, so a caller asking for no browser got the runner's system Chrome
+    # instead, and its cold start blew the tests' 5-second budget (2026-09-03).
+    chrome_env = os.environ.get("CHROME_BIN")
+    if chrome_env is None:
+        chrome = shutil.which("google-chrome") or shutil.which("google-chrome-stable") or shutil.which("chromium-browser") or shutil.which("chromium")
+    else:
+        chrome = chrome_env or None
     if chrome:
         r = subprocess.run([chrome, "--headless=new", "--disable-gpu", "--no-sandbox", f"--print-to-pdf={out}", "--no-pdf-header-footer", html_path.as_uri()], capture_output=True, text=True, timeout=180)
         if out.exists() and out.stat().st_size > 0:

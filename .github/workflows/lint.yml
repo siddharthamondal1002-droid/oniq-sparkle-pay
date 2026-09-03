@@ -75,5 +75,18 @@ jobs:
       - name: ffmpeg (for the story dry-run clip fixture)
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
 
+      # Two test files run the real ARAP QC scripts on synthetic clips they
+      # draw themselves: the WALKING render statistics (Step 11C) and the
+      # translation-vs-deform diagnosis with its PDF builder (Step 11D). The
+      # scripts, and the clip generators inside the tests, import Pillow and
+      # numpy. This runner's python3 ships neither, and without them the tests
+      # do not skip — they fail, which is what turned this gate red on main
+      # from PR #131 through #133 on 2026-09-02. Pinned to the versions the
+      # tests were validated against; bump both together and re-run the two
+      # files. The Step 11D workflow installs Pillow the same way on this
+      # runner, so pip into the runner's python3 is a proven path here.
+      - name: Pillow + numpy (for the ARAP QC and Step 11D diagnosis tests)
+        run: python3 -m pip install --quiet "pillow==12.3.0" "numpy==2.4.6"
+
       - name: Tests
         run: npm test
