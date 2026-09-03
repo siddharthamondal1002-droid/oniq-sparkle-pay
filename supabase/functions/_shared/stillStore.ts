@@ -80,8 +80,14 @@ export const STILL_BUCKET = "oniq-gpu";
 export function isPng(bytes: Uint8Array): boolean {
   return (
     bytes.length >= 8 &&
-    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
-    bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
   );
 }
 
@@ -127,8 +133,26 @@ export function readStillStoreEnv(
 }
 
 export type StoreOutcome =
-  | { stored: true; key: string; bytes: number }
-  | { stored: false; reason: string };
+  { stored: true; key: string; bytes: number } | { stored: false; reason: string };
+
+/**
+ * The S3-style error body, reduced to what an operator acts on: the `Code`,
+ * and the first line of the `Message` when there is one. Bounded reads, never
+ * a throw — a body that will not parse yields an empty string and the status
+ * stands alone, exactly as it did before this existed.
+ */
+export async function r2ErrorDetail(res: Response): Promise<string> {
+  let body = "";
+  try {
+    body = (await res.text()).slice(0, 4000);
+  } catch {
+    return "";
+  }
+  const code = /<Code>([^<]{1,80})<\/Code>/.exec(body)?.[1]?.trim() ?? "";
+  const message = /<Message>([^<]{1,200})<\/Message>/.exec(body)?.[1]?.trim() ?? "";
+  if (!code) return "";
+  return message ? ` ${code}: ${message.slice(0, 120)}` : ` ${code}`;
+}
 
 /**
  * Put a drawn still where the motion stage will look for it.
@@ -183,15 +207,22 @@ export async function storeStill(
       headers: { "content-type": "image/png" },
     });
     if (!put.ok) {
-      // 403 has one overwhelmingly likely cause and it is worth naming rather
-      // than making an operator guess: the edge runtime's R2 token scoped to
-      // a different bucket. Same hint story-reference-publish gives.
+      // R2 SAYS WHY, and the reason carries it. A 403 is three different
+      // facts wearing one status: AccessDenied (the token cannot write this
+      // bucket), SignatureDoesNotMatch (the secret or endpoint is wrong for
+      // this key), InvalidAccessKeyId (the key id is unknown to this account).
+      // Three films on 2026-09-03 answered `still-store-403` and could not be
+      // told apart, so the operator rotated a token that may never have been
+      // the problem. The S3-style XML body names the code; it is read here,
+      // bounded, and put beside the status. The bucket hint stays, because it
+      // is still the likeliest of the three.
+      const detail = await r2ErrorDetail(put);
       return {
         stored: false,
         reason:
           put.status === 403
-            ? `still-store-403 (the R2 credential may not be scoped to write ${STILL_BUCKET})`
-            : `still-store-${put.status}`,
+            ? `still-store-403${detail} (the R2 credential may not be scoped to write ${STILL_BUCKET})`
+            : `still-store-${put.status}${detail}`,
       };
     }
     const back = await store.r2.fetch(objectUrl, { method: "HEAD" });

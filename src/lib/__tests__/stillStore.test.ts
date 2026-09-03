@@ -37,14 +37,22 @@ function fakeStore(responses: Response[]) {
   return { store: { r2, endpoint: "https://acct.r2.cloudflarestorage.com" } as never, calls };
 }
 
-const headOf = (n: number) => new Response(null, { status: 200, headers: { "content-length": String(n) } });
+const headOf = (n: number) =>
+  new Response(null, { status: 200, headers: { "content-length": String(n) } });
 
 describe("a stored still lands where the motion stage looks", () => {
   it("PUTs to the derived key in the worker's own bucket, then reads it back", async () => {
-    const { store, calls } = fakeStore([new Response(null, { status: 200 }), headOf(PNG.byteLength)]);
+    const { store, calls } = fakeStore([
+      new Response(null, { status: 200 }),
+      headOf(PNG.byteLength),
+    ]);
     const got = await storeStill("story/still/job-scene-shot.png", PNG, store);
 
-    expect(got).toEqual({ stored: true, key: "story/still/job-scene-shot.png", bytes: PNG.byteLength });
+    expect(got).toEqual({
+      stored: true,
+      key: "story/still/job-scene-shot.png",
+      bytes: PNG.byteLength,
+    });
     expect(calls[0].method).toBe("PUT");
     expect(calls[0].url).toBe(
       `https://acct.r2.cloudflarestorage.com/${STILL_BUCKET}/story/still/job-scene-shot.png`,
@@ -60,7 +68,10 @@ describe("a stored still lands where the motion stage looks", () => {
     const backing = new Uint8Array(64).fill(0xaa);
     backing.set(PNG, 8);
     const view = backing.subarray(8, 8 + PNG.byteLength);
-    const { store, calls } = fakeStore([new Response(null, { status: 200 }), headOf(view.byteLength)]);
+    const { store, calls } = fakeStore([
+      new Response(null, { status: 200 }),
+      headOf(view.byteLength),
+    ]);
 
     await storeStill("k.png", view, store);
     const body = calls[0].body;
@@ -96,7 +107,14 @@ describe("storage never costs a drawn frame", () => {
   });
 
   it("survives an unreachable store", async () => {
-    const store = { r2: { fetch: vi.fn(async () => { throw new Error("boom"); }) }, endpoint: "https://x" } as never;
+    const store = {
+      r2: {
+        fetch: vi.fn(async () => {
+          throw new Error("boom");
+        }),
+      },
+      endpoint: "https://x",
+    } as never;
     const got = await storeStill("k.png", PNG, store);
     expect(got.stored).toBe(false);
     expect("reason" in got && got.reason).toContain("unreachable");
@@ -142,7 +160,10 @@ describe("configuration is reported by NAME, never by value", () => {
     // report which NAMES are missing and nothing else.
     const { readFileSync } = require("node:fs") as typeof import("node:fs");
     const { join } = require("node:path") as typeof import("node:path");
-    const SRC = readFileSync(join(process.cwd(), "supabase/functions/story-still/index.ts"), "utf8");
+    const SRC = readFileSync(
+      join(process.cwd(), "supabase/functions/story-still/index.ts"),
+      "utf8",
+    );
     expect(SRC).toContain("store.missing.join(");
     for (const leak of ["secretAccessKey", "accessKeyId", "R2_SECRET"]) {
       expect(SRC, leak).not.toContain(leak);
@@ -155,5 +176,38 @@ describe("base64 to bytes", () => {
     const b64 = btoa(String.fromCharCode(...PNG));
     expect(bytesOfBase64(b64)).toEqual(PNG);
     expect(isPng(bytesOfBase64(b64))).toBe(true);
+  });
+});
+
+describe("a refused write carries R2's own error code, not only the status", () => {
+  it("names AccessDenied from the XML body beside the 403 and keeps the bucket hint", async () => {
+    // MEASURED 2026-09-03: three films answered `still-store-403` and the
+    // operator rotated a token; the code would have said which of the three
+    // 403s it was. The body is read, bounded, and the code rides beside the
+    // status; the bucket hint stays because it is still the likeliest cause.
+    const xml =
+      '<?xml version="1.0"?><Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>';
+    const { store } = fakeStore([new Response(xml, { status: 403 })]);
+    const got = await storeStill("story/still/x.png", PNG, store);
+    expect(got.stored).toBe(false);
+    const reason = "reason" in got ? got.reason : "";
+    expect(reason).toContain("still-store-403");
+    expect(reason).toContain("AccessDenied");
+    expect(reason).toContain("Access Denied");
+    expect(reason).toContain(STILL_BUCKET);
+  });
+
+  it("tells a bad signature from a scope refusal", async () => {
+    const xml =
+      "<Error><Code>SignatureDoesNotMatch</Code><Message>The request signature we calculated does not match</Message></Error>";
+    const { store } = fakeStore([new Response(xml, { status: 403 })]);
+    const got = await storeStill("story/still/x.png", PNG, store);
+    expect("reason" in got && got.reason).toContain("SignatureDoesNotMatch");
+  });
+
+  it("stands on the status alone when the body is not an S3 error document", async () => {
+    const { store } = fakeStore([new Response("nope", { status: 500 })]);
+    const got = await storeStill("story/still/x.png", PNG, store);
+    expect("reason" in got && got.reason).toBe("still-store-500");
   });
 });
