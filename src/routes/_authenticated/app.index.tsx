@@ -1114,6 +1114,13 @@ const HOME_GENRES: { key: string; emoji: string; label: string }[] = [
   { key: "film", emoji: "🎥", label: "Films" },
 ];
 
+/** Seconds a channel holds the Home card before the tour moves on (owner directive, 2026-09-03). */
+export const TOUR_MS = 20_000;
+/** The devotional genre is exempt from the 20-second tour and keeps its original two minutes. */
+export const DEVOTIONAL_TOUR_MS = 120_000;
+/** While the app is in the background the tour only re-checks; it never advances. */
+const HIDDEN_RECHECK_MS = 30_000;
+
 function WatchPreview() {
   const navigate = useNavigate();
   const media = useMediaCoordinator();
@@ -1267,11 +1274,14 @@ function WatchPreview() {
   );
 
   /**
-   * THE 2-MINUTE AUTO-TOUR, also recovered from the removed tile.
+   * THE AUTO-TOUR, also recovered from the removed tile.
    *
    * A home tile that sits on one channel until it happens to end is not a
-   * preview of anything, so it moves on every two minutes. Two conditions
-   * from the original are load-bearing:
+   * preview of anything, so it moves on by itself. Owner directive,
+   * 2026-09-03 (evening): "keep loop timing 20 sec for each channel except
+   * devotional" — every genre tours at TOUR_MS; the devotional genre is
+   * exempt and keeps the original two minutes while browsing. Two
+   * conditions from the original are load-bearing:
    *
    *   - a HIDDEN document defers rather than advances. Without that, a phone
    *     left in a pocket burns through the whole roster and comes back on a
@@ -1287,12 +1297,12 @@ function WatchPreview() {
     let t: number | null = null;
     const tick = () => {
       if (typeof document !== "undefined" && document.hidden) {
-        t = window.setTimeout(tick, 30_000);
+        t = window.setTimeout(tick, HIDDEN_RECHECK_MS);
         return;
       }
       setIdx((i) => (i + 1) % vLen);
     };
-    t = window.setTimeout(tick, 120_000);
+    t = window.setTimeout(tick, isDevotional ? DEVOTIONAL_TOUR_MS : TOUR_MS);
     return () => {
       if (t) window.clearTimeout(t);
     };
