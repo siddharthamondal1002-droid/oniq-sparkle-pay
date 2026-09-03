@@ -79,6 +79,8 @@ describe("the policy names what the app actually loads", () => {
     // to load, or the declaration describes a request the policy blocks.
     const allowed = [...directive(csp, "frame-src"), ...directive(csp, "script-src")].join(" ");
     for (const r of THIRD_PARTY_REQUESTS) {
+      // A lookup made FROM THE SERVER never touches the browser's policy.
+      if (/from ONIQ's server/i.test(r.sends)) continue;
       if (/youtube|vimeo|dailymotion|twitch|archive\.org/.test(r.host)) {
         expect(allowed, `${r.host} is declared but not allowed`).toContain(r.host);
       }

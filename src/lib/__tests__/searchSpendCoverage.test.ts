@@ -74,6 +74,12 @@ const UNGUARDED_AI_CALLERS: Record<string, string> = {
 
 /** Callers wired to the ledger in this pass. */
 const GUARDED = ["smart-scout", "hotel-scout", "ting", "health-scan"];
+/**
+ * Callers that hold a reservation for TOKENS ONLY — no web_search, so they are
+ * not part of the search fleet, but they are billable and therefore guarded.
+ * watch-ask (owner mission, 2026-09-03) answers from a person's own notes.
+ */
+const GUARDED_TOKEN_ONLY = ["watch-ask"];
 
 describe("every SEARCH in the repository is reserved for", () => {
   const fns = edgeFunctions();
@@ -148,7 +154,14 @@ describe("every AI CALL in the repository is either reserved for or listed", () 
 
   it("the guarded set is exactly what it claims to be", () => {
     const guarded = fns.filter((f) => /withSearchSpendGuard\(/.test(f.src)).map((f) => f.name);
-    expect(guarded.sort()).toEqual([...GUARDED].sort());
+    expect(guarded.sort()).toEqual([...GUARDED, ...GUARDED_TOKEN_ONLY].sort());
+  });
+  it("a token-only guarded caller reserves for zero searches and declares none", () => {
+    for (const name of GUARDED_TOKEN_ONLY) {
+      const src = read(join(FN_DIR, name, "index.ts"));
+      expect(src, `${name} runs web_search but is listed as token-only`).not.toMatch(SEARCH_TOOL);
+      expect(src, `${name} must reserve for zero searches`).toMatch(/maxSearches:\s*0/);
+    }
   });
 });
 

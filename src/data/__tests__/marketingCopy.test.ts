@@ -98,7 +98,7 @@ describe("every live card maps to a surface that exists", () => {
   });
 });
 
-describe("Watch and Glance are gone, not deferred", () => {
+describe("Watch is not advertised and Glance is gone — neither is deferred", () => {
   it("no card mentions Watch, live TV or Glance", () => {
     const blob = JSON.stringify(FEATURE_CARDS).toLowerCase();
     expect(blob).not.toMatch(/\bwatch\b/);
@@ -111,11 +111,28 @@ describe("Watch and Glance are gone, not deferred", () => {
     expect(notes).toContain("watch");
     expect(notes).toContain("glance");
     expect(notes).toContain("shop");
+    // The Watch note must be TRUE: the surface exists and is not advertised,
+    // rather than "removed", which it has not been since 2026-08-16.
+    expect(notes).toContain("not advertised");
+    expect(notes).not.toMatch(/watch — removed/);
+  });
+
+  it("bans the claims a Watch library must never make", () => {
+    for (const bad of [
+      "download any video",
+      "download youtube videos",
+      "watch anything for free",
+      "free movies from anywhere",
+      "access paid content for free",
+    ]) {
+      expect(BANNED_CLAIMS as readonly string[]).toContain(bad);
+    }
   });
 
   it("no permanent coming-soon card for anything unplanned", () => {
     // A coming-soon card for something nobody intends to build is a promise
-    // that is not being kept. Watch was assessed and dropped; it is absent.
+    // that is not being kept. Watch exists (India only) and is deliberately
+    // not advertised; Glance was dropped. Neither may sit on a "soon" card.
     const soon = FEATURE_CARDS.filter((c) => c.status === "soon").map((c) => c.title.toLowerCase());
     expect(soon).not.toContain("watch");
   });

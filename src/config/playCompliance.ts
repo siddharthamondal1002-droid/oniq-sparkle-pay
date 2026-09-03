@@ -31,6 +31,12 @@ export const NATIVE_CAPABILITIES = [
   "CV builder with anti-fabrication validation against the user's own declared facts.",
   "Country-aware exam-paper generation with vector PDF export.",
   "Real-time chat with WebRTC voice and video.",
+  // The Watch library (owner mission, 2026-09-03): the part of Watch that is
+  // ONIQ's own work rather than anybody's player — a personal library of
+  // references across providers with progress, an inbox, explainable
+  // resurfacing, a time-budgeted queue, collections, threads, moments,
+  // notes, rights metadata and search, all row-level-secured per user.
+  "Watch library: cross-provider saved references with resume positions, an inbox, an explainable resurface engine, a time-budgeted smart queue, collections, threads, saved moments, notes, Internet Archive rights metadata and library search — ONIQ's own organisation layer, not a player.",
   // NO UPI ENTRY HERE — owner directive, 2026-08-17: Scan & Pay and every
   // pay-by-QR tab and button are hidden.
   //
@@ -127,6 +133,15 @@ export const AI_SURFACES = [
     id: "runway_admin_output",
     screen: "Admin — Runway video tool (internal)",
     file: "src/routes/_authenticated/app.admin.video.tsx",
+  },
+  {
+    // The Watch library's "Ask ONIQ about this video" (owner mission,
+    // 2026-09-03). The answer is generated from the person's own notes and
+    // the video's metadata — never a transcript, never the video — and it is
+    // labelled where it renders.
+    id: "watch_ai_output",
+    screen: "Watch — library (Ask ONIQ about a video)",
+    file: "src/components/watch/library/ItemSheet.tsx",
   },
   {
     // The Home loop's Originals face — the same generated season, autoplaying
@@ -396,6 +411,36 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
     sends: "IP address and user-agent, plus the item identifier being watched.",
     purpose:
       "Plays a public-domain film in the Internet Archive's own player. ONIQ resolves no stream URL and proxies no video.",
+    avoidable: true,
+  },
+  // THE WATCH LIBRARY'S METADATA LOOKUPS (owner mission, 2026-09-03) are made
+  // FROM THE SERVER (supabase/functions/watch-resolve), once, when a person
+  // saves a link or opens the Movies shelf — the device reaches only ONIQ's
+  // own backend. Declared anyway, the way places.googleapis.com is: the
+  // provider still receives ONIQ's server IP and the id being looked up.
+  {
+    host: "vimeo.com",
+    triggeredBy: "Saving a Vimeo link in the Watch library (server-side oEmbed lookup).",
+    sends: "The video id, from ONIQ's server. No user IP, no account, no viewing history.",
+    purpose: "Title, creator and length for the saved reference.",
+    avoidable: true,
+  },
+  {
+    host: "api.dailymotion.com",
+    triggeredBy:
+      "Saving a Dailymotion link in the Watch library (server-side public Data API lookup).",
+    sends: "The video or playlist id, from ONIQ's server. No user IP, no account.",
+    purpose: "Title, creator and length for the saved reference.",
+    avoidable: true,
+  },
+  {
+    host: "archive.org",
+    triggeredBy:
+      "Saving an Internet Archive link, checking its rights, or opening the Movies shelf in the Watch library (server-side metadata and search lookups).",
+    sends:
+      "The item identifier or the shelf's search terms, from ONIQ's server. No user IP, no account.",
+    purpose:
+      "Title, creator, length and the item's own licence and rights fields, so rights are shown as the source states them.",
     avoidable: true,
   },
   // One entry that used to sit here is deliberately still gone.
