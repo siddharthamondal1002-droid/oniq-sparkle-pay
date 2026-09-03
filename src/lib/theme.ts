@@ -1,7 +1,9 @@
 /**
  * Dark/light mode. One source of truth: the `light` class on <html>, driven by
  * a persisted per-device choice. Dark is the default — it is the design the
- * app was built in, and every existing user is on it.
+ * app was built in, and the owner's 2026-09-03 redesign reference ("use it as
+ * given") is dark: a near-black canvas washed with each world's neon pair.
+ * Light stays one tap away in Profile → Appearance.
  *
  * The class is applied in TWO places on purpose:
  * - an inline script in the document head (see __root.tsx) applies it before

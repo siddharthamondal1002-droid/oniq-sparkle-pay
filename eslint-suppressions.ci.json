@@ -142,17 +142,12 @@
   },
   "src/routes/_authenticated/app.index.tsx": {
     "oniq/a11y-type-scale": {
-      "count": 9
+      "count": 8
     }
   },
   "src/routes/_authenticated/app.jobs.tsx": {
     "oniq/a11y-type-scale": {
       "count": 1
-    }
-  },
-  "src/routes/_authenticated/app.learn.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 4
     }
   },
   "src/routes/_authenticated/app.miniapps.tsx": {
@@ -193,11 +188,6 @@
       "count": 8
     },
     "oniq/currency-fence": {
-      "count": 1
-    }
-  },
-  "src/routes/_authenticated/app.tsx": {
-    "oniq/a11y-type-scale": {
       "count": 1
     }
   },
