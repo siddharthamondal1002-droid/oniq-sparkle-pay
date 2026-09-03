@@ -50,6 +50,21 @@ export const EMBED_HOSTS: Record<EmbedPlatform, string> = {
   archive: "archive.org",
 };
 
+/**
+ * Every host a player frame may END UP on, redirects included. A CSP checks
+ * each hop of a frame's redirect chain, not only the URL the page asked for.
+ *
+ * Measured 2026-09-03 with the production CSP one day old: every Dailymotion
+ * embed URL answers 301 to geo.dailymotion.com/player.html, which frame-src
+ * did not name, so the browser refused the frame and the owner saw a black
+ * player with the Android WebView's broken-content icon on every Dailymotion
+ * card. The three other players answer their embed URL directly.
+ */
+export const EMBED_FRAME_HOSTS: readonly string[] = [
+  ...Object.values(EMBED_HOSTS),
+  "geo.dailymotion.com",
+];
+
 export const EMBED_PLATFORM_NAME: Record<EmbedPlatform, string> = {
   vimeo: "Vimeo",
   dailymotion: "Dailymotion",
