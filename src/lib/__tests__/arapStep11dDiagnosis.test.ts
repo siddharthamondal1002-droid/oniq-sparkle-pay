@@ -119,6 +119,7 @@ frames[0].save("walk.gif", save_all=True, append_images=frames[1:], duration=40,
       { encoding: "utf8", env: { ...process.env, CHROME_BIN: "" } },
     );
     expect(out2).toContain("WROTE");
+    expect(out2).toContain("via pil-fallback");
     expect(readFileSync(pdf).subarray(0, 5).toString()).toBe("%PDF-");
   });
   it("the report builder writes a PDF from the diagnoses without Chrome", () => {
@@ -126,9 +127,12 @@ frames[0].save("walk.gif", save_all=True, append_images=frames[1:], duration=40,
     const out = execFileSync(
       "python3",
       [REPORT, dir, pdf, "--digest", "test-digest", "--extra", "note=test"],
-      { encoding: "utf8" },
+      // Empty CHROME_BIN: no browser, the PIL fallback. Unset, the builder
+      // would take whatever Chrome the host has, and the CI runner has one.
+      { encoding: "utf8", env: { ...process.env, CHROME_BIN: "" } },
     );
     expect(out).toContain("WROTE");
+    expect(out).toContain("via pil-fallback");
     expect(out).toContain('"walker": "TRANSLATION_DOMINANT"');
     expect(out).toContain('"shrinker": "DEFORM_DOMINANT"');
     expect(statSync(pdf).size).toBeGreaterThan(1000);
