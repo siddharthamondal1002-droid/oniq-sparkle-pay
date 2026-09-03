@@ -5,6 +5,7 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import {
+  countWatchLibrary,
   listAnalysisPool,
   listCollectionLinks,
   listCollections,
@@ -36,6 +37,16 @@ export function useWatchItems(
     initialPageParam: null as Cursor,
     queryFn: ({ pageParam }) => listWatchItems(filters, pageParam, order),
     getNextPageParam: (last) => last.next,
+    staleTime: 30 * 1000,
+  });
+}
+
+/** Inbox and unfinished counts for the Home card. Same key prefix, same invalidation. */
+export function useWatchCounts(userId: string | null) {
+  return useQuery({
+    queryKey: [...WATCH_KEY, "counts", userId],
+    enabled: !!userId,
+    queryFn: () => countWatchLibrary(),
     staleTime: 30 * 1000,
   });
 }

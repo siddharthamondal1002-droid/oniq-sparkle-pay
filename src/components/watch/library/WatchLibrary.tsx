@@ -43,6 +43,7 @@ import { useCountry } from "@/lib/country";
 import { useSession } from "@/lib/userWatch";
 import { useAnalysisPool, useCollections, useInvalidateWatch } from "@/lib/watch/hooks";
 import { deleteWatchItem } from "@/lib/watch/library";
+import { parseSurface, type WatchSurface } from "@/lib/watch/surfaces";
 import type { WatchItem } from "@/lib/watch/types";
 
 const SURFACES = [
@@ -54,30 +55,35 @@ const SURFACES = [
   { key: "threads", label: "Threads", emoji: "🧵" },
   { key: "movies", label: "Movies", emoji: "🏛️" },
 ] as const;
-type Surface = (typeof SURFACES)[number]["key"] | "library";
+type Surface = WatchSurface;
 
 const TAB_KEY = "oniq.watch.library.tab";
 
-export function WatchLibrary() {
+export function WatchLibrary({
+  initialSurface,
+  openSave = false,
+}: {
+  /** From Home's library row (?surface=), else the last surface used here. */
+  initialSurface?: WatchSurface;
+  /** ?save=1 from Home: land with the Save-a-link sheet already open. */
+  openSave?: boolean;
+} = {}) {
   const navigate = useNavigate();
   const [home] = useCountry();
   const userId = useSession();
   const invalidate = useInvalidateWatch();
   const [tab, setTab] = useState<Surface>(() => {
+    if (initialSurface) return initialSurface;
     if (typeof window === "undefined") return "continue";
     try {
-      const t = localStorage.getItem(TAB_KEY);
-      return (
-        (SURFACES.some((s) => s.key === t) || t === "library" ? (t as Surface) : "continue") ??
-        "continue"
-      );
+      return parseSurface(localStorage.getItem(TAB_KEY)) ?? "continue";
     } catch {
       return "continue";
     }
   });
   const [filters, setFilters] = useState<LibraryFilterState>(DEFAULT_LIBRARY_FILTERS);
   const [open, setOpen] = useState<WatchItem | null>(null);
-  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(openSave);
   const [queueOpen, setQueueOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [removing, setRemoving] = useState<WatchItem | null>(null);
@@ -102,6 +108,15 @@ export function WatchLibrary() {
       /* noop */
     }
   }, [tab]);
+
+  // A deep link from Home while this screen is already mounted still lands
+  // on the surface it named, and still opens the sheet it asked for.
+  useEffect(() => {
+    if (initialSurface) setTab(initialSurface);
+  }, [initialSurface]);
+  useEffect(() => {
+    if (openSave) setSaveOpen(true);
+  }, [openSave]);
 
   // EVERY HOOK IS ABOVE THIS RETURN.
   if (!isAvailable("watch", home)) {

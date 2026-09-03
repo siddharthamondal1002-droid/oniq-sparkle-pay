@@ -111,6 +111,28 @@ export async function listContinue(limit = 30): Promise<WatchItem[]> {
   return (data ?? []) as WatchItem[];
 }
 
+/**
+ * The two numbers the Home card shows: what is waiting in the inbox and what
+ * was started and not finished. Head requests, so PostgREST counts and no
+ * rows travel: Home never pays for a page it does not render.
+ */
+export type WatchCounts = { inbox: number; unfinished: number };
+
+export async function countWatchLibrary(): Promise<WatchCounts> {
+  const [inbox, unfinished] = await Promise.all([
+    supabase.from("watch_items").select("id", { count: "exact", head: true }).eq("state", "inbox"),
+    supabase
+      .from("watch_items")
+      .select("id", { count: "exact", head: true })
+      .gt("position_seconds", 0)
+      .is("completed_at", null)
+      .neq("state", "archived"),
+  ]);
+  if (inbox.error) throw inbox.error;
+  if (unfinished.error) throw unfinished.error;
+  return { inbox: inbox.count ?? 0, unfinished: unfinished.count ?? 0 };
+}
+
 /** A bounded slice of the active library for the pure analyses (resurface, queue, health). */
 export async function listAnalysisPool(limit = ANALYSIS_CAP): Promise<WatchItem[]> {
   const { data, error } = await supabase
