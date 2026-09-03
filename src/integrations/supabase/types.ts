@@ -5192,318 +5192,6 @@ export type Database = {
           },
         ]
       }
-      watch_items: {
-        Row: {
-          canonical_url: string
-          completed_at: string | null
-          content_id: string
-          created_at: string
-          creator: string | null
-          duplicate_group_id: string | null
-          duration_seconds: number | null
-          id: string
-          last_watched_at: string | null
-          metadata: Json
-          notes: string | null
-          position_seconds: number
-          priority: number
-          provider: string
-          reason: string | null
-          resurface_dismissals: number
-          resurface_dismissed_at: string | null
-          rights: Json | null
-          saved_at: string
-          state: string
-          tags: string[]
-          thumbnail_url: string | null
-          title: string
-          topics: string[]
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          canonical_url: string
-          completed_at?: string | null
-          content_id: string
-          created_at?: string
-          creator?: string | null
-          duplicate_group_id?: string | null
-          duration_seconds?: number | null
-          id?: string
-          last_watched_at?: string | null
-          metadata?: Json
-          notes?: string | null
-          position_seconds?: number
-          priority?: number
-          provider: string
-          reason?: string | null
-          resurface_dismissals?: number
-          resurface_dismissed_at?: string | null
-          rights?: Json | null
-          saved_at?: string
-          state?: string
-          tags?: string[]
-          thumbnail_url?: string | null
-          title: string
-          topics?: string[]
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          canonical_url?: string
-          completed_at?: string | null
-          content_id?: string
-          created_at?: string
-          creator?: string | null
-          duplicate_group_id?: string | null
-          duration_seconds?: number | null
-          id?: string
-          last_watched_at?: string | null
-          metadata?: Json
-          notes?: string | null
-          position_seconds?: number
-          priority?: number
-          provider?: string
-          reason?: string | null
-          resurface_dismissals?: number
-          resurface_dismissed_at?: string | null
-          rights?: Json | null
-          saved_at?: string
-          state?: string
-          tags?: string[]
-          thumbnail_url?: string | null
-          title?: string
-          topics?: string[]
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "watch_items_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      watch_collections: {
-        Row: {
-          created_at: string
-          id: string
-          name: string
-          position: number
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          name: string
-          position?: number
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          name?: string
-          position?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "watch_collections_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      watch_collection_items: {
-        Row: {
-          added_at: string
-          collection_id: string
-          item_id: string
-          position: number
-          user_id: string
-        }
-        Insert: {
-          added_at?: string
-          collection_id: string
-          item_id: string
-          position?: number
-          user_id: string
-        }
-        Update: {
-          added_at?: string
-          collection_id?: string
-          item_id?: string
-          position?: number
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "watch_collection_items_collection_id_fkey"
-            columns: ["collection_id"]
-            isOneToOne: false
-            referencedRelation: "watch_collections"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "watch_collection_items_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "watch_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "watch_collection_items_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      watch_threads: {
-        Row: {
-          created_at: string
-          description: string | null
-          id: string
-          name: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          name: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          name?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "watch_threads_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      watch_thread_items: {
-        Row: {
-          added_at: string
-          item_id: string
-          note: string | null
-          position: number
-          thread_id: string
-          user_id: string
-        }
-        Insert: {
-          added_at?: string
-          item_id: string
-          note?: string | null
-          position?: number
-          thread_id: string
-          user_id: string
-        }
-        Update: {
-          added_at?: string
-          item_id?: string
-          note?: string | null
-          position?: number
-          thread_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "watch_thread_items_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "watch_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "watch_thread_items_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "watch_threads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "watch_thread_items_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      watch_moments: {
-        Row: {
-          at_seconds: number
-          collection_id: string | null
-          created_at: string
-          id: string
-          item_id: string
-          note: string | null
-          user_id: string
-        }
-        Insert: {
-          at_seconds: number
-          collection_id?: string | null
-          created_at?: string
-          id?: string
-          item_id: string
-          note?: string | null
-          user_id: string
-        }
-        Update: {
-          at_seconds?: number
-          collection_id?: string | null
-          created_at?: string
-          id?: string
-          item_id?: string
-          note?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "watch_moments_collection_id_fkey"
-            columns: ["collection_id"]
-            isOneToOne: false
-            referencedRelation: "watch_collections"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "watch_moments_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "watch_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "watch_moments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       user_watch_channels: {
         Row: {
           created_at: string
@@ -5852,6 +5540,360 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: true
             referencedRelation: "gpu_video_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      watch_collection_items: {
+        Row: {
+          added_at: string
+          collection_id: string
+          item_id: string
+          position: number
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          collection_id: string
+          item_id: string
+          position?: number
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          collection_id?: string
+          item_id?: string
+          position?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watch_collection_items_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "watch_collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_collection_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "watch_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_collection_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_collection_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      watch_collections: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watch_collections_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_collections_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      watch_items: {
+        Row: {
+          canonical_url: string
+          completed_at: string | null
+          content_id: string
+          created_at: string
+          creator: string | null
+          duplicate_group_id: string | null
+          duration_seconds: number | null
+          id: string
+          last_watched_at: string | null
+          metadata: Json
+          notes: string | null
+          position_seconds: number
+          priority: number
+          provider: string
+          reason: string | null
+          resurface_dismissals: number
+          resurface_dismissed_at: string | null
+          rights: Json | null
+          saved_at: string
+          state: string
+          tags: string[]
+          thumbnail_url: string | null
+          title: string
+          topics: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          canonical_url: string
+          completed_at?: string | null
+          content_id: string
+          created_at?: string
+          creator?: string | null
+          duplicate_group_id?: string | null
+          duration_seconds?: number | null
+          id?: string
+          last_watched_at?: string | null
+          metadata?: Json
+          notes?: string | null
+          position_seconds?: number
+          priority?: number
+          provider: string
+          reason?: string | null
+          resurface_dismissals?: number
+          resurface_dismissed_at?: string | null
+          rights?: Json | null
+          saved_at?: string
+          state?: string
+          tags?: string[]
+          thumbnail_url?: string | null
+          title: string
+          topics?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          canonical_url?: string
+          completed_at?: string | null
+          content_id?: string
+          created_at?: string
+          creator?: string | null
+          duplicate_group_id?: string | null
+          duration_seconds?: number | null
+          id?: string
+          last_watched_at?: string | null
+          metadata?: Json
+          notes?: string | null
+          position_seconds?: number
+          priority?: number
+          provider?: string
+          reason?: string | null
+          resurface_dismissals?: number
+          resurface_dismissed_at?: string | null
+          rights?: Json | null
+          saved_at?: string
+          state?: string
+          tags?: string[]
+          thumbnail_url?: string | null
+          title?: string
+          topics?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watch_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      watch_moments: {
+        Row: {
+          at_seconds: number
+          collection_id: string | null
+          created_at: string
+          id: string
+          item_id: string
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          at_seconds: number
+          collection_id?: string | null
+          created_at?: string
+          id?: string
+          item_id: string
+          note?: string | null
+          user_id: string
+        }
+        Update: {
+          at_seconds?: number
+          collection_id?: string | null
+          created_at?: string
+          id?: string
+          item_id?: string
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watch_moments_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "watch_collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_moments_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "watch_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_moments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_moments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      watch_thread_items: {
+        Row: {
+          added_at: string
+          item_id: string
+          note: string | null
+          position: number
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          item_id: string
+          note?: string | null
+          position?: number
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          item_id?: string
+          note?: string | null
+          position?: number
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watch_thread_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "watch_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_thread_items_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "watch_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_thread_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_thread_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      watch_threads: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watch_threads_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "watch_threads_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
             referencedColumns: ["id"]
           },
         ]
