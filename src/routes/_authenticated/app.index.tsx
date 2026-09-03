@@ -72,6 +72,8 @@ import {
   useUserGenres,
 } from "@/lib/userWatch";
 import { AiOutputReport } from "@/components/safety/AiOutputReport";
+import { useWatchCounts } from "@/lib/watch/hooks";
+import type { WatchSurface } from "@/lib/watch/surfaces";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   component: HomeScreen,
@@ -1141,6 +1143,15 @@ function WatchPreview() {
     : null;
   const userChannelsQ = useUserChannels(userId, activeUserGenreId);
 
+  // THE LIBRARY ROW (owner, 2026-09-03 evening: "watch new addition not on
+  // Home page"). The library shipped reachable only from the Watch screen's
+  // header; this is its front door. Two head-count requests, nothing else:
+  // Home never fetches a page of the library it does not render. Every chip
+  // deep-links to /app/watch/library on the surface it names.
+  const counts = useWatchCounts(userId);
+  const openLibrary = (surface?: WatchSurface) =>
+    navigate({ to: "/app/watch/library", search: surface ? { surface } : {} });
+
   // THE DEVOTIONAL LOOP. This is the tile the removal commit named — "the
   // second player behind the home Watch tile (with its devotional loop
   // timer)". Anchored to real timestamps so backgrounding the app resumes the
@@ -1356,6 +1367,51 @@ function WatchPreview() {
         </button>
       </div>
 
+      {/* THE LIBRARY ROW. Continue and Inbox carry live counts; Resurface is
+          one tap away; Save a link opens the sheet straight from Home. */}
+      {userId && (
+        <div
+          className="no-scrollbar mt-3 flex items-center gap-1 overflow-x-auto"
+          data-testid="home-watch-library"
+          aria-label="Your Watch library"
+        >
+          <button
+            type="button"
+            onClick={() => openLibrary()}
+            aria-label="Open your Watch library"
+            className="press inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-primary/15 px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-foreground"
+          >
+            📚 library
+          </button>
+          <HomeLibraryChip
+            label="Continue"
+            count={counts.data?.unfinished}
+            onClick={() => openLibrary("continue")}
+          >
+            ▶️
+          </HomeLibraryChip>
+          <HomeLibraryChip
+            label="Inbox"
+            count={counts.data?.inbox}
+            onClick={() => openLibrary("inbox")}
+          >
+            📥
+          </HomeLibraryChip>
+          <HomeLibraryChip label="Resurface" onClick={() => openLibrary("resurface")}>
+            🌊
+          </HomeLibraryChip>
+          <button
+            type="button"
+            data-testid="home-watch-save"
+            onClick={() => navigate({ to: "/app/watch/library", search: { save: true } })}
+            aria-label="Save a link to your Watch library"
+            className="press inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground"
+          >
+            <Plus className="h-3 w-3" /> save a link
+          </button>
+        </div>
+      )}
+
       {/* THE GENRE SELECTOR. Emoji-forward so seven of them fit a phone. */}
       <div
         className="no-scrollbar mt-3 flex items-center gap-1 overflow-x-auto"
@@ -1501,6 +1557,36 @@ function WatchPreview() {
         </div>
       </div>
     </div>
+  );
+}
+
+function HomeLibraryChip({
+  label,
+  count,
+  onClick,
+  children,
+}: {
+  label: string;
+  count?: number;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={count ? `${label}, ${count}` : label}
+      title={label}
+      className="press inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-border bg-card/60 px-2 py-1 text-xs text-foreground"
+    >
+      <span aria-hidden="true">{children}</span>
+      <span>{label}</span>
+      {count ? (
+        <span className="rounded-full bg-primary/20 px-1.5 text-[11px] font-semibold tabular-nums">
+          {count > 99 ? "99+" : count}
+        </span>
+      ) : null}
+    </button>
   );
 }
 
