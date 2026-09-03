@@ -26,6 +26,13 @@
  * with no id in it is refused with a message saying what to paste instead,
  * which is exactly what that function decided to do in the end.
  *
+ * OTHER PLATFORMS' LINKS, 2026-09-03 (owner directive, afternoon). A genre
+ * row's `youtube_url` column keeps its name and now holds any link Watch can
+ * play: YouTube as before, or a Vimeo, Dailymotion, Twitch or Internet
+ * Archive link, parsed by src/data/watchEmbeds.ts with the same rule as
+ * YouTube's — the id is in the URL or the paste is refused. Nothing is
+ * fetched to find out.
+ *
  * NO THUMBNAILS, and this is a change from the original. The old
  * channelsToVideos built `i.ytimg.com/vi/<id>/hqdefault.jpg` for every row,
  * which fires a request to Google's thumbnail host the moment a LIST renders,
@@ -37,6 +44,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { playableOfChannelId, type Playable } from "@/data/watchDirectory";
+import { parseEmbedLink } from "@/data/watchEmbeds";
 
 /** Original caps, recovered from d879305b^. Not set here. */
 export const MAX_MYTV_CHANNELS = 10;
@@ -116,10 +124,13 @@ export function channelIdFrom(raw: string): string | null {
 /** A user-genre channel row as something the player can take. */
 export function playableOfUserChannel(row: UserChannelRow): Playable | null {
   const parsed = parseYouTube(row.youtube_url);
-  if (!parsed) return null;
-  return parsed.kind === "list"
-    ? { kind: "playlist", list: parsed.id, name: row.name }
-    : { kind: "video", videoId: parsed.id, name: row.name };
+  if (parsed) {
+    return parsed.kind === "list"
+      ? { kind: "playlist", list: parsed.id, name: row.name }
+      : { kind: "video", videoId: parsed.id, name: row.name };
+  }
+  const embed = parseEmbedLink(row.youtube_url);
+  return embed ? { kind: "embed", embed, name: row.name } : null;
 }
 
 /** A My TV row as something the player can take. */

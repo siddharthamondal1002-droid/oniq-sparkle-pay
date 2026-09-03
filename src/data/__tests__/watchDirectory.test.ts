@@ -195,11 +195,19 @@ describe("nothing streams, embeds, proxies or resolves — anywhere", () => {
 });
 
 describe("every entry is a link that leaves the app", () => {
-  it("builds an https URL for every listed channel", () => {
+  it("builds an https URL for every listed channel, on the channel's own platform", () => {
     for (const e of WATCH_ENTRIES) {
       const url = channelUrl(e);
-      expect(url, `${e.name} has neither a channel id nor a handle`).toBeTruthy();
-      expect(url!).toMatch(/^https:\/\/www\.youtube\.com\//);
+      expect(url, `${e.name} has neither a channel id, a handle nor an embed`).toBeTruthy();
+      // A card from another platform (owner directive, 2026-09-03 afternoon)
+      // links to its page THERE; everything else is a YouTube channel.
+      if (e.embed) {
+        expect(url!).toMatch(
+          /^https:\/\/(vimeo\.com|www\.dailymotion\.com|www\.twitch\.tv|archive\.org)\//,
+        );
+      } else {
+        expect(url!).toMatch(/^https:\/\/www\.youtube\.com\//);
+      }
     }
     for (const e of FAITH_ENTRIES) {
       expect(channelUrl(e)!).toMatch(/^https:\/\/www\.youtube\.com\/channel\/UC/);
@@ -390,7 +398,9 @@ describe("channel ids are the shape YouTube issues", () => {
     // silently back to link-outs, which looks like nothing being wrong.
     const influencers = watchDirectoryFor(null).filter((e) => e.genre === "influencer");
     const playable = influencers.filter((e) => playableOf(e) !== null);
-    expect(playable.length, "the influencer genre lost playable channels").toBeGreaterThanOrEqual(11);
+    expect(playable.length, "the influencer genre lost playable channels").toBeGreaterThanOrEqual(
+      11,
+    );
   });
 });
 
@@ -402,8 +412,10 @@ describe("every genre on offer has something to play", () => {
       byGenre.set(e.genre, (byGenre.get(e.genre) ?? 0) + 1);
     }
     for (const e of watchDirectoryFor(null)) {
-      expect(byGenre.get(e.genre) ?? 0, `genre "${e.genre}" is listed but nothing in it plays`)
-        .toBeGreaterThan(0);
+      expect(
+        byGenre.get(e.genre) ?? 0,
+        `genre "${e.genre}" is listed but nothing in it plays`,
+      ).toBeGreaterThan(0);
     }
   });
 

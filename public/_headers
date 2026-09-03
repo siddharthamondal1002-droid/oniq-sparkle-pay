@@ -17,9 +17,18 @@
 # src/data/__tests__/watchDirectory.test.ts fails if one ever is.
 #
 # accounts.google.com stays in frame-src for OAuth.
+#
+# FOUR MORE PLAYERS IN frame-src, AND NOTHING MORE IN script-src — owner
+# directive, 2026-09-03 (afternoon): "make them just like we have youtube in
+# watch". player.vimeo.com, www.dailymotion.com, player.twitch.tv and
+# archive.org are the platforms' own players, framed the way YouTube's is.
+# None of their SDK scripts is loaded: ENDED reaches the page over the
+# players' postMessage channels, so script-src did not move. The list is
+# mirrored by EMBED_HOSTS in src/data/watchEmbeds.ts and held by
+# src/data/__tests__/watchEmbeds.test.ts.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(self), camera=(self), microphone=(self), payment=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.youtube.com https://s.ytimg.com; frame-src https://accounts.google.com https://www.youtube-nocookie.com https://www.youtube.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https: wss:; style-src 'self' 'unsafe-inline'; font-src 'self' data: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.youtube.com https://s.ytimg.com; frame-src https://accounts.google.com https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com https://www.dailymotion.com https://player.twitch.tv https://archive.org; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https: wss:; style-src 'self' 'unsafe-inline'; font-src 'self' data: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'

@@ -43,6 +43,12 @@
 import type { Country } from "@/data/appRegistry";
 import type { FaithId } from "@/data/faithContent";
 import { WATCH_CHANNELS, liveEmbedUrl } from "@/data/watchChannels";
+import {
+  EMBED_PLATFORM_NAME,
+  embedPageUrl,
+  isLiveEmbed,
+  type EmbedRef,
+} from "@/data/watchEmbeds";
 
 /** Channel ids that carry a 24/7 live feed, from the original roster. */
 const LIVE_IDS = new Set(WATCH_CHANNELS.filter((c) => c.verified).map((c) => c.channelId));
@@ -58,13 +64,23 @@ export type WatchGenre =
   | "entertainment"
   | "finance"
   | "influencer"
-  | "lifestyle";
+  | "lifestyle"
+  | "film";
 
 export type WatchEntry = {
   /** YouTube channel id (UC...) where known — used only to build the link. */
   channelId?: string;
   /** @handle, for channels whose id was never confirmed. Also link-only. */
   handle?: string;
+  /**
+   * A card from ANOTHER platform (owner directive, 2026-09-03 afternoon):
+   * what it plays, in that platform's own id — a Twitch channel, a
+   * Dailymotion video or playlist, an Internet Archive item, a Vimeo video.
+   * Read off the platform's public page or API by hand, never invented, and
+   * played in that platform's own player through src/data/watchEmbeds.ts.
+   * An entry has either this or a YouTube channelId/handle, never both.
+   */
+  embed?: EmbedRef;
   name: string;
   /** ONIQ's own one-line description. Never copied from the destination. */
   description: string;
@@ -94,7 +110,12 @@ export type FaithEntry = {
  * geo-restrictions, age-gating and rights enforcement — the rights-holder
  * decides who sees what, not ONIQ. That delegation is the entire point.
  */
-export function channelUrl(e: { channelId?: string; handle?: string }): string | null {
+export function channelUrl(e: {
+  channelId?: string;
+  handle?: string;
+  embed?: EmbedRef;
+}): string | null {
+  if (e.embed) return embedPageUrl(e.embed);
   if (e.channelId) return `https://www.youtube.com/channel/${e.channelId}`;
   if (e.handle) return `https://www.youtube.com/@${e.handle}`;
   return null;
@@ -169,10 +190,27 @@ export function uploadsPlaylistId(e: { channelId?: string }): string | null {
 export type Playable =
   | { kind: "live"; channelId: string; name: string }
   | { kind: "playlist"; list: string; name: string }
-  | { kind: "video"; videoId: string; name: string };
+  | { kind: "video"; videoId: string; name: string }
+  /**
+   * Another platform's own player (owner directive, 2026-09-03 afternoon).
+   * The fourth shape, and the fifth source needed no player change after
+   * all: WatchPlayer frames the platform's player from the EmbedRef.
+   */
+  | { kind: "embed"; embed: EmbedRef; name: string };
+
+/** Which platform's player a Playable runs in — for the "open on …" button. */
+export function platformNameOf(p: Playable): string {
+  return p.kind === "embed" ? EMBED_PLATFORM_NAME[p.embed.platform] : "YouTube";
+}
+
+/** A live feed, whichever platform carries it. */
+export function isLivePlayable(p: Playable): boolean {
+  return p.kind === "live" || (p.kind === "embed" && isLiveEmbed(p.embed));
+}
 
 /** A directory entry as something to play, or null if it is link-only. */
 export function playableOf(e: WatchEntry): Playable | null {
+  if (e.embed) return { kind: "embed", embed: e.embed, name: e.name };
   if (!e.channelId || !e.channelId.startsWith("UC")) return null;
   if (isLiveChannel(e.channelId)) {
     return { kind: "live", channelId: e.channelId, name: e.name };
@@ -202,6 +240,7 @@ export function playableOfChannelId(channelId: string, name: string): Playable |
  * from what is stored.
  */
 export function channelUrlOf(p: Playable): string | null {
+  if (p.kind === "embed") return embedPageUrl(p.embed);
   if (p.kind === "live") return channelUrl({ channelId: p.channelId });
   if (p.kind === "playlist" && p.list.startsWith("UU") && p.list.length === 24) {
     return channelUrl({ channelId: `UC${p.list.slice(2)}` });
@@ -458,6 +497,206 @@ export const WATCH_ENTRIES: WatchEntry[] = [
     name: "NASA",
     description: "Spaceflight and science from the agency itself.",
     genre: "lifestyle",
+    countries: "*",
+    verified: true,
+  },
+
+  // OTHER PLATFORMS' CHANNELS — owner directive, 2026-09-03 (afternoon):
+  // "make them just like we have youtube in watch". Each plays in its own
+  // platform's player (src/data/watchEmbeds.ts) and sits in a genre like any
+  // YouTube channel, so the Watch tabs and the Home watch face pick them up
+  // the same way.
+  //
+  // EVERY ID BELOW WAS READ OFF THE PLATFORM'S PUBLIC API OR PAGE on
+  // 2026-09-03 — Twitch channels by the og:title of their own page,
+  // Dailymotion ids from api.dailymotion.com, Internet Archive identifiers
+  // from archive.org's own search — and none was recalled or invented. The
+  // rule is the YouTube one: a plausible id builds a player that works
+  // perfectly, pointing at the wrong thing. An id that could not be checked
+  // that way is not listed; that is why monstercat and twitchpresents are
+  // absent (their pages gave no title in the check) and why no Indian news
+  // house is here yet (their Dailymotion accounts publish no playlist and no
+  // live feed, and nothing here fetches a platform at runtime to ask).
+  {
+    embed: { platform: "dailymotion", video: "xar7p26", live: true },
+    name: "Euronews English",
+    description: "European and world news, live around the clock.",
+    genre: "news",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "dailymotion", playlist: "x7z3jt" },
+    name: "BBC News",
+    description: "The BBC's news clips, as a Dailymotion playlist.",
+    genre: "news",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "dailymotion", playlist: "x5oiha" },
+    name: "T-Series Hit Videos",
+    description: "T-Series' hit songs and film music, as a Dailymotion playlist.",
+    genre: "entertainment",
+    countries: ["IN"],
+    verified: true,
+  },
+  {
+    embed: { platform: "twitch", channel: "nasa" },
+    name: "NASA on Twitch",
+    description: "Launches, spacewalks and mission briefings, streamed live.",
+    genre: "lifestyle",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "twitch", channel: "chess" },
+    name: "Chess.com",
+    description: "Live chess — tournaments, commentary and lessons.",
+    genre: "sports",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "twitch", channel: "esl_csgo" },
+    name: "ESL Counter-Strike",
+    description: "Counter-Strike esports, live from ESL.",
+    genre: "sports",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "twitch", channel: "riotgames" },
+    name: "Riot Games",
+    description: "League of Legends esports and Riot's own broadcasts.",
+    genre: "sports",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "twitch", channel: "valorant" },
+    name: "VALORANT",
+    description: "The VALORANT Champions Tour, live.",
+    genre: "sports",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "twitch", channel: "twitch" },
+    name: "Twitch",
+    description: "Twitch's own channel — events, showcases and features.",
+    genre: "entertainment",
+    countries: "*",
+    verified: true,
+  },
+
+  // Films — the Internet Archive's public-domain library, in its own player.
+  {
+    embed: { platform: "archive", item: "his_girl_friday" },
+    name: "His Girl Friday (1940)",
+    description: "Howard Hawks' screwball newsroom comedy with Cary Grant and Rosalind Russell.",
+    genre: "film",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "archive", item: "TheGeneral_201312" },
+    name: "The General (1926)",
+    description: "Buster Keaton's silent railway chase, still one of the great comedies.",
+    genre: "film",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "archive", item: "Nosferatu1922" },
+    name: "Nosferatu (1922)",
+    description: "F. W. Murnau's silent vampire film, the first of its kind.",
+    genre: "film",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "archive", item: "Metropolis1927EnglishVersion" },
+    name: "Metropolis (1927)",
+    description: "Fritz Lang's silent city of the future, English version.",
+    genre: "film",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "archive", item: "Popeye_meetsSinbadtheSailor" },
+    name: "Popeye Meets Sinbad (1936)",
+    description: "The Fleischer studio's two-reel Popeye adventure, in colour.",
+    genre: "film",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "archive", item: "superman-fleischer-brothers-animated-series-1941-1943" },
+    name: "Superman (1941 cartoons)",
+    description: "The Fleischer brothers' Superman shorts, the first animated superhero.",
+    genre: "film",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "archive", item: "plan-9-from-outer-space" },
+    name: "Plan 9 from Outer Space (1957)",
+    description: "Ed Wood's famously bad flying-saucer film, loved for exactly that.",
+    genre: "film",
+    countries: "*",
+    verified: true,
+  },
+
+  // Films — Vimeo Staff Picks, in Vimeo's own player. Ids and titles were
+  // read off the Staff Picks channel's RSS feed on 2026-09-03 and each was
+  // confirmed embeddable through Vimeo's public oEmbed endpoint the same day.
+  // Descriptions are ONIQ's own: what the pick is and how long it runs.
+  {
+    embed: { platform: "vimeo", video: "1222049983" },
+    name: "Leela",
+    description: "A Vimeo Staff Pick short by Tanmay Chowdhary, about fifteen minutes.",
+    genre: "film",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "vimeo", video: "1219875917" },
+    name: "Moti",
+    description: "A Vimeo Staff Pick short by Yash Saraf, about sixteen minutes.",
+    genre: "film",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "vimeo", video: "1223293680" },
+    name: "Boléro",
+    description: "A Vimeo Staff Pick short by Nans Laborde-Jourdàa, about seventeen minutes.",
+    genre: "film",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "vimeo", video: "1217081853" },
+    name: "Desert Bugs",
+    description: "A Vimeo Staff Pick short by Hugh Saint-Jacques, under three minutes.",
+    genre: "film",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "vimeo", video: "1216800360" },
+    name: "The Scent of Beetroot and the People who Live Forever",
+    description: "A Vimeo Staff Pick short by Petra Stipetić and Maren Wiese, about twelve minutes.",
+    genre: "film",
+    countries: "*",
+    verified: true,
+  },
+  {
+    embed: { platform: "vimeo", video: "1222036529" },
+    name: "Lumps Vol. 1",
+    description: "A Vimeo Staff Pick collection of surreal animations, about three minutes.",
+    genre: "film",
     countries: "*",
     verified: true,
   },
@@ -914,6 +1153,6 @@ export function faithChannelsFor(faith: FaithId | null): FaithEntry[] {
  * bytes come from them.
  */
 export const WATCH_NOTICE =
-  "ONIQ hosts none of this. Channels play in YouTube's own player, and YouTube decides what is available where you are.";
+  "ONIQ hosts none of this. Channels play in their own platform's player — YouTube, Vimeo, Dailymotion, Twitch or the Internet Archive — and that platform decides what is available where you are.";
 
 export const LINK_OUT_LABEL = "Opens in YouTube";

@@ -1106,6 +1106,10 @@ const HOME_GENRES: { key: string; emoji: string; label: string }[] = [
   { key: "finance", emoji: "📈", label: "Finance" },
   { key: "influencer", emoji: "✨", label: "Creators" },
   { key: "lifestyle", emoji: "🌿", label: "Lifestyle" },
+  // Films from Vimeo and the Internet Archive, played in their own players
+  // (owner directive, 2026-09-03 afternoon). Offered only while the
+  // directory has one, like every chip here.
+  { key: "film", emoji: "🎥", label: "Films" },
 ];
 
 function WatchPreview() {

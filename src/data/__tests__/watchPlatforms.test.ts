@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ALL_COUNTRIES } from "@/data/appRegistry";
 import { THIRD_PARTY_REQUESTS } from "@/config/playCompliance";
+import { EMBED_HOSTS } from "@/data/watchEmbeds";
 import { WATCH_PLATFORMS, opensIn, watchPlatformsFor } from "@/data/watchPlatforms";
 
 const ROOT = process.cwd();
@@ -91,30 +92,52 @@ describe("region is relevance only, the same rule as the channel directory", () 
   });
 });
 
-describe("nothing is framed, fetched or declared — a tap is not a request", () => {
-  const platformHosts = WATCH_PLATFORMS.map((p) => hostOf(p.url));
-
-  it("no platform host is declared as an automatic request, because none is made", () => {
-    const declared = THIRD_PARTY_REQUESTS.map((r) => r.host.toLowerCase().replace(/^www\./, ""));
-    for (const h of platformHosts) {
-      expect(declared, `${h} is declared as an automatic request`).not.toContain(h);
-    }
-  });
-
-  it("no platform host is granted frame-src — only YouTube's player is framed", () => {
+describe("which platforms play inside ONIQ, and which stay front doors", () => {
+  // Owner directive, 2026-09-03 (afternoon): "make them just like we have
+  // youtube in watch". The four with an embeddable player play through
+  // src/data/watchEmbeds.ts; the other four have no feed or channel to frame.
+  const playing = WATCH_PLATFORMS.filter((p) => p.plays);
+  const doors = WATCH_PLATFORMS.filter((p) => !p.plays);
+  const declared = THIRD_PARTY_REQUESTS.map((r) => r.host.toLowerCase().replace(/^www\./, ""));
+  const frameSrc = (() => {
     const headers = readFileSync(join(ROOT, "public/_headers"), "utf8")
       .split("\n")
       .filter((l) => !l.trimStart().startsWith("#"))
       .join("\n");
     const csp = headers.match(/Content-Security-Policy:([^\n]*)/)?.[1] ?? "";
-    const frameSrc = csp.match(/frame-src([^;]*)/)?.[1] ?? "";
-    expect(frameSrc, "no frame-src in the CSP").not.toBe("");
-    for (const h of platformHosts) {
-      expect(frameSrc, `${h} is framed`).not.toContain(h);
+    return csp.match(/frame-src([^;]*)/)?.[1] ?? "";
+  })();
+  const PLAYER_HOST: Record<string, string> = {
+    vimeo: EMBED_HOSTS.vimeo,
+    dailymotion: EMBED_HOSTS.dailymotion,
+    twitch: EMBED_HOSTS.twitch,
+    "internet-archive": EMBED_HOSTS.archive,
+  };
+
+  it("exactly the four with an embeddable player are marked as playing", () => {
+    expect(playing.map((p) => p.id).sort()).toEqual(
+      ["dailymotion", "internet-archive", "twitch", "vimeo"].sort(),
+    );
+  });
+
+  it("a playing platform is framed and declared through its player host", () => {
+    for (const p of playing) {
+      const h = PLAYER_HOST[p.id];
+      expect(h, `${p.name} has no player host`).toBeTruthy();
+      expect(frameSrc, `${p.name}'s player is not framed`).toContain(`https://${h}`);
+      expect(declared, `${p.name}'s player is undeclared`).toContain(h.replace(/^www\./, ""));
     }
   });
 
-  it("the Watch screen opens a platform with openInApp and builds no frame for it", () => {
+  it("a front-door-only platform is neither framed nor declared — a tap is not a request", () => {
+    for (const p of doors) {
+      const h = hostOf(p.url);
+      expect(frameSrc, `${h} is framed`).not.toContain(h);
+      expect(declared, `${h} is declared as an automatic request`).not.toContain(h);
+    }
+  });
+
+  it("the Watch screen opens a front door with openInApp and builds no frame for it", () => {
     const src = codeOf(join(ROOT, "src/routes/_authenticated/app.watch.tsx"));
     expect(src).toContain("watchPlatformsFor(null)");
     expect(src).toContain('data-testid="watch-platform"');
