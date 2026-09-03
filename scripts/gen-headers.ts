@@ -1,4 +1,19 @@
-# GENERATED from src/lib/securityHeaders.ts — do not edit by hand.
+/**
+ * Regenerate public/_headers from src/lib/securityHeaders.ts.
+ *
+ *   npx vite-node scripts/gen-headers.ts
+ *
+ * The module is the source of truth — src/server.ts sends these headers on
+ * every document — and the file exists for hosts that read it (Cloudflare
+ * serves it for static assets) and for the tests that parse it.
+ * src/lib/__tests__/securityHeaders.test.ts fails when the two drift.
+ */
+import { writeFileSync } from "node:fs";
+import { PERMISSIONS_POLICY, contentSecurityPolicy } from "../src/lib/securityHeaders";
+
+const csp = contentSecurityPolicy("production");
+
+const out = `# GENERATED from src/lib/securityHeaders.ts — do not edit by hand.
 #   npx vite-node scripts/gen-headers.ts
 #
 # WHERE THESE HEADERS ACTUALLY COME FROM (owner directive, 2026-09-03: "fix
@@ -25,5 +40,9 @@
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: geolocation=(self), camera=(self), microphone=(self), payment=(self "https://api.razorpay.com" "https://checkout.razorpay.com")
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://www.googletagmanager.com https://www.youtube.com https://s.ytimg.com https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https:; img-src 'self' data: blob: https:; media-src 'self' blob: data: https:; connect-src 'self' https: wss: blob: data:; frame-src https://accounts.google.com https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com https://www.dailymotion.com https://player.twitch.tv https://archive.org https://api.razorpay.com https://checkout.razorpay.com blob:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Permissions-Policy: ${PERMISSIONS_POLICY}
+  Content-Security-Policy: ${csp}
+`;
+
+writeFileSync(new URL("../public/_headers", import.meta.url), out);
+console.log(`public/_headers written (${csp.length} chars of CSP)`);
