@@ -101,6 +101,8 @@ import {
 } from "@/lib/userWatch";
 import { supabase } from "@/integrations/supabase/client";
 import { openInApp } from "@/lib/miniapps";
+import { NOT_AFFILIATED_NOTICE } from "@/config/playCompliance";
+import { PLATFORM_KIND_LABEL, opensIn, watchPlatformsFor } from "@/data/watchPlatforms";
 import { isAvailable } from "@/data/countryRegistry";
 import { useCountry } from "@/lib/country";
 import { useMediaCoordinator } from "@/lib/MediaProvider";
@@ -229,6 +231,14 @@ function WatchPage() {
     [all],
   );
   const linkOnly = useMemo(() => all.filter((e) => playableOf(e) === null), [all]);
+
+  /**
+   * OTHER PLACES TO WATCH (owner directive, 2026-09-03). The full shelf, the
+   * same way `all` is: the surface is India-gated, the list is not. Each one
+   * opens on its own site — see src/data/watchPlatforms.ts for why none of
+   * them is framed.
+   */
+  const platforms = useMemo(() => watchPlatformsFor(null), []);
 
   const myTvCards: Card[] = useMemo(
     () =>
@@ -807,6 +817,48 @@ function WatchPage() {
                 );
               })}
             </ul>
+          </div>
+        )}
+
+        {/* OTHER PLACES TO WATCH (owner directive, 2026-09-03). Free platforms,
+            each opening in the in-app browser. None plays inside ONIQ: framing
+            another platform's player is a per-platform owner call with its own
+            CSP grant and Play declaration — src/data/watchPlatforms.ts. */}
+        {!isCurated && platforms.length > 0 && (
+          <div className="mt-6" data-testid="watch-platforms">
+            <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+              more places to watch
+            </div>
+            <div className="no-scrollbar flex gap-3 overflow-x-auto pb-1">
+              {platforms.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  data-testid="watch-platform"
+                  onClick={() => openInApp(p.url)}
+                  aria-label={`${p.name} — ${opensIn(p.name)}`}
+                  className="press w-40 shrink-0 text-left opacity-80 hover:opacity-100"
+                >
+                  {/* A GLYPH, NOT A LOGO — the platform's mark stays on its site. */}
+                  <div className="grid aspect-video place-items-center rounded-lg border border-border bg-surface-2 text-2xl">
+                    {p.emoji}
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-1 text-xs font-medium leading-snug">
+                    <span className="truncate">{p.name}</span>
+                    <ExternalLink className="size-3 shrink-0 text-muted-foreground" />
+                  </div>
+                  <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                    {PLATFORM_KIND_LABEL[p.kind]} · {opensIn(p.name).toLowerCase()}
+                  </div>
+                  <div className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
+                    {p.description}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+              {NOT_AFFILIATED_NOTICE}
+            </p>
           </div>
         )}
 
