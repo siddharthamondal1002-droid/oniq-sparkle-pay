@@ -182,7 +182,41 @@ describe("a dead motion engine costs one attempt, not one per shot", () => {
   it("only fuses the in-house engine, never Veo", () => {
     // Veo failing is a different fact about a different provider, and the two
     // must not share a fuse — one outage must not mute the other engine.
-    const blown = RENDERER.slice(RENDERER.indexOf("BLOW THE FUSE"), RENDERER.indexOf("MOTION_FUSE:"));
+    const blown = RENDERER.slice(
+      RENDERER.indexOf("BLOW THE FUSE"),
+      RENDERER.indexOf("MOTION_FUSE:"),
+    );
     expect(blown).toContain("=== 'in-house'");
+  });
+});
+
+describe("a keyless still names the store's reason, not just the absence", () => {
+  // The end anchor also appears in a doc comment a thousand lines earlier, so
+  // it is searched for from the start of this block, not from the file's top.
+  const stillLogStart = RENDERER.indexOf("const stillWhere = still.fromPlate");
+  const stillLog = RENDERER.slice(
+    stillLogStart,
+    RENDERER.indexOf("PORTRAIT REFRAME (FIX 1)", stillLogStart),
+  );
+
+  it("prints STILL_STORE= from the function's `stored` field when the key is null", () => {
+    // MEASURED 2026-09-03 on job 0a884e2d: nine `STILL_KEY=unnamed` lines and
+    // no reason anywhere in the film log, although story-still had returned
+    // one beside every null key. Finding it took a separate pull of the edge
+    // function's log. The reason rides on the absence, in the same line.
+    expect(stillLog).toContain("STILL_STORE=");
+    expect(stillLog).toContain("still.stored");
+    expect(stillLog).toContain("still.key == null");
+  });
+
+  it("names an older deployment when the response carries no `stored` at all", () => {
+    // A function that predates the still store answers with neither `key`
+    // nor `stored`. That is a different fact from a store that refused, and
+    // the log must not let the two read alike.
+    expect(stillLog).toContain("absent-from-response");
+  });
+
+  it("stays quiet when there is a key, and for a plate that was never drawn", () => {
+    expect(stillLog).toContain("!still.fromPlate && still.key == null");
   });
 });
