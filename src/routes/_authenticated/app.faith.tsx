@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  AlertCircle,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
@@ -10,10 +11,20 @@ import {
   Headphones,
   Calendar as CalIcon,
   ShoppingBag,
-  ArrowLeft,
   Play,
   Video,
 } from "lucide-react";
+import {
+  OniqCanvas,
+  OniqCard,
+  OniqChip,
+  OniqEmpty,
+  OniqError,
+  OniqHeader,
+  OniqMediaCard,
+  OniqSectionHeader,
+  OniqSkeletonRows,
+} from "@/components/oniq";
 import { resolveTileLabel } from "@/lib/i18n/tileLabel";
 import { itemsForFaith, type FaithId } from "@/data/faithContent";
 import { WATCH_NOTICE, faithChannelsFor, playableOfChannelId } from "@/data/watchDirectory";
@@ -44,6 +55,15 @@ const RELIGIONS: { key: Religion; label: string; labelHi: string; emoji: string 
 const LS_KEY = FAITH_LS_KEY;
 type Section = "read" | "listen" | "dates" | "shop" | "watch";
 
+/** The five tabs, in the order they have always had. Icon plus the label. */
+const SECTION_TABS: { id: Section; label: string; Icon: typeof BookOpen }[] = [
+  { id: "read", label: "read 📖", Icon: BookOpen },
+  { id: "listen", label: "listen 🎧", Icon: Headphones },
+  { id: "dates", label: "dates 🗓", Icon: CalIcon },
+  { id: "shop", label: "shop 🛍", Icon: ShoppingBag },
+  { id: "watch", label: "watch 🎥", Icon: Video },
+];
+
 function FaithPage() {
   const [religion, setReligion] = useState<Religion | null>(null);
   const [section, setSection] = useState<Section>("read");
@@ -67,77 +87,52 @@ function FaithPage() {
     }
   };
 
+  // Blessed is deliberately slow and quiet: a cream wash, surfaces rather
+  // than glows, one entrance per section and nothing that keeps moving.
   return (
-    <div className="min-h-screen pb-24">
-      <div className="px-5 pt-[max(3rem,env(safe-area-inset-top))]">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/app"
-            aria-label="Back"
-            className="press grid h-9 w-9 place-items-center rounded-full bg-surface-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-          <div>
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">blessed 🙏</div>
-            <h1 className="font-display text-2xl font-bold">faith, ur way</h1>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
+    <OniqCanvas world="blessed" wash={22} className="pb-16">
+      <OniqHeader eyebrow="blessed 🙏" title="faith, ur way" back="/app">
+        <div role="radiogroup" aria-label="Your faith" className="flex flex-wrap gap-2">
           {RELIGIONS.map((r) => (
-            <button
+            <OniqChip
               key={r.key}
-              type="button"
+              role="radio"
+              active={religion === r.key}
               onClick={() => pick(r.key)}
-              className={`press rounded-full px-3 py-1.5 text-sm font-medium border ${religion === r.key ? "bg-primary text-primary-foreground border-primary" : "bg-surface-2 border-border"}`}
             >
-              <span className="mr-1">{r.emoji}</span>
+              <span aria-hidden="true">{r.emoji}</span>
               {resolveTileLabel(lang, r.label, r.labelHi)}
-            </button>
+            </OniqChip>
           ))}
         </div>
+      </OniqHeader>
 
+      <div className="px-5">
         {!religion ? (
-          <div className="mt-8 rounded-2xl border border-border bg-card p-5 text-center">
-            <p className="text-sm text-muted-foreground">pick ur path above to get started ✨</p>
+          <div className="rise mt-6">
+            <OniqEmpty emoji="🙏" title="pick ur path above to get started ✨" />
           </div>
         ) : (
           <>
-            <div className="mt-5 grid grid-cols-5 gap-2">
-              <TabBtn
-                active={section === "read"}
-                onClick={() => setSection("read")}
-                icon={<BookOpen className="h-4 w-4" />}
-                label="read 📖"
-              />
-              <TabBtn
-                active={section === "listen"}
-                onClick={() => setSection("listen")}
-                icon={<Headphones className="h-4 w-4" />}
-                label="listen 🎧"
-              />
-              <TabBtn
-                active={section === "dates"}
-                onClick={() => setSection("dates")}
-                icon={<CalIcon className="h-4 w-4" />}
-                label="dates 🗓"
-              />
-              <TabBtn
-                active={section === "shop"}
-                onClick={() => setSection("shop")}
-                icon={<ShoppingBag className="h-4 w-4" />}
-                label="shop 🛍"
-              />
-              <TabBtn
-                active={section === "watch"}
-                onClick={() => setSection("watch")}
-                icon={<Video className="h-4 w-4" />}
-                label="watch 🎥"
-              />
+            <div
+              role="tablist"
+              aria-label="Sections"
+              className="rise no-scrollbar -mx-5 mt-5 flex gap-2 overflow-x-auto px-5 pb-1"
+            >
+              {SECTION_TABS.map(({ id, label, Icon }) => (
+                <OniqChip
+                  key={id}
+                  role="tab"
+                  active={section === id}
+                  onClick={() => setSection(id)}
+                >
+                  <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                  {label}
+                </OniqChip>
+              ))}
             </div>
 
-            <div className="mt-5">
+            <div className="rise rise-1 mt-5">
               {section === "read" && <ReadSection religion={religion} />}
               {section === "listen" && (
                 <>
@@ -152,7 +147,7 @@ function FaithPage() {
           </>
         )}
       </div>
-    </div>
+    </OniqCanvas>
   );
 }
 
@@ -219,18 +214,21 @@ function DirectoryRow({
         data-testid="faith-link"
         onClick={() => openInApp(url)}
         aria-label={`${name} — ${outLabel}`}
-        className="press flex w-full items-start gap-3 rounded-2xl border border-border bg-card p-3 text-left"
+        className="press flex w-full items-start gap-3 rounded-3xl oniq-surface p-3 text-start"
       >
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-2 text-lg">
+        <div
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-world-soft text-lg"
+          aria-hidden="true"
+        >
           {emoji}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold">{name}</div>
+          <div className="truncate text-sm font-semibold text-foreground">{name}</div>
           <div className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
             {description}
           </div>
-          <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-primary">
-            {outLabel} <ExternalLink className="size-3" />
+          <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-world">
+            {outLabel} <ExternalLink className="size-3" aria-hidden="true" />
           </div>
         </div>
       </button>
@@ -272,78 +270,92 @@ function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
   const item = playing ? playableOfChannelId(playing.id, playing.name) : null;
 
   return (
-    <section className="mt-8">
-      <div className="mb-3">
-        <div className="text-[11px] uppercase tracking-wider text-primary/80">watch 🙏</div>
-        <h2 className="font-display text-lg font-bold">darshan · kirtan · bayan</h2>
-      </div>
+    <section>
+      <OniqSectionHeader className="px-0" eyebrow="watch 🙏" title="darshan · kirtan · bayan" />
 
-      {items.length === 0 ? (
-        // This faith's OWN empty state. Never a fallback to another faith.
-        <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
-          no {FAITH_META.find((f) => f.id === only)?.label ?? "devotional"} channels listed yet 🌙
-        </div>
-      ) : (
-        <>
-          {item && (
-            <div className="mb-3">
-              {/* Name and close ABOVE the frame — nothing may be drawn over
-                  the player, which is a condition of the embed grant. */}
-              <div className="mb-2 flex items-center gap-2">
-                <div className="min-w-0 flex-1 truncate text-sm font-semibold">{playing!.name}</div>
-                <button
-                  type="button"
-                  onClick={() => setPlaying(null)}
-                  aria-label="Close player"
-                  className="press rounded-full border border-border bg-card px-3 py-1 text-[11px] font-semibold"
-                >
-                  close
-                </button>
-              </div>
-              <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
-                <WatchPlayer
-                  key={playing!.id}
-                  item={item}
-                  autoplay
-                  className="absolute inset-0 h-full w-full"
+      <div className="mt-3">
+        {items.length === 0 ? (
+          // This faith's OWN empty state. Never a fallback to another faith.
+          <OniqEmpty
+            emoji="🌙"
+            title={`no ${FAITH_META.find((f) => f.id === only)?.label ?? "devotional"} channels listed yet 🌙`}
+          />
+        ) : (
+          <>
+            {item && (
+              <div className="mb-4">
+                {/* Name and close ABOVE the frame — nothing may be drawn over
+                    the player, which is a condition of the embed grant. The
+                    media card gets no caption for the same reason. */}
+                <div className="mb-2 flex items-center gap-2">
+                  <div className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+                    {playing!.name}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPlaying(null)}
+                    aria-label="Close player"
+                    className="press rounded-full oniq-surface px-3 py-1 text-[11px] font-semibold text-foreground"
+                  >
+                    close
+                  </button>
+                </div>
+                <OniqMediaCard
+                  aspect="video"
+                  media={
+                    <WatchPlayer
+                      key={playing!.id}
+                      item={item}
+                      autoplay
+                      className="absolute inset-0 h-full w-full"
+                    />
+                  }
                 />
               </div>
-            </div>
-          )}
+            )}
 
-          <ul className="space-y-2">
-            {items.map((c) => (
-              <li key={c.channelId}>
-                <button
-                  type="button"
-                  data-testid="faith-play"
-                  onClick={() => setPlaying({ id: c.channelId, name: c.name })}
-                  aria-label={`Play ${c.name}`}
-                  aria-current={playing?.id === c.channelId}
-                  className={`press flex w-full items-start gap-3 rounded-2xl border bg-card p-3 text-start ${
-                    playing?.id === c.channelId ? "border-primary" : "border-border"
-                  }`}
-                >
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-2 text-lg">
-                    📺
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold">{c.name}</div>
-                    <div className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-                      {c.description}
-                    </div>
-                    <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-primary">
-                      Watch here <Play className="size-3" />
-                    </div>
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+            <ul className="space-y-2">
+              {items.map((c) => {
+                const active = playing?.id === c.channelId;
+                return (
+                  <li key={c.channelId}>
+                    <button
+                      type="button"
+                      data-testid="faith-play"
+                      onClick={() => setPlaying({ id: c.channelId, name: c.name })}
+                      aria-label={`Play ${c.name}`}
+                      aria-current={active}
+                      className={`press flex w-full items-start gap-3 rounded-3xl p-3 text-start ${
+                        active ? "border border-world bg-world-soft" : "oniq-surface"
+                      }`}
+                    >
+                      <div
+                        className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-world-soft text-lg"
+                        aria-hidden="true"
+                      >
+                        📺
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold text-foreground">
+                          {c.name}
+                        </div>
+                        <div className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+                          {c.description}
+                        </div>
+                        <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-world">
+                          Watch here <Play className="size-3" aria-hidden="true" />
+                        </div>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </div>
 
-      <p className="mt-2 text-[11px] leading-snug text-muted-foreground">{WATCH_NOTICE}</p>
+      <p className="mt-3 text-[11px] leading-snug text-muted-foreground">{WATCH_NOTICE}</p>
     </section>
   );
 }
@@ -376,94 +388,65 @@ function DevotionalRadioSection({ religion }: { religion: Religion | null }) {
   const only = religionToFaithId(religion);
 
   return (
-    <section className="mt-10">
-      <div className="mb-3">
-        <div className="text-[11px] uppercase tracking-wider text-primary/80">radio 📻</div>
-        <h2 className="font-display text-lg font-bold">stations to tune in to</h2>
-      </div>
+    <section className="mt-8">
+      <OniqSectionHeader className="px-0" eyebrow="radio 📻" title="stations to tune in to" />
 
-      {isLoading ? (
-        <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
-          scanning the airwaves…
-        </div>
-      ) : isError ? (
-        <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
-          <p>Couldn't load the stations right now — a connection problem, not an empty dial.</p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="press mt-3 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
-          >
-            Try again
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-5">
-          {FAITH_META.filter((f) => (only ? f.id === only : true)).map((f) => {
-            // Same strict equality as the channel list above.
-            const items = itemsForFaith(stations, f.id);
-            if (items.length === 0)
+      <div className="mt-3">
+        {isLoading ? (
+          <div>
+            <OniqSkeletonRows rows={3} />
+            <p className="mt-2 text-[11px] text-muted-foreground">scanning the airwaves…</p>
+          </div>
+        ) : isError ? (
+          <OniqError
+            label="Couldn't load the stations right now — a connection problem, not an empty dial."
+            onRetry={() => refetch()}
+          />
+        ) : (
+          <div className="space-y-5">
+            {FAITH_META.filter((f) => (only ? f.id === only : true)).map((f) => {
+              // Same strict equality as the channel list above.
+              const items = itemsForFaith(stations, f.id);
+              if (items.length === 0)
+                return (
+                  <OniqEmpty
+                    key={f.id}
+                    emoji="📡"
+                    title={`no ${f.label} stations listed right now 📡`}
+                  />
+                );
               return (
-                <div
-                  key={f.id}
-                  className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground"
-                >
-                  no {f.label} stations listed right now 📡
+                <div key={f.id}>
+                  <div className="mb-2 font-display text-[13px] text-foreground">{f.label}</div>
+                  <ul className="space-y-2">
+                    {items.map((s) => (
+                      <DirectoryRow
+                        key={s.homepage}
+                        name={s.name}
+                        description={
+                          s.tags.length > 0
+                            ? s.tags.slice(0, 3).join(" · ")
+                            : "Internet radio station"
+                        }
+                        url={s.homepage}
+                        emoji="📻"
+                        outLabel="Opens in browser"
+                      />
+                    ))}
+                  </ul>
                 </div>
               );
-            return (
-              <div key={f.id}>
-                <div className="mb-2 text-sm font-semibold text-foreground/90">{f.label}</div>
-                <ul className="space-y-2">
-                  {items.map((s) => (
-                    <DirectoryRow
-                      key={s.homepage}
-                      name={s.name}
-                      description={
-                        s.tags.length > 0
-                          ? s.tags.slice(0, 3).join(" · ")
-                          : "Internet radio station"
-                      }
-                      url={s.homepage}
-                      emoji="📻"
-                      outLabel="Opens in browser"
-                    />
-                  ))}
-                </ul>
-              </div>
-            );
-          })}
-        </div>
-      )}
+            })}
+          </div>
+        )}
+      </div>
 
-      <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+      <p className="mt-3 text-[11px] leading-snug text-muted-foreground">
         Station listings come from Radio Browser, a community directory. ONIQ does not host, stream
         or play these stations — each link opens the station's own site, where it serves its own
         audio under its own terms.
       </p>
     </section>
-  );
-}
-
-function TabBtn({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`press flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium border ${active ? "bg-primary text-primary-foreground border-primary" : "bg-surface-2 border-border"}`}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
   );
 }
 
@@ -912,56 +895,72 @@ function ReadSection({ religion }: { religion: Religion }) {
 
   return (
     <div>
-      <div className="mb-3 flex items-center gap-2 overflow-x-auto no-scrollbar">
+      <div
+        role="tablist"
+        aria-label={idx.title}
+        className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 pb-1"
+      >
         {idx.items.map((it, i) => (
-          <button
+          <OniqChip
             key={it.label}
+            role="tab"
+            active={active === i}
             onClick={() => setActive(i)}
-            aria-label={`${it.label}${it.tradition && it.tradition !== "shared" ? ` — ${it.tradition === "digambar" ? "Digambar" : "Shwetambar"} tradition` : ""}`}
-            className={`press shrink-0 rounded-full px-3 py-1 text-xs border ${active === i ? "bg-primary text-primary-foreground border-primary" : "bg-surface-2 border-border"}`}
+            ariaLabel={`${it.label}${it.tradition && it.tradition !== "shared" ? ` — ${it.tradition === "digambar" ? "Digambar" : "Shwetambar"} tradition` : ""}`}
           >
             {it.label}
-          </button>
+          </OniqChip>
         ))}
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <div className="font-display text-lg font-bold">
-              {(sel?.verses ? sel.label : fetched?.title) || sel?.label || idx.title}
+      {/* The reading itself: one quiet surface, large leading, the reference
+          as a small gold label. Type is the whole design of this card. */}
+      <OniqCard variant="surface" padding="lg" className="mt-4">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
+              {idx.title}
             </div>
+            <h2 className="mt-1 font-display text-[20px] leading-tight text-foreground">
+              {(sel?.verses ? sel.label : fetched?.title) || sel?.label || idx.title}
+            </h2>
             {sel?.tradition && sel.tradition !== "shared" && (
-              <span className="mt-0.5 inline-block rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="mt-1.5 inline-block rounded-full bg-world-soft px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-world">
                 {sel.tradition === "digambar" ? "Digambar" : "Shwetambar"}
               </span>
             )}
           </div>
-          <div className="flex gap-1">
+          <div className="flex shrink-0 gap-1">
             <button
+              type="button"
               onClick={prev}
               aria-label="Previous"
               disabled={active === 0}
-              className="press grid h-8 w-8 place-items-center rounded-full bg-surface-2 disabled:opacity-40"
+              className="press grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-foreground disabled:opacity-40"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 rtl:-scale-x-100" />
             </button>
             <button
+              type="button"
               onClick={next}
               aria-label="Next"
               disabled={active === idx.items.length - 1}
-              className="press grid h-8 w-8 place-items-center rounded-full bg-surface-2 disabled:opacity-40"
+              className="press grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-foreground disabled:opacity-40"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
             </button>
           </div>
         </div>
         {!sel?.verses && isLoading && (
-          <div className="text-sm text-muted-foreground">loading verses…</div>
+          <div>
+            <OniqSkeletonRows rows={3} />
+            <p className="mt-2 text-[11px] text-muted-foreground">loading verses…</p>
+          </div>
         )}
         {!sel?.verses && error && (
-          <div className="text-sm text-amber-400">
-            couldn't reach the scripture source — try again in a moment 🙏
+          <div role="alert" className="flex items-start gap-2 text-sm text-muted-foreground">
+            <AlertCircle className="mt-[2px] h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />
+            <span>couldn't reach the scripture source — try again in a moment 🙏</span>
           </div>
         )}
         {(() => {
@@ -973,21 +972,23 @@ function ReadSection({ religion }: { religion: Religion }) {
             <div className="space-y-3">
               {view.note && <div className="text-[11px] text-muted-foreground">{view.note}</div>}
               {view.verses.map((v) => (
-                <div key={v.ref} className="rounded-xl bg-surface-2/50 p-3">
-                  <div className="text-[11px] uppercase tracking-wider text-primary/80 mb-1">
+                <div key={v.ref} className="rounded-2xl bg-surface-2/60 p-4">
+                  <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
                     {v.ref}
                   </div>
                   <div
-                    className="text-sm leading-relaxed"
-                    lang={/[\u0900-\u097F]/.test(v.text) ? "hi" : undefined}
+                    className="text-[17px] leading-[1.8] text-foreground"
+                    lang={/[ऀ-ॿ]/.test(v.text) ? "hi" : undefined}
                   >
                     {v.text}
                   </div>
                   {"roman" in v && v.roman && (
-                    <div className="mt-0.5 text-xs text-foreground/70">{v.roman}</div>
+                    <div className="mt-1 text-sm text-foreground/75">{v.roman}</div>
                   )}
                   {v.translation && (
-                    <div className="mt-1 text-xs text-muted-foreground italic">{v.translation}</div>
+                    <div className="mt-1.5 text-sm italic leading-relaxed text-muted-foreground">
+                      {v.translation}
+                    </div>
                   )}
                 </div>
               ))}
@@ -999,7 +1000,7 @@ function ReadSection({ religion }: { religion: Religion }) {
             </div>
           );
         })()}
-      </div>
+      </OniqCard>
     </div>
   );
 }
@@ -1070,25 +1071,33 @@ export const LISTEN: Record<Religion, { label: string; url: string }[]> = {
 function ListenSection({ religion }: { religion: Religion }) {
   const items = LISTEN[religion];
   return (
-    <ul className="space-y-2">
-      {items.map((it) => (
-        <li key={it.url}>
-          <a
-            href={it.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="press flex items-center gap-3 rounded-2xl border border-border bg-card p-3"
-          >
-            <Headphones className="h-4 w-4 text-primary" />
-            <span className="flex-1 text-sm">{it.label}</span>
-            <ExternalLink className="h-4 w-4 text-muted-foreground" />
-          </a>
-        </li>
-      ))}
-      <li className="text-[11px] text-muted-foreground pt-1">
+    <section>
+      <OniqSectionHeader className="px-0" eyebrow="listen 🎧" title="audio & recitations" />
+      <ul className="mt-3 space-y-2">
+        {items.map((it) => (
+          <li key={it.url}>
+            <a
+              href={it.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="press flex items-center gap-3 rounded-3xl oniq-surface p-3"
+            >
+              <span
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-world-soft text-world"
+                aria-hidden="true"
+              >
+                <Headphones className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1 text-sm text-foreground">{it.label}</span>
+              <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-[11px] text-muted-foreground">
         audio hosted on LibriVox / archive.org — public domain 🌐
-      </li>
-    </ul>
+      </p>
+    </section>
   );
 }
 
@@ -1197,8 +1206,8 @@ function DatesSection({ religion }: { religion: Religion }) {
   return (
     <div>
       {religion === "hindu" && (
-        <div className="mb-3 rounded-2xl border border-border bg-card p-3">
-          <label htmlFor="hindu-cal-picker" className="block text-sm font-semibold">
+        <OniqCard variant="tinted" padding="md" className="mb-3">
+          <label htmlFor="hindu-cal-picker" className="block text-sm font-semibold text-foreground">
             which calendar does your family follow? 🗓
           </label>
           <select
@@ -1206,7 +1215,7 @@ function DatesSection({ religion }: { religion: Religion }) {
             data-testid="hindu-cal-picker"
             value={calSystem}
             onChange={(e) => pickSystem(e.target.value)}
-            className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"
+            className="mt-2 w-full rounded-2xl border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none focus:border-world"
           >
             {HINDU_CAL_SYSTEMS.map((c) => (
               <option key={c.id} value={c.id}>
@@ -1216,9 +1225,9 @@ function DatesSection({ religion }: { religion: Religion }) {
           </select>
           <p className="mt-1.5 text-[11px] text-muted-foreground">{activeSystem.hint}</p>
           {activeSystem.era && (
-            <p className="mt-0.5 text-[11px] font-medium text-primary/80">{activeSystem.era}</p>
+            <p className="mt-0.5 text-[11px] font-medium text-world">{activeSystem.era}</p>
           )}
-        </div>
+        </OniqCard>
       )}
       <div className="mb-2 text-[11px] text-muted-foreground">
         dates may vary by region &amp; tradition 🌙
@@ -1232,19 +1241,19 @@ function DatesSection({ religion }: { religion: Religion }) {
           return (
             <li
               key={`${it.name}-${it.date}`}
-              className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3"
+              className="flex items-center gap-3 rounded-3xl oniq-surface p-3"
             >
-              <div className="grid h-11 w-11 place-items-center rounded-xl bg-surface-2 text-xs font-semibold">
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-world-soft text-center font-display text-[12px] leading-tight text-world">
                 {new Date(it.date).toLocaleDateString(undefined, {
                   month: "short",
                   day: "numeric",
                 })}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate">{it.name}</div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-foreground">{it.name}</div>
                 <div className="text-[11px] text-muted-foreground">{it.date}</div>
                 {it.alt_date && (
-                  <div className="text-[11px] text-primary/80">
+                  <div className="text-[11px] text-world">
                     also observed{" "}
                     {new Date(it.alt_date).toLocaleDateString(undefined, {
                       month: "short",
@@ -1255,7 +1264,7 @@ function DatesSection({ religion }: { religion: Religion }) {
                 )}
               </div>
               <span
-                className={`rounded-full px-2 py-1 text-[11px] font-semibold ${past ? "bg-surface-2 text-muted-foreground" : days <= 30 ? "bg-primary/20 text-primary" : "bg-surface-2 text-foreground"}`}
+                className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${past ? "bg-surface-2 text-muted-foreground" : days <= 30 ? "bg-world-soft text-world" : "bg-surface-2 text-foreground"}`}
               >
                 {past ? "past" : days === 0 ? "today ✨" : `in ${days}d`}
               </span>
@@ -1387,27 +1396,34 @@ export const SHOP: Record<Religion, { label: string; desc: string; url: string }
 function ShopSection({ religion }: { religion: Religion }) {
   const items = SHOP[religion];
   return (
-    <ul className="space-y-2">
-      {items.map((it) => (
-        <li key={it.url}>
-          <a
-            href={it.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="press w-full flex items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left"
-          >
-            <ShoppingBag className="h-4 w-4 text-primary shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold truncate">{it.label}</div>
-              <div className="text-[11px] text-muted-foreground truncate">{it.desc}</div>
-            </div>
-            <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
-          </a>
-        </li>
-      ))}
-      <li className="text-[11px] text-muted-foreground pt-1">
+    <section>
+      <ul className="space-y-2">
+        {items.map((it) => (
+          <li key={it.url}>
+            <a
+              href={it.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="press flex w-full items-center gap-3 rounded-3xl oniq-surface p-3 text-start"
+            >
+              <span
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-world-soft text-world"
+                aria-hidden="true"
+              >
+                <ShoppingBag className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-foreground">{it.label}</div>
+                <div className="truncate text-[11px] text-muted-foreground">{it.desc}</div>
+              </div>
+              <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-[11px] text-muted-foreground">
         opens third-party stores — ONIQ doesn't sell these items 🛍
-      </li>
-    </ul>
+      </p>
+    </section>
   );
 }

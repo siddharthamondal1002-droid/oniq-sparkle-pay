@@ -85,27 +85,29 @@ function ExploreScreen() {
         <OniqAskBar testId="explore-ask" />
       </div>
 
-      <OniqStoryRail className="mt-4" ariaLabel="Groups" role="tablist">
-        <OniqChip
-          role="tab"
-          active={!group}
-          onClick={() => navigate({ to: "/app/explore", search: {} })}
-          testId="explore-group-all"
-        >
-          All
-        </OniqChip>
-        {WORLD_GROUPS.map((g) => (
+      <div className="mt-4 px-5">
+        <OniqStoryRail ariaLabel="Groups" role="tablist">
           <OniqChip
-            key={g.id}
             role="tab"
-            active={group === g.id}
-            onClick={() => navigate({ to: "/app/explore", search: { group: g.id } })}
-            testId={`explore-group-${g.id}`}
+            active={!group}
+            onClick={() => navigate({ to: "/app/explore", search: {} })}
+            testId="explore-group-all"
           >
-            {g.title}
+            All
           </OniqChip>
-        ))}
-      </OniqStoryRail>
+          {WORLD_GROUPS.map((g) => (
+            <OniqChip
+              key={g.id}
+              role="tab"
+              active={group === g.id}
+              onClick={() => navigate({ to: "/app/explore", search: { group: g.id } })}
+              testId={`explore-group-${g.id}`}
+            >
+              {g.title}
+            </OniqChip>
+          ))}
+        </OniqStoryRail>
+      </div>
 
       {groups.length === 0 ? (
         <div className="mt-6 px-5">

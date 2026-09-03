@@ -1,13 +1,24 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ArrowLeft, RotateCw, ChevronRight, Newspaper } from "lucide-react";
+import { RotateCw, ChevronRight, Newspaper } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentRegion } from "@/lib/region";
 import { useCountry } from "@/lib/country";
 import { newsUnavailableReason } from "@/data/newsPolicy";
 import type { Country } from "@/data/appRegistry";
 import { openInApp } from "@/lib/miniapps";
+import {
+  OniqCanvas,
+  OniqCard,
+  OniqChip,
+  OniqEmpty,
+  OniqHeader,
+  OniqSectionHeader,
+  OniqSkeleton,
+  OniqSkeletonRows,
+  OniqStoryRail,
+} from "@/components/oniq";
 
 export const Route = createFileRoute("/_authenticated/app/news")({
   // Watch is gone. `?tab=watch` deep links still resolve — the param is
@@ -78,118 +89,179 @@ function NewsScreen() {
   // Either side may say no; the server's word wins.
   const blockedMessage = unavailable ?? data?.unavailable ?? null;
 
+  // The first item is the lead story; the rest are headline rows. Not a hook.
+  const [lead, ...more] = items;
+
   return (
-    <div className="min-h-screen pb-6">
-      <div className="px-5 pt-[max(3rem,env(safe-area-inset-top))]">
-        <div className="flex items-center justify-between">
-          <Link to="/app" aria-label="Back" className="grid h-10 w-10 place-items-center rounded-full bg-surface">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
+    <OniqCanvas world="pulse" className="pb-8">
+      <OniqHeader
+        eyebrow="Pulse"
+        title="Pulse 📰"
+        subtitle="the timeline, but factual"
+        back="/app"
+        actions={
           <button
+            type="button"
             onClick={() => {
               qc.invalidateQueries({ queryKey: ["news", category] });
               refetch();
             }}
             aria-label="Refresh"
-            className="grid h-10 w-10 place-items-center rounded-full bg-surface"
+            className="tap press grid h-10 w-10 place-items-center rounded-full oniq-glass text-foreground"
           >
             <RotateCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
           </button>
-        </div>
-        <div className="mt-4">
-          <div className="text-xs text-muted-foreground">the timeline, but factual</div>
-          <h1 className="font-display text-3xl font-bold">Pulse 📰</h1>
-        </div>
-
+        }
+      >
         {/* Category chips */}
-        <div className="mt-5 -mx-5 overflow-x-auto scrollbar-none">
-          <div className="flex gap-2 px-5 pb-1">
-            {CATEGORIES.map((c) => {
-              const active = c.id === category;
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => setCategory(c.id)}
-                  className={`press whitespace-nowrap min-h-11 rounded-full px-4 py-2 text-sm font-medium border transition-colors ${
-                    active
-                      ? "bg-primary text-primary-foreground border-primary shadow-[0_0_16px_-4px_var(--primary)]"
-                      : "bg-surface text-muted-foreground border-border hover:text-foreground"
-                  }`}
+        <OniqStoryRail ariaLabel="Categories" role="tablist">
+          {CATEGORIES.map((c) => (
+            <OniqChip
+              key={c.id}
+              role="tab"
+              active={c.id === category}
+              onClick={() => setCategory(c.id)}
+            >
+              {c.label}
+            </OniqChip>
+          ))}
+        </OniqStoryRail>
+      </OniqHeader>
 
-                >
-                  {c.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Content */}
-        {blockedMessage ? (
-          <div className="mt-5 rounded-2xl border border-border bg-surface p-6 text-center">
-            <p className="text-sm text-muted-foreground">{blockedMessage}</p>
+      {/* Content */}
+      {blockedMessage ? (
+        <div className="mt-5 px-5 rise rise-1">
+          <OniqCard padding="lg" className="text-center">
+            <Newspaper className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
+            <p className="mt-2 text-sm text-muted-foreground">{blockedMessage}</p>
             {!useHome && home && home !== region && (
               <button
+                type="button"
                 onClick={() => setUseHome(true)}
-                className="mt-3 rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground"
+                className="press mt-4 rounded-full bg-world px-5 py-2 text-sm font-medium text-white world-glow"
               >
                 Show {home} news instead
               </button>
             )}
-          </div>
-        ) : (
-          <div className="mt-5 space-y-3">
-            {isLoading ? (
-              Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-20 animate-pulse rounded-2xl bg-surface" />
-              ))
-            ) : error || (softError && items.length === 0) ? (
-              <div className="rounded-2xl bg-surface p-6 text-center">
-                <Newspaper className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">{softError ?? "Couldn't load the feed"}</p>
+          </OniqCard>
+        </div>
+      ) : (
+        <div className="mt-5 px-5">
+          {isLoading ? (
+            <div aria-busy="true" aria-live="polite">
+              <OniqSkeleton className="aspect-video w-full rounded-3xl" />
+              <OniqSkeletonRows rows={4} className="mt-3" />
+            </div>
+          ) : error || (softError && items.length === 0) ? (
+            <div role="alert" className="rounded-3xl oniq-surface p-6 text-center">
+              <Newspaper
+                className="mx-auto mb-2 h-8 w-8 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <p className="text-sm text-muted-foreground">
+                {softError ?? "Couldn't load the feed"}
+              </p>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="press mt-3 rounded-full bg-world px-5 py-2 text-sm font-medium text-white world-glow"
+              >
+                Retry
+              </button>
+            </div>
+          ) : items.length === 0 ? (
+            <OniqEmpty emoji="📰" title="nothing dropping rn — check back soon ✨" />
+          ) : (
+            <>
+              {/* Lead story — the first item, its image only if the feed sent one */}
+              {lead && (
                 <button
-                  onClick={() => refetch()}
-                  className="mt-3 rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground"
-                >
-                  Retry
-                </button>
-              </div>
-            ) : items.length === 0 ? (
-              <div className="rounded-2xl bg-surface p-6 text-center">
-                <p className="text-sm text-muted-foreground">nothing dropping rn — check back soon ✨</p>
-              </div>
-            ) : (
-              items.map((it, i) => (
-                <button
-                  key={`${it.link}-${i}`}
+                  type="button"
                   data-testid="news-item"
-                  onClick={() => openInApp(it.link)}
-                  className="flex w-full items-center gap-3 rounded-2xl bg-card border border-border p-4 text-left hover:bg-surface-2 transition-colors"
+                  onClick={() => openInApp(lead.link)}
+                  className="press block w-full overflow-hidden rounded-3xl oniq-surface text-start rise rise-1"
                 >
-                  {it.image && (
-                    <img
-                      src={it.image}
-                      alt=""
-                      loading="lazy"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                      className="h-16 w-16 shrink-0 rounded-xl object-cover"
-                    />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="font-medium text-primary truncate max-w-[60%]">{it.source}</span>
-                      <span className="text-muted-foreground">·</span>
-                      <span className="text-muted-foreground">{relTime(it.publishedAt)}</span>
+                  {lead.image && (
+                    <div className="relative aspect-video w-full overflow-hidden bg-surface-2">
+                      <img
+                        src={lead.image}
+                        alt=""
+                        loading="lazy"
+                        onError={(e) => {
+                          (e.currentTarget.parentElement as HTMLElement).style.display = "none";
+                        }}
+                        className="h-full w-full object-cover"
+                      />
                     </div>
-                    <p className="mt-1 font-medium text-sm line-clamp-3">{it.title}</p>
+                  )}
+                  <div className="p-4">
+                    <div className="h-1 w-10 rounded-full bg-[var(--world-b)]" aria-hidden="true" />
+                    <div className="mt-3 flex items-center gap-2 text-[11px]">
+                      <span className="max-w-[60%] truncate font-semibold text-world">
+                        {lead.source}
+                      </span>
+                      <span className="text-muted-foreground">·</span>
+                      <span className="font-normal normal-case text-muted-foreground">
+                        {relTime(lead.publishedAt)}
+                      </span>
+                    </div>
+                    <p
+                      className="mt-2 line-clamp-4 font-display text-[20px] leading-tight normal-case text-foreground"
+                      style={{ textWrap: "balance" }}
+                    >
+                      {lead.title}
+                    </p>
                   </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                 </button>
-              ))
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+              )}
+
+              {more.length > 0 && (
+                <section className="mt-6 rise rise-2">
+                  <OniqSectionHeader eyebrow="Pulse" title="More headlines" className="px-0" />
+                  <div className="mt-3 grid gap-2">
+                    {more.map((it, i) => (
+                      <button
+                        key={`${it.link}-${i + 1}`}
+                        type="button"
+                        data-testid="news-item"
+                        onClick={() => openInApp(it.link)}
+                        className="press flex w-full items-center gap-3 rounded-3xl oniq-surface p-3 text-start"
+                      >
+                        {it.image && (
+                          <img
+                            src={it.image}
+                            alt=""
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = "none";
+                            }}
+                            className="h-16 w-16 shrink-0 rounded-2xl object-cover"
+                          />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 text-[11px]">
+                            <span className="max-w-[60%] truncate font-semibold text-world">
+                              {it.source}
+                            </span>
+                            <span className="text-muted-foreground">·</span>
+                            <span className="font-normal normal-case text-muted-foreground">
+                              {relTime(it.publishedAt)}
+                            </span>
+                          </div>
+                          <p className="mt-1 line-clamp-3 text-sm font-medium normal-case leading-snug text-foreground">
+                            {it.title}
+                          </p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground rtl:-scale-x-100" />
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </OniqCanvas>
   );
 }

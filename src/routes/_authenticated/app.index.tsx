@@ -165,7 +165,7 @@ function HomeScreen() {
               {profileLoading ? (
                 <OniqSkeleton className="mt-2 h-9 w-48" />
               ) : (
-                <p className="mt-0.5 font-display text-[30px] leading-[1.05] tracking-tight text-foreground">
+                <p className="mt-0.5 font-display text-[30px] normal-case leading-[1.05] tracking-tight text-foreground">
                   {first} 👋
                 </p>
               )}
@@ -638,7 +638,7 @@ function StudyHero() {
         >
           <BookOpen className="h-6 w-6" />
         </div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           study 📚
         </div>
       </div>
@@ -856,12 +856,12 @@ function MomentsPreview() {
       }}
     >
       <div className="flex items-center justify-between">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           moments ✨
         </div>
         <Link
           to="/app/chat/moments"
-          className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1 hover:text-foreground"
+          className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1 hover:text-foreground"
         >
           Open all <ChevronRight className="h-3 w-3" />
         </Link>
@@ -1247,13 +1247,13 @@ function WatchPreview() {
       }}
     >
       <div className="flex items-center justify-between">
-        <div className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-foreground">
+        <div className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-foreground">
           <Tv className="h-3 w-3" /> watch 📺
         </div>
         <button
           type="button"
           onClick={() => navigate({ to: "/app/watch" })}
-          className="press inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+          className="press inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
         >
           Open all <ChevronRight className="h-3 w-3" />
         </button>
@@ -1504,7 +1504,7 @@ function MastPreview() {
       }}
     >
       <div className="flex items-center justify-between">
-        <div className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider">
+        <div className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider">
           {(
             [
               ["mast", "mast 🎬"],
@@ -1531,7 +1531,7 @@ function MastPreview() {
             </button>
           ))}
         </div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1">
           Open all <ChevronRight className="h-3 w-3" />
         </div>
       </div>
@@ -1607,7 +1607,7 @@ function MastPreview() {
                 />
                 {/* Play's AI-content policy: generated video carries its label
                     wherever it plays, the home loop included. */}
-                <span className="absolute start-2 top-2 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300 backdrop-blur">
+                <span className="absolute start-2 top-2 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-amber-300 backdrop-blur">
                   AI-generated 🤖
                 </span>
               </>

@@ -1,7 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SearchClearButton } from "@/components/ui/SearchClearButton";
 import {
@@ -11,9 +10,9 @@ import {
   X,
   Check,
   CheckCheck,
+  ChevronRight,
   Users,
   Trash2,
-  ArrowLeft,
   Megaphone,
   Plus,
   UserPlus,
@@ -26,6 +25,17 @@ import { getNativeContacts, isNativeContactsAvailable, normalizePhone } from "@/
 import { sanitizeLikeQuery } from "@/lib/searchFilter";
 import { prettyFail } from "@/lib/errorReport";
 import { doodleByKey } from "@/data/doodleLibrary";
+import {
+  OniqAIOrb,
+  OniqCanvas,
+  OniqCard,
+  OniqChip,
+  OniqEmpty,
+  OniqHeader,
+  OniqSectionHeader,
+  OniqSkeletonRows,
+  OniqStoryRail,
+} from "@/components/oniq";
 
 /**
  * What a 'sticker' row reads as in the chat list.
@@ -87,6 +97,10 @@ function convTime(iso: string | null): string {
   if (differenceInDays(new Date(), d) < 7) return format(d, "EEEE");
   return format(d, "dd/MM/yy");
 }
+
+/** Header icon buttons: glass chrome floating over the canvas, 48dp hit area. */
+const HEADER_BTN =
+  "tap press grid h-10 w-10 shrink-0 place-items-center rounded-full oniq-glass text-foreground";
 
 /**
  * DEV-ONLY SCROLL DIAGNOSTIC (owner request, 2026-08-30).
@@ -243,10 +257,10 @@ function ChatList() {
   const onlineSet = useOnlineUsers();
   const [showNew, setShowNew] = useState(false);
   const [photoTarget, setPhotoTarget] = useState<ProfilePhotoTarget | null>(null);
-  const [showSearch, setShowSearch] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
   const [query, setQuery] = useState("");
-  const [chip, setChip] = useState<"all" | "unread" | "groups">("all");
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const [chip, setChip] = useState<"all" | "unread" | "groups" | "channels">("all");
   const [mounted, setMounted] = useState(false);
   const [actionConv, setActionConv] = useState<EnrichedConv | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -355,7 +369,13 @@ function ChatList() {
   });
   const blockedSet = useMemo(() => new Set(blockedIds), [blockedIds]);
 
-  const { data: convs, isLoading, isFetching } = useQuery({
+  const {
+    data: convs,
+    isLoading,
+    isFetching,
+    isError: convsError,
+    refetch: refetchConvs,
+  } = useQuery({
     queryKey: ["conversations", me?.id, blockedIds.join(",")],
     enabled: !!me,
     staleTime: 30_000,
@@ -502,6 +522,7 @@ function ChatList() {
     let list = convs;
     if (chip === "unread") list = list.filter((c) => (c.unread ?? 0) > 0);
     else if (chip === "groups") list = list.filter((c) => c.type === "group");
+    else if (chip === "channels") list = list.filter((c) => c.type === "channel");
     const q = query.trim().toLowerCase();
     if (!q) return list;
     return list.filter(
@@ -509,78 +530,102 @@ function ChatList() {
     );
   }, [convs, query, chip]);
 
-  return (
-    <div className="px-4 pt-12 pb-4">
-      <ScrollDiagOverlay enabled={scrollDiagEnabled} queryStateRef={diagQueryRef} />
-      <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
-          <Link
-            to="/app"
-            aria-label="Back"
-            className="grid h-10 w-10 place-items-center rounded-full hover:bg-muted"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <h1 className="font-display text-3xl font-bold" onClick={handleHeaderTitleTap}>
-            <span className="bg-gradient-to-r from-foreground via-foreground to-fuchsia-400 bg-clip-text text-transparent">
-              Chats
-            </span>
-          </h1>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => {
-              setShowSearch((s) => !s);
-              if (showSearch) setQuery("");
-            }}
-            className="grid h-10 w-10 place-items-center rounded-full hover:bg-muted"
-            aria-label="Search"
-          >
-            <Search className="h-5 w-5" />
-          </button>
-          <button
-            onClick={() => setShowRequests(true)}
-            className="relative grid h-10 w-10 place-items-center rounded-full hover:bg-muted"
-            aria-label="Moot requests"
-            data-testid="friend-requests-btn"
-          >
-            <UserPlus className="h-5 w-5" />
-            {incomingRequests.length > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#25D366] px-1 text-[10px] font-bold text-black">
-                {incomingRequests.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setShowNew(true)}
-            className="grid h-10 w-10 place-items-center rounded-full hover:bg-muted"
-            aria-label="New chat"
-          >
-            <Edit3 className="h-5 w-5" />
-          </button>
-        </div>
-      </div>
+  const unreadTotal = convs ? convs.reduce((n, c) => n + (c.unread ?? 0), 0) : 0;
+  const subtitle = convs
+    ? unreadTotal > 0
+      ? `${unreadTotal} unread`
+      : "All caught up."
+    : undefined;
 
-      {showSearch && (
-        <div className="relative mt-3">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+  return (
+    <OniqCanvas world="chat" className="pb-4">
+      <ScrollDiagOverlay enabled={scrollDiagEnabled} queryStateRef={diagQueryRef} />
+      <OniqHeader
+        eyebrow="ONIQ"
+        title={<span onClick={handleHeaderTitleTap}>Chat</span>}
+        subtitle={subtitle}
+        back="/app"
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => searchRef.current?.focus()}
+              className={HEADER_BTN}
+              aria-label="Search"
+            >
+              <Search className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowRequests(true)}
+              className={`relative ${HEADER_BTN}`}
+              aria-label="Moot requests"
+              data-testid="friend-requests-btn"
+            >
+              <UserPlus className="h-5 w-5" />
+              {incomingRequests.length > 0 && (
+                <span className="absolute -end-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-world px-1 text-[11px] font-bold text-white">
+                  {incomingRequests.length}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowNew(true)}
+              className={HEADER_BTN}
+              aria-label="New chat"
+            >
+              <Edit3 className="h-5 w-5" />
+            </button>
+          </>
+        }
+      >
+        <label className="flex items-center gap-3 rounded-full oniq-surface py-2.5 pe-3 ps-4">
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <input
-            autoFocus
+            ref={searchRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search chats"
-            className="w-full rounded-full border border-border bg-input/40 py-2.5 pl-11 pr-10 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            placeholder="Search messages"
+            aria-label="Search messages"
+            className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <SearchClearButton value={query} onClear={() => setQuery("")} />
-          </div>
-        </div>
-      )}
+          <SearchClearButton value={query} onClear={() => setQuery("")} inputRef={searchRef} />
+        </label>
+      </OniqHeader>
 
-      <ChannelsStrip convs={convs ?? []} />
+      {/* Pinned: ONIQ AI is a real destination (/app/ai), never a fake chat row */}
+      <section className="mt-6 rise rise-1">
+        <OniqSectionHeader title="Pinned" />
+        <div className="mt-3 px-5">
+          <Link
+            to="/app/ai"
+            preload="intent"
+            aria-label="ONIQ AI — How can I help you today?"
+            className="press flex items-center gap-3 rounded-3xl oniq-surface p-3"
+          >
+            <span data-world="ting" className="inline-flex shrink-0">
+              <OniqAIOrb size="md" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-display text-[13px] text-foreground">ONIQ AI</span>
+              <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">
+                How can I help you today?
+              </span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground rtl:-scale-x-100" />
+          </Link>
+        </div>
+      </section>
+
+      <div className="px-5">
+        <ChannelsStrip convs={convs ?? []} />
+      </div>
 
       <div
-        className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none"
+        className="mt-4 flex items-center gap-2 overflow-x-auto px-5 no-scrollbar"
+        role="tablist"
+        aria-label="Filter chats"
         data-testid="chat-filter-chips"
       >
         {(
@@ -588,157 +633,156 @@ function ChatList() {
             { k: "all", label: "All" },
             { k: "unread", label: "Unread" },
             { k: "groups", label: "Groups" },
+            { k: "channels", label: "Channels" },
           ] as const
-        ).map((c) => {
-          const active = chip === c.k;
-          return (
-            <button
-              key={c.k}
-              onClick={() => setChip(c.k)}
-              className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition ${
-                active
-                  ? "bg-gradient-to-r from-primary to-fuchsia-500 text-primary-foreground shadow-[0_0_14px_hsl(var(--primary)/0.35)]"
-                  : "border border-border bg-card/40 text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {c.label}
-            </button>
-          );
-        })}
+        ).map((c) => (
+          <OniqChip key={c.k} role="tab" active={chip === c.k} onClick={() => setChip(c.k)}>
+            {c.label}
+          </OniqChip>
+        ))}
       </div>
 
-      <div className="mt-3">
+      <div className="mt-4 px-5">
         {isLoading ? (
-          <ul aria-hidden className="animate-pulse">
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <li key={i} className="flex items-center gap-3 px-1 py-3">
-                <div className="h-12 w-12 shrink-0 rounded-full bg-muted" />
-                <div className="min-w-0 flex-1">
-                  <div className="h-3.5 w-2/5 rounded bg-muted" />
-                  <div className="mt-2 h-3 w-4/5 rounded bg-muted/70" />
-                </div>
-              </li>
-            ))}
-          </ul>
+          <OniqSkeletonRows rows={6} />
+        ) : convsError && !convs ? (
+          <div role="alert" className="rounded-3xl oniq-surface p-4 text-sm">
+            <p className="text-muted-foreground">
+              Couldn't load your chats — a connection problem, not an empty inbox.
+            </p>
+            <button
+              type="button"
+              onClick={() => refetchConvs()}
+              className="press mt-3 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+            >
+              Try again
+            </button>
+          </div>
         ) : filtered.length > 0 ? (
-          <ul className="divide-y divide-border/50">
-            {filtered.map((c) => {
-              const mine = c.last_sender_id === me?.id;
-              const isRead =
-                mine && c.last_created_at && c.peer_read_at
-                  ? new Date(c.peer_read_at).getTime() >= new Date(c.last_created_at).getTime()
-                  : false;
-              const isChannel = c.type === "channel";
-              const online = c.type === "direct" && !!c.peer_id && onlineSet.has(c.peer_id);
-              return (
-                <li key={c.id}>
-                  <Link
-                    to="/app/chat/$conversationId"
-                    params={{ conversationId: c.id }}
-                    className="flex items-center gap-3 px-1 py-3 active:bg-muted/60"
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setActionConv(c);
-                    }}
-                    onTouchStart={() => startLongPress(c)}
-                    onTouchEnd={cancelLongPress}
-                    onTouchMove={cancelLongPress}
-                    onTouchCancel={cancelLongPress}
-                    onClick={(e) => {
-                      if (longPressFired.current) {
+          <OniqCard padding="none" className="rise rise-2 overflow-hidden">
+            <ul className="divide-y divide-border/60">
+              {filtered.map((c) => {
+                const mine = c.last_sender_id === me?.id;
+                const isRead =
+                  mine && c.last_created_at && c.peer_read_at
+                    ? new Date(c.peer_read_at).getTime() >= new Date(c.last_created_at).getTime()
+                    : false;
+                const isChannel = c.type === "channel";
+                const online = c.type === "direct" && !!c.peer_id && onlineSet.has(c.peer_id);
+                const unread = c.unread > 0;
+                const ringClass = unread ? "bg-world" : "bg-transparent";
+                const titleClass = unread ? "font-bold" : "font-semibold";
+                const timeClass = unread ? "font-semibold text-world" : "text-muted-foreground";
+                return (
+                  <li key={c.id}>
+                    <Link
+                      to="/app/chat/$conversationId"
+                      params={{ conversationId: c.id }}
+                      className="flex items-center gap-3 px-3 py-3 transition-colors active:bg-surface-2"
+                      onContextMenu={(e) => {
                         e.preventDefault();
-                        longPressFired.current = false;
-                      }
-                    }}
-                  >
-                    <div className="relative">
-                      {/* IG-style ring: gradient when there's something unseen */}
-                      <span
-                        className={`isolate block rounded-full p-[2px] ${
-                          c.unread > 0
-                            ? "bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary"
-                            : "bg-transparent"
-                        }`}
-                      >
-                        <span
-                          className={`block rounded-full ${c.unread > 0 ? "bg-background p-[2px]" : ""}`}
-                          role="button"
-                          tabIndex={0}
-                          aria-label={`View ${c.title}'s photo`}
-                          onClick={(e) => {
-                            // The DP answers "show me the photo", the rest of
-                            // the row answers "open the chat" — WhatsApp's
-                            // split, and the one users expect.
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setPhotoTarget({
-                              conversationId: c.id,
-                              title: c.title,
-                              avatarUrl: c.avatar_url,
-                              isGroup: c.type === "group",
-                              isChannel,
-                            });
-                          }}
-                        >
-                          <Avatar
-                            name={c.title}
-                            url={c.avatar_url}
-                            size={48}
-                            group={c.type === "group"}
-                            channel={isChannel}
-                          />
+                        setActionConv(c);
+                      }}
+                      onTouchStart={() => startLongPress(c)}
+                      onTouchEnd={cancelLongPress}
+                      onTouchMove={cancelLongPress}
+                      onTouchCancel={cancelLongPress}
+                      onClick={(e) => {
+                        if (longPressFired.current) {
+                          e.preventDefault();
+                          longPressFired.current = false;
+                        }
+                      }}
+                    >
+                      <div className="relative shrink-0">
+                        {/* The ring carries the world's pair when there's something unseen */}
+                        <span className={`isolate block rounded-full p-[2px] ${ringClass}`}>
+                          <span
+                            className={`block rounded-full ${unread ? "bg-card p-[2px]" : ""}`}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`View ${c.title}'s photo`}
+                            onClick={(e) => {
+                              // The DP answers "show me the photo", the rest of
+                              // the row answers "open the chat" — WhatsApp's
+                              // split, and the one users expect.
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setPhotoTarget({
+                                conversationId: c.id,
+                                title: c.title,
+                                avatarUrl: c.avatar_url,
+                                isGroup: c.type === "group",
+                                isChannel,
+                              });
+                            }}
+                          >
+                            <Avatar
+                              name={c.title}
+                              url={c.avatar_url}
+                              size={48}
+                              group={c.type === "group"}
+                              channel={isChannel}
+                            />
+                          </span>
                         </span>
-                      </span>
-                      {online && (
-                        <span
-                          data-testid="online-dot"
-                          className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background bg-[#25D366]"
-                        />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <div className="truncate font-semibold">
-                          {isChannel ? `📢 ${c.title}` : c.title}
-                        </div>
-                        <div
-                          className={`shrink-0 text-xs ${
-                            c.unread > 0 ? "font-semibold text-[#25D366]" : "text-muted-foreground"
-                          }`}
-                        >
-                          {convTime(c.updated_at)}
-                        </div>
-                      </div>
-                      <div className="mt-0.5 flex items-center justify-between gap-2">
-                        <div className="flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground">
-                          {mine &&
-                            c.type === "direct" &&
-                            (isRead ? (
-                              <CheckCheck className="h-3.5 w-3.5 shrink-0 text-[#25D366]" />
-                            ) : (
-                              <CheckCheck className="h-3.5 w-3.5 shrink-0" />
-                            ))}
-                          <span className="truncate">
-                            {c.type === "group" && c.last_sender_name
-                              ? `${c.last_sender_name}: `
-                              : mine && !isChannel && <span>You: </span>}
-                            {c.last_message ?? "No messages yet"}
-                          </span>
-                        </div>
-                        {c.unread > 0 && (
-                          <span className="ml-2 grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-[#25D366] px-1.5 text-xs font-bold text-black">
-                            {c.unread}
-                          </span>
+                        {online && (
+                          <span
+                            data-testid="online-dot"
+                            className="absolute bottom-0 end-0 h-3 w-3 rounded-full border-2 border-card bg-emerald-500"
+                          />
                         )}
                       </div>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <div className={`truncate text-[15px] text-foreground ${titleClass}`}>
+                            {isChannel ? `📢 ${c.title}` : c.title}
+                          </div>
+                          <div className={`shrink-0 text-[11px] ${timeClass}`}>
+                            {convTime(c.updated_at)}
+                          </div>
+                        </div>
+                        <div className="mt-0.5 flex items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground">
+                            {mine && c.type === "direct" && (
+                              <CheckCheck
+                                className={`h-3.5 w-3.5 shrink-0 ${isRead ? "text-world" : ""}`}
+                              />
+                            )}
+                            <span className={`truncate ${unread ? "text-foreground" : ""}`}>
+                              {c.type === "group" && c.last_sender_name
+                                ? `${c.last_sender_name}: `
+                                : mine && !isChannel && <span>You: </span>}
+                              {c.last_message ?? "No messages yet"}
+                            </span>
+                          </div>
+                          {unread && (
+                            <span className="ms-2 grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-world px-1.5 text-[11px] font-bold text-white">
+                              {c.unread}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </OniqCard>
         ) : query ? (
-          <div className="p-10 text-center text-sm text-muted-foreground">No matches</div>
+          <OniqEmpty emoji="🔍" title="No matches" body="Try a different name." />
+        ) : chip !== "all" ? (
+          <OniqEmpty
+            emoji="✨"
+            title="Nothing here"
+            body={
+              chip === "unread"
+                ? "You're all caught up."
+                : chip === "groups"
+                  ? "No groups yet."
+                  : "No channels yet."
+            }
+          />
         ) : (
           <EmptyChats onNew={() => setShowNew(true)} />
         )}
@@ -757,9 +801,13 @@ function ChatList() {
           onClick={() => setActionConv(null)}
         >
           <div
-            className="w-full rounded-t-3xl border-t border-border bg-background p-5 pb-8"
+            className="w-full rounded-t-3xl oniq-glass p-5 pb-8"
             onClick={(e) => e.stopPropagation()}
           >
+            <div
+              className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong"
+              aria-hidden="true"
+            />
             <div className="flex items-center gap-3">
               <Avatar
                 name={actionConv.title}
@@ -769,10 +817,10 @@ function ChatList() {
                 channel={actionConv.type === "channel"}
               />
               <div className="min-w-0">
-                <div className="truncate font-display text-lg font-semibold">
+                <div className="truncate font-display text-[15px] text-foreground">
                   {actionConv.title}
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="mt-0.5 text-xs text-muted-foreground">
                   {actionConv.type === "direct"
                     ? "Deletes this chat for you only — they keep their copy. If they message you again, the chat comes back empty."
                     : actionConv.type === "channel"
@@ -796,7 +844,7 @@ function ChatList() {
             </button>
             <button
               onClick={() => setActionConv(null)}
-              className="mt-2 w-full rounded-2xl border border-border px-4 py-3 text-sm text-muted-foreground"
+              className="press mt-2 w-full rounded-2xl border border-border px-4 py-3 text-sm text-muted-foreground"
             >
               Cancel
             </button>
@@ -807,7 +855,7 @@ function ChatList() {
       {photoTarget ? (
         <ProfilePhotoPopup target={photoTarget} onClose={() => setPhotoTarget(null)} />
       ) : null}
-    </div>
+    </OniqCanvas>
   );
 }
 
@@ -857,30 +905,31 @@ function ChannelsStrip({ convs }: { convs: EnrichedConv[] }) {
   const channels = useMemo(() => convs.filter((c) => c.type === "channel"), [convs]);
   return (
     <>
-      <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+      <OniqStoryRail className="mt-4" ariaLabel="Channels">
         <button
+          type="button"
           onClick={() => setShowDiscover(true)}
-          className="flex shrink-0 min-h-11 items-center gap-1.5 rounded-full border border-dashed border-border bg-card/40 px-4 py-2 text-xs font-medium text-foreground"
+          className="press flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-dashed border-border-strong px-4 py-2 text-xs font-medium text-foreground"
           data-testid="discover-channels"
         >
-          <Megaphone className="h-3.5 w-3.5 text-[#00D4B8]" /> Discover 📢
+          <Megaphone className="h-3.5 w-3.5 text-world" /> Discover 📢
         </button>
         {channels.map((c) => (
           <Link
             key={c.id}
             to="/app/chat/$conversationId"
             params={{ conversationId: c.id }}
-            className="flex shrink-0 min-h-11 items-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-xs font-medium text-primary"
+            className="press flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-world bg-world-soft px-4 py-2 text-xs font-medium text-world"
           >
             📢 <span className="max-w-[9rem] truncate">{c.title}</span>
             {c.unread > 0 && (
-              <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#25D366] px-1 text-[10px] text-black">
+              <span className="ms-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-world px-1 text-[11px] text-white">
                 {c.unread}
               </span>
             )}
           </Link>
         ))}
-      </div>
+      </OniqStoryRail>
       {showDiscover && <DiscoverChannelsSheet onClose={() => setShowDiscover(false)} />}
     </>
   );
@@ -932,27 +981,27 @@ function DiscoverChannelsSheet({ onClose }: { onClose: () => void }) {
   };
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
-      <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
+      <div className="w-full max-w-md rounded-t-3xl oniq-glass p-5 sm:rounded-3xl">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">Discover channels 📢</h2>
+          <h2 className="font-display text-[18px] text-foreground">Discover channels 📢</h2>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+            className="tap grid h-9 w-9 place-items-center rounded-full oniq-surface"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="relative mt-3">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute start-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search channels"
-            className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-11 pr-10 text-sm focus:border-primary focus:outline-none"
+            className="w-full rounded-2xl oniq-surface py-3 ps-11 pe-10 text-sm outline-none"
           />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+          <div className="absolute end-3 top-1/2 -translate-y-1/2">
             <SearchClearButton value={q} onClear={() => setQ("")} />
           </div>
         </div>
@@ -965,10 +1014,7 @@ function DiscoverChannelsSheet({ onClose }: { onClose: () => void }) {
             </div>
           ) : (
             channels.map((ch) => (
-              <div
-                key={ch.id}
-                className="flex items-start gap-3 rounded-2xl border border-border/60 bg-card/40 p-3"
-              >
+              <div key={ch.id} className="flex items-start gap-3 rounded-2xl oniq-surface p-3">
                 <div
                   className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-lg"
                   style={{ backgroundColor: colorFor(ch.name) }}
@@ -989,7 +1035,7 @@ function DiscoverChannelsSheet({ onClose }: { onClose: () => void }) {
                 <button
                   onClick={() => join(ch.id)}
                   disabled={joining === ch.id}
-                  className="shrink-0 rounded-full bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-50"
+                  className="shrink-0 rounded-full bg-world px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
                 >
                   {joining === ch.id ? "Joining…" : "Join"}
                 </button>
@@ -1004,21 +1050,21 @@ function DiscoverChannelsSheet({ onClose }: { onClose: () => void }) {
 
 function EmptyChats({ onNew }: { onNew: () => void }) {
   return (
-    <div className="mt-10 flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border p-10 text-center">
-      <div className="grid h-14 w-14 place-items-center rounded-2xl bg-primary/10 text-primary">
-        <MessageCircle className="h-6 w-6" />
-      </div>
-      <div className="font-display text-lg font-semibold">No chats yet</div>
-      <p className="max-w-xs text-sm text-muted-foreground">
-        Search a username to start your first conversation.
-      </p>
-      <button
-        onClick={onNew}
-        className="mt-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-      >
-        New chat
-      </button>
-    </div>
+    <OniqEmpty
+      className="rise rise-2"
+      emoji="💬"
+      title="No chats yet"
+      body="Search a username to start your first conversation."
+      action={
+        <button
+          type="button"
+          onClick={onNew}
+          className="press rounded-full bg-world px-4 py-2 text-sm font-medium text-white world-glow"
+        >
+          New chat
+        </button>
+      }
+    />
   );
 }
 
@@ -1188,32 +1234,32 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
-      <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
+      <div className="w-full max-w-md rounded-t-3xl oniq-glass p-5 sm:rounded-3xl">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">
+          <h2 className="font-display text-[18px] text-foreground">
             {mode === "channel" ? "New channel 📢" : mode === "group" ? "New group 👥" : "New chat"}
           </h2>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+            className="tap grid h-9 w-9 place-items-center rounded-full oniq-surface"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="mt-3 flex gap-1 rounded-full bg-muted/40 p-1 text-xs">
+        <div className="mt-3 flex gap-1 rounded-full oniq-surface p-1 text-xs">
           <button
             type="button"
             onClick={() => setMode("chat")}
-            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "chat" ? "bg-background font-semibold shadow" : "text-muted-foreground"}`}
+            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "chat" ? "bg-world text-white" : "text-muted-foreground"}`}
           >
             Chat
           </button>
           <button
             type="button"
             onClick={() => setMode("group")}
-            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "group" ? "bg-background font-semibold shadow" : "text-muted-foreground"}`}
+            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "group" ? "bg-world text-white" : "text-muted-foreground"}`}
           >
             Group 👥
           </button>
@@ -1221,7 +1267,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
             type="button"
             onClick={() => setMode("channel")}
             data-testid="mode-channel"
-            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "channel" ? "bg-background font-semibold shadow" : "text-muted-foreground"}`}
+            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "channel" ? "bg-world text-white" : "text-muted-foreground"}`}
           >
             Channel 📢
           </button>
@@ -1234,14 +1280,14 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
               value={groupName}
               onChange={(e) => setGroupName(e.target.value.slice(0, 50))}
               placeholder="Group name"
-              className="mt-3 w-full rounded-2xl border border-border bg-input/40 px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              className="mt-3 w-full rounded-2xl oniq-surface px-4 py-3 text-sm placeholder:text-muted-foreground outline-none"
             />
             {picked.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {picked.map((p) => (
                   <span
                     key={p.id}
-                    className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-xs text-primary"
+                    className="inline-flex items-center gap-1 rounded-full bg-world-soft px-2 py-1 text-xs text-world"
                   >
                     {p.display_name || p.username}
                     <button type="button" onClick={() => togglePick(p)} aria-label="Remove">
@@ -1261,16 +1307,16 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
               value={channelName}
               onChange={(e) => setChannelName(e.target.value.slice(0, 50))}
               placeholder="Channel name"
-              className="w-full rounded-2xl border border-border bg-input/40 px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              className="w-full rounded-2xl oniq-surface px-4 py-3 text-sm placeholder:text-muted-foreground outline-none"
             />
             <textarea
               value={channelDesc}
               onChange={(e) => setChannelDesc(e.target.value.slice(0, 200))}
               placeholder="Description (optional)"
               rows={3}
-              className="w-full rounded-2xl border border-border bg-input/40 px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              className="w-full rounded-2xl oniq-surface px-4 py-3 text-sm placeholder:text-muted-foreground outline-none"
             />
-            <label className="flex items-center justify-between rounded-2xl border border-border bg-input/20 px-4 py-3 text-sm">
+            <label className="flex items-center justify-between rounded-2xl oniq-surface px-4 py-3 text-sm">
               <span>
                 Public channel{" "}
                 <span className="text-xs text-muted-foreground">(anyone can discover & join)</span>
@@ -1279,7 +1325,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                 type="checkbox"
                 checked={channelPublic}
                 onChange={(e) => setChannelPublic(e.target.checked)}
-                className="h-4 w-4 accent-[#25D366]"
+                className="h-4 w-4 accent-[var(--world-a)]"
               />
             </label>
             <button
@@ -1287,7 +1333,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
               data-testid="channel-create"
               onClick={createChannel}
               disabled={starting || !channelName.trim()}
-              className="w-full rounded-2xl bg-[#25D366] py-3 text-sm font-semibold text-black disabled:opacity-50"
+              className="w-full rounded-2xl bg-world py-3 text-sm font-semibold text-white disabled:opacity-50"
             >
               Create channel 📢
             </button>
@@ -1295,15 +1341,15 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
         ) : (
           <>
             <div className="relative mt-3">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute start-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 autoFocus
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search @username"
-                className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-11 pr-10 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                className="w-full rounded-2xl oniq-surface py-3 ps-11 pe-10 text-sm placeholder:text-muted-foreground outline-none"
               />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="absolute end-3 top-1/2 -translate-y-1/2">
                 <SearchClearButton value={q} onClear={() => setQ("")} />
               </div>
             </div>
@@ -1317,13 +1363,13 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                   return (
                     <div
                       key={u.id}
-                      className={`flex w-full items-center gap-3 rounded-2xl p-3 hover:bg-muted ${isPicked ? "bg-primary/10" : ""}`}
+                      className={`flex w-full items-center gap-3 rounded-2xl p-3 hover:bg-muted ${isPicked ? "bg-world-soft" : ""}`}
                     >
                       <button
                         type="button"
                         disabled={starting}
                         onClick={() => (mode === "group" ? togglePick(u) : startChat(u.id))}
-                        className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:opacity-50"
+                        className="flex min-w-0 flex-1 items-center gap-3 text-start disabled:opacity-50"
                       >
                         <Avatar
                           name={u.display_name || u.username || "?"}
@@ -1336,11 +1382,11 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                             @{u.username}
                           </div>
                         </div>
-                        {mode === "group" && isPicked && <Check className="h-4 w-4 text-primary" />}
+                        {mode === "group" && isPicked && <Check className="h-4 w-4 text-world" />}
                       </button>
                       {mode === "chat" &&
                         (fs === "accepted" ? (
-                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">
+                          <span className="shrink-0 rounded-full bg-world-soft px-2.5 py-1 text-xs font-semibold text-world">
                             moots ✓
                           </span>
                         ) : fs === "pending-out" ? (
@@ -1359,7 +1405,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                               addFriend(u.id);
                             }}
                             disabled={addingId === u.id}
-                            className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50"
+                            className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
                           >
                             {addingId === u.id ? "…" : "add moot ➕"}
                           </button>
@@ -1376,7 +1422,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                 data-testid="group-create"
                 onClick={createGroup}
                 disabled={starting || !groupName.trim() || picked.length < 1}
-                className="mt-4 w-full rounded-2xl bg-[#25D366] py-3 text-sm font-semibold text-black disabled:opacity-50"
+                className="mt-4 w-full rounded-2xl bg-world py-3 text-sm font-semibold text-white disabled:opacity-50"
               >
                 Create group ({picked.length})
               </button>
@@ -1719,28 +1765,28 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
-      <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 pb-8 sm:rounded-3xl sm:border">
+      <div className="w-full max-w-md rounded-t-3xl oniq-glass p-5 pb-8 sm:rounded-3xl">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">the moots 🤝</h2>
+          <h2 className="font-display text-[18px] text-foreground">the moots 🤝</h2>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+            className="tap grid h-9 w-9 place-items-center rounded-full oniq-surface"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="relative mt-3">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute start-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             ref={searchInputRef}
             value={searchQ}
             onChange={(e) => setSearchQ(e.target.value)}
             placeholder="search @username or name 🔍"
-            className="w-full rounded-full border border-border bg-input/40 py-2.5 pl-11 pr-10 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-full oniq-surface py-2.5 ps-11 pe-10 text-sm placeholder:text-muted-foreground outline-none"
             data-testid="moots-search-input"
           />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+          <div className="absolute end-3 top-1/2 -translate-y-1/2">
             <SearchClearButton
               value={searchQ}
               onClear={() => setSearchQ("")}
@@ -1772,7 +1818,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                       {fs === "accepted" ? (
                         <button
                           onClick={() => openChat(u.id)}
-                          className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary"
+                          className="shrink-0 rounded-full bg-world-soft px-2.5 py-1 text-xs font-semibold text-world"
                         >
                           chat 💬
                         </button>
@@ -1784,7 +1830,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                         <button
                           disabled={busy === u.id}
                           onClick={() => respond(u.id, true)}
-                          className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50"
+                          className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
                         >
                           accept ✅
                         </button>
@@ -1792,7 +1838,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                         <button
                           disabled={addingId === u.id}
                           onClick={() => addMoot(u.id)}
-                          className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50"
+                          className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
                         >
                           {addingId === u.id ? "…" : "add moot ➕"}
                         </button>
@@ -1833,7 +1879,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                     <button
                       disabled={busy === r.id}
                       onClick={() => respond(r.id, true)}
-                      className="rounded-full bg-[#25D366] px-3 py-1 text-xs font-semibold text-black disabled:opacity-50"
+                      className="rounded-full bg-world px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
                     >
                       bet ✅
                     </button>
@@ -1854,7 +1900,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                 type="button"
                 onClick={pickContacts}
                 disabled={picking}
-                className="mt-2 w-full rounded-2xl bg-[#25D366] py-3 text-sm font-semibold text-black disabled:opacity-50"
+                className="mt-2 w-full rounded-2xl bg-world py-3 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {picking ? "checking your contacts…" : "find ur ppl 📇"}
               </button>
@@ -1872,7 +1918,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                 type="button"
                 onClick={pickNativeContacts}
                 disabled={nativePicking}
-                className="mt-2 w-full rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                className="mt-2 w-full rounded-2xl bg-world py-3 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {nativePicking ? "reading ur contacts…" : "Find friends from contacts 📇"}
               </button>
@@ -1884,7 +1930,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                 </span>
                 <button
                   onClick={pickNativeContacts}
-                  className="rounded-full bg-primary/15 px-2.5 py-1 font-semibold text-primary"
+                  className="rounded-full bg-world-soft px-2.5 py-1 font-semibold text-world"
                 >
                   retry
                 </button>
@@ -1916,7 +1962,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                         </div>
                         <button
                           onClick={() => openChat(m.id)}
-                          className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary"
+                          className="shrink-0 rounded-full bg-world-soft px-2.5 py-1 text-xs font-semibold text-world"
                         >
                           chat 💬
                         </button>
@@ -1931,7 +1977,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                     </span>
                     <button
                       onClick={invite}
-                      className="rounded-full bg-[#25D366] px-3 py-1 text-xs font-semibold text-black"
+                      className="rounded-full bg-world px-3 py-1 text-xs font-semibold text-white"
                     >
                       Invite 📤
                     </button>
@@ -1971,7 +2017,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                           {fs === "accepted" ? (
                             <button
                               onClick={() => openChat(f.user_id)}
-                              className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary"
+                              className="shrink-0 rounded-full bg-world-soft px-2.5 py-1 text-xs font-semibold text-world"
                             >
                               moots ✓
                             </button>
@@ -1983,7 +2029,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                             <button
                               disabled={busy === f.user_id}
                               onClick={() => respond(f.user_id, true)}
-                              className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50"
+                              className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
                             >
                               accept ✅
                             </button>
@@ -1991,7 +2037,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                             <button
                               onClick={() => addMoot(f.user_id)}
                               disabled={addingId === f.user_id}
-                              className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50"
+                              className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
                             >
                               {addingId === f.user_id ? "…" : "add moot ➕"}
                             </button>
@@ -2048,7 +2094,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                   <button
                     key={r.id}
                     onClick={() => openChat(r.id)}
-                    className="flex w-full items-center gap-3 rounded-2xl p-2 text-left hover:bg-muted"
+                    className="flex w-full items-center gap-3 rounded-2xl p-2 text-start hover:bg-muted"
                   >
                     <Avatar
                       name={r.prof.display_name || r.prof.username || "?"}
@@ -2068,7 +2114,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
             )}
           </section>
         </div>
-        <div className="mt-3 border-t border-border/50 pt-2 text-center text-[10px] text-muted-foreground">
+        <div className="mt-3 border-t border-border/50 pt-2 text-center text-[11px] text-muted-foreground">
           Contacts you pick are matched once and never stored 🔒
         </div>
       </div>

@@ -46,7 +46,7 @@ export function OniqWorldCard({
     <span
       data-world={world}
       className={cn(
-        "relative grid shrink-0 place-items-center overflow-hidden rounded-2xl text-white world-glow",
+        "relative grid shrink-0 place-items-center overflow-hidden rounded-2xl text-on-world world-glow",
         layout === "tile" ? "h-14 w-14" : "h-12 w-12",
         !skin && "bg-world",
       )}

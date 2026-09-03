@@ -3,18 +3,19 @@ import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-quer
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
 import {
+  AlertCircle,
   Heart,
   MessageCircle,
   Volume2,
   VolumeX,
   Loader2,
-  Play,
   Plus,
   MoreHorizontal,
+  RotateCw,
   Share2,
   Eye,
 } from "lucide-react";
-import { systemShare, type SharePayload } from "@/lib/share";
+import type { SharePayload } from "@/lib/share";
 import { ShareSheet } from "@/components/share/ShareSheet";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
 import { ReelVideo } from "@/components/reels/ReelVideo";
@@ -22,6 +23,7 @@ import { watchVideoView } from "@/lib/views";
 import { ReelOwnerSheet } from "@/components/reels/ReelOwnerSheet";
 import { toast } from "sonner";
 import { useMediaCoordinator } from "@/lib/MediaProvider";
+import { OniqCanvas, OniqEmpty } from "@/components/oniq";
 
 export const Route = createFileRoute("/_authenticated/app/chat/reels")({
   component: ReelsTab,
@@ -55,6 +57,14 @@ type ClipRow = {
 
 const PAGE = 6;
 
+/** Glass chrome floating over the video: small, dark, legible in both themes. */
+const PILL =
+  "press grid h-10 w-10 place-items-center rounded-full bg-black/45 text-white ring-1 ring-white/15 backdrop-blur-md";
+/** The end-side action rail: an icon well plus a label under it. */
+const RAIL_WELL =
+  "grid h-11 w-11 place-items-center rounded-full bg-black/35 ring-1 ring-white/15 backdrop-blur-sm";
+const RAIL_LABEL = "text-[11px] font-semibold text-white drop-shadow";
+
 function ReelsTab() {
   const minorFlag = useMinorFlag();
   const [muted, setMuted] = useState(true);
@@ -85,45 +95,56 @@ function ReelsTab() {
 
   if (query.isError) {
     return (
-      <div className="flex min-h-[70vh] flex-col items-center justify-center gap-3 px-8 text-center">
-        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-muted">
-          <Play className="h-6 w-6" />
+      <OniqCanvas world="mast" className="grid place-items-center px-5 py-10">
+        <div role="alert" className="w-full max-w-sm rounded-3xl oniq-surface p-6 text-center">
+          <div
+            className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-world text-white world-glow"
+            aria-hidden="true"
+          >
+            <AlertCircle className="h-6 w-6" />
+          </div>
+          <div className="mt-3 font-display text-[15px] text-foreground">
+            Couldn't load the feed
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A connection problem, not an empty feed.
+          </p>
+          <button
+            type="button"
+            onClick={() => query.refetch()}
+            className="press mt-4 inline-flex items-center gap-1.5 rounded-full bg-world px-5 py-2 text-xs font-semibold text-white world-glow"
+          >
+            <RotateCw className="h-3.5 w-3.5" /> Try again
+          </button>
         </div>
-        <div className="font-display text-base font-semibold">Couldn't load the feed</div>
-        <p className="max-w-xs text-xs text-muted-foreground">
-          A connection problem, not an empty feed.
-        </p>
-        <button
-          type="button"
-          onClick={() => query.refetch()}
-          className="mt-2 rounded-full bg-primary px-5 py-2 text-xs font-semibold text-primary-foreground"
-        >
-          Try again
-        </button>
-      </div>
+      </OniqCanvas>
     );
   }
 
   if (clips.length === 0 && !query.isLoading) {
     return (
-      <div className="flex min-h-[70vh] flex-col items-center justify-center gap-3 px-8 text-center">
-        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-muted">
-          <Play className="h-6 w-6" />
-        </div>
-        <div className="font-display text-base font-semibold">No clips yet</div>
-        <p className="max-w-xs text-xs text-muted-foreground">Be the first to post one.</p>
-        <Link
-          to="/app/clips"
-          className="mt-2 rounded-full bg-primary px-5 py-2 text-xs font-semibold text-primary-foreground"
-        >
-          Post a clip
-        </Link>
-      </div>
+      <OniqCanvas world="mast" className="grid place-items-center px-5 py-10">
+        <OniqEmpty
+          className="w-full max-w-sm"
+          emoji="🎬"
+          title="No clips yet"
+          body="Be the first to post one."
+          action={
+            <Link
+              to="/app/clips"
+              className="press rounded-full bg-world px-5 py-2 text-xs font-semibold text-white world-glow"
+            >
+              Post a clip
+            </Link>
+          }
+        />
+      </OniqCanvas>
     );
   }
 
   return (
     <div
+      data-world="mast"
       className="relative w-full overflow-hidden bg-black text-white"
       // Full bleed under the status bar — same reasoning as app.clips.tsx: the
       // shell pads <main> by the top inset for ordinary screens, and a video
@@ -133,7 +154,7 @@ function ReelsTab() {
       <button
         type="button"
         onClick={() => setMuted((m) => !m)}
-        className="absolute right-3 top-[max(1rem,env(safe-area-inset-top))] z-30 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur"
+        className={`absolute end-3 top-[max(1rem,env(safe-area-inset-top))] z-30 ${PILL}`}
         aria-label={muted ? "Unmute" : "Mute"}
       >
         {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
@@ -141,7 +162,7 @@ function ReelsTab() {
 
       <Link
         to="/app/clips"
-        className="absolute left-3 top-[max(1rem,env(safe-area-inset-top))] z-30 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur"
+        className={`absolute start-3 top-[max(1rem,env(safe-area-inset-top))] z-30 ${PILL}`}
         aria-label="Post a clip"
       >
         <Plus className="h-5 w-5" />
@@ -308,60 +329,78 @@ function ReelCard({
     <div ref={sectionRef} className="relative h-full w-full snap-start">
       <ReelVideo src={clip.video_url} muted={muted} videoRef={videoRef} onClick={tapVideo} />
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
 
-      <div className="absolute bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-3 z-20 flex flex-col items-center gap-5">
-        <button onClick={toggleLike} className="flex flex-col items-center gap-1" aria-label="Like">
-          <Heart className={`h-7 w-7 ${liked ? "fill-red-500 text-red-500" : "text-white"}`} />
-          <span className="text-xs">{likeCount}</span>
+      {/* action rail */}
+      <div className="absolute bottom-[calc(6.5rem+env(safe-area-inset-bottom))] end-3 z-20 flex flex-col items-center gap-4">
+        <button
+          onClick={toggleLike}
+          className="press flex flex-col items-center gap-1"
+          aria-label={liked ? "Unlike" : "Like"}
+        >
+          <span className={RAIL_WELL}>
+            <Heart className={`h-6 w-6 ${liked ? "fill-red-500 text-red-500" : "text-white"}`} />
+          </span>
+          <span className={RAIL_LABEL}>{likeCount}</span>
         </button>
         <div className="flex flex-col items-center gap-1 text-white/90">
-          <MessageCircle className="h-7 w-7" />
-          <span className="text-xs">{clip.comment_count}</span>
+          <span className={RAIL_WELL}>
+            <MessageCircle className="h-6 w-6" />
+          </span>
+          <span className={RAIL_LABEL}>{clip.comment_count}</span>
         </div>
         <button
           onClick={share}
-          className="flex flex-col items-center gap-1 text-white"
+          className="press flex flex-col items-center gap-1 text-white"
           aria-label="Share"
         >
-          <Share2 className="h-7 w-7" />
-          <span className="text-xs">Share</span>
+          <span className={RAIL_WELL}>
+            <Share2 className="h-6 w-6" />
+          </span>
+          <span className={RAIL_LABEL}>Share</span>
         </button>
         {me === clip.user_id ? (
           <button
             onClick={() => setShowViewers(true)}
-            className="flex flex-col items-center gap-1 text-white"
+            className="press flex flex-col items-center gap-1 text-white"
             aria-label="See who viewed"
           >
-            <Eye className="h-6 w-6" />
-            <span className="text-xs">{clip.view_count}</span>
+            <span className={RAIL_WELL}>
+              <Eye className="h-5 w-5" />
+            </span>
+            <span className={RAIL_LABEL}>{clip.view_count}</span>
           </button>
         ) : (
           <div className="flex flex-col items-center gap-1 text-white/80">
-            <Eye className="h-6 w-6" />
-            <span className="text-xs">{clip.view_count}</span>
+            <span className={RAIL_WELL}>
+              <Eye className="h-5 w-5" />
+            </span>
+            <span className={RAIL_LABEL}>{clip.view_count}</span>
           </div>
         )}
         {me === clip.user_id && (
           <button
             onClick={openOwnerSheet}
-            className="flex flex-col items-center gap-1 text-white"
+            className="press flex flex-col items-center gap-1 text-white"
             aria-label="Reel options"
           >
-            <MoreHorizontal className="h-7 w-7" />
+            <span className={RAIL_WELL}>
+              <MoreHorizontal className="h-6 w-6" />
+            </span>
           </button>
         )}
       </div>
 
-      <div className="absolute inset-x-0 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] z-20 px-4 pr-20">
+      {/* author row */}
+      <div className="absolute inset-x-0 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] z-20 pe-20 ps-4">
         {/* tap the author to visit their page */}
         <Link
           to="/app/u/$userId"
           params={{ userId: clip.user_id }}
-          className="flex items-center gap-2"
+          className="press inline-flex items-center gap-2"
           aria-label={`View @${handle}'s page`}
         >
-          <span className="isolate shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary p-[2px]">
+          <span className="isolate shrink-0 rounded-full bg-world p-[2px]">
             <span className="block rounded-full bg-black/40 p-[2px]">
               {profile?.avatar_url ? (
                 <img
@@ -369,18 +408,22 @@ function ReelCard({
                   alt=""
                   loading="lazy"
                   decoding="async"
-                  className="h-8 w-8 rounded-full object-cover"
+                  className="h-9 w-9 rounded-full object-cover"
                 />
               ) : (
-                <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-bold">
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-world text-sm font-bold text-white">
                   {name.charAt(0).toUpperCase()}
                 </span>
               )}
             </span>
           </span>
-          <span className="text-sm font-semibold">@{handle}</span>
+          <span className="font-display text-[15px] text-white drop-shadow">@{handle}</span>
         </Link>
-        {clip.caption && <p className="mt-2 text-sm text-white/95 line-clamp-2">{clip.caption}</p>}
+        {clip.caption && (
+          <p className="mt-2 text-sm leading-snug text-white/95 drop-shadow line-clamp-2">
+            {clip.caption}
+          </p>
+        )}
       </div>
 
       {shareSheet && (

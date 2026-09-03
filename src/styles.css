@@ -332,6 +332,7 @@
   --world-ink-dark: #67e8f9;
   --world-ink-light: #0e7490;
   --world-ink: var(--world-ink-dark);
+  --world-on: #ffffff;
   --wash: 20%;
 }
 .light {
@@ -407,6 +408,7 @@
   --world-ink-light: #92400e;
   --world-ink-dark: #fcd34d;
   --wash: 22%;
+  --world-on: #3b2a06;
 }
 [data-world="vitals"] {
   --world-a: #34d399;
@@ -751,6 +753,9 @@
     color-mix(in oklab, var(--world-a) 16%, var(--card)) 0%,
     color-mix(in oklab, var(--world-b) 12%, var(--card)) 100%
   );
+}
+@utility text-on-world {
+  color: var(--world-on);
 }
 @utility text-world {
   color: var(--world-ink);

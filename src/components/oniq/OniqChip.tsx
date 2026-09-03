@@ -31,7 +31,7 @@ export function OniqChip({
       data-testid={testId}
       className={cn(
         "press inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors",
-        active ? "bg-world text-white world-glow" : "oniq-surface text-foreground",
+        active ? "bg-world text-on-world world-glow" : "oniq-surface text-foreground",
         className,
       )}
     >

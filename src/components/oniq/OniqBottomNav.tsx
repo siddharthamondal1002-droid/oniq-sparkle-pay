@@ -75,7 +75,7 @@ export function OniqBottomNav({
             data-testid="nav-create"
             data-world="create"
             aria-label={t("nav.create", "Create")}
-            className="press -mt-7 grid h-14 w-14 place-items-center rounded-full bg-world text-white world-glow ring-4 ring-background"
+            className="press -mt-7 grid h-14 w-14 place-items-center rounded-full bg-world text-on-world world-glow ring-4 ring-background"
           >
             <Sparkles className="h-6 w-6" />
           </button>

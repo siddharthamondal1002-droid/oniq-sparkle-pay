@@ -1,9 +1,8 @@
 import { moneyIn } from "@/lib/format";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft,
   ArrowLeftRight,
   Camera,
   Check,
@@ -18,6 +17,17 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  OniqAIOrb,
+  OniqCanvas,
+  OniqCard,
+  OniqChip,
+  OniqEmpty,
+  OniqError,
+  OniqHeader,
+  OniqProgressBar,
+  OniqSkeletonRows,
+} from "@/components/oniq";
 import { supabase } from "@/integrations/supabase/client";
 import { SearchClearButton } from "@/components/ui/SearchClearButton";
 import { useT } from "@/lib/i18n/LanguageProvider";
@@ -57,48 +67,48 @@ function LearnScreen() {
   const [tab, setTab] = useState<Tab>("scout");
   const { t } = useT();
   return (
-    <div className="min-h-screen overflow-x-hidden px-5 pt-12 pb-10">
-      <div className="flex items-center gap-3">
-        <Link
-          to="/app"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-card"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <h1 className="font-display text-2xl font-bold flex items-center gap-2 min-w-0 truncate">
-          <span>🧠</span> {t("smart.header", "smart")}
-        </h1>
-      </div>
-      <div className="mt-1 text-xs text-muted-foreground">
-        {t("smart.subtitle", "shop & speak any language")}
-      </div>
+    <OniqCanvas world="scout" className="overflow-x-hidden pb-10">
+      <OniqHeader
+        eyebrow="Scout"
+        title={
+          <>
+            <span aria-hidden="true">🧠</span> {t("smart.header", "smart")}
+          </>
+        }
+        subtitle={t("smart.subtitle", "shop & speak any language")}
+        back="/app"
+      >
+        <div role="tablist" aria-label="Scout sections" className="flex gap-2">
+          {(
+            [
+              ["scout", t("smart.tab.scout", "price scout 🛒")],
+              ["translate", t("smart.tab.translate", "translate 🌐")],
+              ["lessons", t("smart.tab.lessons", "learn 📚")],
+            ] as const
+          ).map(([k, label]) => (
+            <OniqChip
+              key={k}
+              role="tab"
+              active={tab === k}
+              onClick={() => setTab(k as Tab)}
+              className="min-h-11 min-w-0 flex-1 basis-0 justify-center"
+            >
+              <span className="truncate">{label}</span>
+            </OniqChip>
+          ))}
+        </div>
+      </OniqHeader>
 
-      <div className="mt-4 grid grid-cols-3 rounded-2xl border border-border bg-card p-1 text-xs">
-        {(
-          [
-            ["scout", t("smart.tab.scout", "price scout 🛒")],
-            ["translate", t("smart.tab.translate", "translate 🌐")],
-            ["lessons", t("smart.tab.lessons", "learn 📚")],
-          ] as const
-        ).map(([k, label]) => (
-          <button
-            key={k}
-            onClick={() => setTab(k as Tab)}
-            className={`min-h-11 rounded-xl py-2 font-semibold truncate ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="px-5">
+        {tab === "scout" ? (
+          <ScoutPanel />
+        ) : tab === "translate" ? (
+          <TranslatePanel />
+        ) : (
+          <LessonsPanel />
+        )}
       </div>
-
-      {tab === "scout" ? (
-        <ScoutPanel />
-      ) : tab === "translate" ? (
-        <TranslatePanel />
-      ) : (
-        <LessonsPanel />
-      )}
-    </div>
+    </OniqCanvas>
   );
 }
 
@@ -245,12 +255,14 @@ function TranslatePanel() {
   }
 
   return (
-    <div className="mt-4 space-y-3">
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <div className="mb-2 text-xs font-medium uppercase tracking-wider text-primary/80">
+    <div className="mt-5 space-y-4">
+      <OniqCard padding="lg" className="rise rise-1">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
           say it in any lingo — {LANGUAGE_COUNT} languages, powered by Claude
         </div>
-        <div className="mb-2 flex items-center gap-2">
+
+        {/* The lens: what goes in on the start side, what comes out on the end side. */}
+        <div className="mt-3 flex items-center gap-2">
           <LangSelect value={from} onChange={setFrom} includeAuto />
           <button
             onClick={() => {
@@ -261,46 +273,55 @@ function TranslatePanel() {
             }}
             disabled={!canSwap}
             aria-label="Swap languages"
-            className="grid h-9 w-9 place-items-center rounded-xl border border-border bg-background disabled:opacity-40"
+            className="tap press grid h-10 w-10 shrink-0 place-items-center rounded-full border border-world bg-world-soft text-world disabled:opacity-40"
           >
             <ArrowLeftRight className="h-4 w-4" />
           </button>
           <LangSelect value={to} onChange={setTo} />
         </div>
-        <div className="relative">
+
+        <div className="relative mt-3">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value.slice(0, 1000))}
             rows={4}
             placeholder="type, paste, or tap the mic…"
-            className="w-full resize-none rounded-xl border border-border bg-background p-3 pr-12 text-sm focus:border-primary focus:outline-none"
+            className="w-full resize-none rounded-2xl border border-border bg-surface-2 p-3 pe-12 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-world"
           />
           {speechSupported && (
             <button
               data-testid="translate-mic"
               onClick={toggleMic}
               aria-label={listening ? "Stop dictation" : "Start dictation"}
-              className={`absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full border transition ${
+              className={`tap press absolute end-2 top-2 grid h-9 w-9 place-items-center rounded-full border transition ${
                 listening
-                  ? "border-red-500 bg-red-500/20 text-red-400 animate-pulse"
-                  : "border-border bg-background text-muted-foreground hover:text-primary"
+                  ? "animate-pulse border-destructive bg-destructive/15 text-destructive"
+                  : "border-border bg-card text-muted-foreground"
               }`}
             >
               <Mic className="h-4 w-4" />
             </button>
           )}
         </div>
-        <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            {LANG_LABEL[from] ?? from} → {LANG_LABEL[to] ?? to}
+
+        <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+          <span className="inline-flex min-w-0 items-center gap-1.5">
+            <span className="truncate font-semibold text-foreground">
+              {LANG_LABEL[from] ?? from}
+            </span>
+            <span aria-hidden="true" className="inline-block rtl:-scale-x-100">
+              →
+            </span>
+            <span className="truncate font-semibold text-world">{LANG_LABEL[to] ?? to}</span>
           </span>
-          <span>{text.length}/1000</span>
+          <span className="shrink-0">{text.length}/1000</span>
         </div>
+
         <button
           data-testid="do-translate"
           onClick={doTranslate}
           disabled={loading}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+          className="press mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-world py-3 text-sm font-semibold text-white world-glow disabled:opacity-60"
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -309,23 +330,28 @@ function TranslatePanel() {
           )}
           {loading ? "Translating…" : tr("smart.translate.cta", "Translate")}
         </button>
-      </div>
+      </OniqCard>
 
       {result && (
-        <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="text-xs font-medium uppercase tracking-wider text-primary">
-              {LANG_LABEL[to] ?? to}
+        <OniqCard variant="tinted" padding="lg" className="rise rise-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
+              <Languages className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">
+                {LANG_LABEL[from] ?? from} → {LANG_LABEL[to] ?? to}
+              </span>
             </div>
             <button
               onClick={copy}
-              className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs"
+              className="press inline-flex shrink-0 items-center gap-1 rounded-full oniq-surface px-3 py-1.5 text-[12px] font-semibold text-foreground"
             >
-              <Copy className="h-3 w-3" /> {tr("smart.translate.copy", "copy")}
+              <Copy className="h-3.5 w-3.5" /> {tr("smart.translate.copy", "copy")}
             </button>
           </div>
-          <p className="whitespace-pre-wrap text-base leading-relaxed">{result}</p>
-        </div>
+          <p className="mt-3 whitespace-pre-wrap text-[19px] leading-relaxed text-foreground">
+            {result}
+          </p>
+        </OniqCard>
       )}
     </div>
   );
@@ -344,7 +370,7 @@ function LangSelect({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="min-w-0 flex-1 rounded-xl border border-border bg-background px-2 py-2 text-sm focus:border-primary focus:outline-none"
+      className="min-h-10 min-w-0 flex-1 rounded-full border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-world"
     >
       {includeAuto && <option value="auto">Auto detect</option>}
       <optgroup label="Indian languages">
@@ -451,75 +477,108 @@ function LessonsPanel() {
   }
 
   return (
-    <div className="mt-4 space-y-4">
-      <div className="flex gap-2">
-        <div className="flex flex-1 items-center gap-2 rounded-2xl border border-border bg-card p-3">
-          <Zap className="h-4 w-4 text-primary" />
-          <div className="text-sm font-semibold">{stats?.xp ?? 0} XP</div>
-        </div>
-        <div className="flex flex-1 items-center gap-2 rounded-2xl border border-border bg-card p-3">
-          <Flame className="h-4 w-4 text-orange-400" />
-          <div className="text-sm font-semibold">{stats?.streak ?? 0} day streak</div>
-        </div>
+    <div className="mt-5 space-y-4">
+      <div className="grid grid-cols-2 gap-3 rise rise-1">
+        <OniqCard padding="md" className="flex items-center gap-3">
+          <span
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-world text-white world-glow"
+            aria-hidden="true"
+          >
+            <Zap className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <div className="font-display text-[20px] leading-none text-foreground">
+              {stats?.xp ?? 0}
+            </div>
+            <div className="mt-1 text-[11px] text-muted-foreground">XP</div>
+          </div>
+        </OniqCard>
+        <OniqCard padding="md" className="flex items-center gap-3">
+          <span
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-world-soft"
+            aria-hidden="true"
+          >
+            <Flame className="h-5 w-5 text-orange-500" />
+          </span>
+          <div className="min-w-0">
+            <div className="font-display text-[20px] leading-none text-foreground">
+              {stats?.streak ?? 0}
+            </div>
+            <div className="mt-1 text-[11px] text-muted-foreground">day streak</div>
+          </div>
+        </OniqCard>
       </div>
 
       {coursesError ? (
-        <div className="rounded-2xl border border-border bg-card p-4 text-sm">
-          <p className="text-muted-foreground">
-            Couldn't load courses right now — a connection problem, not an empty curriculum.
-          </p>
-          <button
-            type="button"
-            onClick={() => refetchCourses()}
-            className="press mt-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
-          >
-            Try again
-          </button>
-        </div>
+        <OniqError
+          label="Couldn't load courses right now — a connection problem, not an empty curriculum."
+          onRetry={() => refetchCourses()}
+        />
       ) : !courses?.length ? (
-        <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-          No courses yet — curriculum is cooking 🧑‍🍳
-        </div>
+        <OniqEmpty emoji="📚" title="No courses yet" body="curriculum is cooking 🧑‍🍳" />
       ) : (
-        courses.map((c) => {
+        courses.map((c, ci) => {
           const cLessons = (lessons ?? []).filter((l) => l.course_id === c.id);
+          const doneCount = cLessons.filter((l) => progress?.has(l.id)).length;
           return (
-            <div key={c.id} className="rounded-2xl border border-border bg-card p-4">
-              <div className="flex items-center gap-2">
-                <div className="text-2xl">{c.emoji}</div>
-                <div>
-                  <div className="font-display text-base font-bold">{c.title}</div>
+            <OniqCard key={c.id} padding="lg" className={`rise rise-${Math.min(ci + 2, 5)}`}>
+              <div className="flex items-center gap-3">
+                <span
+                  className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-world-soft text-2xl"
+                  aria-hidden="true"
+                >
+                  {c.emoji}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-display text-[16px] leading-tight text-foreground">
+                    {c.title}
+                  </div>
                   {c.description && (
-                    <div className="text-xs text-muted-foreground">{c.description}</div>
+                    <div className="mt-0.5 text-[12px] text-muted-foreground">{c.description}</div>
                   )}
                 </div>
               </div>
-              <div className="mt-4 space-y-2">
+              {cLessons.length > 0 && (
+                <div className="mt-3 flex items-center gap-3">
+                  <OniqProgressBar
+                    value={doneCount / cLessons.length}
+                    label={`${c.title} progress`}
+                    className="flex-1"
+                  />
+                  <span className="shrink-0 text-[11px] font-semibold text-muted-foreground">
+                    {doneCount}/{cLessons.length}
+                  </span>
+                </div>
+              )}
+              <ol className="mt-4 space-y-2">
                 {cLessons.map((l, i) => {
                   const done = progress?.has(l.id);
                   return (
-                    <button
-                      key={l.id}
-                      data-testid="lesson-node"
-                      onClick={() => setPlaying(l)}
-                      className="flex w-full items-center gap-3 rounded-xl border border-border bg-background p-3 text-left transition hover:border-primary/40"
-                    >
-                      <div
-                        className={`grid h-9 w-9 place-items-center rounded-full text-sm font-bold ${
-                          done
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground"
-                        }`}
+                    <li key={l.id}>
+                      <button
+                        data-testid="lesson-node"
+                        onClick={() => setPlaying(l)}
+                        className="press flex w-full items-center gap-3 rounded-2xl oniq-surface p-3 text-start"
                       >
-                        {done ? <Check className="h-4 w-4" /> : i + 1}
-                      </div>
-                      <div className="flex-1 text-sm font-semibold">{l.title}</div>
-                      <Sparkles className="h-4 w-4 text-primary/60" />
-                    </button>
+                        <span
+                          className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold ${
+                            done
+                              ? "bg-world text-white world-glow"
+                              : "bg-surface-2 text-muted-foreground"
+                          }`}
+                        >
+                          {done ? <Check className="h-4 w-4" /> : i + 1}
+                        </span>
+                        <span className="flex-1 text-sm font-semibold text-foreground">
+                          {l.title}
+                        </span>
+                        <Sparkles className="h-4 w-4 shrink-0 text-world" />
+                      </button>
+                    </li>
                   );
                 })}
-              </div>
-            </div>
+              </ol>
+            </OniqCard>
           );
         })
       )}
@@ -597,15 +656,27 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
   }, [finished, summary, submitting, lesson.id, score]);
 
   if (!questions) {
-    return <div className="mt-10 text-center text-sm text-muted-foreground">Loading…</div>;
+    return (
+      <div className="mt-6">
+        <OniqSkeletonRows rows={3} />
+      </div>
+    );
   }
   if (!total) {
     return (
-      <div className="mt-8 rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-        No questions in this lesson yet.
-        <button onClick={onExit} className="mt-3 block w-full text-primary underline">
-          back
-        </button>
+      <div className="mt-6">
+        <OniqEmpty
+          emoji="📚"
+          title="No questions in this lesson yet."
+          action={
+            <button
+              onClick={onExit}
+              className="press rounded-full oniq-surface px-4 py-2 text-sm font-semibold text-world"
+            >
+              back
+            </button>
+          }
+        />
       </div>
     );
   }
@@ -613,27 +684,25 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
   if (finished) {
     return (
       <div className="mt-6 space-y-4">
-        <div className="rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/15 to-transparent p-6 text-center">
-          <div className="text-6xl">{score >= 80 ? "🏆" : score >= 50 ? "💪" : "🌱"}</div>
-          <div className="mt-2 font-display text-2xl font-bold">{score}%</div>
-          <div className="text-xs text-muted-foreground">
+        <OniqCard variant="hero" padding="lg" className="rise text-center">
+          <div className="text-6xl" aria-hidden="true">
+            {score >= 80 ? "🏆" : score >= 50 ? "💪" : "🌱"}
+          </div>
+          <div className="mt-2 font-display text-[40px] leading-none">{score}%</div>
+          <div className="mt-2 text-[12px] text-white/80">
             {correctCount}/{total} correct
           </div>
           {summary && (
-            <div className="mt-4 flex items-center justify-center gap-3 text-sm">
-              <span className="rounded-full bg-primary/20 px-3 py-1 text-primary">
-                ⚡ {summary.xp} XP
-              </span>
-              <span className="rounded-full bg-orange-500/20 px-3 py-1 text-orange-400">
-                🔥 {summary.streak} streak
-              </span>
+            <div className="mt-4 flex items-center justify-center gap-2 text-sm">
+              <span className="rounded-full bg-white/20 px-3 py-1">⚡ {summary.xp} XP</span>
+              <span className="rounded-full bg-white/20 px-3 py-1">🔥 {summary.streak} streak</span>
             </div>
           )}
-        </div>
+        </OniqCard>
         <button
           data-testid="lesson-done"
           onClick={onExit}
-          className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+          className="press w-full rounded-full bg-world py-3 text-sm font-semibold text-white world-glow"
         >
           Done
         </button>
@@ -642,32 +711,35 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
   }
 
   return (
-    <div className="mt-4 space-y-3">
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <button onClick={onExit} className="underline">
+    <div className="mt-5 space-y-3">
+      <div className="flex items-center justify-between text-[12px] text-muted-foreground">
+        <button
+          onClick={onExit}
+          className="press rounded-full oniq-surface px-3 py-1 font-semibold text-foreground"
+        >
           exit
         </button>
         <span>
           {idx + 1}/{total}
         </span>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full bg-primary transition-all"
-          style={{ width: `${(idx / total) * 100}%` }}
-        />
-      </div>
-      <div className="rounded-2xl border border-border bg-card p-6 text-center">
-        <div className="text-xs uppercase tracking-wider text-muted-foreground">Translate</div>
-        <div className="mt-2 font-display text-2xl font-bold">{q!.prompt}</div>
-      </div>
+      <OniqProgressBar value={idx / total} label="Lesson progress" />
+      <OniqCard variant="tinted" padding="lg" className="text-center">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
+          Translate
+        </div>
+        <div className="mt-2 font-display text-[26px] leading-tight text-foreground">
+          {q!.prompt}
+        </div>
+      </OniqCard>
       <div className="space-y-2">
         {q!.options.map((opt, i) => {
-          let cls = "border-border bg-card";
+          let cls = "oniq-surface text-foreground";
           if (picked !== null) {
-            if (i === q!.correct_index) cls = "border-emerald-500 bg-emerald-500/15";
-            else if (i === picked) cls = "border-red-500 bg-red-500/15";
-            else cls = "border-border bg-card opacity-60";
+            if (i === q!.correct_index) cls = "border border-success bg-success/15 text-foreground";
+            else if (i === picked)
+              cls = "border border-destructive bg-destructive/15 text-foreground";
+            else cls = "oniq-surface text-foreground opacity-60";
           }
           return (
             <button
@@ -675,7 +747,7 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
               data-testid="quiz-option"
               onClick={() => pick(i)}
               disabled={picked !== null}
-              className={`w-full rounded-xl border p-4 text-left text-base font-medium transition ${cls}`}
+              className={`press w-full rounded-2xl p-4 text-start text-base font-medium transition ${cls}`}
             >
               {opt}
             </button>
@@ -1004,25 +1076,28 @@ function ScoutPanel() {
   const rankBadge = (i: number) => (i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`);
 
   return (
-    <div className="mt-4 space-y-3">
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <div className="mb-2 text-xs font-medium uppercase tracking-wider text-primary/80">
-          scout live prices across india — any language 🌐
+    <div className="mt-5 space-y-4">
+      <OniqCard padding="lg" className="rise rise-1">
+        <div className="flex items-center gap-3">
+          <OniqAIOrb size="md" still />
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
+            scout live prices across india — any language 🌐
+          </div>
         </div>
-        <div className="relative">
+        <div className="relative mt-3">
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value.slice(0, 300))}
             placeholder="parker jotter pen, iphone 15, atta 5kg…"
-            className="w-full min-w-0 rounded-xl border border-border bg-background p-3 pr-32 text-sm focus:border-primary focus:outline-none"
+            className="w-full min-w-0 rounded-full border border-border bg-surface-2 py-3 pe-32 ps-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-world"
           />
-          <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+          <div className="absolute end-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
             <SearchClearButton value={query} onClear={() => setQuery("")} />
             {speechSupported && (
               <button
                 onClick={toggleMic}
                 aria-label={listening ? "stop" : "dictate"}
-                className={`grid h-8 w-8 place-items-center rounded-full border ${listening ? "border-red-500 bg-red-500/20 text-red-400 animate-pulse" : "border-border bg-background text-muted-foreground"}`}
+                className={`tap press grid h-8 w-8 place-items-center rounded-full border ${listening ? "animate-pulse border-destructive bg-destructive/15 text-destructive" : "border-border bg-card text-muted-foreground"}`}
               >
                 <Mic className="h-4 w-4" />
               </button>
@@ -1030,7 +1105,7 @@ function ScoutPanel() {
             <button
               onClick={() => fileRef.current?.click()}
               aria-label="photo"
-              className="grid h-8 w-8 place-items-center rounded-full border border-border bg-background text-muted-foreground"
+              className="tap press grid h-8 w-8 place-items-center rounded-full border border-border bg-card text-muted-foreground"
             >
               <Camera className="h-4 w-4" />
             </button>
@@ -1045,16 +1120,19 @@ function ScoutPanel() {
           </div>
         </div>
         {image && (
-          <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-background p-2">
+          <div className="mt-2 flex items-center gap-2 rounded-2xl bg-surface-2 p-2">
             <img
               src={image.preview}
               alt=""
-              className="h-12 w-12 shrink-0 rounded-lg object-cover"
+              className="h-12 w-12 shrink-0 rounded-xl object-cover"
             />
-            <div className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+            <div className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">
               photo attached — we'll ID it 📸
             </div>
-            <button onClick={() => setImage(null)} className="shrink-0 text-xs text-red-400">
+            <button
+              onClick={() => setImage(null)}
+              className="press shrink-0 text-[12px] font-semibold text-destructive"
+            >
               remove
             </button>
           </div>
@@ -1062,7 +1140,7 @@ function ScoutPanel() {
         <button
           onClick={scout}
           disabled={loading}
-          className="press glow-primary mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+          className="press mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-world py-3 text-sm font-semibold text-white world-glow disabled:opacity-60"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
           {loading
@@ -1075,17 +1153,20 @@ function ScoutPanel() {
                   : "almost there — synthesising the best pick ✨"
             : tr("smart.scout.cta", "find best price")}
         </button>
-      </div>
+      </OniqCard>
 
       {scoutError && !loading && (
-        <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-center">
-          <div className="text-sm font-medium text-red-300">
+        <div
+          role="alert"
+          className="rounded-3xl border border-destructive/40 bg-destructive/10 p-4 text-center"
+        >
+          <div className="text-sm font-medium text-destructive">
             scout hit a wall 😵‍💫 — try again in a sec
           </div>
-          <div className="mt-1 text-xs text-red-400/80 break-words">{scoutError}</div>
+          <div className="mt-1 text-[12px] text-muted-foreground break-words">{scoutError}</div>
           <button
             onClick={scout}
-            className="mt-3 rounded-xl border border-red-400/40 bg-background px-4 py-2 text-xs font-semibold text-red-300"
+            className="press mt-3 rounded-full oniq-surface px-4 py-2 text-[12px] font-semibold text-foreground"
           >
             retry
           </button>
@@ -1093,41 +1174,45 @@ function ScoutPanel() {
       )}
 
       {data && (
-        <div className="space-y-2">
-          <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-4">
-            <div className="text-xs uppercase tracking-wider text-primary/80">product</div>
-            <div className="mt-1 font-display text-lg font-bold break-words">{data.product}</div>
-          </div>
+        <div className="space-y-3">
+          <OniqCard variant="hero" padding="lg" className="rise">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
+              product
+            </div>
+            <div className="mt-1 font-display text-[22px] leading-tight break-words">
+              {data.product}
+            </div>
+          </OniqCard>
           {data.top_pick?.store && (
-            <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4">
-              <div className="text-xs font-medium uppercase tracking-wider text-amber-300">
+            <OniqCard variant="tinted" padding="lg" className="rise rise-1">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
                 🏆 best pick
               </div>
-              <div className="mt-1 font-display text-base font-bold break-words">
+              <div className="mt-1 font-display text-[18px] leading-tight text-foreground break-words">
                 {data.top_pick.store}
               </div>
               {data.top_pick.why && (
-                <div className="mt-1 text-xs leading-relaxed text-amber-100/90 break-words">
+                <div className="mt-1 text-[12px] leading-relaxed text-muted-foreground break-words">
                   {data.top_pick.why}
                 </div>
               )}
               {Array.isArray(data.top_pick.cross_checked) &&
                 data.top_pick.cross_checked.length > 0 && (
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-wider text-emerald-300/90">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-success">
                       ✓ confirmed via
                     </span>
                     {data.top_pick.cross_checked.slice(0, 5).map((src, i) => (
                       <span
                         key={i}
-                        className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-200 break-words"
+                        className="rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-[11px] text-foreground break-words"
                       >
                         {src}
                       </span>
                     ))}
                   </div>
                 )}
-            </div>
+            </OniqCard>
           )}
           {(() => {
             const all = data.results ?? [];
@@ -1136,48 +1221,55 @@ function ScoutPanel() {
             return (
               <>
                 {all.length === 0 && (
-                  <div className="rounded-2xl border border-border bg-card p-4 text-center text-sm text-muted-foreground">
-                    nothing solid found rn — try a more specific query
-                  </div>
+                  <OniqEmpty
+                    emoji="🔍"
+                    title="nothing solid found rn"
+                    body="try a more specific query"
+                  />
                 )}
                 {ranked.map((r, i) => (
-                  <div key={`r-${i}`} className="rounded-2xl border border-border bg-card p-4">
+                  <OniqCard key={`r-${i}`} padding="md" className="rise rise-2">
                     <div className="flex items-start gap-3">
-                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-lg font-bold">
+                      <div
+                        className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-world-soft text-lg font-bold"
+                        aria-hidden="true"
+                      >
                         {rankBadge(i)}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <div className="truncate font-semibold">{r.store}</div>
+                          <div className="truncate font-semibold text-foreground">{r.store}</div>
                           {r.verified && (
-                            <span className="shrink-0 text-[10px] font-medium text-emerald-400">
+                            <span className="shrink-0 text-[11px] font-semibold text-success">
                               ✓ verified
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground truncate">
+                        <div className="flex items-center gap-2 text-[12px] text-muted-foreground truncate">
                           {r.rating && <span>★ {r.rating}</span>}
                           {r.source_domain && <span className="truncate">· {r.source_domain}</span>}
                         </div>
                       </div>
-                      <div className="shrink-0 font-display text-lg font-bold">
+                      <div className="shrink-0 font-display text-[18px] text-foreground">
                         {moneyIn(r.price_inr as number, "INR")}
                       </div>
                     </div>
                     {r.note && (
-                      <div className="mt-2 text-xs text-muted-foreground break-words">{r.note}</div>
+                      <div className="mt-2 text-[12px] text-muted-foreground break-words">
+                        {r.note}
+                      </div>
                     )}
                     <button
                       onClick={() => launchStore(r.store, data.product)}
-                      className="mt-3 flex w-full items-center justify-center gap-1 rounded-xl border border-border bg-background py-2 text-xs font-semibold"
+                      className="press mt-3 flex w-full items-center justify-center gap-1 rounded-full bg-surface-2 py-2 text-[12px] font-semibold text-foreground"
                     >
                       open in {r.store} <ExternalLink className="h-3 w-3" />
                     </button>
-                  </div>
+                  </OniqCard>
                 ))}
                 {unverified.length > 0 && (
-                  <div className="rounded-2xl border border-border bg-card p-3">
-                    <div className="mb-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <OniqCard padding="sm" className="rise rise-3">
+                    <div className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                       check these urself 👀
                     </div>
                     <div className="space-y-1.5">
@@ -1185,33 +1277,35 @@ function ScoutPanel() {
                         <button
                           key={`u-${i}`}
                           onClick={() => launchStore(r.store, data.product)}
-                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 py-2 text-left"
+                          className="press flex w-full items-center justify-between gap-2 rounded-2xl bg-surface-2 px-3 py-2 text-start"
                         >
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
-                              <div className="truncate text-sm font-semibold">{r.store}</div>
+                              <div className="truncate text-sm font-semibold text-foreground">
+                                {r.store}
+                              </div>
                               {r.verified && (
-                                <span className="shrink-0 text-[10px] font-medium text-emerald-400">
+                                <span className="shrink-0 text-[11px] font-semibold text-success">
                                   ✓
                                 </span>
                               )}
                             </div>
-                            <div className="truncate text-xs text-muted-foreground">
+                            <div className="truncate text-[12px] text-muted-foreground">
                               {r.price_range_inr
                                 ? `${r.price_range_inr}${r.rating ? ` · ★ ${r.rating}` : ""}`
                                 : (r.note ?? "couldn't verify live — check in app")}
                               {r.source_domain ? ` · ${r.source_domain}` : ""}
                             </div>
                           </div>
-                          <div className="shrink-0 text-xs font-semibold text-primary flex items-center gap-1">
+                          <div className="flex shrink-0 items-center gap-1 text-[12px] font-semibold text-world">
                             open {r.store} <ExternalLink className="h-3 w-3" />
                           </div>
                         </button>
                       ))}
                     </div>
-                  </div>
+                  </OniqCard>
                 )}
-                <div className="pt-2 text-center text-xs text-muted-foreground">
+                <div className="pt-2 text-center text-[12px] text-muted-foreground">
                   prices scouted live from the web — tap through to verify, they move fast 📈
                 </div>
               </>

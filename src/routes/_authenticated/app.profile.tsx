@@ -40,6 +40,7 @@ import {
 
 import { moneyIn } from "@/lib/format";
 import { z } from "zod";
+import { OniqCanvas, OniqCard, OniqSectionHeader, OniqSkeletonRows } from "@/components/oniq";
 
 export const Route = createFileRoute("/_authenticated/app/profile")({
   component: ProfileScreen,
@@ -121,16 +122,24 @@ function ProfileScreen() {
     navigate({ to: "/", replace: true });
   }
 
+  const initial = (form.display_name || profile?.username || "O").charAt(0).toUpperCase();
+
   return (
-    <div className="px-5 pt-[max(3rem,env(safe-area-inset-top))] pb-24 min-h-screen">
-      <div className="flex flex-col items-center text-center">
+    <OniqCanvas world="profile" className="pb-8">
+      {/* THE HERO, on the canvas itself: the world's eyebrow, a glowing
+          avatar well, then the name as the title. No card — the wash is the
+          backdrop, in either theme. The shell already pays the top inset. */}
+      <div className="rise flex flex-col items-center px-5 pt-8 text-center">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
+          Profile
+        </div>
         <button
           type="button"
           onClick={() => setEditAvatar(true)}
           aria-label="Edit profile photo"
-          className="relative grid h-20 w-20 place-items-center rounded-3xl bg-primary text-primary-foreground font-bold text-3xl overflow-visible"
+          className="press relative mt-4 grid h-24 w-24 place-items-center overflow-visible rounded-[28px] bg-world font-display text-4xl text-white world-glow"
         >
-          <span className="grid h-full w-full place-items-center overflow-hidden rounded-3xl">
+          <span className="grid h-full w-full place-items-center overflow-hidden rounded-[28px]">
             {form.avatar_url ? (
               <img
                 src={form.avatar_url}
@@ -138,27 +147,25 @@ function ProfileScreen() {
                 className="h-full w-full object-cover"
               />
             ) : (
-              (form.display_name || profile?.username || "O").charAt(0).toUpperCase()
+              initial
             )}
           </span>
-          <span className="absolute -bottom-1.5 -right-1.5 grid h-7 w-7 place-items-center rounded-full border-2 border-background bg-card text-foreground">
+          <span className="absolute -bottom-1 -end-1 grid h-8 w-8 place-items-center rounded-full oniq-surface text-foreground">
             <Camera className="h-3.5 w-3.5" />
           </span>
         </button>
-        <h1 className="mt-4 font-display text-2xl font-bold">
+        <h1 className="mt-4 font-display text-[30px] leading-[1.02] tracking-tight text-foreground">
           {profile?.display_name ?? "Your profile"}
         </h1>
-        <div className="text-sm text-muted-foreground">@{profile?.username}</div>
+        <div className="mt-1 text-sm text-muted-foreground">@{profile?.username}</div>
         {profile?.email && (
           <div className="mt-1 text-xs text-muted-foreground">{profile.email}</div>
         )}
       </div>
 
       {isLoading ? (
-        <div className="mt-8 space-y-3">
-          <div className="h-14 rounded-2xl bg-surface animate-pulse" />
-          <div className="h-24 rounded-2xl bg-surface animate-pulse" />
-          <div className="h-14 rounded-2xl bg-surface animate-pulse" />
+        <div className="mt-6 px-5">
+          <OniqSkeletonRows rows={3} />
         </div>
       ) : (
         <form
@@ -166,14 +173,14 @@ function ProfileScreen() {
             e.preventDefault();
             save.mutate();
           }}
-          className="mt-7 space-y-3"
+          className="rise rise-1 mt-6 space-y-3 px-5"
         >
           <Field label="Display name">
             <input
               value={form.display_name}
               onChange={(e) => setForm({ ...form, display_name: e.target.value })}
               maxLength={60}
-              className="w-full bg-transparent outline-none text-sm"
+              className="w-full bg-transparent text-sm outline-none"
               placeholder="Your name"
             />
           </Field>
@@ -183,14 +190,14 @@ function ProfileScreen() {
               onChange={(e) => setForm({ ...form, bio: e.target.value })}
               maxLength={240}
               rows={3}
-              className="w-full bg-transparent outline-none text-sm resize-none"
+              className="w-full resize-none bg-transparent text-sm outline-none"
               placeholder="A short bio"
             />
           </Field>
           <button
             type="button"
             onClick={() => setEditAvatar(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border py-3 text-sm font-medium text-muted-foreground hover:text-foreground"
+            className="press flex w-full items-center justify-center gap-2 rounded-2xl oniq-surface py-3 text-sm font-medium text-muted-foreground hover:text-foreground"
           >
             <Camera className="h-4 w-4" /> change profile photo
           </button>
@@ -198,7 +205,7 @@ function ProfileScreen() {
           <button
             type="submit"
             disabled={save.isPending}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+            className="press flex w-full items-center justify-center gap-2 rounded-2xl bg-world py-3 text-sm font-semibold text-white world-glow disabled:opacity-60"
           >
             <Save className="h-4 w-4" /> {save.isPending ? "Saving…" : "Save changes"}
           </button>
@@ -217,12 +224,14 @@ function ProfileScreen() {
 
       <SafetySection />
 
-      <button
-        onClick={signOut}
-        className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-destructive/40 bg-destructive/10 py-3 text-sm font-semibold text-destructive hover:bg-destructive/20"
-      >
-        <LogOut className="h-4 w-4" /> Sign out
-      </button>
+      <div className="mt-8 px-5">
+        <button
+          onClick={signOut}
+          className="press flex w-full items-center justify-center gap-2 rounded-2xl border border-destructive/40 bg-destructive/10 py-3 text-sm font-semibold text-destructive hover:bg-destructive/20"
+        >
+          <LogOut className="h-4 w-4" /> Sign out
+        </button>
+      </div>
 
       <DangerZone />
 
@@ -239,7 +248,7 @@ function ProfileScreen() {
           }}
         />
       )}
-    </div>
+    </OniqCanvas>
   );
 }
 
@@ -273,22 +282,28 @@ function DangerZone() {
   };
 
   return (
-    <div className="mt-10 space-y-3">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-destructive">
-        <AlertTriangle className="h-3.5 w-3.5" /> Danger zone
-      </div>
-      <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
-        <div className="text-sm font-semibold">Delete my account</div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Permanently removes your ONIQ account and profile. This can't be undone.
-        </p>
-        <button
-          data-testid="delete-account"
-          onClick={() => setOpen(true)}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/60 bg-destructive/10 py-2.5 text-sm font-semibold text-destructive hover:bg-destructive/20"
-        >
-          <Trash2 className="h-4 w-4" /> Delete my account
-        </button>
+    <section className="mt-10">
+      <OniqSectionHeader
+        title={
+          <span className="inline-flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-4 w-4" /> Danger zone
+          </span>
+        }
+      />
+      <div className="mt-3 px-5">
+        <div className="rounded-3xl border border-destructive/40 bg-destructive/5 p-4">
+          <div className="text-sm font-semibold">Delete my account</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Permanently removes your ONIQ account and profile. This can't be undone.
+          </p>
+          <button
+            data-testid="delete-account"
+            onClick={() => setOpen(true)}
+            className="press mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/60 bg-destructive/10 py-2.5 text-sm font-semibold text-destructive hover:bg-destructive/20"
+          >
+            <Trash2 className="h-4 w-4" /> Delete my account
+          </button>
+        </div>
       </div>
       {open && (
         <div className="fixed inset-0 z-[80] flex items-end bg-black/70 backdrop-blur-sm sm:items-center sm:justify-center">
@@ -331,7 +346,7 @@ function DangerZone() {
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -366,128 +381,121 @@ function SafetySection() {
     })();
   }, []);
 
+  const linkClass =
+    "press block rounded-xl oniq-surface py-2 text-center text-xs font-semibold text-foreground";
   return (
-    <div className="mt-8 space-y-3">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
-        <Shield className="h-3.5 w-3.5" /> Safety & Grievances
-      </div>
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <div className="text-sm font-semibold">Grievance Officer</div>
-        <div className="text-xs text-muted-foreground">{GRIEVANCE_OFFICER.name}</div>
-        <a
-          href={`mailto:${GRIEVANCE_OFFICER.email}`}
-          className="text-xs text-primary hover:underline"
-        >
-          {GRIEVANCE_OFFICER.email}
-        </a>
+    <section className="mt-8">
+      <OniqSectionHeader
+        title={
+          <span className="inline-flex items-center gap-2">
+            <Shield className="h-4 w-4 text-world" /> Safety & Grievances
+          </span>
+        }
+      />
+      <div className="mt-3 space-y-3 px-5">
+        <OniqCard>
+          <div className="text-sm font-semibold">Grievance Officer</div>
+          <div className="text-xs text-muted-foreground">{GRIEVANCE_OFFICER.name}</div>
+          <a
+            href={`mailto:${GRIEVANCE_OFFICER.email}`}
+            className="text-xs text-world hover:underline"
+          >
+            {GRIEVANCE_OFFICER.email}
+          </a>
 
-        <p className="mt-2 text-xs text-muted-foreground">
-          Complaints acknowledged in 7 days · Serious complaints resolved in 36 hours.
-        </p>
-        <Link
-          to="/app/privacy/notice"
-          className="mt-3 block rounded-xl border border-border bg-muted/30 py-2 text-center text-xs font-semibold hover:bg-muted/50"
-        >
-          Consent notice &amp; my consents
-        </Link>
-        <Link
-          to="/app/privacy/parental-consent"
-          className="mt-2 block rounded-xl border border-border bg-muted/30 py-2 text-center text-xs font-semibold hover:bg-muted/50"
-        >
-          Parental consent (under-age accounts)
-        </Link>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <Link
-            to="/app/privacy/grievance"
-            className="rounded-xl border border-border bg-muted/30 py-2 text-center text-xs font-semibold hover:bg-muted/50"
-          >
-            File a complaint
+          <p className="mt-2 text-xs text-muted-foreground">
+            Complaints acknowledged in 7 days · Serious complaints resolved in 36 hours.
+          </p>
+          <Link to="/app/privacy/notice" className={`mt-3 ${linkClass}`}>
+            Consent notice &amp; my consents
           </Link>
-          <Link
-            to="/app/privacy/data-rights"
-            className="rounded-xl border border-border bg-muted/30 py-2 text-center text-xs font-semibold hover:bg-muted/50"
-          >
-            My data rights
+          <Link to="/app/privacy/parental-consent" className={`mt-2 ${linkClass}`}>
+            Parental consent (under-age accounts)
           </Link>
-        </div>
-        <Link
-          to="/app/attributions"
-          className="mt-2 block rounded-xl border border-border bg-muted/30 py-2 text-center text-xs font-semibold hover:bg-muted/50"
-        >
-          Attributions &amp; licences
-        </Link>
-      </div>
-      <ViewIdentityToggle />
-      <div className="flex gap-2">
-        <Link
-          to="/terms"
-          className="flex-1 rounded-2xl border border-border bg-card p-3 text-center text-xs font-semibold hover:bg-muted"
-        >
-          <ScrollText className="mx-auto mb-1 h-4 w-4" /> Terms
-        </Link>
-        <Link
-          to="/privacy"
-          className="flex-1 rounded-2xl border border-border bg-card p-3 text-center text-xs font-semibold hover:bg-muted"
-        >
-          <Shield className="mx-auto mb-1 h-4 w-4" /> Privacy
-        </Link>
-      </div>
-      {isAdmin && (
-        <Link
-          to="/app/admin"
-          className="block rounded-2xl border border-primary/50 bg-primary/10 p-3 text-center text-sm font-semibold text-primary hover:bg-primary/20"
-        >
-          Moderation inbox
-        </Link>
-      )}
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-          <Flag className="h-4 w-4" /> My reports
-        </div>
-        {reportsError ? (
-          <div className="text-xs">
-            <p className="text-muted-foreground">
-              Couldn't load your reports right now — a connection problem, not confirmation that you
-              have none.
-            </p>
-            <button
-              type="button"
-              onClick={() => refetchReports()}
-              className="press mt-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
-            >
-              Try again
-            </button>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <Link to="/app/privacy/grievance" className={linkClass}>
+              File a complaint
+            </Link>
+            <Link to="/app/privacy/data-rights" className={linkClass}>
+              My data rights
+            </Link>
           </div>
-        ) : myReports.length === 0 ? (
-          <p className="text-xs text-muted-foreground">You haven't filed any reports.</p>
-        ) : (
-          <ul className="space-y-1.5">
-            {myReports.map((r) => (
-              <li
-                key={r.id}
-                className="flex items-center justify-between rounded-lg bg-muted/40 px-2.5 py-1.5 text-xs"
-              >
-                <span className="truncate">
-                  <span className="font-semibold">{r.target_type}</span>
-                  <span className="text-muted-foreground"> · {r.reason}</span>
-                </span>
-                <span
-                  className={`ml-2 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                    r.status === "open"
-                      ? "bg-red-500/20 text-red-400"
-                      : r.status === "resolved"
-                        ? "bg-emerald-500/20 text-emerald-400"
-                        : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {r.status}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <Link to="/app/attributions" className={`mt-2 ${linkClass}`}>
+            Attributions &amp; licences
+          </Link>
+        </OniqCard>
+        <ViewIdentityToggle />
+        <div className="flex gap-2">
+          <Link
+            to="/terms"
+            className="press flex-1 rounded-2xl oniq-surface p-3 text-center text-xs font-semibold"
+          >
+            <ScrollText className="mx-auto mb-1 h-4 w-4 text-world" /> Terms
+          </Link>
+          <Link
+            to="/privacy"
+            className="press flex-1 rounded-2xl oniq-surface p-3 text-center text-xs font-semibold"
+          >
+            <Shield className="mx-auto mb-1 h-4 w-4 text-world" /> Privacy
+          </Link>
+        </div>
+        {isAdmin && (
+          <Link
+            to="/app/admin"
+            className="press block rounded-2xl border border-world bg-world-soft p-3 text-center text-sm font-semibold text-world"
+          >
+            Moderation inbox
+          </Link>
         )}
+        <OniqCard>
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+            <Flag className="h-4 w-4" /> My reports
+          </div>
+          {reportsError ? (
+            <div className="text-xs">
+              <p className="text-muted-foreground">
+                Couldn't load your reports right now — a connection problem, not confirmation that
+                you have none.
+              </p>
+              <button
+                type="button"
+                onClick={() => refetchReports()}
+                className="press mt-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+              >
+                Try again
+              </button>
+            </div>
+          ) : myReports.length === 0 ? (
+            <p className="text-xs text-muted-foreground">You haven't filed any reports.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {myReports.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex items-center justify-between rounded-lg bg-surface-2 px-2.5 py-1.5 text-xs"
+                >
+                  <span className="truncate">
+                    <span className="font-semibold">{r.target_type}</span>
+                    <span className="text-muted-foreground"> · {r.reason}</span>
+                  </span>
+                  <span
+                    className={`ms-2 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase ${
+                      r.status === "open"
+                        ? "bg-destructive/10 text-destructive"
+                        : r.status === "resolved"
+                          ? "bg-world-soft text-world"
+                          : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {r.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </OniqCard>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -497,21 +505,25 @@ function AppearanceSection() {
     setMode(m);
     setThemeMode(m);
   };
+  const modeClass = (on: boolean) =>
+    `press flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold ${
+      on ? "bg-world text-white world-glow" : "oniq-surface text-muted-foreground"
+    }`;
   return (
     <section className="mt-8">
-      <h2 className="flex items-center gap-2 font-display text-lg font-bold">
-        <SunMoon className="h-4 w-4 text-primary" /> Appearance
-      </h2>
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <OniqSectionHeader
+        title={
+          <span className="inline-flex items-center gap-2">
+            <SunMoon className="h-4 w-4 text-world" /> Appearance
+          </span>
+        }
+      />
+      <div className="mt-3 grid grid-cols-2 gap-2 px-5">
         <button
           type="button"
           onClick={() => pick("dark")}
           aria-pressed={mode === "dark"}
-          className={`flex items-center justify-center gap-2 rounded-2xl border py-3 text-sm font-semibold ${
-            mode === "dark"
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-border text-muted-foreground"
-          }`}
+          className={modeClass(mode === "dark")}
         >
           <Moon className="h-4 w-4" /> Dark
         </button>
@@ -519,11 +531,7 @@ function AppearanceSection() {
           type="button"
           onClick={() => pick("light")}
           aria-pressed={mode === "light"}
-          className={`flex items-center justify-center gap-2 rounded-2xl border py-3 text-sm font-semibold ${
-            mode === "light"
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-border text-muted-foreground"
-          }`}
+          className={modeClass(mode === "light")}
         >
           <Sun className="h-4 w-4" /> Light
         </button>
@@ -552,68 +560,76 @@ function SoundsSection() {
     setSelectedPing(id);
     playPing(id);
   };
+  const optionClass = (on: boolean) =>
+    `press flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm text-foreground ${
+      on ? "border-world bg-world-soft" : "border-transparent bg-surface-2"
+    }`;
   return (
-    <div className="mt-8 space-y-3">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
-        <Music2 className="h-3.5 w-3.5" /> Sounds 🎵
+    <section className="mt-8">
+      <OniqSectionHeader
+        title={
+          <span className="inline-flex items-center gap-2">
+            <Music2 className="h-4 w-4 text-world" /> Sounds 🎵
+          </span>
+        }
+      />
+      <div className="mt-3 space-y-3 px-5">
+        <OniqCard>
+          <div className="mb-2 text-sm font-semibold">Call ringtone</div>
+          <div className="grid grid-cols-2 gap-2">
+            {RINGTONES.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => pickRing(r.id)}
+                aria-pressed={ring === r.id}
+                className={optionClass(ring === r.id)}
+              >
+                <span>
+                  {r.emoji} {r.label}
+                </span>
+                {ring === r.id && (
+                  <span className="text-[11px] font-bold uppercase text-world">on</span>
+                )}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            tap to preview · saves right away
+          </p>
+        </OniqCard>
+        <OniqCard>
+          <div className="mb-2 text-sm font-semibold">Chat ping</div>
+          <div className="grid grid-cols-2 gap-2">
+            {PINGS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => pickPing(p.id)}
+                aria-pressed={ping === p.id}
+                className={optionClass(ping === p.id)}
+              >
+                <span>
+                  {p.emoji} {p.label}
+                </span>
+                {ping === p.id && (
+                  <span className="text-[11px] font-bold uppercase text-world">on</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </OniqCard>
       </div>
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <div className="mb-2 text-sm font-semibold">Call ringtone</div>
-        <div className="grid grid-cols-2 gap-2">
-          {RINGTONES.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => pickRing(r.id)}
-              className={`flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm ${
-                ring === r.id
-                  ? "border-primary bg-primary/15 text-foreground"
-                  : "border-border bg-muted/30 text-foreground hover:bg-muted/50"
-              }`}
-            >
-              <span>
-                {r.emoji} {r.label}
-              </span>
-              {ring === r.id && (
-                <span className="text-[10px] font-bold uppercase text-primary">on</span>
-              )}
-            </button>
-          ))}
-        </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">tap to preview · saves right away</p>
-      </div>
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <div className="mb-2 text-sm font-semibold">Chat ping</div>
-        <div className="grid grid-cols-2 gap-2">
-          {PINGS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => pickPing(p.id)}
-              className={`flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm ${
-                ping === p.id
-                  ? "border-primary bg-primary/15 text-foreground"
-                  : "border-border bg-muted/30 text-foreground hover:bg-muted/50"
-              }`}
-            >
-              <span>
-                {p.emoji} {p.label}
-              </span>
-              {ping === p.id && (
-                <span className="text-[10px] font-bold uppercase text-primary">on</span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
+    </section>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block rounded-2xl border border-border bg-card p-3.5">
-      <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">{label}</div>
+    <label className="block rounded-2xl oniq-surface p-3.5">
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        {label}
+      </div>
       {children}
     </label>
   );
@@ -675,29 +691,35 @@ function MyDataSection() {
   };
 
   return (
-    <div className="mt-8 space-y-3">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
-        <Database className="h-3.5 w-3.5" /> my data 🔐
-      </div>
-      <div className="rounded-2xl border border-border bg-card p-4 space-y-2">
-        <p className="text-[11px] text-muted-foreground">
-          bulk-delete your own content. each action is permanent — no undo.
-        </p>
-        {(Object.keys(WIPE_META) as WipeKind[]).map((k) => (
-          <button
-            key={k}
-            onClick={() => {
-              setPending(k);
-              setTyped("");
-            }}
-            className="flex w-full items-center justify-between rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm hover:bg-muted/50"
-          >
-            <span>
-              {WIPE_META[k].emoji} {WIPE_META[k].label}
-            </span>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </button>
-        ))}
+    <section className="mt-8">
+      <OniqSectionHeader
+        title={
+          <span className="inline-flex items-center gap-2">
+            <Database className="h-4 w-4 text-world" /> my data 🔐
+          </span>
+        }
+      />
+      <div className="mt-3 px-5">
+        <OniqCard className="space-y-2">
+          <p className="text-[11px] text-muted-foreground">
+            bulk-delete your own content. each action is permanent — no undo.
+          </p>
+          {(Object.keys(WIPE_META) as WipeKind[]).map((k) => (
+            <button
+              key={k}
+              onClick={() => {
+                setPending(k);
+                setTyped("");
+              }}
+              className="press flex w-full items-center justify-between rounded-xl bg-surface-2 px-3 py-2.5 text-sm text-foreground"
+            >
+              <span>
+                {WIPE_META[k].emoji} {WIPE_META[k].label}
+              </span>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </button>
+          ))}
+        </OniqCard>
       </div>
       {pending && (
         <div className="fixed inset-0 z-[80] flex items-end bg-black/70 backdrop-blur-sm sm:items-center sm:justify-center">
@@ -739,7 +761,7 @@ function MyDataSection() {
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -789,42 +811,42 @@ function LanguageSection() {
   }
 
   return (
-    <div className="mt-8 space-y-3">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
-        Language 🌐
+    <section className="mt-8">
+      <OniqSectionHeader title="Language 🌐" />
+      <div className="mt-3 space-y-3 px-5">
+        <OniqCard>
+          <label className="block text-sm font-semibold">AI answer language</label>
+          <select
+            value={lang}
+            disabled={loading || saving}
+            onChange={(e) => onChange(e.target.value)}
+            className="mt-3 w-full rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-world disabled:opacity-60"
+          >
+            {LANG_ENTRIES.map(([code, native]) => (
+              <option key={code} value={code}>
+                {native}
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-xs text-muted-foreground">
+            AI answers appear in this language. The app menus stay in English.
+          </p>
+        </OniqCard>
+        <CountrySection />
       </div>
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <label className="block text-sm font-semibold">AI answer language</label>
-        <select
-          value={lang}
-          disabled={loading || saving}
-          onChange={(e) => onChange(e.target.value)}
-          className="mt-3 w-full rounded-xl border border-border bg-input/40 px-3 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-60"
-        >
-          {LANG_ENTRIES.map(([code, native]) => (
-            <option key={code} value={code}>
-              {native}
-            </option>
-          ))}
-        </select>
-        <p className="mt-2 text-xs text-muted-foreground">
-          AI answers appear in this language. The app menus stay in English.
-        </p>
-      </div>
-      <CountrySection />
-    </div>
+    </section>
   );
 }
 
 function CountrySection() {
   const [country, setCountry] = useCountry();
   return (
-    <div className="rounded-2xl border border-border bg-card p-4" data-testid="country-section">
+    <OniqCard testId="country-section">
       <label className="block text-sm font-semibold">Country 🌍</label>
       <select
         value={country}
         onChange={(e) => setCountry(e.target.value as CountryCode)}
-        className="mt-3 w-full rounded-xl border border-border bg-input/40 px-3 py-2.5 text-sm outline-none focus:border-primary"
+        className="mt-3 w-full rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-world"
       >
         {COUNTRIES.map((c) => (
           <option key={c.code} value={c.code}>
@@ -839,7 +861,7 @@ function CountrySection() {
         Third-party app names and trademarks belong to their respective owners. ONIQ links to them
         for convenience and implies no partnership or endorsement.
       </p>
-    </div>
+    </OniqCard>
   );
 }
 
@@ -904,7 +926,7 @@ function ViewIdentityToggle() {
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <OniqCard>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm font-semibold">Show my name in view lists 👀</div>
@@ -919,14 +941,14 @@ function ViewIdentityToggle() {
           role="switch"
           aria-checked={on ?? true}
           aria-label="Show my name in view lists"
-          className={`relative h-7 w-12 shrink-0 rounded-full transition ${on ? "bg-primary" : "bg-muted"} disabled:opacity-50`}
+          className={`relative h-7 w-12 shrink-0 rounded-full transition ${on ? "bg-world" : "bg-muted"} disabled:opacity-50`}
         >
           <span
-            className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${on ? "left-[calc(100%-1.625rem)]" : "left-0.5"}`}
+            className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${on ? "start-[calc(100%-1.625rem)]" : "start-0.5"}`}
           />
         </button>
       </div>
-    </div>
+    </OniqCard>
   );
 }
 
@@ -1002,42 +1024,46 @@ function PayoutSection() {
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-semibold text-foreground">Get paid — Creator Program</h2>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Channel earnings and viewer rewards are paid straight to your UPI ID by Razorpay. No UPI ID
-        on file means your payouts wait — they are never lost.
-      </p>
-      <div className="mt-3 flex items-center gap-2">
-        <input
-          value={vpa}
-          onChange={(e) => setVpa(e.target.value)}
-          placeholder="yourname@upi"
-          autoCapitalize="none"
-          autoCorrect="off"
-          className="min-w-0 flex-1 rounded-2xl border border-border bg-input/40 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-        />
-        <button
-          type="button"
-          disabled={saving || !vpa.trim() || vpa.trim().toLowerCase() === savedVpa}
-          onClick={() => void save()}
-          className="rounded-2xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-        >
-          Save
-        </button>
+      <OniqSectionHeader title="Get paid — Creator Program" />
+      <div className="mt-3 px-5">
+        <OniqCard variant="tinted">
+          <p className="text-xs text-muted-foreground">
+            Channel earnings and viewer rewards are paid straight to your UPI ID by Razorpay. No UPI
+            ID on file means your payouts wait — they are never lost.
+          </p>
+          <div className="mt-3 flex items-center gap-2">
+            <input
+              value={vpa}
+              onChange={(e) => setVpa(e.target.value)}
+              placeholder="yourname@upi"
+              autoCapitalize="none"
+              autoCorrect="off"
+              className="min-w-0 flex-1 rounded-2xl border border-border bg-card px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:border-world focus:outline-none"
+            />
+            <button
+              type="button"
+              disabled={saving || !vpa.trim() || vpa.trim().toLowerCase() === savedVpa}
+              onClick={() => void save()}
+              className="press rounded-2xl bg-world px-4 py-2.5 text-sm font-semibold text-white world-glow disabled:opacity-50"
+            >
+              Save
+            </button>
+          </div>
+          {(pendingPaise > 0 || paidPaise > 0) && (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              {pendingPaise > 0 ? `Waiting to be paid: ${moneyIn(pendingPaise / 100, "INR")}` : ""}
+              {pendingPaise > 0 && paidPaise > 0 ? " · " : ""}
+              {paidPaise > 0 ? `Paid out so far: ${moneyIn(paidPaise / 100, "INR")}` : ""}
+            </p>
+          )}
+          <Link
+            to="/app/creator"
+            className="press mt-3 inline-flex items-center gap-1 rounded-full bg-card px-3 py-1.5 text-xs font-semibold text-world shadow-card"
+          >
+            Open Creator Studio 📊
+          </Link>
+        </OniqCard>
       </div>
-      {(pendingPaise > 0 || paidPaise > 0) && (
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          {pendingPaise > 0 ? `Waiting to be paid: ${moneyIn(pendingPaise / 100, "INR")}` : ""}
-          {pendingPaise > 0 && paidPaise > 0 ? " · " : ""}
-          {paidPaise > 0 ? `Paid out so far: ${moneyIn(paidPaise / 100, "INR")}` : ""}
-        </p>
-      )}
-      <Link
-        to="/app/creator"
-        className="mt-3 inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary"
-      >
-        Open Creator Studio 📊
-      </Link>
     </section>
   );
 }

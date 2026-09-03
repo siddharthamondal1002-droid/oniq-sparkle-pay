@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
+  AlertCircle,
   Heart,
   CheckCircle2,
   Droplets,
@@ -15,14 +15,25 @@ import {
   Upload,
   FileText,
   Loader2,
+  Lock,
+  RotateCw,
   Trash2,
   ExternalLink,
 } from "lucide-react";
+import {
+  OniqCanvas,
+  OniqCard,
+  OniqChip,
+  OniqHeader,
+  OniqSectionHeader,
+  OniqSkeletonRows,
+} from "@/components/oniq";
 import { writeVitalsCache } from "@/components/vitals/useVitalsTileColor";
 import { CrisisCard } from "@/components/vitals/CrisisCard";
 import { BreathingCard } from "@/components/vitals/BreathingCard";
 import { launchMiniApp } from "@/lib/miniapps";
 import { assertHealthWriteAllowed, healthWritesAllowed } from "@/lib/healthGuard";
+import { DATA_COLLECTED } from "@/config/playCompliance";
 
 export const Route = createFileRoute("/_authenticated/app/vitals")({
   component: VitalsPage,
@@ -153,40 +164,45 @@ function VitalsPage() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "couldn't save"),
   });
 
-  return (
-    <div className="min-h-screen pb-24">
-      <div className="px-5 pt-[max(3rem,env(safe-area-inset-top))]">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/app"
-            aria-label="Back"
-            className="press grid h-9 w-9 place-items-center rounded-full bg-surface-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-          <div className="flex-1">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">vitals 🫀</div>
-            <h1 className="font-display text-2xl font-bold">ur body's group chat</h1>
-          </div>
-        </div>
+  const todayRow = (checkins ?? []).find((c) => c.day === today()) ?? null;
 
+  return (
+    <OniqCanvas world="vitals" className="pb-16">
+      <OniqHeader
+        eyebrow="vitals 🫀"
+        title="ur body's group chat"
+        subtitle="Your wellbeing, your way."
+        back="/app"
+      >
+        <PrivacyLine />
+      </OniqHeader>
+
+      <div className="px-5">
         {hpLoading ? (
-          <div className="mt-8 h-24 rounded-2xl bg-surface animate-pulse" />
+          <div className="mt-6">
+            <OniqSkeletonRows rows={3} />
+          </div>
         ) : hpError ? (
           /* A FAILED read is not a first-time user. Before this branch existed,
              a transient error made `hp` null and dropped the user into the
              ExperiencePicker, whose upsert then overwrote their stored profile. */
-          <div className="mt-8 rounded-2xl border border-border bg-surface p-4 text-sm">
-            <p className="text-muted-foreground">
-              Couldn't load your vitals right now — a connection problem, not a reset. Nothing was
-              changed.
-            </p>
+          <div role="alert" className="mt-6 rounded-3xl oniq-surface p-4 text-sm">
+            <div className="flex items-start gap-2 text-muted-foreground">
+              <AlertCircle
+                className="mt-[2px] h-4 w-4 shrink-0 text-amber-500"
+                aria-hidden="true"
+              />
+              <p>
+                Couldn't load your vitals right now — a connection problem, not a reset. Nothing was
+                changed.
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => refetchHp()}
-              className="press mt-3 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+              className="press mt-3 inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
             >
-              Try again
+              <RotateCw className="h-3.5 w-3.5" aria-hidden="true" /> Try again
             </button>
           </div>
         ) : !hp ? (
@@ -195,57 +211,158 @@ function VitalsPage() {
             busy={pickExperience.isPending}
           />
         ) : (
-          <div className="mt-6 space-y-6">
-            <DailyCheckin todayRow={(checkins ?? []).find((c) => c.day === today()) ?? null} />
-            <WeekReflections rows={checkins ?? []} />
-            <SupportSection rows={checkins ?? []} />
-            <BreathingCard />
-            <RecentCheckins rows={(checkins ?? []).filter((c) => c.day !== today())} />
-            {hp.experience === "women" && <CycleSection />}
-            <CareSection experience={hp.experience} />
-            <PartnerShortcuts />
-            <ReportsSection />
-            <WipeHealthData />
-            <p className="text-[11px] text-muted-foreground text-center pt-2">{DISCLAIMER}</p>
-          </div>
+          <>
+            <TodayTiles row={todayRow} />
+            <OniqSectionHeader className="mt-6 px-0" title="Today" />
+            <div className="mt-3 space-y-5">
+              <DailyCheckin todayRow={todayRow} />
+              <WeekReflections rows={checkins ?? []} />
+              <SupportSection rows={checkins ?? []} />
+              <BreathingCard />
+              <RecentCheckins rows={(checkins ?? []).filter((c) => c.day !== today())} />
+              {hp.experience === "women" && <CycleSection />}
+              <CareSection experience={hp.experience} />
+              <PartnerShortcuts />
+              <ReportsSection />
+              <WipeHealthData />
+              <p className="pt-2 text-center text-[11px] text-muted-foreground">{DISCLAIMER}</p>
+            </div>
+          </>
         )}
       </div>
+    </OniqCanvas>
+  );
+}
+
+/**
+ * "Private to you" says only what is true and tested. The sentence is the
+ * health entry's `protection` in src/config/playCompliance.ts — rendered
+ * from that one source rather than paraphrased here, so this screen and the
+ * Play declaration cannot drift apart.
+ */
+const HEALTH_PROTECTION =
+  DATA_COLLECTED.find((d) => d.category === "Health and fitness")?.protection ?? null;
+
+function PrivacyLine() {
+  if (!HEALTH_PROTECTION) return null;
+  return (
+    <div className="flex items-start gap-2 rounded-2xl bg-world-soft px-3 py-2.5">
+      <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-world" aria-hidden="true" />
+      <div className="min-w-0">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
+          Private to you
+        </div>
+        <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{HEALTH_PROTECTION}</p>
+      </div>
+    </div>
+  );
+}
+
+const MOOD_EMOJIS = ["😞", "😕", "😐", "🙂", "🤩"];
+const ENERGY_EMOJIS = ["🥱", "😴", "😌", "⚡", "🔥"];
+
+/**
+ * Today's numbers, straight from today's stored check-in and nothing else. A
+ * tile exists only for a field that is actually in the row — no steps, no
+ * score, no estimate. Descriptive, never a grade: the reflections further
+ * down are the only reading of the week, and they are not marks either.
+ */
+function TodayTiles({ row }: { row: Checkin | null }) {
+  if (!row) return null;
+  const tiles: { key: string; glyph: string; value: string; label: string }[] = [];
+  if (row.mood != null) {
+    tiles.push({
+      key: "mood",
+      glyph: MOOD_EMOJIS[Number(row.mood) - 1] ?? "",
+      value: `${row.mood}/5`,
+      label: "mood",
+    });
+  }
+  if (row.energy != null) {
+    tiles.push({
+      key: "energy",
+      glyph: ENERGY_EMOJIS[Number(row.energy) - 1] ?? "",
+      value: `${row.energy}/5`,
+      label: "energy",
+    });
+  }
+  if (row.sleep_hrs != null) {
+    tiles.push({ key: "sleep", glyph: "💤", value: `${row.sleep_hrs}h`, label: "sleep" });
+  }
+  if (row.water_glasses != null) {
+    tiles.push({ key: "water", glyph: "💧", value: `${row.water_glasses}`, label: "glasses" });
+  }
+  if (row.exercised != null) {
+    tiles.push({
+      key: "moved",
+      glyph: "🏃",
+      value: row.exercised ? "yes" : "not yet",
+      label: "moved",
+    });
+  }
+  if (!tiles.length) return null;
+  return (
+    <div
+      className="rise no-scrollbar -mx-5 mt-5 flex gap-2 overflow-x-auto px-5 pb-1"
+      aria-label="Today's check-in"
+    >
+      {tiles.map((t) => (
+        <div key={t.key} className="min-w-[6.25rem] shrink-0 rounded-2xl oniq-surface p-3">
+          <div className="text-xl" aria-hidden="true">
+            {t.glyph}
+          </div>
+          <div className="mt-1 font-display text-[18px] leading-none text-foreground">
+            {t.value}
+          </div>
+          <div className="mt-1 text-[11px] text-muted-foreground">{t.label}</div>
+        </div>
+      ))}
     </div>
   );
 }
 
 function ExperiencePicker({ onPick, busy }: { onPick: (e: Experience) => void; busy: boolean }) {
   return (
-    <div className="mt-6 rounded-3xl border border-border bg-card p-5">
-      <div className="text-xs uppercase tracking-wider text-muted-foreground">first time here</div>
-      <h2 className="font-display text-xl font-bold mt-1">how should vitals vibe? 💗</h2>
-      <p className="text-sm text-muted-foreground mt-1">
+    <OniqCard variant="surface" padding="lg" className="rise mt-6">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
+        first time here
+      </div>
+      <h2 className="mt-1 font-display text-[20px] leading-tight text-foreground">
+        how should vitals vibe? 💗
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
         pick the experience — we'll tune the vitals tile + cycle tools accordingly.
       </p>
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button
+          type="button"
           disabled={busy}
           onClick={() => onPick("men")}
-          className="press flex flex-col items-center gap-2 rounded-2xl border border-border p-4 bg-blue-500/10 hover:bg-blue-500/15 disabled:opacity-60"
+          className="press flex flex-col items-center gap-2 rounded-3xl border border-world bg-world-soft p-4 disabled:opacity-60"
         >
-          <span className="text-2xl">💙</span>
-          <div className="font-semibold">men's</div>
+          <span className="text-2xl" aria-hidden="true">
+            💙
+          </span>
+          <div className="font-display text-[14px] text-foreground">men's</div>
           <div className="text-[11px] text-muted-foreground">sleep, mood, gains</div>
         </button>
         <button
+          type="button"
           disabled={busy}
           onClick={() => onPick("women")}
-          className="press flex flex-col items-center gap-2 rounded-2xl border border-border p-4 bg-pink-500/10 hover:bg-pink-500/15 disabled:opacity-60"
+          className="press flex flex-col items-center gap-2 rounded-3xl border border-world bg-world-soft p-4 disabled:opacity-60"
         >
-          <span className="text-2xl">🩷</span>
-          <div className="font-semibold">women's</div>
+          <span className="text-2xl" aria-hidden="true">
+            🩷
+          </span>
+          <div className="font-display text-[14px] text-foreground">women's</div>
           <div className="text-[11px] text-muted-foreground">+ cycle tracker</div>
         </button>
       </div>
-      <p className="text-[11px] text-muted-foreground mt-3">
+      <p className="mt-3 text-[11px] text-muted-foreground">
         you can change this later — we're not gatekeeping anything.
       </p>
-    </div>
+    </OniqCard>
   );
 }
 
@@ -294,14 +411,16 @@ function DailyCheckin({ todayRow }: { todayRow: Checkin | null }) {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "couldn't save"),
   });
 
-  const moodEmojis = ["😞", "😕", "😐", "🙂", "🤩"];
-  const energyEmojis = ["🥱", "😴", "😌", "⚡", "🔥"];
-
   return (
-    <section className="rounded-3xl border border-border bg-card p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <CheckCircle2 className="h-4 w-4 text-primary" />
-        <h3 className="font-display text-base font-bold">daily check-in ✅</h3>
+    <section className="rise rounded-3xl oniq-surface p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <span
+          className="grid h-8 w-8 place-items-center rounded-xl bg-world-soft text-world"
+          aria-hidden="true"
+        >
+          <CheckCircle2 className="h-4 w-4" />
+        </span>
+        <h3 className="font-display text-[16px] text-foreground">daily check-in ✅</h3>
       </div>
 
       <Field icon={<Moon className="h-4 w-4" />} label={`sleep — ${sleep}h`}>
@@ -312,17 +431,24 @@ function DailyCheckin({ todayRow }: { todayRow: Checkin | null }) {
           step={0.5}
           value={sleep}
           onChange={(e) => setSleep(Number(e.target.value))}
-          className="w-full accent-primary"
+          aria-label="Hours of sleep"
+          className="w-full"
+          style={{ accentColor: "var(--world-a)" }}
         />
       </Field>
 
       <Field icon={<Sparkles className="h-4 w-4" />} label="mood">
-        <div className="flex gap-2 mt-1">
-          {moodEmojis.map((emo, i) => (
+        <div className="mt-1 flex gap-2">
+          {MOOD_EMOJIS.map((emo, i) => (
             <button
               key={i}
+              type="button"
               onClick={() => setMood(i + 1)}
-              className={`press grid h-10 w-10 place-items-center rounded-full text-lg ${mood === i + 1 ? "bg-primary/25 ring-1 ring-primary" : "bg-surface-2"}`}
+              aria-pressed={mood === i + 1}
+              aria-label={`mood ${i + 1} of 5`}
+              className={`press grid h-10 w-10 place-items-center rounded-full text-lg ${
+                mood === i + 1 ? "border border-world bg-world-soft" : "bg-surface-2"
+              }`}
             >
               {emo}
             </button>
@@ -331,12 +457,17 @@ function DailyCheckin({ todayRow }: { todayRow: Checkin | null }) {
       </Field>
 
       <Field icon={<Zap className="h-4 w-4" />} label="energy">
-        <div className="flex gap-2 mt-1">
-          {energyEmojis.map((emo, i) => (
+        <div className="mt-1 flex gap-2">
+          {ENERGY_EMOJIS.map((emo, i) => (
             <button
               key={i}
+              type="button"
               onClick={() => setEnergy(i + 1)}
-              className={`press grid h-10 w-10 place-items-center rounded-full text-lg ${energy === i + 1 ? "bg-primary/25 ring-1 ring-primary" : "bg-surface-2"}`}
+              aria-pressed={energy === i + 1}
+              aria-label={`energy ${i + 1} of 5`}
+              className={`press grid h-10 w-10 place-items-center rounded-full text-lg ${
+                energy === i + 1 ? "border border-world bg-world-soft" : "bg-surface-2"
+              }`}
             >
               {emo}
             </button>
@@ -346,24 +477,34 @@ function DailyCheckin({ todayRow }: { todayRow: Checkin | null }) {
 
       <Field icon={<Heart className="h-4 w-4" />} label="moved ur body today?">
         <button
+          type="button"
           onClick={() => setExercised((v) => !v)}
-          className={`press rounded-full px-3 py-1.5 text-xs font-semibold ${exercised ? "bg-primary text-primary-foreground" : "bg-surface-2 text-muted-foreground"}`}
+          aria-pressed={exercised}
+          className={`press rounded-full px-3 py-1.5 text-xs font-semibold ${
+            exercised ? "bg-world text-white" : "bg-surface-2 text-muted-foreground"
+          }`}
         >
           {exercised ? "yes — sweat era 💦" : "not yet"}
         </button>
       </Field>
 
       <Field icon={<Droplets className="h-4 w-4" />} label={`water — ${water} glasses`}>
-        <div className="flex items-center gap-2 mt-1">
+        <div className="mt-1 flex items-center gap-2">
           <button
-            className="press h-8 w-8 rounded-full bg-surface-2 text-lg"
+            type="button"
+            aria-label="One glass less"
+            className="press h-8 w-8 rounded-full bg-surface-2 text-lg text-foreground"
             onClick={() => setWater((w) => Math.max(0, w - 1))}
           >
             −
           </button>
-          <div className="text-2xl">{"💧".repeat(Math.min(water, 10))}</div>
+          <div className="text-2xl" aria-hidden="true">
+            {"💧".repeat(Math.min(water, 10))}
+          </div>
           <button
-            className="press h-8 w-8 rounded-full bg-surface-2 text-lg"
+            type="button"
+            aria-label="One glass more"
+            className="press h-8 w-8 rounded-full bg-surface-2 text-lg text-foreground"
             onClick={() => setWater((w) => Math.min(15, w + 1))}
           >
             +
@@ -372,9 +513,10 @@ function DailyCheckin({ todayRow }: { todayRow: Checkin | null }) {
       </Field>
 
       <button
+        type="button"
         onClick={() => save.mutate()}
         disabled={save.isPending}
-        className="press mt-4 w-full rounded-2xl bg-primary text-primary-foreground py-3 font-semibold disabled:opacity-60"
+        className="press mt-4 w-full rounded-2xl bg-world py-3 font-semibold text-white world-glow disabled:opacity-60"
       >
         {save.isPending ? "saving…" : "save today's check-in"}
       </button>
@@ -487,19 +629,26 @@ function CycleSection() {
   const fmt = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "—");
 
   return (
-    <section className="rounded-3xl border border-pink-500/30 bg-card p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Flower2 className="h-4 w-4 text-pink-400" />
-        <h3 className="font-display text-base font-bold">cycle 🌸</h3>
+    <section className="rounded-3xl oniq-surface p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <span
+          className="grid h-8 w-8 place-items-center rounded-xl bg-world-soft text-world"
+          aria-hidden="true"
+        >
+          <Flower2 className="h-4 w-4" />
+        </span>
+        <h3 className="font-display text-[16px] text-foreground">cycle 🌸</h3>
       </div>
 
       {nextDate && (
-        <div className="mb-4 rounded-2xl bg-pink-500/10 p-3">
-          <div className="text-sm font-semibold">next period ~ {fmt(nextDate)} 🗓</div>
+        <div className="mb-4 rounded-2xl bg-world-soft p-3">
+          <div className="text-sm font-semibold text-foreground">
+            next period ~ {fmt(nextDate)} 🗓
+          </div>
           <div className="text-xs text-muted-foreground">
             fertile window ~ {fmt(fertileStart)} → {fmt(fertileEnd)} · avg cycle {avgLen}d
           </div>
-          <div className="text-[11px] text-muted-foreground mt-1">
+          <div className="mt-1 text-[11px] text-muted-foreground">
             estimates only — bodies aren't clockwork 💗
           </div>
         </div>
@@ -512,7 +661,7 @@ function CycleSection() {
             type="date"
             value={start}
             onChange={(e) => setStart(e.target.value)}
-            className="mt-1 w-full rounded-xl bg-surface-2 border border-border px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-2xl border border-border bg-surface-2 px-3 py-2 text-sm text-foreground"
           />
         </label>
         <label className="text-xs">
@@ -521,7 +670,7 @@ function CycleSection() {
             type="date"
             value={end}
             onChange={(e) => setEnd(e.target.value)}
-            className="mt-1 w-full rounded-xl bg-surface-2 border border-border px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-2xl border border-border bg-surface-2 px-3 py-2 text-sm text-foreground"
           />
         </label>
       </div>
@@ -531,8 +680,9 @@ function CycleSection() {
         {SYMPTOMS.map((s) => {
           const on = chosen.has(s);
           return (
-            <button
+            <OniqChip
               key={s}
+              active={on}
               onClick={() => {
                 setChosen((prev) => {
                   const n = new Set(prev);
@@ -541,10 +691,9 @@ function CycleSection() {
                   return n;
                 });
               }}
-              className={`press rounded-full px-3 py-1 text-xs border ${on ? "bg-pink-500 text-white border-pink-500" : "bg-surface-2 border-border"}`}
             >
               {s}
-            </button>
+            </OniqChip>
           );
         })}
       </div>
@@ -553,25 +702,30 @@ function CycleSection() {
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         placeholder="notes to future u…"
-        className="mt-3 w-full rounded-xl bg-surface-2 border border-border p-2 text-sm min-h-[64px]"
+        aria-label="Cycle notes"
+        className="mt-3 min-h-[64px] w-full rounded-2xl border border-border bg-surface-2 p-3 text-sm text-foreground"
       />
 
       <button
+        type="button"
         onClick={() => save.mutate()}
         disabled={save.isPending}
-        className="press mt-3 w-full rounded-2xl bg-pink-500 text-white py-3 font-semibold disabled:opacity-60"
+        className="press mt-3 w-full rounded-2xl bg-world py-3 font-semibold text-white disabled:opacity-60"
       >
         {save.isPending ? "saving…" : "log this cycle"}
       </button>
 
       {(cycles ?? []).length > 0 && (
         <div className="mt-4">
-          <div className="text-xs text-muted-foreground mb-1">recent</div>
+          <div className="mb-1 text-xs text-muted-foreground">recent</div>
           <ul className="space-y-1">
             {(cycles ?? []).slice(0, 5).map((c) => (
-              <li key={c.id} className="text-xs rounded-xl bg-surface-2 p-2 flex items-start gap-2">
-                <div className="flex-1 min-w-0">
-                  <span className="font-semibold">{c.period_start}</span>
+              <li
+                key={c.id}
+                className="flex items-start gap-2 rounded-2xl bg-surface-2 p-2.5 text-xs"
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="font-semibold text-foreground">{c.period_start}</span>
                   {c.period_end && (
                     <>
                       {" "}
@@ -582,10 +736,11 @@ function CycleSection() {
                     <span className="text-muted-foreground"> · {c.symptoms.join(", ")}</span>
                   ) : null}
                   {c.notes ? (
-                    <div className="text-muted-foreground mt-0.5 truncate">{c.notes}</div>
+                    <div className="mt-0.5 truncate text-muted-foreground">{c.notes}</div>
                   ) : null}
                 </div>
                 <button
+                  type="button"
                   aria-label="delete cycle log"
                   onClick={async () => {
                     if (!confirm("delete this cycle log?")) return;
@@ -594,7 +749,7 @@ function CycleSection() {
                     qc.invalidateQueries({ queryKey: ["cycle-logs"] });
                     toast.success("deleted 🗑");
                   }}
-                  className="press grid h-7 w-7 place-items-center rounded-full bg-surface hover:bg-pink-500/20 text-muted-foreground hover:text-pink-400"
+                  className="press grid h-7 w-7 place-items-center rounded-full bg-card text-muted-foreground hover:text-destructive"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -623,16 +778,16 @@ function RecentCheckins({ rows }: { rows: Checkin[] }) {
     toast.success("deleted 🗑");
   };
   return (
-    <section className="rounded-3xl border border-border bg-card p-4">
-      <h3 className="font-display text-base font-bold mb-3">recent check-ins</h3>
+    <section className="rounded-3xl oniq-surface p-5">
+      <h3 className="mb-3 font-display text-[16px] text-foreground">recent check-ins</h3>
       <ul className="space-y-1">
         {rows.slice(0, 10).map((r) => (
           <li
             key={r.id ?? r.day}
-            className="text-xs rounded-xl bg-surface-2 p-2 flex items-center gap-2"
+            className="flex items-center gap-2 rounded-2xl bg-surface-2 p-2.5 text-xs"
           >
-            <div className="flex-1 min-w-0">
-              <span className="font-semibold">{r.day}</span>
+            <div className="min-w-0 flex-1">
+              <span className="font-semibold text-foreground">{r.day}</span>
               <span className="text-muted-foreground">
                 {r.sleep_hrs != null && <> · 💤 {r.sleep_hrs}h</>}
                 {r.mood != null && <> · mood {r.mood}/5</>}
@@ -642,9 +797,10 @@ function RecentCheckins({ rows }: { rows: Checkin[] }) {
               </span>
             </div>
             <button
+              type="button"
               aria-label="delete check-in"
               onClick={() => del(r.id)}
-              className="press grid h-7 w-7 place-items-center rounded-full bg-surface hover:bg-red-500/20 text-muted-foreground hover:text-red-400"
+              className="press grid h-7 w-7 place-items-center rounded-full bg-card text-muted-foreground hover:text-destructive"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -710,8 +866,9 @@ function PartnerShortcuts() {
   ];
   const Card = (p: { name: string; tag: string; url: string; color: string; emoji: string }) => (
     <button
+      type="button"
       onClick={() => launchMiniApp({ name: p.name, url: p.url })}
-      className="press flex items-center gap-3 rounded-2xl border border-border bg-surface-2 p-3 text-left hover:border-primary/40 transition"
+      className="press flex items-center gap-3 rounded-2xl bg-surface-2 p-3 text-start"
     >
       <div
         className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg"
@@ -719,23 +876,23 @@ function PartnerShortcuts() {
       >
         <span>{p.emoji}</span>
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold truncate">{p.name}</div>
-        <div className="text-[11px] text-muted-foreground truncate">{p.tag}</div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold text-foreground">{p.name}</div>
+        <div className="truncate text-[11px] text-muted-foreground">{p.tag}</div>
       </div>
-      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
     </button>
   );
   return (
-    <section className="rounded-3xl border border-border bg-card p-4">
-      <h3 className="font-display text-base font-bold mb-1">💊 order medicine</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+    <section className="rounded-3xl oniq-surface p-5">
+      <h3 className="font-display text-[16px] text-foreground">💊 order medicine</h3>
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
         {meds.map((m) => (
           <Card key={m.id} {...m} />
         ))}
       </div>
-      <h3 className="font-display text-base font-bold mt-5 mb-1">🩺 book a doctor</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+      <h3 className="mt-5 font-display text-[16px] text-foreground">🩺 book a doctor</h3>
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
         {docs.map((d) => (
           <Card key={d.id} {...d} />
         ))}
@@ -783,17 +940,16 @@ function WipeHealthData() {
     }
   };
   return (
-    <section className="rounded-3xl border border-red-500/30 bg-card p-4">
-      <h3 className="font-display text-base font-bold text-red-400 mb-1">
-        delete all my health data
-      </h3>
-      <p className="text-xs text-muted-foreground mb-3">
+    <section className="rounded-3xl oniq-surface p-5 ring-1 ring-destructive/30">
+      <h3 className="mb-1 font-display text-[16px] text-destructive">delete all my health data</h3>
+      <p className="mb-3 text-xs text-muted-foreground">
         wipes every cycle log, check-in, and your health profile. permanent — no undo.
       </p>
       <button
+        type="button"
         onClick={wipe}
         disabled={busy}
-        className="press w-full flex items-center justify-center gap-2 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-300 py-3 font-semibold disabled:opacity-60"
+        className="press flex w-full items-center justify-center gap-2 rounded-2xl bg-destructive/10 py-3 font-semibold text-destructive ring-1 ring-destructive/30 disabled:opacity-60"
       >
         <Trash2 className="h-4 w-4" />
         {busy ? "wiping…" : "delete all health data"}
@@ -854,13 +1010,13 @@ const CARE: Record<Experience, { title: string; items: { title: string; body: st
 function CareSection({ experience }: { experience: Experience }) {
   const c = CARE[experience];
   return (
-    <section className="rounded-3xl border border-border bg-card p-4">
-      <h3 className="font-display text-base font-bold mb-3">{c.title}</h3>
+    <section className="rounded-3xl oniq-surface p-5">
+      <h3 className="mb-3 font-display text-[16px] text-foreground">{c.title}</h3>
       <ul className="space-y-2">
         {c.items.map((it) => (
           <li key={it.title} className="rounded-2xl bg-surface-2/60 p-3">
-            <div className="text-sm font-semibold">{it.title}</div>
-            <div className="text-xs text-muted-foreground mt-1">{it.body}</div>
+            <div className="text-sm font-semibold text-foreground">{it.title}</div>
+            <div className="mt-1 text-xs leading-relaxed text-muted-foreground">{it.body}</div>
           </li>
         ))}
       </ul>
@@ -924,12 +1080,17 @@ function ReportsSection() {
   };
 
   return (
-    <section className="rounded-3xl border border-border bg-card p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <FileText className="h-4 w-4 text-primary" />
-        <h3 className="font-display text-base font-bold">reports 🧾</h3>
+    <section className="rounded-3xl oniq-surface p-5">
+      <div className="mb-2 flex items-center gap-2">
+        <span
+          className="grid h-8 w-8 place-items-center rounded-xl bg-world-soft text-world"
+          aria-hidden="true"
+        >
+          <FileText className="h-4 w-4" />
+        </span>
+        <h3 className="font-display text-[16px] text-foreground">reports 🧾</h3>
       </div>
-      <p className="text-xs text-muted-foreground mb-3">
+      <p className="mb-3 text-xs text-muted-foreground">
         upload a photo or PDF of a lab/medical report — AI explains it in plain english.
       </p>
 
@@ -941,11 +1102,12 @@ function ReportsSection() {
         onChange={(e) => setFile(e.target.files?.[0] ?? null)}
       />
       <button
+        type="button"
         onClick={() => inputRef.current?.click()}
-        className="press w-full flex items-center gap-2 rounded-2xl border border-dashed border-border bg-surface-2/40 p-3 text-sm"
+        className="press flex w-full items-center gap-2 rounded-2xl border border-dashed border-border-strong bg-surface-2/40 p-3 text-sm text-foreground"
       >
         <Upload className="h-4 w-4" />
-        <span className="flex-1 text-left truncate">
+        <span className="flex-1 truncate text-start">
           {file ? file.name : "attach report (jpg/png/pdf)"}
         </span>
       </button>
@@ -953,12 +1115,14 @@ function ReportsSection() {
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="anything to know? (optional)"
-        className="mt-2 w-full rounded-xl bg-surface-2 border border-border px-3 py-2 text-sm"
+        aria-label="Note for the scan"
+        className="mt-2 w-full rounded-2xl border border-border bg-surface-2 px-3 py-2 text-sm text-foreground"
       />
       <button
+        type="button"
         onClick={submit}
         disabled={busy || !file}
-        className="press mt-3 w-full rounded-2xl bg-primary text-primary-foreground py-3 font-semibold disabled:opacity-60"
+        className="press mt-3 w-full rounded-2xl bg-world py-3 font-semibold text-white disabled:opacity-60"
       >
         {busy ? (
           <span className="inline-flex items-center gap-2">
@@ -972,11 +1136,15 @@ function ReportsSection() {
 
       {reply && (
         <div className="mt-4 rounded-2xl bg-surface-2/60 p-3">
-          <div className="text-xs uppercase tracking-wider text-primary mb-1">AI summary</div>
-          <div className="text-sm whitespace-pre-wrap leading-relaxed">{reply}</div>
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
+            AI summary
+          </div>
+          <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{reply}</div>
           {sources.length > 0 && (
             <div className="mt-3">
-              <div className="text-[11px] uppercase text-muted-foreground mb-1">sources</div>
+              <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+                sources
+              </div>
               <ul className="space-y-1">
                 {sources.slice(0, 6).map((s) => (
                   <li key={s}>
@@ -984,7 +1152,7 @@ function ReportsSection() {
                       href={s}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-primary underline break-all"
+                      className="break-all text-xs text-world underline"
                     >
                       {s}
                     </a>
@@ -993,7 +1161,7 @@ function ReportsSection() {
               </ul>
             </div>
           )}
-          <div className="mt-3 rounded-xl bg-amber-500/10 border border-amber-500/30 p-2 text-[11px] text-amber-300">
+          <div className="mt-3 rounded-2xl bg-amber-500/10 p-2.5 text-[11px] text-foreground ring-1 ring-amber-500/30">
             🩺 {DISCLAIMER}
           </div>
         </div>
@@ -1057,10 +1225,12 @@ function WeekReflections({ rows }: { rows: Checkin[] }) {
   if (!notes.length) return null;
   return (
     <section
-      className="rounded-3xl border border-border bg-card p-5"
+      className="rise rise-1 rounded-3xl border border-world bg-world-soft p-5"
       data-testid="week-reflections"
     >
-      <h2 className="font-display text-lg font-bold">your week, gently 🍃</h2>
+      <h2 className="font-display text-[18px] leading-tight text-foreground">
+        your week, gently 🍃
+      </h2>
       <ul className="mt-2 space-y-1.5">
         {notes.map((n) => (
           <li key={n} className="text-sm text-muted-foreground">

@@ -4,9 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  AlertCircle,
   Heart,
   MessageCircle,
-  Plus,
   Image as ImageIcon,
   Globe,
   Send,
@@ -25,7 +25,7 @@ import {
   useAttachmentContext,
   type AttachmentOption,
 } from "@/components/attach/AttachmentSheet";
-import { systemShare, type SharePayload } from "@/lib/share";
+import type { SharePayload } from "@/lib/share";
 import { watchImageView } from "@/lib/views";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
 import { ShareSheet } from "@/components/share/ShareSheet";
@@ -35,6 +35,7 @@ import { sha256Hex, recordProvenance, scanProvenance } from "@/lib/provenance";
 import { CrisisSupportSheet } from "@/components/safety/CrisisSupportSheet";
 import { removeStorageObjects, parseStorageRef } from "@/lib/storagePath";
 import { formatDistanceToNow } from "date-fns";
+import { OniqCard, OniqChip, OniqEmpty } from "@/components/oniq";
 
 type Post = {
   id: string;
@@ -142,6 +143,13 @@ async function rotateUploadedImage(url: string): Promise<string> {
   );
   return uploadMomentBlob(out, "jpg", "image/jpeg");
 }
+
+/** A round icon button on a card: 48dp hit area, no chrome until hover. */
+const ICON_BTN =
+  "tap grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-surface-2";
+/** One action in a post's footer row. */
+const ACTION_BTN =
+  "press flex items-center gap-1.5 rounded-full px-3 py-2 text-xs transition-colors hover:bg-surface-2";
 
 export function MomentsFeed() {
   const qc = useQueryClient();
@@ -404,22 +412,24 @@ export function MomentsFeed() {
 
   return (
     <div className="pb-6">
-      <div className="mt-5 px-5">
-        <div className="rounded-3xl border border-border bg-card p-4">
+      <div className="mt-2 px-5">
+        {/* The composer: the one thing every visit can do, so it leads */}
+        <OniqCard className="rise">
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="What's happening in your world?"
             rows={2}
-            className="w-full resize-none bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none"
+            className="w-full resize-none bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
           />
           {imageUrl && (
-            <div className="relative mt-2">
-              <MomentMedia url={imageUrl} className="max-h-64 w-full rounded-2xl object-cover" />
+            <div className="relative mt-2 overflow-hidden rounded-2xl bg-black">
+              <MomentMedia url={imageUrl} className="max-h-64 w-full object-cover" />
               <button
                 type="button"
                 onClick={() => setImageUrl("")}
-                className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white"
+                aria-label="Remove media"
+                className="absolute end-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/60 text-white ring-1 ring-white/15"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -429,7 +439,7 @@ export function MomentsFeed() {
                   onClick={rotatePreview}
                   disabled={uploading}
                   aria-label="Rotate photo"
-                  className="absolute right-2 top-11 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white disabled:opacity-50"
+                  className="absolute end-2 top-12 grid h-8 w-8 place-items-center rounded-full bg-black/60 text-white ring-1 ring-white/15 disabled:opacity-50"
                 >
                   {uploading ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -447,30 +457,27 @@ export function MomentsFeed() {
             className="hidden"
             onChange={handlePickFile}
           />
-          <div className="mt-3 border-t border-border pt-3">
+          <div className="mt-3 border-t border-border/60 pt-3">
             <div className="mb-2 text-xs text-muted-foreground">who can peep this? 👀</div>
-            <div className="flex gap-2">
+            <div className="flex gap-2" role="radiogroup" aria-label="Who can see this">
               {(["public", "moots"] as const).map((v) => {
                 const active = visibility === v;
                 const label = v === "public" ? "errbody 🌍" : "moots only 🤝";
                 return (
-                  <button
+                  <OniqChip
                     key={v}
-                    type="button"
-                    data-testid={`moment-visibility-${v}`}
+                    role="radio"
+                    active={active}
+                    testId={`moment-visibility-${v}`}
+                    className="min-h-11 flex-1 justify-center"
                     onClick={() => {
                       setVisibility(v);
                       if (typeof sessionStorage !== "undefined")
                         sessionStorage.setItem("oniq_post_visibility", v);
                     }}
-                    className={`flex-1 min-h-11 rounded-full border px-3 py-2 text-xs font-semibold transition ${
-                      active
-                        ? "border-primary bg-primary/15 text-primary"
-                        : "border-border bg-card text-muted-foreground hover:bg-muted"
-                    }`}
                   >
                     {label}
-                  </button>
+                  </OniqChip>
                 );
               })}
             </div>
@@ -481,7 +488,7 @@ export function MomentsFeed() {
               checked={isSynthetic}
               disabled={syntheticLocked}
               onChange={(e) => setIsSynthetic(e.target.checked)}
-              className="mt-0.5 accent-[hsl(var(--primary))]"
+              className="mt-0.5 accent-[var(--world-a)]"
             />
             <span>
               this media is AI-generated or AI-edited 🤖{" "}
@@ -491,13 +498,13 @@ export function MomentsFeed() {
               </span>
             </span>
           </label>
-          <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-            <div className="flex gap-2 text-muted-foreground">
+          <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-3">
+            <div className="flex items-center gap-2 text-muted-foreground">
               <button
                 type="button"
                 onClick={() => setShowAttach(true)}
                 disabled={uploading}
-                className={`grid h-8 w-8 place-items-center rounded-full hover:bg-muted ${uploading ? "opacity-50" : ""}`}
+                className={`tap grid h-9 w-9 place-items-center rounded-full bg-world-soft text-world ${uploading ? "opacity-50" : ""}`}
                 aria-label="Add photo from gallery"
               >
                 {uploading ? (
@@ -515,8 +522,8 @@ export function MomentsFeed() {
                     sessionStorage.setItem("oniq_post_visibility", next);
                 }}
                 aria-label="Toggle post visibility"
-                className={`flex h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold transition hover:bg-muted ${
-                  visibility === "public" ? "text-primary" : "text-muted-foreground"
+                className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold transition-colors hover:bg-surface-2 ${
+                  visibility === "public" ? "text-world" : "text-muted-foreground"
                 }`}
               >
                 {visibility === "public" ? (
@@ -530,34 +537,40 @@ export function MomentsFeed() {
             <button
               onClick={post}
               disabled={posting || (!content.trim() && !imageUrl.trim())}
-              className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+              className="press rounded-full bg-world px-5 py-2 text-xs font-semibold text-white world-glow disabled:opacity-50"
             >
               {posting ? "Posting…" : "Post"}
             </button>
           </div>
-        </div>
+        </OniqCard>
 
         {postsError ? (
-          <div className="mt-6 rounded-2xl border border-border bg-card p-4 text-sm">
-            <p className="text-muted-foreground">
-              Couldn't load moments right now — a connection problem, not an empty feed.
-            </p>
+          <div role="alert" className="mt-6 rounded-3xl oniq-surface p-4 text-sm">
+            <div className="flex items-start gap-2 text-muted-foreground">
+              <AlertCircle className="mt-[2px] h-4 w-4 shrink-0 text-amber-500" />
+              <p>Couldn't load moments right now — a connection problem, not an empty feed.</p>
+            </div>
             <button
               type="button"
               onClick={() => refetch()}
-              className="press mt-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+              className="press mt-3 inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
             >
-              Try again
+              <RotateCw className="h-3.5 w-3.5" /> Try again
             </button>
           </div>
         ) : posts && posts.length > 0 ? (
           <div className="mt-5 space-y-4">
-            {posts.map((p) => {
+            {posts.map((p, i) => {
               const liked = likedIds.has(p.id);
               const isMine = p.user_id === me;
+              const media = p.media_urls?.[0];
               return (
-                <article key={p.id} className="rounded-3xl border border-border bg-card p-4">
-                  <div className="flex items-center gap-3">
+                <article
+                  key={p.id}
+                  id={`post-${p.id}`}
+                  className={`overflow-hidden rounded-3xl oniq-surface ${i < 3 ? `rise rise-${i + 1}` : ""}`}
+                >
+                  <div className="flex items-center gap-3 px-4 pt-4">
                     <Link
                       to={isMine ? "/app/chat/me" : "/app/u/$userId"}
                       params={isMine ? undefined : { userId: p.user_id }}
@@ -565,18 +578,18 @@ export function MomentsFeed() {
                       aria-label={`View ${p.profiles?.display_name ?? "user"}'s page`}
                     >
                       {/* story-ring avatar — tap to visit their page */}
-                      <span className="isolate shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary p-[2px]">
-                        <span className="block rounded-full bg-background p-[2px]">
+                      <span className="isolate shrink-0 rounded-full bg-world p-[2px]">
+                        <span className="block rounded-full bg-card p-[2px]">
                           {p.profiles?.avatar_url ? (
                             <img
                               src={p.profiles.avatar_url}
                               alt=""
                               loading="lazy"
                               decoding="async"
-                              className="h-9 w-9 rounded-full object-cover"
+                              className="h-10 w-10 rounded-full object-cover"
                             />
                           ) : (
-                            <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-bold text-primary-foreground">
+                            <span className="grid h-10 w-10 place-items-center rounded-full bg-world-soft text-sm font-bold text-world">
                               {(p.profiles?.display_name ?? p.profiles?.username ?? "U")
                                 .charAt(0)
                                 .toUpperCase()}
@@ -585,7 +598,7 @@ export function MomentsFeed() {
                         </span>
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">
+                        <span className="block truncate text-[15px] font-semibold text-foreground">
                           {p.profiles?.display_name ?? p.profiles?.username ?? "User"}
                         </span>
                         <span className="block text-xs text-muted-foreground">
@@ -596,7 +609,7 @@ export function MomentsFeed() {
                       </span>
                     </Link>
                     {isMine && p.visibility === "moots" && (
-                      <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                      <span className="shrink-0 rounded-full bg-world-soft px-2 py-0.5 text-[11px] font-semibold text-world">
                         moots only 🤝
                       </span>
                     )}
@@ -605,7 +618,7 @@ export function MomentsFeed() {
                         <button
                           type="button"
                           onClick={() => setEditTarget(p)}
-                          className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-primary"
+                          className={`${ICON_BTN} hover:text-world`}
                           aria-label="Edit post"
                         >
                           <Pencil className="h-4 w-4" />
@@ -613,7 +626,7 @@ export function MomentsFeed() {
                         <button
                           type="button"
                           onClick={() => deletePost(p.id)}
-                          className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
+                          className={`${ICON_BTN} hover:text-destructive`}
                           aria-label="Delete post"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -623,7 +636,7 @@ export function MomentsFeed() {
                       <button
                         type="button"
                         onClick={() => setReportTarget({ type: "moment", id: p.id })}
-                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-500"
+                        className={`${ICON_BTN} shrink-0 hover:text-destructive`}
                         aria-label="Report post"
                       >
                         <Flag className="h-4 w-4" />
@@ -632,50 +645,65 @@ export function MomentsFeed() {
                   </div>
 
                   {p.is_synthetic && (
-                    <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
-                      AI-generated content 🤖
-                    </span>
+                    <div className="px-4 pt-2">
+                      <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[11px] font-semibold text-amber-300">
+                        AI-generated content 🤖
+                      </span>
+                    </div>
                   )}
-                  {p.content && <p className="mt-3 whitespace-pre-wrap text-sm">{p.content}</p>}
-                  {p.media_urls?.[0] && (
-                    <MomentMedia
-                      url={p.media_urls[0]}
-                      className="mt-3 max-h-[70vh] w-full rounded-2xl object-cover"
-                    />
+                  {p.content && (
+                    <p className="whitespace-pre-wrap px-4 pt-3 text-[15px] leading-relaxed text-foreground">
+                      {p.content}
+                    </p>
+                  )}
+                  {media && (
+                    <div className="mt-3 bg-black">
+                      <MomentMedia url={media} className="max-h-[70vh] w-full object-cover" />
+                    </div>
                   )}
 
-                  <div className="mt-3 flex gap-5 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1 px-2 py-2 text-muted-foreground">
                     <button
+                      type="button"
                       onClick={() => toggleLike(p.id)}
-                      className={`flex items-center gap-1 transition ${liked ? "text-accent" : "hover:text-accent"}`}
+                      className={`${ACTION_BTN} ${liked ? "bg-world-soft text-world" : ""}`}
+                      aria-label={liked ? "Unlike" : "Like"}
                     >
                       <Heart className={`h-4 w-4 ${liked ? "fill-current" : ""}`} />{" "}
                       {p.like_count ?? 0}
                     </button>
                     <button
+                      type="button"
                       onClick={() => setOpenComments(p.id)}
-                      className="flex items-center gap-1 hover:text-primary"
+                      className={`${ACTION_BTN} hover:text-world`}
+                      aria-label="Comments"
                     >
                       <MessageCircle className="h-4 w-4" /> {p.comment_count ?? 0}
                     </button>
                     <button
+                      type="button"
                       onClick={() => sharePost(p)}
-                      className="flex items-center gap-1 hover:text-primary"
+                      className={`${ACTION_BTN} hover:text-world`}
                       aria-label="Share post"
                     >
                       <Share2 className="h-4 w-4" /> share
                     </button>
+                    <span className="flex-1" />
                     {me === p.user_id ? (
                       <button
+                        type="button"
                         onClick={() => setViewersFor(p.id)}
                         role="button"
                         aria-label="See who viewed"
-                        className="flex min-h-[24px] items-center gap-1 hover:text-primary active:opacity-70"
+                        className={`${ACTION_BTN} min-h-[24px] hover:text-world active:opacity-70`}
                       >
                         <Eye className="h-4 w-4" /> {p.view_count ?? 0}
                       </button>
                     ) : (
-                      <span className="flex items-center gap-1" aria-label="Views">
+                      <span
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs"
+                        aria-label="Views"
+                      >
                         <Eye className="h-4 w-4" /> {p.view_count ?? 0}
                       </span>
                     )}
@@ -686,13 +714,12 @@ export function MomentsFeed() {
             })}
           </div>
         ) : (
-          <div className="mt-8 flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border p-10 text-center">
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-accent/10 text-accent">
-              <Plus className="h-5 w-5" />
-            </div>
-            <div className="font-display text-base font-semibold">No moments yet</div>
-            <p className="text-xs text-muted-foreground">Be the first to share something.</p>
-          </div>
+          <OniqEmpty
+            className="mt-6 rise rise-1"
+            emoji="✨"
+            title="No moments yet"
+            body="Be the first to share something."
+          />
         )}
       </div>
 
@@ -830,15 +857,16 @@ function EditPostSheet({
   return (
     <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/60" onClick={onClose}>
       <div
-        className="max-h-[85vh] overflow-y-auto rounded-t-3xl border-t border-border bg-card p-5"
+        className="max-h-[85vh] overflow-y-auto rounded-t-3xl oniq-glass p-5"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" aria-hidden="true" />
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-display text-base font-semibold">edit post ✏️</h3>
+          <h3 className="font-display text-[15px] text-foreground">edit post ✏️</h3>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid h-8 w-8 place-items-center rounded-full bg-muted"
+            className="tap grid h-8 w-8 place-items-center rounded-full bg-surface-2"
           >
             <X className="h-4 w-4" />
           </button>
@@ -848,16 +876,16 @@ function EditPostSheet({
           onChange={(e) => setText(e.target.value)}
           rows={3}
           placeholder="What's happening in your world?"
-          className="w-full resize-none rounded-2xl border border-border bg-background p-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+          className="w-full resize-none rounded-2xl bg-surface-2 p-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
         {media && (
-          <div className="relative mt-3">
-            <MomentMedia url={media} className="max-h-64 w-full rounded-2xl object-cover" />
+          <div className="relative mt-3 overflow-hidden rounded-2xl bg-black">
+            <MomentMedia url={media} className="max-h-64 w-full object-cover" />
             <button
               type="button"
               onClick={() => setMedia(null)}
               aria-label="Remove media"
-              className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white"
+              className="absolute end-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/60 text-white ring-1 ring-white/15"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -867,7 +895,7 @@ function EditPostSheet({
                 onClick={rotate}
                 disabled={busy}
                 aria-label="Rotate photo"
-                className="absolute right-2 top-11 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white disabled:opacity-50"
+                className="absolute end-2 top-12 grid h-8 w-8 place-items-center rounded-full bg-black/60 text-white ring-1 ring-white/15 disabled:opacity-50"
               >
                 {busy ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -890,7 +918,7 @@ function EditPostSheet({
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={busy}
-            className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
+            className="press flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground disabled:opacity-50"
           >
             <ImageIcon className="h-3.5 w-3.5" /> {media ? "replace photo" : "add photo"}
           </button>
@@ -898,7 +926,7 @@ function EditPostSheet({
         <button
           onClick={save}
           disabled={busy}
-          className="mt-4 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          className="press mt-4 w-full rounded-2xl bg-world py-3 text-sm font-semibold text-white world-glow disabled:opacity-50"
         >
           {busy ? "saving…" : "save changes"}
         </button>
@@ -970,15 +998,16 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
   return (
     <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/60" onClick={onClose}>
       <div
-        className="max-h-[75vh] rounded-t-3xl border-t border-border bg-card p-5"
+        className="max-h-[75vh] rounded-t-3xl oniq-glass p-5"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" aria-hidden="true" />
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-display text-base font-semibold">Comments</h3>
+          <h3 className="font-display text-[15px] text-foreground">Comments</h3>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid h-8 w-8 place-items-center rounded-full bg-muted"
+            className="tap grid h-8 w-8 place-items-center rounded-full bg-surface-2"
           >
             <X className="h-4 w-4" />
           </button>
@@ -989,7 +1018,7 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
               Couldn&apos;t load comments — a hiccup, not an empty thread.
               <button
                 onClick={() => refetch()}
-                className="mx-auto mt-2 block rounded-full border border-border px-4 py-1.5 font-semibold"
+                className="press mx-auto mt-2 block rounded-full border border-border px-4 py-1.5 font-semibold"
               >
                 Try again
               </button>
@@ -997,10 +1026,10 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
           ) : comments?.length ? (
             comments.map((c) => (
               <div key={c.id} className="flex gap-3">
-                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-primary-foreground">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-world text-xs font-bold text-white">
                   {(c.profiles?.display_name ?? "U").charAt(0).toUpperCase()}
                 </div>
-                <div className="flex-1 rounded-2xl bg-muted px-3 py-2">
+                <div className="flex-1 rounded-2xl bg-surface-2 px-3 py-2">
                   <div className="text-xs font-medium">
                     {c.profiles?.display_name ?? c.profiles?.username ?? "User"}
                   </div>
@@ -1014,7 +1043,7 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
             </p>
           )}
         </div>
-        <div className="mt-3 flex items-center gap-2 border-t border-border pt-3">
+        <div className="mt-3 flex items-center gap-2 border-t border-border/60 pt-3">
           <input
             value={text}
             aria-label="Add a comment"
@@ -1023,13 +1052,13 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
               if (e.key === "Enter") send();
             }}
             placeholder="Add a comment…"
-            className="flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="min-w-0 flex-1 rounded-full bg-surface-2 px-4 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
           <button
             onClick={send}
             aria-label="Post comment"
             disabled={sending || !text.trim()}
-            className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"
+            className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-world text-white disabled:opacity-50"
           >
             <Send className="h-4 w-4" />
           </button>
@@ -1047,7 +1076,7 @@ function MomentMedia({ url, className }: { url: string; className?: string }) {
     return <video src={url} controls playsInline preload="metadata" className={className} />;
   }
   if (/\.(mp3|m4a|aac|ogg|opus|wav|flac)$/.test(path)) {
-    return <audio src={url} controls preload="metadata" className="mt-3 w-full" />;
+    return <audio src={url} controls preload="metadata" className="w-full p-3" />;
   }
   return <img src={url} alt="" loading="lazy" decoding="async" className={className} />;
 }

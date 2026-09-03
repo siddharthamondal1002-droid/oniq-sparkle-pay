@@ -51,15 +51,15 @@ export function OniqCreateLauncher({ open, onClose }: { open: boolean; onClose: 
                   {c.emoji}
                 </span>
                 <span className="min-w-0">
-                  <span className="flex items-center gap-1.5 font-display text-[13px] text-foreground">
+                  <span className="flex flex-wrap items-center gap-1.5 font-display text-[13px] text-foreground">
                     {c.label}
                     {!live ? (
-                      <span className="rounded-full border border-border px-1.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-muted-foreground">
+                      <span className="whitespace-nowrap rounded-full border border-border px-1.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-muted-foreground">
                         Not yet
                       </span>
                     ) : null}
                   </span>
-                  <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                  <span className="mt-0.5 block text-[11px] font-normal normal-case leading-snug tracking-normal text-muted-foreground">
                     {c.hint}
                   </span>
                 </span>
@@ -77,7 +77,9 @@ export function OniqCreateLauncher({ open, onClose }: { open: boolean; onClose: 
           <OniqAIOrb size="md" />
           <span className="min-w-0 flex-1">
             <span className="block font-display text-[14px]">{CREATE_AI.label}</span>
-            <span className="block text-[12px] text-white/85">{CREATE_AI.hint}</span>
+            <span className="block text-[12px] font-normal normal-case tracking-normal text-white/85">
+              {CREATE_AI.hint}
+            </span>
           </span>
           <ArrowRight className="h-5 w-5 shrink-0 rtl:-scale-x-100" />
         </button>

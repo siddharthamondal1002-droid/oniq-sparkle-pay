@@ -1,14 +1,22 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
-import { ArrowLeft, Send, Globe, ExternalLink, Paperclip, X, Camera, Mic } from "lucide-react";
+import { Send, Globe, ExternalLink, Paperclip, X, Camera, Mic, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { compressToJpeg } from "@/lib/imageCompress";
 import { guardTingPrompt, CRISIS_RESPONSE, HEALTH_DISCLAIMER } from "@/lib/tingGuard";
 import { AiOutputReport, AI_OUTPUT_LABEL } from "@/components/safety/AiOutputReport";
 import { CrisisCard } from "@/components/vitals/CrisisCard";
+import { OniqAIOrb, OniqCanvas, OniqChip, OniqHeader, OniqSkeleton } from "@/components/oniq";
+
+type TingSearch = { q?: string };
 
 export const Route = createFileRoute("/_authenticated/app/ai")({
+  // ?q= prefills the composer and nothing more: the crisis guard and the
+  // spend guard run only when the person presses send on this screen.
+  validateSearch: (s: Record<string, unknown>): TingSearch => ({
+    q: typeof s.q === "string" && s.q.trim() ? s.q.slice(0, 500) : undefined,
+  }),
   component: TingScreen,
 });
 
@@ -50,9 +58,19 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+/** A source chip names the site; the full URL stays on the link itself. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 function TingScreen() {
+  const { q: prefill } = Route.useSearch();
   const [messages, setMessages] = useState<Msg[]>([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(prefill ?? "");
   const [loading, setLoading] = useState(false);
   const [webSearch, setWebSearch] = useState(true);
   const [notConfigured, setNotConfigured] = useState(false);
@@ -63,31 +81,44 @@ function TingScreen() {
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<{ stop: () => void; abort?: () => void } | null>(null);
 
-  useEffect(() => () => { recognitionRef.current?.stop?.(); }, []);
+  useEffect(
+    () => () => {
+      recognitionRef.current?.stop?.();
+    },
+    [],
+  );
 
   function toggleDictation() {
     if (listening) {
       recognitionRef.current?.stop?.();
       return;
     }
-    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
-    const Ctor = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as (new () => {
-      lang: string;
-      continuous: boolean;
-      interimResults: boolean;
-      onresult: (e: { resultIndex: number; results: { isFinal: boolean; 0: { transcript: string } }[] }) => void;
-      onerror: (e: { error?: string }) => void;
-      onend: () => void;
-      start: () => void;
-      stop: () => void;
-    }) | undefined;
+    const w = window as unknown as {
+      SpeechRecognition?: unknown;
+      webkitSpeechRecognition?: unknown;
+    };
+    const Ctor = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as
+      | (new () => {
+          lang: string;
+          continuous: boolean;
+          interimResults: boolean;
+          onresult: (e: {
+            resultIndex: number;
+            results: { isFinal: boolean; 0: { transcript: string } }[];
+          }) => void;
+          onerror: (e: { error?: string }) => void;
+          onend: () => void;
+          start: () => void;
+          stop: () => void;
+        })
+      | undefined;
     if (!Ctor) {
       toast("ur browser can't do voice yet 😔 — try Chrome");
       return;
     }
     try {
       const rec = new Ctor();
-      const navLang = typeof navigator !== "undefined" ? (navigator.language || "en-IN") : "en-IN";
+      const navLang = typeof navigator !== "undefined" ? navigator.language || "en-IN" : "en-IN";
       rec.lang = navLang;
       rec.continuous = true;
       rec.interimResults = true;
@@ -100,11 +131,16 @@ function TingScreen() {
           if (r.isFinal) finalTxt += r[0].transcript;
           else interim += r[0].transcript;
         }
-        const combined = [baseline, finalTxt, interim].filter(Boolean).join(" ").replace(/\s+/g, " ").trimStart();
+        const combined = [baseline, finalTxt, interim]
+          .filter(Boolean)
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trimStart();
         setInput(combined);
       };
       rec.onerror = (e) => {
-        if (e.error && e.error !== "aborted" && e.error !== "no-speech") toast.error(`mic error: ${e.error}`);
+        if (e.error && e.error !== "aborted" && e.error !== "no-speech")
+          toast.error(`mic error: ${e.error}`);
       };
       rec.onend = () => {
         setListening(false);
@@ -155,7 +191,13 @@ function TingScreen() {
       } else if (mime.startsWith("text/") || /\.(txt|md|csv|json)$/i.test(f.name)) {
         if (f.size > 1 * 1024 * 1024) return toast.error("text files must be under 1MB");
         const text = await f.text();
-        setAttachment({ kind: "text", mime: mime || "text/plain", name: f.name, size: f.size, text });
+        setAttachment({
+          kind: "text",
+          mime: mime || "text/plain",
+          name: f.name,
+          size: f.size,
+          text,
+        });
       } else {
         toast.error("Ting can read images, PDFs and text — that file type isn't supported");
       }
@@ -203,7 +245,12 @@ function TingScreen() {
         // Image/pdf-only turn: use a short non-whitespace placeholder so the
         // history stays valid without resending the bytes.
         if (m.attachment) {
-          const kind = m.attachment.kind === "pdf" ? "PDF" : m.attachment.kind === "text" ? "text file" : "image";
+          const kind =
+            m.attachment.kind === "pdf"
+              ? "PDF"
+              : m.attachment.kind === "text"
+                ? "text file"
+                : "image";
           return { role: m.role, content: `(shared a ${kind})` };
         }
         return { role: m.role, content: "(no message)" };
@@ -212,7 +259,9 @@ function TingScreen() {
       try {
         const { getUserLanguage } = await import("@/lib/userLanguage");
         body.lang = await getUserLanguage();
-      } catch { /* degrade to English */ }
+      } catch {
+        /* degrade to English */
+      }
       if (att) {
         body.attachment =
           att.kind === "text"
@@ -221,7 +270,12 @@ function TingScreen() {
       }
       const { data, error } = await supabase.functions.invoke("ting", { body });
       if (error) throw error;
-      const d = data as { configured?: boolean; reply?: string; sources?: string[]; error?: string };
+      const d = data as {
+        configured?: boolean;
+        reply?: string;
+        sources?: string[];
+        error?: string;
+      };
       if (d?.configured === false) {
         setNotConfigured(true);
         setMessages(messages);
@@ -248,137 +302,155 @@ function TingScreen() {
   const canSend = !loading && (input.trim().length > 0 || !!attachment);
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center gap-3 border-b border-border bg-card/40 px-5 pt-12 pb-4 backdrop-blur">
-        <Link to="/app" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div className="flex items-center gap-2">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-accent to-primary text-primary-foreground glow-magenta">
-            <span className="text-base">🔮</span>
-          </div>
-          <div>
-            <div className="font-display text-base font-semibold">Ting</div>
-            <div className="text-[10px] text-neon">● Online</div>
-          </div>
-        </div>
-      </header>
+    <OniqCanvas world="ting" className="flex h-screen flex-col">
+      <OniqHeader
+        size="md"
+        eyebrow="Ting"
+        title="Ting ✨"
+        subtitle="Live web. Real answers."
+        back="/app"
+        className="shrink-0 pb-3"
+        actions={
+          <span className="inline-flex items-center gap-1.5 rounded-full oniq-glass px-3 py-1.5 text-[11px] font-semibold text-foreground">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+            Online
+          </span>
+        }
+      />
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         {notConfigured ? (
-          <div className="mx-auto mt-8 max-w-sm rounded-2xl border border-border bg-card p-5 text-center">
-            <div className="text-4xl">🔮</div>
-            <h2 className="mt-2 font-display text-lg font-bold">Ting needs a key</h2>
+          <div className="rise mx-auto mt-6 max-w-sm rounded-3xl oniq-surface p-6 text-center">
+            <OniqAIOrb size="lg" still />
+            <h2 className="mt-4 font-display text-[18px] text-foreground">Ting needs a key</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Add <code className="rounded bg-muted px-1">ANTHROPIC_API_KEY</code> in project secrets to wake it up.
+              Add <code className="rounded bg-surface-2 px-1">ANTHROPIC_API_KEY</code> in project
+              secrets to wake it up.
             </p>
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <div className="grid h-16 w-16 place-items-center rounded-3xl bg-gradient-to-br from-accent to-primary text-primary-foreground glow-magenta">
-              <span className="text-3xl">🔮</span>
-            </div>
-            <h2 className="mt-4 font-display text-2xl font-bold">Ting</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+          <div className="rise flex min-h-full flex-col items-center justify-center py-6 text-center">
+            <OniqAIOrb size="xl" />
+            <p className="mt-5 max-w-[30ch] text-sm leading-snug text-muted-foreground">
               Ask me anything — I can even read images, PDFs and text 🔮
             </p>
-            <div className="mt-6 grid w-full max-w-sm gap-2">
+            <div className="mt-6 flex flex-wrap justify-center gap-2">
               {SUGGESTIONS.map((s) => (
                 <button
                   key={s}
+                  type="button"
                   onClick={() => ask(s)}
-                  className="rounded-2xl border border-border bg-card p-3 text-left text-sm hover:bg-muted"
+                  className="press inline-flex items-center gap-1.5 rounded-full oniq-surface px-3.5 py-2 text-[13px] font-medium text-foreground"
                 >
+                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-world" aria-hidden="true" />
                   {s}
                 </button>
               ))}
             </div>
           </div>
         ) : (
-          <div className="space-y-3 pb-32">
-            {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className="max-w-[85%]">
-                  {m.attachment && (
-                    <div className="mb-1 flex justify-end">
-                      {m.attachment.kind === "image" && m.attachment.previewUrl ? (
-                        <img src={m.attachment.previewUrl} alt="" className="max-h-40 rounded-xl border border-border object-cover" />
-                      ) : (
-                        <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-xs">
-                          <span>{m.attachment.kind === "pdf" ? "📄" : "📝"}</span>
-                          <span className="max-w-[180px] truncate">{m.attachment.name}</span>
+          <div className="space-y-4 pb-4">
+            {messages.map((m, i) => {
+              const mine = m.role === "user";
+              return (
+                <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[85%] ${mine ? "" : "flex items-start gap-2"}`}>
+                    {!mine && <OniqAIOrb size="sm" still className="mt-1" />}
+                    <div className="min-w-0">
+                      {m.attachment && (
+                        <div className="mb-1 flex justify-end">
+                          {m.attachment.kind === "image" && m.attachment.previewUrl ? (
+                            <img
+                              src={m.attachment.previewUrl}
+                              alt=""
+                              className="max-h-40 rounded-2xl oniq-surface object-cover"
+                            />
+                          ) : (
+                            <div className="inline-flex items-center gap-2 rounded-xl oniq-surface px-3 py-1.5 text-xs">
+                              <span>{m.attachment.kind === "pdf" ? "📄" : "📝"}</span>
+                              <span className="max-w-[180px] truncate">{m.attachment.name}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {(m.content || m.role === "assistant") && (
+                        <div
+                          data-testid="ting-message"
+                          className={`whitespace-pre-wrap px-4 py-2.5 text-sm leading-relaxed ${
+                            mine
+                              ? "rounded-3xl rounded-ee-md bg-world text-white"
+                              : "rounded-3xl rounded-ss-md oniq-surface text-foreground"
+                          }`}
+                        >
+                          {m.content}
+                        </div>
+                      )}
+                      {/*
+                        Play's AI-Generated Content policy requires generative
+                        output to be labelled AND reportable from inside the app.
+                        An email address in a policy page does not satisfy it.
+                      */}
+                      {m.role === "assistant" && m.content && (
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-muted-foreground">
+                            {AI_OUTPUT_LABEL}
+                          </span>
+                          <AiOutputReport
+                            surface="ting_ai_output"
+                            targetId={`msg-${i}`}
+                            context={{ hasSources: (m.sources ?? []).length > 0 }}
+                            className="press flex items-center gap-1 rounded-full px-2 py-1 text-[11px] text-muted-foreground disabled:opacity-50"
+                          />
+                        </div>
+                      )}
+                      {m.role === "assistant" && m.crisis && (
+                        <div className="mt-2">
+                          <CrisisCard />
+                        </div>
+                      )}
+                      {m.role === "assistant" && m.healthNote && (
+                        <p
+                          data-testid="ting-health-note"
+                          className="mt-1.5 text-[11px] text-muted-foreground"
+                        >
+                          ⚕️ {HEALTH_DISCLAIMER}
+                        </p>
+                      )}
+                      {m.role === "assistant" && m.sources && m.sources.length > 0 && (
+                        <div data-testid="ting-sources" className="mt-2">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                            🌐 Sources
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {m.sources.map((url, j) => (
+                              <a
+                                key={j}
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                title={url}
+                                className="press inline-flex max-w-full items-center gap-1 rounded-full oniq-surface px-2.5 py-1 text-[11px] font-medium text-world"
+                              >
+                                <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                <span className="truncate">{hostOf(url)}</span>
+                              </a>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
-                  )}
-                  {(m.content || m.role === "assistant") && (
-                    <div
-                      data-testid="ting-message"
-                      className={`whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm ${
-                        m.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "border border-border bg-card"
-                      }`}
-                    >
-                      {m.content}
-                    </div>
-                  )}
-                  {/*
-                    Play's AI-Generated Content policy requires generative
-                    output to be labelled AND reportable from inside the app.
-                    An email address in a policy page does not satisfy it.
-                  */}
-                  {m.role === "assistant" && m.content && (
-                    <div className="mt-1 flex items-center justify-between gap-2">
-                      <span className="text-[10px] text-muted-foreground">{AI_OUTPUT_LABEL}</span>
-                      <AiOutputReport
-                        surface="ting_ai_output"
-                        targetId={`msg-${i}`}
-                        context={{ hasSources: (m.sources ?? []).length > 0 }}
-                        className="flex items-center gap-1 rounded-full px-2 py-1 text-[10px] text-muted-foreground disabled:opacity-50"
-                      />
-                    </div>
-                  )}
-                  {m.role === "assistant" && m.crisis && (
-                    <div className="mt-2">
-                      <CrisisCard />
-                    </div>
-                  )}
-                  {m.role === "assistant" && m.healthNote && (
-                    <p data-testid="ting-health-note" className="mt-1.5 text-[11px] text-muted-foreground">
-                      ⚕️ {HEALTH_DISCLAIMER}
-                    </p>
-                  )}
-                  {m.role === "assistant" && m.sources && m.sources.length > 0 && (
-                    <div data-testid="ting-sources" className="mt-1.5 space-y-1">
-                      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                        🌐 Sources
-                      </div>
-                      {m.sources.map((url, j) => (
-                        <a
-                          key={j}
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="flex items-center gap-1 truncate text-xs text-primary underline"
-                        >
-                          <ExternalLink className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{url}</span>
-                        </a>
-                      ))}
-                    </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {loading && (
-              <div className="flex justify-start">
-                <div className="rounded-2xl border border-border bg-card px-4 py-2.5 text-sm text-muted-foreground">
-                  <span className="inline-flex gap-1">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary [animation-delay:150ms]" />
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary [animation-delay:300ms]" />
-                  </span>
+              <div className="flex justify-start" aria-busy="true" aria-live="polite">
+                <div className="flex max-w-[85%] items-start gap-2">
+                  <OniqAIOrb size="sm" className="mt-1" />
+                  <div className="rounded-3xl rounded-ss-md oniq-surface px-4 py-3">
+                    <OniqSkeleton className="h-3 w-40" />
+                    <OniqSkeleton className="mt-2 h-3 w-24" />
+                  </div>
                 </div>
               </div>
             )}
@@ -387,115 +459,118 @@ function TingScreen() {
       </div>
 
       {!notConfigured && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (canSend) ask(input.trim());
-          }}
-          className="border-t border-border bg-card/60 p-3 backdrop-blur"
-        >
-          <div className="mb-2 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setWebSearch((s) => !s)}
-              className={`flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition ${
-                webSearch
-                  ? "border-primary/40 bg-primary/15 text-primary"
-                  : "border-border bg-card text-muted-foreground"
-              }`}
-            >
-              <Globe className="h-3 w-3" />
-              Web search {webSearch ? "on" : "off"}
-            </button>
-            {attachment && (
-              <div className="ml-auto flex items-center gap-2 rounded-full border border-border bg-card px-2 py-1 text-xs">
-                {attachment.kind === "image" && attachment.previewUrl ? (
-                  <img src={attachment.previewUrl} alt="" className="h-6 w-6 rounded object-cover" />
-                ) : (
-                  <span>{attachment.kind === "pdf" ? "📄" : "📝"}</span>
-                )}
-                <span className="max-w-[140px] truncate">{attachment.name}</span>
-                <button
-                  type="button"
-                  onClick={removeAttachment}
-                  aria-label="Remove attachment"
-                  className="grid h-5 w-5 place-items-center rounded-full hover:bg-muted"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-1 rounded-full border border-border bg-input/40 pl-2 pr-1">
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain,text/markdown,text/csv,application/json,.txt,.md,.csv,.json"
-              hidden
-              onChange={handlePickAttachment}
-              data-testid="ting-file-input"
-            />
-            <input
-              ref={cameraRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              hidden
-              onChange={handlePickAttachment}
-              data-testid="ting-camera-input"
-            />
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={loading}
-              data-testid="ting-attach"
-              aria-label="Attach"
-              className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted disabled:opacity-40"
-            >
-              <Paperclip className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => cameraRef.current?.click()}
-              disabled={loading}
-              data-testid="ting-camera"
-              aria-label="Camera"
-              className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted disabled:opacity-40"
-            >
-              <Camera className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={toggleDictation}
-              disabled={loading}
-              data-testid="ting-mic"
-              aria-label={listening ? "Stop dictation" : "Dictate"}
-              className={`grid h-9 w-9 place-items-center rounded-full disabled:opacity-40 ${listening ? "bg-red-500/20 text-red-500 animate-pulse" : "hover:bg-muted"}`}
-            >
-              <Mic className="h-4 w-4" />
-            </button>
-            <input
-              data-testid="ting-input"
-              aria-label="Message Ting"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={listening ? "listening… tap 🎤 to stop" : "Message Ting…"}
-              disabled={loading}
-              className="flex-1 bg-transparent py-3 text-sm placeholder:text-muted-foreground focus:outline-none"
-            />
+        <div className="shrink-0 px-3 pb-3 pt-1">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (canSend) ask(input.trim());
+            }}
+            className="rounded-[28px] oniq-glass p-2"
+          >
+            <div className="flex items-center gap-2 px-1 pt-1">
+              <OniqChip active={webSearch} onClick={() => setWebSearch((s) => !s)}>
+                <Globe className="h-3 w-3" aria-hidden="true" />
+                Web search {webSearch ? "on" : "off"}
+              </OniqChip>
+              {attachment && (
+                <div className="ms-auto flex min-w-0 items-center gap-2 rounded-full oniq-surface px-2 py-1 text-xs">
+                  {attachment.kind === "image" && attachment.previewUrl ? (
+                    <img
+                      src={attachment.previewUrl}
+                      alt=""
+                      className="h-6 w-6 rounded-md object-cover"
+                    />
+                  ) : (
+                    <span>{attachment.kind === "pdf" ? "📄" : "📝"}</span>
+                  )}
+                  <span className="max-w-[140px] truncate">{attachment.name}</span>
+                  <button
+                    type="button"
+                    onClick={removeAttachment}
+                    aria-label="Remove attachment"
+                    className="grid h-5 w-5 place-items-center rounded-full hover:bg-surface-2"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="mt-2 flex items-center gap-0.5 rounded-full oniq-surface pe-1 ps-1">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain,text/markdown,text/csv,application/json,.txt,.md,.csv,.json"
+                hidden
+                onChange={handlePickAttachment}
+                data-testid="ting-file-input"
+              />
+              <input
+                ref={cameraRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                hidden
+                onChange={handlePickAttachment}
+                data-testid="ting-camera-input"
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={loading}
+                data-testid="ting-attach"
+                aria-label="Attach"
+                className="tap press grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:bg-surface-2 disabled:opacity-40"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => cameraRef.current?.click()}
+                disabled={loading}
+                data-testid="ting-camera"
+                aria-label="Camera"
+                className="tap press grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:bg-surface-2 disabled:opacity-40"
+              >
+                <Camera className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={toggleDictation}
+                disabled={loading}
+                data-testid="ting-mic"
+                aria-label={listening ? "Stop dictation" : "Dictate"}
+                aria-pressed={listening}
+                className={`tap press grid h-9 w-9 place-items-center rounded-full disabled:opacity-40 ${
+                  listening
+                    ? "bg-destructive/15 text-destructive ring-2 ring-destructive/30"
+                    : "text-muted-foreground hover:bg-surface-2"
+                }`}
+              >
+                <Mic className="h-4 w-4" />
+              </button>
+              <input
+                data-testid="ting-input"
+                aria-label="Message Ting"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={listening ? "listening… tap 🎤 to stop" : "Ask anything…"}
+                disabled={loading}
+                className="min-w-0 flex-1 bg-transparent py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+              />
 
-            <button
-              data-testid="ting-send"
-              type="submit"
-              aria-label="Send message"
-              disabled={!canSend}
-              className="grid h-9 w-9 place-items-center rounded-full bg-accent text-accent-foreground disabled:opacity-50"
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-        </form>
+              <button
+                data-testid="ting-send"
+                type="submit"
+                aria-label="Send message"
+                disabled={!canSend}
+                className="press grid h-9 w-9 shrink-0 place-items-center rounded-full bg-world text-white world-glow disabled:opacity-50"
+              >
+                <Send className="h-4 w-4 rtl:-scale-x-100" />
+              </button>
+            </div>
+          </form>
+        </div>
       )}
-    </div>
+    </OniqCanvas>
   );
 }

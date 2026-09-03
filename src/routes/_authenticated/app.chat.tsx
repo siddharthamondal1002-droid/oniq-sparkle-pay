@@ -81,13 +81,23 @@ function ChatWorldLayout() {
   // No bottom padding here: the shell reserves the clearance for THIS nav
   // (CHAT_SECTION_CHROME in app.tsx), and it has to be the same number that
   // --app-vh subtracts. Padding it twice put dead scroll under every sub-tab.
+  //
+  // The bar is the same glass pill as the app's bottom nav (OniqBottomNav):
+  // the active tab lifts its icon in a soft well and takes the chat world's
+  // ink — data-world on the <nav> is what resolves both. py-1 (not the nav's
+  // py-2) keeps the pill the height CHAT_SECTION_CHROME was sized for.
+  // Logical positioning (inset-x + auto margins) so it centres under dir="rtl".
   return (
     <div>
       <Outlet />
       {showTabs && (
-        <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-md -translate-x-1/2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <nav
+          data-world="chat"
+          aria-label="Chat sections"
+          className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-md px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:max-w-lg lg:max-w-xl"
+        >
           <div
-            className={`grid ${gridColsClass} rounded-3xl border border-border glass p-1.5 shadow-card`}
+            className={`grid ${gridColsClass} items-end rounded-[28px] oniq-glass p-1.5 shadow-card`}
           >
             {VISIBLE_TABS.map((t) => {
               const active = t.exact ? normalized === t.to : normalized.startsWith(t.to);
@@ -98,15 +108,20 @@ function ChatWorldLayout() {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   to={t.to as any}
                   preload="intent"
-                  className={`flex flex-col items-center gap-0.5 rounded-2xl py-2 text-[10px] font-medium transition-all duration-200 ease-out active:scale-95 ${
-                    active
-                      ? "bg-primary/15 text-primary"
-                      : "text-muted-foreground hover:text-foreground"
+                  aria-current={active ? "page" : undefined}
+                  className={`press flex flex-col items-center gap-0.5 rounded-2xl py-1 text-[11px] font-medium transition-colors duration-200 ${
+                    active ? "text-world" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <Icon
-                    className={`h-5 w-5 transition-transform duration-200 ${active ? "scale-110" : ""}`}
-                  />
+                  <span
+                    className={`grid h-7 w-7 place-items-center rounded-xl transition-all duration-200 ${
+                      active ? "bg-world-soft -translate-y-0.5" : ""
+                    }`}
+                  >
+                    <Icon
+                      className={`h-5 w-5 transition-transform duration-200 ${active ? "scale-110" : ""}`}
+                    />
+                  </span>
                   <span className="leading-none">{tr(t.labelKey, t.fallback)}</span>
                 </Link>
               );
