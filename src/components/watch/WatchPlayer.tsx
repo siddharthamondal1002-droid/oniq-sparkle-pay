@@ -35,10 +35,28 @@
  *
  * The player is deliberately blind to WHERE a Playable came from — directory,
  * My TV, or a user's own genre all arrive in the same shape.
+ *
+ * A FOURTH PATH, 2026-09-03 (owner directive, afternoon: "make them just like
+ * we have youtube in watch"):
+ *   - `embed` — another platform's OWN player (Vimeo, Dailymotion, Twitch,
+ *     the Internet Archive) in a plain frame whose src is built in exactly
+ *     one place, src/data/watchEmbeds.ts. No SDK script is loaded for any of
+ *     them: ENDED arrives over the players' documented postMessage channels
+ *     where one exists, and the transport buttons speak the same channel.
+ *     Same rule as YouTube's — the platform serves the video, its ads and
+ *     its own restrictions; ONIQ operates the player and never touches the
+ *     stream.
  */
 import { useEffect, useId, useRef } from "react";
 import { liveEmbedUrl } from "@/data/watchChannels";
 import type { Playable } from "@/data/watchDirectory";
+import {
+  embedKey,
+  embedSrc,
+  listenForEmbedEnded,
+  sendEmbedCommand,
+  type EmbedRef,
+} from "@/data/watchEmbeds";
 
 const YT_API_SRC = "https://www.youtube.com/iframe_api";
 
@@ -128,7 +146,19 @@ export function WatchPlayer({
   // fresh object literal every render — which would rebuild the player each
   // time the parent re-rendered and restart the video mid-play.
   const ref =
-    item.kind === "live" ? item.channelId : item.kind === "playlist" ? item.list : item.videoId;
+    item.kind === "live"
+      ? item.channelId
+      : item.kind === "playlist"
+        ? item.list
+        : item.kind === "embed"
+          ? embedKey(item.embed)
+          : item.videoId;
+  // The embed path needs the whole ref inside the effect; `ref` above is its
+  // stable key, so a changed EmbedRef always changes `ref` too.
+  const embedRef = useRef<EmbedRef | null>(item.kind === "embed" ? item.embed : null);
+  useEffect(() => {
+    embedRef.current = item.kind === "embed" ? item.embed : null;
+  }, [item]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -176,6 +206,48 @@ export function WatchPlayer({
         }
       });
       return teardown;
+    }
+
+    // EMBED PATH. Another platform's own player in a plain frame. The src is
+    // built in src/data/watchEmbeds.ts and nowhere else; ENDED and the
+    // transport ride that module's postMessage helpers. Muted autoplay, the
+    // same as the YouTube paths, where the platform's player supports it.
+    if (kind === "embed") {
+      const embed = embedRef.current;
+      if (!embed) return;
+      const frame = document.createElement("iframe");
+      frame.src = embedSrc(embed, {
+        autoplay,
+        muted: true,
+        host: window.location.hostname,
+      });
+      frame.title = name;
+      frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+      frame.allowFullscreen = true;
+      frame.referrerPolicy = "strict-origin-when-cross-origin";
+      frame.style.cssText =
+        "width:100%;height:100%;border:0;min-width:200px;min-height:200px;position:absolute;inset:0";
+      host.innerHTML = "";
+      host.appendChild(frame);
+      let mutedFlag = true;
+      readyRef.current?.({
+        play: () => sendEmbedCommand(embed, frame, "play"),
+        pause: () => sendEmbedCommand(embed, frame, "pause"),
+        mute: () => {
+          sendEmbedCommand(embed, frame, "mute");
+          mutedFlag = true;
+        },
+        unMute: () => {
+          sendEmbedCommand(embed, frame, "unmute");
+          mutedFlag = false;
+        },
+        isMuted: () => mutedFlag,
+      });
+      const stop = listenForEmbedEnded(embed, frame, () => advanceRef.current?.("ended"));
+      return () => {
+        stop();
+        teardown();
+      };
     }
 
     // PLAYLIST / VIDEO PATH. The playlist case is what loops; a single video

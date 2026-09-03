@@ -10,17 +10,19 @@
  * that platform in the in-app browser (openInApp) — the same shape as the
  * "also on YouTube" link-outs on the Watch screen and every mini-app hand-off.
  *
- * WHAT THIS IS NOT, deliberately. Nothing here plays inside ONIQ. YouTube
- * plays in-app through YouTube's own embeddable player under an owner
- * directive (2026-08-16), a CSP frame-src grant, and a Play data declaration
- * for the automatic request the frame makes. Framing another platform's
- * player is the same class of decision — their player, their ads, their
- * trackers, a new frame-src origin and a new THIRD_PARTY_REQUESTS entry each
- * — and it is the owner's to make per platform, not something a directory
- * entry may imply. A link reaches nobody until the user taps it, which is why
- * no host below is declared as an automatic request: a destination the user
- * chooses is not a request ONIQ makes. src/data/__tests__/watchPlatforms.test.ts
- * holds both halves of that line.
+ * WHICH OF THEM PLAY INSIDE ONIQ, and which do not. The row itself frames
+ * nothing: a front-door card is a link, and a link reaches nobody until the
+ * user taps it, so none of these hosts is declared as an automatic request.
+ * Playing inside ONIQ is a separate, per-platform owner decision, because it
+ * means framing that platform's own player — their ads, their cookies, a new
+ * frame-src origin and a THIRD_PARTY_REQUESTS entry each. The owner made it
+ * on 2026-09-03 (afternoon): "make them just like we have youtube in watch".
+ * The four platforms that publish an embeddable player — Vimeo, Dailymotion,
+ * Twitch, the Internet Archive — now play in Watch and on the Home watch
+ * face through src/data/watchEmbeds.ts, and carry `plays: true` below. The
+ * other four cannot: Facebook Watch and Instagram Reels embed single posts,
+ * never a feed or a channel, and Moj and Josh have no web player. They stay
+ * front doors. src/data/__tests__/watchPlatforms.test.ts holds the split.
  *
  * WHICH PLATFORMS, and which not. "Free video hosting platform like YouTube"
  * was read as: free to watch, carried by what its users upload or stream, and
@@ -61,6 +63,11 @@ export type WatchPlatform = {
   emoji: string;
   /** Relevance ONLY, the same rule as watchDirectoryFor. */
   countries: Country[] | "*";
+  /**
+   * Whether this platform's content also PLAYS inside Watch, in the
+   * platform's own player (src/data/watchEmbeds.ts). False = front door only.
+   */
+  plays: boolean;
 };
 
 /** What each kind reads as on a card. */
@@ -80,6 +87,7 @@ export const WATCH_PLATFORMS: WatchPlatform[] = [
     kind: "video",
     emoji: "🎞️",
     countries: "*",
+    plays: true,
   },
   {
     id: "dailymotion",
@@ -89,6 +97,7 @@ export const WATCH_PLATFORMS: WatchPlatform[] = [
     kind: "video",
     emoji: "📼",
     countries: "*",
+    plays: true,
   },
   {
     id: "twitch",
@@ -98,6 +107,7 @@ export const WATCH_PLATFORMS: WatchPlatform[] = [
     kind: "live",
     emoji: "🎮",
     countries: "*",
+    plays: true,
   },
   {
     id: "internet-archive",
@@ -107,6 +117,7 @@ export const WATCH_PLATFORMS: WatchPlatform[] = [
     kind: "archive",
     emoji: "🏛️",
     countries: "*",
+    plays: true,
   },
   {
     id: "facebook-watch",
@@ -116,6 +127,7 @@ export const WATCH_PLATFORMS: WatchPlatform[] = [
     kind: "video",
     emoji: "📘",
     countries: "*",
+    plays: false,
   },
   {
     id: "instagram-reels",
@@ -125,6 +137,7 @@ export const WATCH_PLATFORMS: WatchPlatform[] = [
     kind: "short",
     emoji: "📸",
     countries: "*",
+    plays: false,
   },
   {
     id: "moj",
@@ -134,6 +147,7 @@ export const WATCH_PLATFORMS: WatchPlatform[] = [
     kind: "short",
     emoji: "💃",
     countries: ["IN"],
+    plays: false,
   },
   {
     id: "josh",
@@ -145,6 +159,7 @@ export const WATCH_PLATFORMS: WatchPlatform[] = [
     kind: "short",
     emoji: "🕺",
     countries: ["IN"],
+    plays: false,
   },
 ];
 

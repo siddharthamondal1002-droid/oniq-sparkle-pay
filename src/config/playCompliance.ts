@@ -352,6 +352,52 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
       "Operates YouTube's own player — play, pause, mute, and the ended/error events the channel loop rotates on. It does not deliver video to ONIQ.",
     avoidable: true,
   },
+  // FOUR MORE PLAYERS, owner directive 2026-09-03 (afternoon): "make them
+  // just like we have youtube in watch, also include them in watch tab of
+  // home screen". Each is the platform's OWN player in a frame, the same
+  // shape as YouTube's above, and each is AUTOMATIC in the same way: a card
+  // from that platform starts muted when it becomes the current item on the
+  // Watch screen or on the Home watch face. No SDK script is loaded for any
+  // of them — src/data/watchEmbeds.ts, and the test that holds it.
+  {
+    host: "player.vimeo.com",
+    triggeredBy:
+      "A Vimeo card becoming the current item on Watch (src/routes/_authenticated/app.watch.tsx) or on the Home watch face (src/routes/_authenticated/app.index.tsx), or a Vimeo link the user added to a genre of their own.",
+    sends:
+      "IP address and user-agent, plus the video id being watched. The frame carries Vimeo's dnt=1 flag, so Vimeo sets no session cookie and records no viewing analytics.",
+    purpose:
+      "Plays the video in Vimeo's own player. ONIQ resolves no stream URL and proxies no video; Vimeo serves the content and its own restrictions.",
+    avoidable: true,
+  },
+  {
+    host: "www.dailymotion.com",
+    triggeredBy:
+      "A Dailymotion card becoming the current item on Watch or on the Home watch face, or a Dailymotion link the user added to a genre of their own.",
+    sends:
+      "IP address and user-agent, plus the video or playlist id being watched. Dailymotion's player sets its own cookies and serves its own ads.",
+    purpose:
+      "Plays the video or playlist in Dailymotion's own player. ONIQ resolves no stream URL and proxies no video.",
+    avoidable: true,
+  },
+  {
+    host: "player.twitch.tv",
+    triggeredBy:
+      "A Twitch card becoming the current item on Watch or on the Home watch face, or a Twitch link the user added to a genre of their own.",
+    sends:
+      "IP address and user-agent, the channel or video id being watched, and the embedding hostname, which Twitch requires as the `parent` parameter.",
+    purpose:
+      "Plays the live channel or video in Twitch's own player. ONIQ resolves no stream URL and proxies no video.",
+    avoidable: true,
+  },
+  {
+    host: "archive.org",
+    triggeredBy:
+      "An Internet Archive card becoming the current item on Watch or on the Home watch face, or an archive.org link the user added to a genre of their own. The Archive's player does not autoplay; it waits for a tap.",
+    sends: "IP address and user-agent, plus the item identifier being watched.",
+    purpose:
+      "Plays a public-domain film in the Internet Archive's own player. ONIQ resolves no stream URL and proxies no video.",
+    avoidable: true,
+  },
   // One entry that used to sit here is deliberately still gone.
   //
   // date.nager.at and api.frankfurter.dev: both were Glance's, and Glance was

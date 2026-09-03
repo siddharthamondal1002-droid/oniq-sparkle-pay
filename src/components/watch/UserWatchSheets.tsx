@@ -30,6 +30,7 @@ import {
   useMyTv,
   type MyTvRow,
 } from "@/lib/userWatch";
+import { parseEmbedLink } from "@/data/watchEmbeds";
 
 function Sheet({
   title,
@@ -167,9 +168,14 @@ export function AddChannelSheet({
       toast.error(`${MAX_CHANNELS_PER_GENRE} channels max per genre — trim it 🧹`);
       return;
     }
-    const parsed = parseYouTube(u);
+    // YouTube as before, or one of the other platforms Watch plays (owner
+    // directive, 2026-09-03 afternoon). Same rule for all: the id is in the
+    // link or the paste is refused; nothing is fetched to find out.
+    const parsed = parseYouTube(u) ?? parseEmbedLink(u);
     if (!parsed) {
-      toast.error("drop a video or playlist link, channel pages can't autoplay 📺");
+      toast.error(
+        "drop a video, playlist or Twitch channel link — YouTube, Vimeo, Dailymotion, Twitch or archive.org 📺",
+      );
       return;
     }
     setBusy(true);
@@ -205,8 +211,8 @@ export function AddChannelSheet({
           data-testid="user-channel-url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="paste youtu.be / youtube.com watch or playlist link"
-          aria-label="YouTube link"
+          placeholder="paste a youtube, vimeo, dailymotion, twitch or archive.org link"
+          aria-label="Video link"
           className={INPUT}
         />
       </div>

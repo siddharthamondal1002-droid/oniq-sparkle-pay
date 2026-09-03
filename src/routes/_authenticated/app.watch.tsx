@@ -62,6 +62,8 @@ import {
   channelUrlOf,
   faithChannelsFor,
   isLiveChannel,
+  isLivePlayable,
+  platformNameOf,
   playableOf,
   playableOfChannelId,
   watchDirectoryFor,
@@ -103,6 +105,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { openInApp } from "@/lib/miniapps";
 import { NOT_AFFILIATED_NOTICE } from "@/config/playCompliance";
 import { PLATFORM_KIND_LABEL, opensIn, watchPlatformsFor } from "@/data/watchPlatforms";
+import { EMBED_PLATFORM_NAME, embedKey, isLiveEmbed } from "@/data/watchEmbeds";
 import { isAvailable } from "@/data/countryRegistry";
 import { useCountry } from "@/lib/country";
 import { useMediaCoordinator } from "@/lib/MediaProvider";
@@ -122,6 +125,7 @@ const GENRES: { key: WatchGenre; label: string; emoji: string }[] = [
   { key: "finance", label: "Finance", emoji: "📈" },
   { key: "influencer", label: "Creators", emoji: "✨" },
   { key: "lifestyle", label: "Lifestyle", emoji: "🌿" },
+  { key: "film", label: "Films", emoji: "🎥" },
 ];
 
 const EMOJI_BY_GENRE = new Map(GENRES.map((g) => [g.key, g.emoji]));
@@ -215,11 +219,20 @@ function WatchPage() {
       all
         .map((e) => {
           const item = playableOf(e);
+          // A card from another platform is keyed by its EmbedRef and says
+          // which player it opens in; a YouTube card reads as it always did.
+          const sub = e.embed
+            ? isLiveEmbed(e.embed)
+              ? `${EMBED_PLATFORM_NAME[e.embed.platform]} live`
+              : EMBED_PLATFORM_NAME[e.embed.platform].toLowerCase()
+            : isLiveChannel(e.channelId)
+              ? "live feed"
+              : "uploads";
           return item
             ? {
-                key: e.channelId as string,
+                key: e.embed ? embedKey(e.embed) : (e.channelId as string),
                 name: e.name,
-                sub: isLiveChannel(e.channelId) ? "live feed" : "uploads",
+                sub,
                 emoji: EMOJI_BY_GENRE.get(e.genre) ?? "📺",
                 genre: e.genre,
                 description: e.description,
@@ -304,7 +317,7 @@ function WatchPage() {
   }, [playableDir]);
 
   const current = shown.length ? shown[idx % shown.length] : null;
-  const live = current?.item.kind === "live";
+  const live = current ? isLivePlayable(current.item) : false;
 
   // Resume the last channel watched, once, on the first non-empty list.
   useEffect(() => {
@@ -693,7 +706,7 @@ function WatchPage() {
                 onClick={() => openInApp(url)}
                 className="press inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-semibold"
               >
-                YouTube <ExternalLink className="size-3" />
+                {platformNameOf(current.item)} <ExternalLink className="size-3" />
               </button>
             )}
           </div>
@@ -744,7 +757,9 @@ function WatchPage() {
                 <Plus className="h-6 w-6 text-muted-foreground" />
               </div>
               <div className="mt-1.5 text-xs font-medium leading-snug">add channel</div>
-              <div className="mt-0.5 truncate text-[11px] text-muted-foreground">youtube link</div>
+              <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                youtube · vimeo · dailymotion · twitch · archive link
+              </div>
             </button>
           )}
           {shown.map((c, i) => {
@@ -848,7 +863,8 @@ function WatchPage() {
                     <ExternalLink className="size-3 shrink-0 text-muted-foreground" />
                   </div>
                   <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                    {PLATFORM_KIND_LABEL[p.kind]} · {opensIn(p.name).toLowerCase()}
+                    {p.plays ? "plays in Watch" : PLATFORM_KIND_LABEL[p.kind]} ·{" "}
+                    {opensIn(p.name).toLowerCase()}
                   </div>
                   <div className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
                     {p.description}
