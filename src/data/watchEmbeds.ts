@@ -45,7 +45,7 @@ export type EmbedRef =
 /** The only hosts a frame may point at. frame-src in public/_headers mirrors this. */
 export const EMBED_HOSTS: Record<EmbedPlatform, string> = {
   vimeo: "player.vimeo.com",
-  dailymotion: "www.dailymotion.com",
+  dailymotion: "geo.dailymotion.com",
   twitch: "player.twitch.tv",
   archive: "archive.org",
 };
@@ -54,16 +54,16 @@ export const EMBED_HOSTS: Record<EmbedPlatform, string> = {
  * Every host a player frame may END UP on, redirects included. A CSP checks
  * each hop of a frame's redirect chain, not only the URL the page asked for.
  *
- * Measured 2026-09-03 with the production CSP one day old: every Dailymotion
- * embed URL answers 301 to geo.dailymotion.com/player.html, which frame-src
- * did not name, so the browser refused the frame and the owner saw a black
- * player with the Android WebView's broken-content icon on every Dailymotion
- * card. The three other players answer their embed URL directly.
+ * Measured 2026-09-03 with the production CSP one day old: the legacy
+ * www.dailymotion.com/embed/... URL answers 301 to geo.dailymotion.com/player.html,
+ * which frame-src did not name, so the browser refused the frame and the
+ * owner saw a black player with the Android WebView's broken-content icon on
+ * every Dailymotion card. Frames now point at geo.dailymotion.com directly:
+ * it is Dailymotion's current player, and going there straight keeps the
+ * autoplay, mute and api parameters the redirect dropped. The list stays so
+ * the next redirect target has somewhere to live.
  */
-export const EMBED_FRAME_HOSTS: readonly string[] = [
-  ...Object.values(EMBED_HOSTS),
-  "geo.dailymotion.com",
-];
+export const EMBED_FRAME_HOSTS: readonly string[] = [...Object.values(EMBED_HOSTS)];
 
 export const EMBED_PLATFORM_NAME: Record<EmbedPlatform, string> = {
   vimeo: "Vimeo",
@@ -164,10 +164,15 @@ export function embedSrc(e: EmbedRef, o: EmbedSrcOptions): string {
       // player rather than a card. #t= is Vimeo's own resume fragment.
       return `https://player.vimeo.com/video/${enc(e.video)}?autoplay=${a}&muted=${m}&playsinline=1&dnt=1&title=0&byline=0&portrait=0${start ? `#t=${start}s` : ""}`;
     case "dailymotion": {
-      const path = "video" in e ? `video/${enc(e.video)}` : `playlist/${enc(e.playlist)}`;
-      // api=postMessage: the player reports `event=ended` and `timeupdate` to
-      // the page, which is what the loop and progress ride. No SDK script.
-      return `https://www.dailymotion.com/embed/${path}?autoplay=${a}&mute=${m}&queue-autoplay-next=1&queue-enable=0&ui-logo=0&api=postMessage${start && "video" in e ? `&start=${start}` : ""}`;
+      const what = "video" in e ? `video=${enc(e.video)}` : `playlist=${enc(e.playlist)}`;
+      // Dailymotion's current player (2026-09-03). The legacy
+      // www.dailymotion.com/embed/... URL answers 301 here and drops autoplay
+      // and api on the way, so the frame goes here directly. api=postMessage:
+      // the player reports `event=ended` and `timeupdate` to the page, which
+      // is what the loop and progress ride. No SDK script.
+      const auto = o.autoplay ? "true" : "false";
+      const mute = o.muted ? "true" : "false";
+      return `https://geo.dailymotion.com/player.html?${what}&autoplay=${auto}&mute=${mute}&api=postMessage${start && "video" in e ? `&startTime=${start}` : ""}`;
     }
     case "twitch": {
       const what = "channel" in e ? `channel=${enc(e.channel)}` : `video=${enc(e.video)}`;
@@ -255,7 +260,7 @@ export function parseEmbedLink(raw: string): EmbedRef | null {
 }
 
 const VIMEO_ORIGIN = "https://player.vimeo.com";
-const DAILYMOTION_ORIGIN = "https://www.dailymotion.com";
+const DAILYMOTION_ORIGIN = "https://geo.dailymotion.com";
 
 function safeJson(s: string): unknown {
   try {
