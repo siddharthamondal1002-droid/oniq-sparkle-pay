@@ -1,9 +1,18 @@
 import { moneyIn } from "@/lib/format";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Check, Upload, MessageCircle } from "lucide-react";
+import { Loader2, Check, Upload, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
+import {
+  OniqCanvas,
+  OniqCard,
+  OniqChip,
+  OniqEmpty,
+  OniqHeader,
+  OniqProgressBar,
+  OniqSkeleton,
+} from "@/components/oniq";
 import { supabase } from "@/integrations/supabase/client";
 import { launchMiniApp } from "@/lib/miniapps";
 import { InviteNotification } from "@/components/earn/InviteNotification";
@@ -319,53 +328,60 @@ function RegionSelect({
 function EarnScreen() {
   const [tab, setTab] = useState<Tab>("hire");
   return (
-    <div className="min-h-screen overflow-x-hidden px-5 pt-12 pb-10">
-      <div className="flex items-center gap-3">
-        <Link
-          to="/app"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-card"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <h1 className="font-display text-2xl font-bold flex items-center gap-2 min-w-0 truncate">
-          <span>💼</span> earn
-        </h1>
+    <OniqCanvas world="earn" className="overflow-x-hidden pb-10">
+      <OniqHeader
+        eyebrow="Earn"
+        title={
+          <>
+            <span aria-hidden="true">💼</span> earn
+          </>
+        }
+        subtitle="hire help or get hired ✨"
+        back="/app"
+      >
+        <div role="tablist" aria-label="Earn sections" className="flex gap-2">
+          {(
+            [
+              ["hire", "hire help 🧹"],
+              ["partner", "become a partner 💼"],
+            ] as const
+          ).map(([k, label]) => (
+            <OniqChip
+              key={k}
+              role="tab"
+              active={tab === k}
+              onClick={() => setTab(k)}
+              className="min-h-11 min-w-0 flex-1 basis-0 justify-center"
+            >
+              <span className="truncate">{label}</span>
+            </OniqChip>
+          ))}
+        </div>
+      </OniqHeader>
+
+      <div className="px-5">
+        {tab === "hire" ? <HirePanel goPartner={() => setTab("partner")} /> : <PartnerPanel />}
       </div>
-      <div className="mt-1 text-xs text-muted-foreground">hire help or get hired ✨</div>
 
-      <div className="mt-4 grid grid-cols-2 rounded-2xl border border-border bg-card p-1 text-xs">
-        {(
-          [
-            ["hire", "hire help 🧹"],
-            ["partner", "become a partner 💼"],
-          ] as const
-        ).map(([k, label]) => (
-          <button
-            key={k}
-            onClick={() => setTab(k)}
-            className={`min-h-11 rounded-xl py-2 font-semibold truncate ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "hire" ? <HirePanel goPartner={() => setTab("partner")} /> : <PartnerPanel />}
-
+      {/*
+        Form fields share one look. The tokens are hex (styles.css), so they
+        are read directly — the earlier hsl(var(--card)) wrapping was invalid
+        CSS and the browser dropped every one of these declarations.
+      */}
       <style>{`
         .input-base {
           width: 100%;
-          background: hsl(var(--card));
-          border: 1px solid hsl(var(--border));
-          border-radius: 0.75rem;
+          background: var(--card);
+          border: 1px solid var(--border);
+          border-radius: 1rem;
           padding: 0.625rem 0.75rem;
           font-size: 0.875rem;
           color: inherit;
           outline: none;
         }
-        .input-base:focus { border-color: hsl(var(--primary)); }
+        .input-base:focus { border-color: var(--world-a); }
       `}</style>
-    </div>
+    </OniqCanvas>
   );
 }
 
@@ -377,38 +393,40 @@ function HirePanel({ goPartner }: { goPartner: () => void }) {
 
   return (
     <div className="mt-5 space-y-5">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3 rise rise-1">
         {CATEGORIES.map((c) => (
           <button
             key={c.id}
             onClick={() =>
               c.providers && c.providers.length ? setChooserFor(c) : setNoProviderFor(c)
             }
-            className="press flex flex-col items-center justify-center gap-1 rounded-2xl border border-border bg-card p-3 text-center hover:brightness-110"
+            className="press flex flex-col items-center justify-center gap-2 rounded-2xl oniq-surface p-3 text-center"
           >
-            <span className="text-2xl">{c.emoji}</span>
-            <span className="text-[11px] font-medium leading-tight">{c.label}</span>
+            <span
+              className="grid h-11 w-11 place-items-center rounded-2xl bg-world-soft text-2xl"
+              aria-hidden="true"
+            >
+              {c.emoji}
+            </span>
+            <span className="text-[11px] font-medium leading-tight text-foreground">{c.label}</span>
           </button>
         ))}
       </div>
 
-      <p className="text-[11px] text-muted-foreground text-center px-4">
+      <p className="px-4 text-center text-[11px] text-muted-foreground">
         booking handled by our partner services — opens their app/site
       </p>
 
       <OniqPartnersSection goPartner={goPartner} withInviteCard />
 
-      <button
-        onClick={goPartner}
-        className="press w-full rounded-2xl border border-primary/40 bg-primary/10 p-4 text-left"
-      >
-        <div className="text-sm font-semibold text-primary">
+      <OniqCard variant="tinted" padding="md" onClick={goPartner} className="rise rise-3">
+        <div className="text-sm font-semibold text-world">
           want ONIQ's own service partners near you? tell us 👇
         </div>
-        <div className="mt-1 text-xs text-muted-foreground">
+        <div className="mt-1 text-[12px] text-muted-foreground">
           Join the partner waitlist and we'll launch in your area soon.
         </div>
-      </button>
+      </OniqCard>
 
       {chooserFor && <ProviderChooser category={chooserFor} onClose={() => setChooserFor(null)} />}
       {noProviderFor && (
@@ -418,8 +436,12 @@ function HirePanel({ goPartner }: { goPartner: () => void }) {
             onClick={() => setNoProviderFor(null)}
             aria-hidden
           />
-          <div className="glass relative z-10 w-full max-w-md rounded-t-3xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-            <div className="font-display text-lg font-bold">
+          <div className="relative z-10 w-full max-w-md rounded-t-3xl oniq-glass p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] md:max-w-lg lg:max-w-xl">
+            <div
+              className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong"
+              aria-hidden="true"
+            />
+            <div className="font-display text-[18px] text-foreground">
               {noProviderFor.emoji} {noProviderFor.label}
             </div>
             <div className="mt-2 text-sm text-muted-foreground">
@@ -430,13 +452,13 @@ function HirePanel({ goPartner }: { goPartner: () => void }) {
                 setNoProviderFor(null);
                 goPartner();
               }}
-              className="press mt-4 w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground"
+              className="press mt-4 w-full rounded-full bg-world py-3 font-semibold text-white world-glow"
             >
               become a partner
             </button>
             <button
               onClick={() => setNoProviderFor(null)}
-              className="press mt-2 w-full rounded-xl bg-surface-2 py-2 text-sm font-medium"
+              className="press mt-2 w-full rounded-full bg-surface-2 py-2 text-sm font-medium text-foreground"
             >
               cancel
             </button>
@@ -508,13 +530,16 @@ function PriceOfferSheet({
   return (
     <div className="fixed inset-0 z-[60] flex items-end bg-black/60" onClick={onClose}>
       <div
-        className="w-full rounded-t-3xl border-t border-border bg-background p-5 pb-8"
+        className="mx-auto w-full max-w-md rounded-t-3xl oniq-glass p-5 pb-[max(2rem,env(safe-area-inset-bottom))] md:max-w-lg lg:max-w-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="font-display text-lg font-bold">{title}</div>
-        <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
-        <div className="mt-3 flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3">
-          <span className="text-lg font-bold">{moneyIn(0, "INR").replace(/[\d.,\s]/g, "")}</span>
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" aria-hidden="true" />
+        <div className="font-display text-[18px] text-foreground">{title}</div>
+        <div className="mt-1 text-[12px] text-muted-foreground">{hint}</div>
+        <div className="mt-3 flex items-center gap-2 rounded-2xl oniq-surface px-4 py-3">
+          <span className="text-lg font-bold text-world">
+            {moneyIn(0, "INR").replace(/[\d.,\s]/g, "")}
+          </span>
           <input
             type="number"
             inputMode="numeric"
@@ -522,14 +547,14 @@ function PriceOfferSheet({
             autoFocus
             value={price}
             onChange={(e) => setPrice(e.target.value)}
-            className="w-full bg-transparent text-lg font-semibold focus:outline-none"
+            className="w-full bg-transparent text-lg font-semibold text-foreground focus:outline-none"
             placeholder="300"
           />
         </div>
         <button
           onClick={submit}
           disabled={busy}
-          className="press mt-4 w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-60"
+          className="press mt-4 w-full rounded-full bg-world py-3 font-semibold text-white world-glow disabled:opacity-60"
         >
           {busy ? "sending…" : "send offer"}
         </button>
@@ -672,40 +697,41 @@ function OniqPartnersSection({
           providerCount={status?.provider_count}
         />
       )}
-      <div className="rounded-2xl border border-border bg-card p-4">
+      <OniqCard padding="lg" className="rise rise-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-sm font-semibold">ONIQ partners near you</div>
-          <span className="rounded-full bg-[#25D366]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#25D366]">
+          <div className="font-display text-[15px] leading-tight text-foreground">
+            ONIQ partners near you
+          </div>
+          <span className="rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-success">
             free booking
           </span>
         </div>
-        <div className="mt-2">
+        <div className="mt-3">
           <RegionSelect city={city} setCity={setCity} village={village} setVillage={setVillage} />
         </div>
 
         {region.length === 0 ? (
-          <div className="mt-3 text-xs text-muted-foreground">
+          <div className="mt-3 text-[12px] text-muted-foreground">
             type your village name to check availability
           </div>
         ) : !status ? (
-          <div className="mt-3 flex justify-center">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <div className="mt-3">
+            <OniqSkeleton className="h-12 w-full" />
           </div>
         ) : enabled ? (
           <div className="mt-3 space-y-2">
-            <div className="text-xs font-semibold text-[#25D366]">
+            <div className="text-[12px] font-semibold text-success">
               🎉 ONIQ services are live in {label}
             </div>
             {providers.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center gap-3 rounded-xl border border-border bg-background/50 p-3"
-              >
+              <div key={p.id} className="flex items-center gap-3 rounded-2xl bg-surface-2 p-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <div className="truncate text-sm font-semibold">{p.full_name}</div>
+                    <div className="truncate text-sm font-semibold text-foreground">
+                      {p.full_name}
+                    </div>
                     {p.avg_rating != null && (
-                      <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-400">
+                      <span className="shrink-0 rounded-full bg-world-soft px-1.5 py-0.5 text-[11px] font-bold text-world">
                         ⭐ {p.avg_rating}
                       </span>
                     )}
@@ -724,36 +750,33 @@ function OniqPartnersSection({
                 </div>
                 <button
                   onClick={() => setBookTarget(p)}
-                  className="press shrink-0 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground"
+                  className="press shrink-0 rounded-full bg-world px-4 py-1.5 text-[12px] font-semibold text-white world-glow"
                 >
                   book free
                 </button>
               </div>
             ))}
-            <div className="text-center text-[10px] text-muted-foreground">
+            <div className="text-center text-[11px] text-muted-foreground">
               ONIQ charges {moneyIn(0, "INR")} for bookings — you deal with the partner directly
             </div>
           </div>
         ) : (
           <div className="mt-3">
-            <div className="flex items-baseline justify-between text-xs">
-              <span className="font-semibold">
+            <div className="flex items-baseline justify-between text-[12px]">
+              <span className="font-semibold text-foreground">
                 {status.provider_count}/{REGION_TARGET} partners registered in {label}
               </span>
             </div>
-            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary transition-all"
-                style={{
-                  width: `${Math.min(100, (status.provider_count / REGION_TARGET) * 100)}%`,
-                }}
-              />
-            </div>
+            <OniqProgressBar
+              className="mt-2"
+              value={status.provider_count / REGION_TARGET}
+              label={`${status.provider_count} of ${REGION_TARGET} partners registered`}
+            />
             <div className="mt-2 text-[11px] text-muted-foreground">
               when {REGION_TARGET} verified partners register here, ONIQ services go live for
               everyone in {label} — with 100% free booking.
             </div>
-            <button onClick={goPartner} className="press mt-2 text-xs font-semibold text-primary">
+            <button onClick={goPartner} className="press mt-2 text-[12px] font-semibold text-world">
               know someone who provides services? invite them to become a partner →
             </button>
           </div>
@@ -761,21 +784,22 @@ function OniqPartnersSection({
 
         {myBookings.length > 0 && (
           <div className="mt-4 border-t border-border pt-3">
-            <div className="text-xs font-semibold text-muted-foreground">your bookings</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              your bookings
+            </div>
             <div className="mt-2 space-y-2">
               {myBookings.map((b) => (
-                <div
-                  key={b.id}
-                  className="flex items-center gap-2 rounded-xl border border-border p-2.5"
-                >
+                <div key={b.id} className="flex items-center gap-2 rounded-2xl bg-surface-2 p-2.5">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{b.provider_name}</div>
+                    <div className="truncate text-sm font-medium text-foreground">
+                      {b.provider_name}
+                    </div>
                     {slotLine(b) && (
                       <div className="truncate text-[11px] text-muted-foreground">
                         {slotLine(b)}
                       </div>
                     )}
-                    <div className="text-[11px] font-semibold">
+                    <div className="text-[11px] font-semibold text-foreground">
                       {b.agreed_price
                         ? `${moneyIn(Number(b.agreed_price), "INR")} agreed 🤝`
                         : b.status === "countered" && b.counter_price
@@ -784,7 +808,7 @@ function OniqPartnersSection({
                             ? `your offer: ${moneyIn(Number(b.offered_price), "INR")}`
                             : ""}
                     </div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
                       {b.status}
                       {b.rating ? ` · you rated ⭐${b.rating}` : ""}
                     </div>
@@ -792,7 +816,7 @@ function OniqPartnersSection({
                       <div className="mt-1.5 flex gap-2">
                         <button
                           onClick={() => acceptCounter(b.id)}
-                          className="press rounded-full bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground"
+                          className="press rounded-full bg-world px-3 py-1 text-[11px] font-semibold text-white"
                         >
                           accept {moneyIn(Number(b.counter_price), "INR")}
                         </button>
@@ -808,7 +832,7 @@ function OniqPartnersSection({
                   <button
                     onClick={() => openChat(b.provider_user_id)}
                     aria-label="Chat with partner"
-                    className="press grid h-8 w-8 place-items-center rounded-full border border-border"
+                    className="tap press grid h-8 w-8 place-items-center rounded-full oniq-surface text-foreground"
                   >
                     <MessageCircle className="h-4 w-4" />
                   </button>
@@ -823,7 +847,7 @@ function OniqPartnersSection({
                   {b.status === "done" && !b.rating && (
                     <button
                       onClick={() => setRateTarget(b)}
-                      className="press rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-semibold text-amber-400"
+                      className="press rounded-full bg-world-soft px-3 py-1 text-[11px] font-semibold text-world"
                     >
                       rate ⭐
                     </button>
@@ -833,7 +857,7 @@ function OniqPartnersSection({
             </div>
           </div>
         )}
-      </div>
+      </OniqCard>
 
       {bookTarget && (
         <BookServiceSheet
@@ -956,12 +980,13 @@ function BookServiceSheet({
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
       <div
-        className="max-h-[85vh] w-full overflow-y-auto rounded-t-3xl border-t border-border bg-background p-5 pb-8"
+        className="mx-auto max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl oniq-glass p-5 pb-[max(2rem,env(safe-area-inset-bottom))] md:max-w-lg lg:max-w-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="font-display text-lg font-bold">book {provider.full_name}</div>
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" aria-hidden="true" />
+        <div className="font-display text-[18px] text-foreground">book {provider.full_name}</div>
         {provider.avg_rating != null && (
-          <div className="text-xs text-amber-400">
+          <div className="text-[12px] text-world">
             ⭐ {provider.avg_rating} · {provider.jobs_done} job{provider.jobs_done === 1 ? "" : "s"}{" "}
             done
           </div>
@@ -973,14 +998,9 @@ function BookServiceSheet({
               const c = catById(s);
               const on = category === s;
               return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setCategory(s)}
-                  className={`press rounded-full border px-3 py-1.5 text-xs ${on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground"}`}
-                >
+                <OniqChip key={s} role="radio" active={on} onClick={() => setCategory(s)}>
                   {c ? `${c.emoji} ${c.label}` : s}
-                </button>
+                </OniqChip>
               );
             })}
           </div>
@@ -999,14 +1019,9 @@ function BookServiceSheet({
         <Field label="Time slot">
           <div className="flex flex-wrap gap-2">
             {TIME_SLOTS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setSlot(s)}
-                className={`press rounded-full border px-3 py-1.5 text-xs ${slot === s ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground"}`}
-              >
+              <OniqChip key={s} role="radio" active={slot === s} onClick={() => setSlot(s)}>
                 {s}
-              </button>
+              </OniqChip>
             ))}
           </div>
         </Field>
@@ -1023,19 +1038,21 @@ function BookServiceSheet({
         </Field>
 
         <Field label={`Your price offer (${moneyIn(0, "INR").replace(/[\d.,\s]/g, "")})`}>
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
-            <span className="font-bold">{moneyIn(0, "INR").replace(/[\d.,\s]/g, "")}</span>
+          <div className="flex items-center gap-2 rounded-2xl oniq-surface px-3 py-2.5">
+            <span className="font-bold text-world">
+              {moneyIn(0, "INR").replace(/[\d.,\s]/g, "")}
+            </span>
             <input
               type="number"
               inputMode="numeric"
               min={10}
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              className="w-full bg-transparent text-sm font-semibold focus:outline-none"
+              className="w-full bg-transparent text-sm font-semibold text-foreground focus:outline-none"
               placeholder="name your price — they can accept or counter"
             />
           </div>
-          <div className="mt-1 text-[10px] text-muted-foreground">
+          <div className="mt-1 text-[11px] text-muted-foreground">
             you pay the partner directly · ONIQ takes {moneyIn(0, "INR")} commission
           </div>
         </Field>
@@ -1054,13 +1071,13 @@ function BookServiceSheet({
           onClick={confirm}
           disabled={busy}
           data-testid="confirm-booking"
-          className="press mt-4 w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-60"
+          className="press mt-4 w-full rounded-full bg-world py-3 font-semibold text-white world-glow disabled:opacity-60"
         >
           {busy ? "booking…" : `confirm booking · ${moneyIn(0, "INR")} fee`}
         </button>
         <button
           onClick={onClose}
-          className="press mt-2 w-full rounded-2xl border border-border py-3 text-sm text-muted-foreground"
+          className="press mt-2 w-full rounded-full border border-border py-3 text-sm text-muted-foreground"
         >
           cancel
         </button>
@@ -1104,17 +1121,18 @@ function RateBookingSheet({
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
       <div
-        className="w-full rounded-t-3xl border-t border-border bg-background p-5 pb-8"
+        className="mx-auto w-full max-w-md rounded-t-3xl oniq-glass p-5 pb-[max(2rem,env(safe-area-inset-bottom))] md:max-w-lg lg:max-w-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="font-display text-lg font-bold">rate {booking.provider_name}</div>
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" aria-hidden="true" />
+        <div className="font-display text-[18px] text-foreground">rate {booking.provider_name}</div>
         <div className="mt-3 flex justify-center gap-2">
           {[1, 2, 3, 4, 5].map((n) => (
             <button
               key={n}
               onClick={() => setStars(n)}
               aria-label={`${n} star${n === 1 ? "" : "s"}`}
-              className={`text-3xl transition ${n <= stars ? "" : "opacity-25 grayscale"}`}
+              className={`press text-3xl transition ${n <= stars ? "" : "opacity-25 grayscale"}`}
             >
               ⭐
             </button>
@@ -1131,7 +1149,7 @@ function RateBookingSheet({
         <button
           onClick={submit}
           disabled={busy}
-          className="press mt-4 w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-60"
+          className="press mt-4 w-full rounded-full bg-world py-3 font-semibold text-white world-glow disabled:opacity-60"
         >
           {busy ? "sending…" : "submit rating"}
         </button>
@@ -1145,9 +1163,12 @@ function ProviderChooser({ category, onClose }: { category: Category; onClose: (
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden />
-      <div className="glass relative z-10 w-full max-w-md rounded-t-3xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-        <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">open with</div>
-        <div className="font-display text-lg font-bold">
+      <div className="relative z-10 w-full max-w-md rounded-t-3xl oniq-glass p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] md:max-w-lg lg:max-w-xl">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" aria-hidden="true" />
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
+          open with
+        </div>
+        <div className="font-display text-[18px] text-foreground">
           {category.emoji} {category.label}
         </div>
         <div className="mt-1 text-[11px] text-muted-foreground">
@@ -1161,18 +1182,19 @@ function ProviderChooser({ category, onClose }: { category: Category; onClose: (
                 await launchMiniApp(p);
                 onClose();
               }}
-              className="press flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left"
+              className="press flex w-full items-center gap-3 rounded-2xl oniq-surface p-3 text-start"
             >
               <div
                 className="grid h-10 w-10 place-items-center rounded-xl text-lg"
                 style={{ background: `${p.color}26`, color: p.color }}
+                aria-hidden="true"
               >
                 {p.emoji}
               </div>
               <div className="flex-1">
-                <div className="text-sm font-semibold">{p.name}</div>
+                <div className="text-sm font-semibold text-foreground">{p.name}</div>
                 <div className="text-[11px] text-muted-foreground">
-                  opens app if installed, else website
+                  opens outside ONIQ — app if installed, else website
                 </div>
               </div>
             </button>
@@ -1180,7 +1202,7 @@ function ProviderChooser({ category, onClose }: { category: Category; onClose: (
         </div>
         <button
           onClick={onClose}
-          className="press mt-4 w-full rounded-xl bg-surface-2 py-2 text-sm font-medium"
+          className="press mt-4 w-full rounded-full bg-surface-2 py-2 text-sm font-medium text-foreground"
         >
           cancel
         </button>
@@ -1309,8 +1331,9 @@ function PartnerPanel() {
 
   if (existingLoading) {
     return (
-      <div className="mt-8 flex justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="mt-6 space-y-3">
+        <OniqSkeleton className="h-28 w-full" />
+        <OniqSkeleton className="h-40 w-full" />
       </div>
     );
   }
@@ -1323,17 +1346,17 @@ function PartnerPanel() {
     if (existing.verification_status === "verified") {
       return (
         <div className="mt-6 space-y-4">
-          <div className="flex items-center gap-3 rounded-2xl border border-[#25D366]/40 bg-[#25D366]/10 p-4">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#25D366] text-white">
+          <OniqCard variant="hero" padding="md" className="flex items-center gap-3 rise">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/20 text-white">
               <Check className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-bold">verified ONIQ partner 🎖️</div>
-              <div className="truncate text-xs text-muted-foreground">
+              <div className="font-display text-[16px] leading-tight">verified ONIQ partner 🎖️</div>
+              <div className="truncate text-[12px] text-white/80">
                 {existing.full_name} · {regionName}
               </div>
             </div>
-          </div>
+          </OniqCard>
           <PartnerRequests showEmpty />
           <PartnerRegionProgress region={region} regionName={regionName} />
         </div>
@@ -1342,18 +1365,18 @@ function PartnerPanel() {
 
     return (
       <div className="mt-6 space-y-4">
-        <div className="rounded-2xl border border-primary/40 bg-primary/10 p-5 text-center">
-          <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-primary text-primary-foreground">
+        <OniqCard variant="tinted" padding="lg" className="rise text-center">
+          <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-world text-white world-glow">
             <Check className="h-6 w-6" />
           </div>
-          <div className="font-display text-lg font-bold">you're on the list ✅</div>
+          <div className="font-display text-[18px] text-foreground">you're on the list ✅</div>
           <div className="mt-2 text-sm text-muted-foreground">
             we'll reach out as we launch in {regionName}.
           </div>
           <div className="mt-3 text-[11px] uppercase tracking-wider text-muted-foreground">
             status: {existing.status} · verification: {existing.verification_status}
           </div>
-        </div>
+        </OniqCard>
 
         <VerificationSection meId={me.id} app={existing} />
         <PartnerRegionProgress region={region} regionName={regionName} />
@@ -1364,104 +1387,102 @@ function PartnerPanel() {
 
   return (
     <form onSubmit={submit} className="mt-5 space-y-4">
-      <Field label="Full name">
-        <input
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          maxLength={80}
-          className="input-base"
-          placeholder="Your full name"
-        />
-      </Field>
-
-      <Field label="Phone">
-        <input
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          maxLength={20}
-          inputMode="tel"
-          className="input-base"
-          placeholder="e.g. +91 98xxxxxx"
-        />
-      </Field>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="City / Village">
-          <RegionSelect city={city} setCity={setCity} village={village} setVillage={setVillage} />
-        </Field>
-        <Field label="Area / locality">
+      <OniqCard padding="lg" className="space-y-4 rise rise-1">
+        <Field label="Full name">
           <input
-            value={area}
-            onChange={(e) => setArea(e.target.value)}
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
             maxLength={80}
             className="input-base"
-            placeholder="e.g. Salt Lake"
+            placeholder="Your full name"
           />
         </Field>
-      </div>
 
-      <Field label="Skills">
-        <div className="flex flex-wrap gap-2">
-          {CATEGORIES.map((c) => {
-            const on = skills.includes(c.id);
-            return (
-              <button
-                type="button"
-                key={c.id}
-                onClick={() => toggle(skills, setSkills, c.id)}
-                className={`press rounded-full border px-3 py-1.5 text-xs ${on ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border"}`}
-              >
-                {c.emoji} {c.label}
-              </button>
-            );
-          })}
+        <Field label="Phone">
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            maxLength={20}
+            inputMode="tel"
+            className="input-base"
+            placeholder="e.g. +91 98xxxxxx"
+          />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="City / Village">
+            <RegionSelect city={city} setCity={setCity} village={village} setVillage={setVillage} />
+          </Field>
+          <Field label="Area / locality">
+            <input
+              value={area}
+              onChange={(e) => setArea(e.target.value)}
+              maxLength={80}
+              className="input-base"
+              placeholder="e.g. Salt Lake"
+            />
+          </Field>
         </div>
-      </Field>
+      </OniqCard>
 
-      <Field label="Experience (years)">
-        <input
-          type="number"
-          min={0}
-          max={60}
-          value={experience}
-          onChange={(e) => setExperience(e.target.value)}
-          className="input-base"
-        />
-      </Field>
+      <OniqCard padding="lg" className="space-y-4 rise rise-2">
+        <Field label="Skills">
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIES.map((c) => {
+              const on = skills.includes(c.id);
+              return (
+                <OniqChip key={c.id} active={on} onClick={() => toggle(skills, setSkills, c.id)}>
+                  {c.emoji} {c.label}
+                </OniqChip>
+              );
+            })}
+          </div>
+        </Field>
 
-      <Field label="Availability">
-        <div className="flex flex-wrap gap-2">
-          {AVAILABILITY.map((a) => {
-            const on = availability.includes(a);
-            return (
-              <button
-                type="button"
-                key={a}
-                onClick={() => toggle(availability, setAvailability, a)}
-                className={`press rounded-full border px-3 py-1.5 text-xs ${on ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border"}`}
-              >
-                {a}
-              </button>
-            );
-          })}
-        </div>
-      </Field>
+        <Field label="Experience (years)">
+          <input
+            type="number"
+            min={0}
+            max={60}
+            value={experience}
+            onChange={(e) => setExperience(e.target.value)}
+            className="input-base"
+          />
+        </Field>
 
-      <Field label="Note (optional)">
-        <textarea
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          maxLength={300}
-          rows={3}
-          className="input-base resize-none"
-          placeholder="Anything else we should know?"
-        />
-      </Field>
+        <Field label="Availability">
+          <div className="flex flex-wrap gap-2">
+            {AVAILABILITY.map((a) => {
+              const on = availability.includes(a);
+              return (
+                <OniqChip
+                  key={a}
+                  active={on}
+                  onClick={() => toggle(availability, setAvailability, a)}
+                >
+                  {a}
+                </OniqChip>
+              );
+            })}
+          </div>
+        </Field>
+
+        <Field label="Note (optional)">
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            maxLength={300}
+            rows={3}
+            className="input-base resize-none"
+            placeholder="Anything else we should know?"
+          />
+        </Field>
+      </OniqCard>
 
       <button
         type="submit"
         disabled={submitting}
-        className="press w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-60"
+        className="press w-full rounded-full bg-world py-3 font-semibold text-white world-glow disabled:opacity-60"
       >
         {submitting ? "submitting…" : "Join the partner waitlist"}
       </button>
@@ -1531,8 +1552,8 @@ function VerificationSection({ meId, app }: { meId: string; app: PartnerApp }) {
   };
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="text-sm font-semibold">verification</div>
+    <OniqCard padding="lg" className="rise rise-1">
+      <div className="font-display text-[15px] leading-tight text-foreground">verification</div>
       <div className="mt-1 text-[11px] text-muted-foreground">
         upload your Aadhaar and PAN photos to get verified. Once {REGION_TARGET} verified partners
         register in your region, ONIQ services go live there. Documents are stored privately and
@@ -1545,7 +1566,7 @@ function VerificationSection({ meId, app }: { meId: string; app: PartnerApp }) {
           return (
             <label
               key={d.kind}
-              className={`press flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${done ? "border-[#25D366]/50 bg-[#25D366]/10" : "border-border bg-background/50"}`}
+              className={`press flex cursor-pointer items-center gap-3 rounded-2xl border p-3 ${done ? "border-success/50 bg-success/10" : "border-border bg-surface-2"}`}
             >
               <input
                 type="file"
@@ -1559,7 +1580,7 @@ function VerificationSection({ meId, app }: { meId: string; app: PartnerApp }) {
                 }}
               />
               <span
-                className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${done ? "bg-[#25D366] text-black" : "bg-muted text-muted-foreground"}`}
+                className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${done ? "bg-success text-white" : "bg-world-soft text-world"}`}
               >
                 {busy ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1570,8 +1591,8 @@ function VerificationSection({ meId, app }: { meId: string; app: PartnerApp }) {
                 )}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">{d.label}</span>
-                <span className="block text-[10px] text-muted-foreground">
+                <span className="block text-sm font-medium text-foreground">{d.label}</span>
+                <span className="block text-[11px] text-muted-foreground">
                   {done
                     ? "uploaded — tap to replace"
                     : busy
@@ -1583,7 +1604,7 @@ function VerificationSection({ meId, app }: { meId: string; app: PartnerApp }) {
           );
         })}
       </div>
-    </div>
+    </OniqCard>
   );
 }
 
@@ -1600,29 +1621,28 @@ function PartnerRegionProgress({ region, regionName }: { region: string; regionN
   });
   if (!status) return null;
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <OniqCard padding="lg" className="rise rise-2">
       {status.enabled ? (
-        <div className="text-sm font-semibold text-[#25D366]">
+        <div className="text-sm font-semibold text-success">
           🎉 ONIQ services are live in {regionName} — customers can now book you for free
         </div>
       ) : (
         <>
-          <div className="text-xs font-semibold">
+          <div className="text-[12px] font-semibold text-foreground">
             {status.provider_count}/{REGION_TARGET} verified partners in {regionName}
           </div>
-          <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${Math.min(100, (status.provider_count / REGION_TARGET) * 100)}%` }}
-            />
-          </div>
+          <OniqProgressBar
+            className="mt-2"
+            value={status.provider_count / REGION_TARGET}
+            label={`${status.provider_count} of ${REGION_TARGET} verified partners`}
+          />
           <div className="mt-2 text-[11px] text-muted-foreground">
             when {REGION_TARGET} partners finish verification here, ONIQ services open up for your
             whole region — and customers book you at zero charge.
           </div>
         </>
       )}
-    </div>
+    </OniqCard>
   );
 }
 
@@ -1706,46 +1726,47 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
   if (bookings.length === 0) {
     if (!showEmpty) return null;
     return (
-      <div className="rounded-2xl border border-border bg-card p-6 text-center">
-        <div className="text-3xl">📋</div>
-        <div className="mt-2 text-sm font-semibold">your bookings</div>
-        <div className="mt-1 text-xs text-muted-foreground">
-          no booking requests yet — when a customer books you, the job shows up here with their
-          price offer.
-        </div>
-      </div>
+      <OniqEmpty
+        emoji="📋"
+        title="your bookings"
+        body="no booking requests yet — when a customer books you, the job shows up here with their price offer."
+      />
     );
   }
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="text-sm font-semibold">
+    <OniqCard padding="lg" className="rise rise-1">
+      <div className="font-display text-[15px] leading-tight text-foreground">
         {showEmpty ? "your bookings" : "booking requests"}
       </div>
       <div className="mt-2 space-y-2">
         {bookings.map((b) => (
-          <div key={b.id} className="rounded-xl border border-border p-3">
+          <div key={b.id} className="rounded-2xl bg-surface-2 p-3">
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">{b.customer_name}</div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                <div className="truncate text-sm font-medium text-foreground">
+                  {b.customer_name}
+                </div>
+                <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
                   {b.status}
                 </div>
               </div>
               <button
                 onClick={() => openChat(b.customer_id)}
                 aria-label="Chat with customer"
-                className="press grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border"
+                className="tap press grid h-8 w-8 shrink-0 place-items-center rounded-full oniq-surface text-foreground"
               >
                 <MessageCircle className="h-4 w-4" />
               </button>
             </div>
-            {slotLine(b) && <div className="mt-1 text-xs font-medium">{slotLine(b)}</div>}
+            {slotLine(b) && (
+              <div className="mt-1 text-[12px] font-medium text-foreground">{slotLine(b)}</div>
+            )}
             {b.agreed_price != null ? (
-              <div className="mt-1 text-xs font-semibold text-[#25D366]">
+              <div className="mt-1 text-[12px] font-semibold text-success">
                 {moneyIn(Number(b.agreed_price), "INR")} agreed 🤝
               </div>
             ) : b.status === "countered" && b.counter_price != null ? (
-              <div className="mt-1 text-xs text-muted-foreground">
+              <div className="mt-1 text-[12px] text-muted-foreground">
                 you asked{" "}
                 <span className="font-semibold text-foreground">
                   {moneyIn(Number(b.counter_price), "INR")}
@@ -1756,17 +1777,17 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
                   : ""}
               </div>
             ) : b.offered_price != null ? (
-              <div className="mt-1 text-xs">
+              <div className="mt-1 text-[12px] text-foreground">
                 their offer:{" "}
                 <span className="font-semibold">{moneyIn(Number(b.offered_price), "INR")}</span>
               </div>
             ) : null}
             {b.address && (b.status === "accepted" || b.status === "in_progress") && (
-              <div className="mt-1 text-xs text-muted-foreground">📍 {b.address}</div>
+              <div className="mt-1 text-[12px] text-muted-foreground">📍 {b.address}</div>
             )}
-            {b.note && <div className="mt-1.5 text-xs text-muted-foreground">"{b.note}"</div>}
+            {b.note && <div className="mt-1.5 text-[12px] text-muted-foreground">"{b.note}"</div>}
             {b.rating && (
-              <div className="mt-1.5 text-xs text-amber-400">
+              <div className="mt-1.5 text-[12px] text-world">
                 ⭐ {b.rating}
                 {b.review ? ` — "${b.review}"` : ""}
               </div>
@@ -1777,7 +1798,7 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
                   onClick={() =>
                     b.offered_price != null ? acceptPrice(b.id) : respond(b.id, "accepted")
                   }
-                  className="press flex-1 rounded-full bg-primary py-1.5 text-xs font-semibold text-primary-foreground"
+                  className="press flex-1 rounded-full bg-world py-1.5 text-[12px] font-semibold text-white"
                 >
                   {b.offered_price != null
                     ? `accept ${moneyIn(Number(b.offered_price), "INR")}`
@@ -1785,13 +1806,13 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
                 </button>
                 <button
                   onClick={() => setCounterTarget(b)}
-                  className="press flex-1 rounded-full border border-primary/50 py-1.5 text-xs font-semibold text-primary"
+                  className="press flex-1 rounded-full border border-world py-1.5 text-[12px] font-semibold text-world"
                 >
                   counter 💬
                 </button>
                 <button
                   onClick={() => respond(b.id, "declined")}
-                  className="press flex-1 rounded-full border border-border py-1.5 text-xs text-muted-foreground"
+                  className="press flex-1 rounded-full border border-border py-1.5 text-[12px] text-muted-foreground"
                 >
                   decline
                 </button>
@@ -1801,13 +1822,13 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
               <div className="mt-2 flex gap-2">
                 <button
                   onClick={() => setCounterTarget(b)}
-                  className="press flex-1 rounded-full border border-primary/50 py-1.5 text-xs font-semibold text-primary"
+                  className="press flex-1 rounded-full border border-world py-1.5 text-[12px] font-semibold text-world"
                 >
                   change price
                 </button>
                 <button
                   onClick={() => respond(b.id, "declined")}
-                  className="press flex-1 rounded-full border border-border py-1.5 text-xs text-muted-foreground"
+                  className="press flex-1 rounded-full border border-border py-1.5 text-[12px] text-muted-foreground"
                 >
                   decline
                 </button>
@@ -1816,7 +1837,7 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
             {b.status === "accepted" && (
               <button
                 onClick={() => respond(b.id, "in_progress")}
-                className="press mt-2 w-full rounded-full bg-primary/15 py-1.5 text-xs font-semibold text-primary"
+                className="press mt-2 w-full rounded-full bg-world-soft py-1.5 text-[12px] font-semibold text-world"
               >
                 start job ▶
               </button>
@@ -1824,7 +1845,7 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
             {(b.status === "accepted" || b.status === "in_progress") && (
               <button
                 onClick={() => respond(b.id, "done")}
-                className="press mt-2 w-full rounded-full border border-[#25D366]/50 py-1.5 text-xs font-semibold text-[#25D366]"
+                className="press mt-2 w-full rounded-full border border-success/50 py-1.5 text-[12px] font-semibold text-success"
               >
                 mark as done ✅
               </button>
@@ -1845,14 +1866,14 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
           onSubmit={sendCounter}
         />
       )}
-    </div>
+    </OniqCard>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <div className="mb-1.5 text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">{label}</div>
       {children}
     </label>
   );

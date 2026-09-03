@@ -17,7 +17,7 @@
   },
   "src/components/chat/GlobalIncomingCall.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 4
+      "count": 3
     },
     "no-empty": {
       "count": 4
@@ -56,26 +56,9 @@
       "count": 3
     }
   },
-  "src/components/landing/LiveNewsSection.tsx": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 6
-    },
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    },
-    "unused-imports/no-unused-imports": {
-      "count": 1
-    }
-  },
   "src/components/moments/MomentsFeed.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 9
-    },
-    "oniq/a11y-type-scale": {
-      "count": 2
-    },
-    "unused-imports/no-unused-imports": {
-      "count": 1
+      "count": 8
     }
   },
   "src/components/onboarding/FullScreenIntentPrompt.tsx": {
@@ -96,9 +79,6 @@
       "count": 2
     },
     "react-hooks/refs": {
-      "count": 1
-    },
-    "unused-imports/no-unused-imports": {
       "count": 1
     }
   },
@@ -200,11 +180,6 @@
       "count": 12
     }
   },
-  "src/routes/_authenticated/app.ai.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 4
-    }
-  },
   "src/routes/_authenticated/app.attributions.tsx": {
     "oniq/a11y-type-scale": {
       "count": 2
@@ -224,35 +199,14 @@
       "count": 3
     },
     "react-hooks/refs": {
-      "count": 3
+      "count": 1
     },
     "react-hooks/set-state-in-effect": {
       "count": 3
     }
   },
   "src/routes/_authenticated/app.chat.index.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 3
-    },
     "react-hooks/set-state-in-effect": {
-      "count": 1
-    },
-    "unused-imports/no-unused-imports": {
-      "count": 1
-    }
-  },
-  "src/routes/_authenticated/app.chat.me.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 8
-    }
-  },
-  "src/routes/_authenticated/app.chat.reels.tsx": {
-    "unused-imports/no-unused-imports": {
-      "count": 1
-    }
-  },
-  "src/routes/_authenticated/app.chat.tsx": {
-    "oniq/a11y-type-scale": {
       "count": 1
     }
   },
@@ -261,9 +215,6 @@
       "count": 3
     },
     "no-empty": {
-      "count": 1
-    },
-    "unused-imports/no-unused-imports": {
       "count": 1
     }
   },
@@ -278,9 +229,6 @@
     }
   },
   "src/routes/_authenticated/app.earn.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 7
-    },
     "react-hooks/purity": {
       "count": 1
     },
@@ -289,12 +237,6 @@
     }
   },
   "src/routes/_authenticated/app.faith.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 3
-    },
-    "react-hooks/immutability": {
-      "count": 1
-    },
     "react-hooks/set-state-in-effect": {
       "count": 2
     }
@@ -305,26 +247,11 @@
     }
   },
   "src/routes/_authenticated/app.index.tsx": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 3
-    },
-    "oniq/a11y-type-scale": {
-      "count": 9
-    },
-    "react-hooks/purity": {
-      "count": 2
-    },
     "react-hooks/set-state-in-effect": {
       "count": 4
-    },
-    "unused-imports/no-unused-imports": {
-      "count": 8
     }
   },
   "src/routes/_authenticated/app.jobs.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 1
-    },
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
@@ -336,21 +263,8 @@
     "no-empty": {
       "count": 4
     },
-    "oniq/a11y-type-scale": {
-      "count": 4
-    },
     "react-hooks/set-state-in-effect": {
       "count": 3
-    }
-  },
-  "src/routes/_authenticated/app.lores.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 2
-    }
-  },
-  "src/routes/_authenticated/app.miniapps.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 2
     }
   },
   "src/routes/_authenticated/app.privacy.data-rights.tsx": {
@@ -373,9 +287,6 @@
     }
   },
   "src/routes/_authenticated/app.profile.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 3
-    },
     "react-hooks/set-state-in-effect": {
       "count": 2
     }
@@ -383,9 +294,6 @@
   "src/routes/_authenticated/app.rides.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 4
-    },
-    "oniq/a11y-type-scale": {
-      "count": 2
     },
     "react-hooks/set-state-in-effect": {
       "count": 4
@@ -399,9 +307,6 @@
   "src/routes/_authenticated/app.study.tsx": {
     "no-control-regex": {
       "count": 1
-    },
-    "oniq/a11y-type-scale": {
-      "count": 38
     },
     "react-hooks/immutability": {
       "count": 1
@@ -420,18 +325,10 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 7
     },
-    "oniq/a11y-type-scale": {
-      "count": 8
-    },
     "oniq/currency-fence": {
       "count": 1
     },
     "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/routes/_authenticated/app.tsx": {
-    "oniq/a11y-type-scale": {
       "count": 1
     }
   },

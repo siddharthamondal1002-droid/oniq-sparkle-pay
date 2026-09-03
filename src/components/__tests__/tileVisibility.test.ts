@@ -4,6 +4,9 @@ import { TILE_LABELS, type TileKey } from "@/lib/i18n/tileLabel";
 
 const home = readFileSync("src/routes/_authenticated/app.index.tsx", "utf8");
 const sheet = readFileSync("src/components/customize/CustomizeSheet.tsx", "utf8");
+// The tile list moved out of Home on 2026-09-03: src/data/worlds.ts is the one
+// directory Home and Explore both draw from, so the wiring is pinned there.
+const worlds = readFileSync("src/data/worlds.ts", "utf8");
 
 // Mirrors AlsoInOniqRow's filter for the adultOnly axis.
 function visible(tiles: { key: TileKey; adultOnly?: boolean }[], isAdult: boolean): TileKey[] {
@@ -29,15 +32,18 @@ describe("age-gated tile rendering", () => {
   });
 
   it("wires each tile to its route and uses the 18+ gate, never is_minor_account", () => {
-    expect(home).toContain('{ key: "university", to: "/app/university" }');
-    expect(home).toContain('key: "jobs", to: "/app/jobs", adultOnly: true');
+    expect(worlds).toMatch(/key: "university",\s*to: "\/app\/university"/);
+    expect(worlds).toMatch(/key: "jobs",\s*to: "\/app\/jobs"[\s\S]{0,200}adultOnly: true/);
     expect(home).toContain("useIsAdult18");
+    expect(home).toContain("adultOnly || isAdult");
     expect(home).not.toContain("is_minor_account");
   });
 
   it("no longer renders a second, separate job-apps tile", () => {
     expect(home).not.toContain('key: "jobsApps"');
     expect(home).not.toContain("/app/jobs-apps");
+    expect(worlds).not.toContain('key: "jobsApps"');
+    expect(worlds).not.toContain("/app/jobs-apps");
   });
 
   it("the retired jobs-apps route redirects instead of 404ing", () => {

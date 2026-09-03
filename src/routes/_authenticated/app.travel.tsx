@@ -1,9 +1,18 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowLeft, ExternalLink, Loader2, Search, Sparkles } from "lucide-react";
+import { ExternalLink, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { openInApp } from "@/lib/miniapps";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  OniqAIOrb,
+  OniqCanvas,
+  OniqCard,
+  OniqError,
+  OniqHeader,
+  OniqSectionHeader,
+  OniqStoryRail,
+} from "@/components/oniq";
 
 export const Route = createFileRoute("/_authenticated/app/travel")({
   component: TravelScreen,
@@ -203,9 +212,9 @@ function StayScout() {
   const rest = (data?.results ?? []).filter((r) => typeof r.price_inr !== "number");
 
   return (
-    <div className="mt-4 space-y-3">
-      <div className="rounded-2xl border border-primary/30 bg-card p-4">
-        <div className="mb-2 text-xs font-medium uppercase tracking-wider text-primary/80">
+    <div className="mt-3 space-y-3">
+      <OniqCard variant="tinted" padding="lg">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
           smart stay scout — same room, every site, one best price 🏨
         </div>
         <input
@@ -213,28 +222,29 @@ function StayScout() {
           value={dest}
           onChange={(e) => setDest(e.target.value.slice(0, 300))}
           placeholder="taj bengal kolkata, homestay in manali, hotel near goa beach…"
-          className="w-full min-w-0 rounded-xl border border-border bg-background p-3 text-sm focus:border-primary focus:outline-none"
+          aria-label="Where are you staying?"
+          className="mt-3 w-full min-w-0 rounded-2xl border border-border-strong bg-background p-3 text-sm text-foreground focus:border-world focus:outline-none"
         />
         <div className="mt-2 grid grid-cols-2 gap-2">
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <label className="text-[11px] uppercase tracking-wider text-muted-foreground">
             check-in
             <input
               type="date"
               value={checkin}
               onChange={(e) => setCheckin(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-border bg-background p-2 text-sm focus:border-primary focus:outline-none"
+              className="mt-1 w-full rounded-2xl border border-border-strong bg-background p-2 text-sm text-foreground focus:border-world focus:outline-none"
             />
           </label>
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <label className="text-[11px] uppercase tracking-wider text-muted-foreground">
             check-out
             <input
               type="date"
               value={checkout}
               onChange={(e) => setCheckout(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-border bg-background p-2 text-sm focus:border-primary focus:outline-none"
+              className="mt-1 w-full rounded-2xl border border-border-strong bg-background p-2 text-sm text-foreground focus:border-world focus:outline-none"
             />
           </label>
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <label className="text-[11px] uppercase tracking-wider text-muted-foreground">
             guests
             <input
               type="number"
@@ -242,10 +252,10 @@ function StayScout() {
               max={12}
               value={guests}
               onChange={(e) => setGuests(Math.min(12, Math.max(1, Number(e.target.value) || 1)))}
-              className="mt-1 w-full rounded-xl border border-border bg-background p-2 text-sm focus:border-primary focus:outline-none"
+              className="mt-1 w-full rounded-2xl border border-border-strong bg-background p-2 text-sm text-foreground focus:border-world focus:outline-none"
             />
           </label>
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <label className="text-[11px] uppercase tracking-wider text-muted-foreground">
             budget / night (₹)
             <input
               type="number"
@@ -254,15 +264,16 @@ function StayScout() {
               value={budget}
               onChange={(e) => setBudget(e.target.value.slice(0, 7))}
               placeholder="optional"
-              className="mt-1 w-full rounded-xl border border-border bg-background p-2 text-sm focus:border-primary focus:outline-none"
+              className="mt-1 w-full rounded-2xl border border-border-strong bg-background p-2 text-sm text-foreground focus:border-world focus:outline-none"
             />
           </label>
         </div>
         <button
+          type="button"
           onClick={scout}
           disabled={loading}
           data-testid="stay-scout-go"
-          className="press glow-primary mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+          className="press mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-world py-3 text-sm font-semibold text-white world-glow disabled:opacity-60"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
           {loading
@@ -275,70 +286,74 @@ function StayScout() {
                   : "almost there — picking the best value ✨"
             : "compare stay prices"}
         </button>
-      </div>
+      </OniqCard>
 
       {err && !loading && (
-        <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-center">
-          <div className="text-sm font-medium text-red-300">stay scout hit a wall 😵‍💫</div>
-          <div className="mt-1 break-words text-xs text-red-400/80">{err}</div>
-          <button
-            onClick={scout}
-            className="mt-3 rounded-xl border border-red-400/40 bg-background px-4 py-2 text-xs font-semibold text-red-300"
-          >
-            retry
-          </button>
-        </div>
+        <OniqError label={`stay scout hit a wall 😵‍💫 — ${err}`} onRetry={scout} busy={loading} />
       )}
 
       {data && (
         <div className="space-y-2">
-          <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-4">
-            <div className="text-xs uppercase tracking-wider text-primary/80">stay</div>
-            <div className="mt-1 break-words font-display text-lg font-bold">{data.stay}</div>
-          </div>
+          <OniqCard variant="hero" padding="lg">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
+              stay
+            </div>
+            <div className="mt-1 break-words font-display text-[20px] leading-tight">
+              {data.stay}
+            </div>
+          </OniqCard>
 
           {data.top_pick?.site && (
-            <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4">
-              <div className="text-xs font-medium uppercase tracking-wider text-amber-300">🏆 best value</div>
-              <div className="mt-1 break-words font-display text-base font-bold">
-                {data.top_pick.hotel ? `${data.top_pick.hotel} — ${data.top_pick.site}` : data.top_pick.site}
+            <OniqCard variant="tinted" padding="lg">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
+                🏆 best value
+              </div>
+              <div className="mt-1 break-words font-display text-[16px] text-foreground">
+                {data.top_pick.hotel
+                  ? `${data.top_pick.hotel} — ${data.top_pick.site}`
+                  : data.top_pick.site}
               </div>
               {data.top_pick.why && (
-                <div className="mt-1 break-words text-xs leading-relaxed text-amber-100/90">
+                <div className="mt-1 break-words text-xs leading-relaxed text-muted-foreground">
                   {data.top_pick.why}
                 </div>
               )}
-              {Array.isArray(data.top_pick.cross_checked) && data.top_pick.cross_checked.length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] uppercase tracking-wider text-emerald-300/90">✓ confirmed via</span>
-                  {data.top_pick.cross_checked.slice(0, 5).map((s, i) => (
-                    <span
-                      key={i}
-                      className="break-words rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-200"
-                    >
-                      {s}
+              {Array.isArray(data.top_pick.cross_checked) &&
+                data.top_pick.cross_checked.length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] uppercase tracking-wider text-world">
+                      ✓ confirmed via
                     </span>
-                  ))}
-                </div>
-              )}
-            </div>
+                    {data.top_pick.cross_checked.slice(0, 5).map((s, i) => (
+                      <span
+                        key={i}
+                        className="break-words rounded-full border border-world bg-background px-2 py-0.5 text-[11px] text-foreground"
+                      >
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                )}
+            </OniqCard>
           )}
 
           {data.results.length === 0 && (
-            <div className="rounded-2xl border border-border bg-card p-4 text-center text-sm text-muted-foreground">
+            <OniqCard className="text-center text-sm text-muted-foreground">
               nothing solid found rn — try naming the city or hotel
-            </div>
+            </OniqCard>
           )}
 
           {ranked.map((r, i) => (
-            <div key={`s-${i}`} className="rounded-2xl border border-border bg-card p-4">
+            <OniqCard key={`s-${i}`}>
               <div className="flex items-start gap-3">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-lg font-bold">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-world-soft text-lg font-bold">
                   {rankBadge(i)}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <div className="truncate font-semibold">{r.hotel || r.site}</div>
+                    <div className="truncate font-semibold text-foreground">
+                      {r.hotel || r.site}
+                    </div>
                     {r.verified && (
                       // `verified` is the scout model's own judgement that the
                       // rate came from a recognised booking platform or the
@@ -346,7 +361,7 @@ function StayScout() {
                       // price. Label it as a source signal, never as "verified",
                       // so a model assertion is not presented as established fact.
                       <span
-                        className="shrink-0 text-[10px] font-medium text-emerald-400"
+                        className="shrink-0 text-[11px] font-medium text-world"
                         title="AI recognised this as a known booking platform or the hotel's official site — not an independently verified rate. Tap through to confirm."
                       >
                         ✓ recognised source
@@ -359,59 +374,86 @@ function StayScout() {
                     {r.source_domain && <span className="truncate">· {r.source_domain}</span>}
                   </div>
                 </div>
-                <div className="shrink-0 text-right">
-                  <div className="font-display text-lg font-bold">{inr(r.price_inr as number)}</div>
-                  <div className="text-[10px] text-muted-foreground">/night</div>
+                <div className="shrink-0 text-end">
+                  <div className="font-display text-[18px] text-foreground">
+                    {inr(r.price_inr as number)}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">/night</div>
                 </div>
               </div>
-              {r.note && <div className="mt-2 break-words text-xs text-muted-foreground">{r.note}</div>}
+              {r.note && (
+                <div className="mt-2 break-words text-xs text-muted-foreground">{r.note}</div>
+              )}
               <button
+                type="button"
                 onClick={() => openRow(r)}
-                className="mt-3 flex w-full items-center justify-center gap-1 rounded-xl border border-border bg-background py-2 text-xs font-semibold"
+                className="press mt-3 flex w-full items-center justify-center gap-1 rounded-2xl border border-border-strong bg-background py-2 text-xs font-semibold text-foreground"
               >
                 open on {r.site} <ExternalLink className="h-3 w-3" />
               </button>
-            </div>
+            </OniqCard>
           ))}
 
           {rest.length > 0 && (
-            <div className="rounded-2xl border border-border bg-card p-3">
-              <div className="mb-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <OniqCard padding="sm">
+              <div className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 check these urself 👀
               </div>
               <div className="space-y-1.5">
                 {rest.map((r, i) => (
                   <button
                     key={`u-${i}`}
+                    type="button"
                     onClick={() => openRow(r)}
-                    className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 py-2 text-left"
+                    className="press flex w-full items-center justify-between gap-2 rounded-2xl bg-surface-2 px-3 py-2 text-start"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold">{r.hotel || r.site}</div>
-                      <div className="truncate text-xs text-muted-foreground">
+                      <div className="truncate text-sm font-semibold normal-case text-foreground">
+                        {r.hotel || r.site}
+                      </div>
+                      <div className="truncate text-xs font-normal normal-case text-muted-foreground">
                         {r.price_range_inr
                           ? `${r.price_range_inr}${r.rating ? ` · ★ ${r.rating}` : ""}`
                           : (r.note ?? "couldn't verify live — check on site")}
                         {r.source_domain ? ` · ${r.source_domain}` : ""}
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary">
+                    <div className="flex shrink-0 items-center gap-1 text-xs font-semibold text-world">
                       open <ExternalLink className="h-3 w-3" />
                     </div>
                   </button>
                 ))}
               </div>
-            </div>
+            </OniqCard>
           )}
 
-          <div className="pt-1 text-center text-xs text-muted-foreground">
-            {data.disclaimer ?? "rates scouted live — taxes & fees can move them, tap through to confirm 📈"}
+          <div className="pt-1 text-center text-[11px] text-muted-foreground">
+            {data.disclaimer ??
+              "rates scouted live — taxes & fees can move them, tap through to confirm 📈"}
           </div>
         </div>
       )}
     </div>
   );
 }
+
+/**
+ * The five ways to go, as gradient postcards. No photography: there is no
+ * allowed image host, so each card is the world's own sky→sunset pair mixed
+ * a little differently, and the count is the real number of apps below.
+ */
+const POSTCARD: Record<string, string> = {
+  buses:
+    "radial-gradient(circle at 82% 18%, rgba(255,255,255,0.35), transparent 42%), linear-gradient(135deg, var(--world-a), color-mix(in oklab, var(--world-a) 55%, var(--world-b)))",
+  trains:
+    "radial-gradient(circle at 18% 82%, rgba(255,255,255,0.28), transparent 42%), linear-gradient(160deg, color-mix(in oklab, var(--world-a) 70%, var(--world-b)), var(--world-b))",
+  flights:
+    "radial-gradient(circle at 80% 20%, rgba(255,255,255,0.4), transparent 45%), linear-gradient(135deg, var(--world-a), var(--world-b))",
+  ferries:
+    "radial-gradient(circle at 50% 100%, rgba(255,255,255,0.3), transparent 50%), linear-gradient(180deg, var(--world-a), color-mix(in oklab, var(--world-a) 40%, var(--world-b)))",
+  stays:
+    "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.32), transparent 45%), linear-gradient(200deg, var(--world-b), color-mix(in oklab, var(--world-b) 45%, var(--world-a)))",
+};
 
 function TravelScreen() {
   const [q, setQ] = useState("");
@@ -427,74 +469,132 @@ function TravelScreen() {
     openInApp(parsed.url);
   }
 
-  return (
-    <div className="px-5 pt-12 pb-10">
-      <div className="flex items-center gap-3">
-        <Link to="/app" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div>
-          <h1 className="font-display text-2xl font-bold">Wanderlust 🌍</h1>
-          <p className="text-xs text-muted-foreground">wanderlust activated — buses, trains, flights, ferries, stays</p>
-        </div>
-      </div>
+  function jump(key: string) {
+    document
+      .getElementById(`travel-section-${key}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
-      <form onSubmit={submit} className="mt-4">
-        <div className="flex items-center gap-2 rounded-2xl border border-primary/30 bg-card p-2">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary/15 text-primary">
-            <Sparkles className="h-4 w-4" />
-          </div>
+  return (
+    <OniqCanvas world="wanderlust" className="pb-10">
+      <OniqHeader
+        eyebrow="Wanderlust"
+        title="Wanderlust 🌍"
+        subtitle="wanderlust activated — buses, trains, flights, ferries, stays"
+        back="/app"
+      >
+        <form
+          onSubmit={submit}
+          className="flex items-center gap-2 rounded-full oniq-surface py-1.5 pe-1.5 ps-2"
+        >
+          <OniqAIOrb size="sm" still />
           <input
             data-testid="travel-genie"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={`try: "flight kolkata to goa" or "hotel in darjeeling"`}
-            className="flex-1 bg-transparent px-1 text-sm placeholder:text-muted-foreground focus:outline-none"
+            aria-label="Travel genie"
+            className="min-w-0 flex-1 bg-transparent py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
           <button
             type="submit"
-            className="rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+            className="press rounded-full bg-world px-4 py-2 text-xs font-semibold text-white world-glow"
           >
             Go
           </button>
-        </div>
-      </form>
+        </form>
+      </OniqHeader>
 
-      <StayScout />
-
-      {SECTIONS.map((section) => (
-        <section key={section.key}>
-          <h2 className="mt-6 px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">
-            {section.label}
-          </h2>
-          <div className="mt-3 space-y-2">
-            {section.providers.map((p) => (
-              <button
-                key={p.id}
-                data-testid={`travel-app-${p.id}`}
-                onClick={() => openInApp(p.url)}
-                className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition hover:border-primary/40"
-              >
-                <div
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-xl font-display text-lg font-bold text-white"
-                  style={{ backgroundColor: p.color }}
+      {/* DISCOVER — the five modes as postcards; tap one to jump to its apps */}
+      <section className="mt-5 rise rise-1">
+        <OniqSectionHeader eyebrow="Discover" title="how are we going?" />
+        <div className="mt-3 px-5">
+          <OniqStoryRail ariaLabel="Ways to travel">
+            {SECTIONS.map((section) => {
+              const [emoji, ...words] = section.label.split(" ");
+              return (
+                <button
+                  key={section.key}
+                  type="button"
+                  onClick={() => jump(section.key)}
+                  className="press relative h-40 w-[46%] overflow-hidden rounded-3xl text-start text-white world-glow"
+                  style={{ backgroundImage: POSTCARD[section.key] ?? POSTCARD.flights }}
                 >
-                  {p.letter}
-                </div>
-                <div className="flex-1">
-                  <div className="text-sm font-semibold">{p.name}</div>
-                  <div className="text-xs text-muted-foreground">{p.tagline}</div>
-                </div>
-                <ExternalLink className="h-4 w-4 text-muted-foreground" />
-              </button>
-            ))}
-          </div>
-        </section>
-      ))}
+                  <span aria-hidden="true" className="absolute end-3 top-3 text-4xl drop-shadow">
+                    {emoji}
+                  </span>
+                  <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent p-3 pt-10">
+                    <span className="block font-display text-[15px] leading-tight">
+                      {words.join(" ")}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] font-normal normal-case text-white/85">
+                      {section.providers.length} apps
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </OniqStoryRail>
+        </div>
+      </section>
 
-      <p className="mt-6 text-center text-xs text-muted-foreground">
+      {/* COMPARE — one room, every site */}
+      <section className="mt-7 rise rise-2">
+        <OniqSectionHeader eyebrow="Compare" title="smart stay scout" />
+        <div className="px-5">
+          <StayScout />
+        </div>
+      </section>
+
+      {/* ACT — every provider, in the provider's own app */}
+      <section className="mt-7 rise rise-3">
+        <OniqSectionHeader eyebrow="Act" title="book in the app" />
+        {SECTIONS.map((section) => (
+          <div
+            key={section.key}
+            id={`travel-section-${section.key}`}
+            className="mt-5 scroll-mt-4 px-5"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <h3 className="font-display text-[13px] text-foreground">{section.label}</h3>
+              <span className="text-[11px] text-muted-foreground">
+                {section.providers.length} apps
+              </span>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {section.providers.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  data-testid={`travel-app-${p.id}`}
+                  onClick={() => openInApp(p.url)}
+                  className="press flex min-h-[104px] flex-col items-start gap-2 rounded-3xl oniq-surface p-3 text-start"
+                >
+                  <span className="flex w-full items-center justify-between">
+                    <span
+                      className="grid h-10 w-10 place-items-center rounded-2xl font-display text-base text-white shadow-card"
+                      style={{ backgroundColor: p.color }}
+                    >
+                      {p.letter}
+                    </span>
+                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                  </span>
+                  <span className="block w-full truncate font-display text-[13px] text-foreground">
+                    {p.name}
+                  </span>
+                  <span className="block text-[11px] font-normal normal-case leading-snug text-muted-foreground">
+                    {p.tagline}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <p className="mt-8 px-5 text-center text-[11px] text-muted-foreground">
         Bookings & payments happen in the provider's app — Wanderlust gets you there faster.
       </p>
-    </div>
+    </OniqCanvas>
   );
 }

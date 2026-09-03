@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  AlertCircle,
   Heart,
   MessageCircle,
   Share2,
@@ -13,6 +14,7 @@ import {
   VolumeX,
   ChevronLeft,
   Plus,
+  RotateCw,
   X,
   Send,
   Loader2,
@@ -24,12 +26,13 @@ import {
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { captureFrameFromFile, uploadClipThumb } from "@/lib/clipThumbs";
 import { sha256Hex, recordProvenance, scanProvenance } from "@/lib/provenance";
-import { systemShare, type SharePayload } from "@/lib/share";
+import type { SharePayload } from "@/lib/share";
 import { ShareSheet } from "@/components/share/ShareSheet";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
 import { ReelVideo } from "@/components/reels/ReelVideo";
 import { AttachmentSheet, useAttachmentContext } from "@/components/attach/AttachmentSheet";
 import { watchVideoView } from "@/lib/views";
+import { OniqChip } from "@/components/oniq";
 
 export const Route = createFileRoute("/_authenticated/app/clips")({
   component: ClipsScreen,
@@ -51,6 +54,14 @@ type Clip = {
 const PAGE = 5;
 const HASHTAG_RE = /#([\p{L}\p{M}\p{N}_]{1,30})/gu;
 const HASHTAG_STRIP_RE = /#[\p{L}\p{M}\p{N}_]+/gu;
+
+/** Glass chrome floating over the video: small, dark, legible in both themes. */
+const PILL =
+  "press grid h-10 w-10 place-items-center rounded-full bg-black/45 text-white ring-1 ring-white/15 backdrop-blur-md";
+/** The end-side action rail: an icon well plus a label under it. */
+const RAIL_WELL =
+  "grid h-11 w-11 place-items-center rounded-full bg-black/35 ring-1 ring-white/15 backdrop-blur-sm";
+const RAIL_LABEL = "text-[11px] font-semibold text-white drop-shadow";
 
 function ClipsScreen() {
   const [muted, setMuted] = useState(true);
@@ -82,6 +93,7 @@ function ClipsScreen() {
 
   return (
     <div
+      data-world="mast"
       className="relative w-full overflow-hidden bg-black text-white"
       // FULL BLEED, WHICH MEANS CANCELLING THE SHELL'S STATUS-BAR PADDING.
       // The shell pads <main> by env(safe-area-inset-top) so ordinary screens
@@ -96,20 +108,18 @@ function ClipsScreen() {
       style={{ height: "100dvh", marginTop: "calc(-1 * env(safe-area-inset-top))" }}
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top))]">
-        <Link
-          to="/app"
-          className="pointer-events-auto grid h-10 w-10 place-items-center rounded-full bg-black/40 backdrop-blur"
-          aria-label="Back"
-        >
-          <ChevronLeft className="h-5 w-5" />
+        <Link to="/app" className={`pointer-events-auto ${PILL}`} aria-label="Back">
+          <ChevronLeft className="h-5 w-5 rtl:-scale-x-100" />
         </Link>
-        <div className="font-display text-base font-semibold drop-shadow">For You ✨</div>
+        <div className="rounded-full bg-black/45 px-4 py-1.5 font-display text-[13px] text-white ring-1 ring-white/15 backdrop-blur-md">
+          For You ✨
+        </div>
         <div className="pointer-events-auto flex items-center gap-2">
           <button
             type="button"
             data-testid="upload-clip"
             onClick={() => setOpenUpload(true)}
-            className="grid h-10 w-10 place-items-center rounded-full bg-black/40 backdrop-blur"
+            className={PILL}
             aria-label="Upload clip"
           >
             <Plus className="h-5 w-5" />
@@ -117,7 +127,7 @@ function ClipsScreen() {
           <button
             type="button"
             onClick={() => setMuted((m) => !m)}
-            className="grid h-10 w-10 place-items-center rounded-full bg-black/40 backdrop-blur"
+            className={PILL}
             aria-label={muted ? "Unmute" : "Mute"}
           >
             {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
@@ -126,20 +136,27 @@ function ClipsScreen() {
       </div>
 
       {query.isError ? (
-        <div className="flex h-full flex-col items-center justify-center px-8 text-center">
-          <p className="max-w-xs text-sm text-white/80">
+        <div
+          role="alert"
+          className="flex h-full flex-col items-center justify-center px-8 text-center"
+        >
+          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15">
+            <AlertCircle className="h-6 w-6 text-amber-300" />
+          </div>
+          <p className="mt-4 max-w-xs text-sm text-white/80">
             Couldn't load the feed right now — a connection problem, not an empty feed.
           </p>
           <button
+            type="button"
             onClick={() => query.refetch()}
-            className="mt-6 rounded-full bg-white px-5 py-2 text-sm font-semibold text-black"
+            className="press mt-6 inline-flex items-center gap-1.5 rounded-full bg-world px-5 py-2 text-sm font-semibold text-white world-glow"
           >
-            Try again
+            <RotateCw className="h-4 w-4" /> Try again
           </button>
         </div>
       ) : clips.length === 0 && !query.isLoading ? (
         <div className="flex h-full flex-col items-center justify-center px-8 text-center">
-          <div className="mb-4 grid h-16 w-16 place-items-center rounded-3xl bg-white/10">
+          <div className="mb-4 grid h-16 w-16 place-items-center rounded-3xl bg-world text-white world-glow">
             <Plus className="h-7 w-7" />
           </div>
           <p className="max-w-xs text-sm text-white/80">
@@ -147,7 +164,7 @@ function ClipsScreen() {
           </p>
           <button
             onClick={() => setOpenUpload(true)}
-            className="mt-6 rounded-full bg-white px-5 py-2 text-sm font-semibold text-black"
+            className="press mt-6 rounded-full bg-world px-5 py-2 text-sm font-semibold text-white world-glow"
           >
             Post a clip
           </button>
@@ -360,38 +377,57 @@ function ClipCard({
     <div ref={sectionRef} data-testid="clip-card" className="relative h-full w-full snap-start">
       <ReelVideo src={clip.video_url} muted={muted} videoRef={videoRef} onClick={togglePlay} />
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
 
-      <div className="absolute bottom-24 right-3 z-20 flex flex-col items-center gap-5">
-        <button onClick={toggleLike} className="flex flex-col items-center gap-1" aria-label="Like">
-          <Heart className={`h-7 w-7 ${liked ? "fill-red-500 text-red-500" : "text-white"}`} />
-          <span className="text-xs">{likeCount}</span>
+      {/* action rail */}
+      <div className="absolute bottom-24 end-3 z-20 flex flex-col items-center gap-4">
+        <button
+          onClick={toggleLike}
+          className="press flex flex-col items-center gap-1"
+          aria-label={liked ? "Unlike" : "Like"}
+        >
+          <span className={RAIL_WELL}>
+            <Heart className={`h-6 w-6 ${liked ? "fill-red-500 text-red-500" : "text-white"}`} />
+          </span>
+          <span className={RAIL_LABEL}>{likeCount}</span>
         </button>
         <button
           onClick={onOpenComments}
-          className="flex flex-col items-center gap-1"
+          className="press flex flex-col items-center gap-1"
           aria-label="Comments"
         >
-          <MessageCircle className="h-7 w-7" />
-          <span className="text-xs">{clip.comment_count}</span>
+          <span className={RAIL_WELL}>
+            <MessageCircle className="h-6 w-6" />
+          </span>
+          <span className={RAIL_LABEL}>{clip.comment_count}</span>
         </button>
-        <button onClick={share} className="flex flex-col items-center gap-1" aria-label="Share">
-          <Share2 className="h-7 w-7" />
-          <span className="text-xs">Share</span>
+        <button
+          onClick={share}
+          className="press flex flex-col items-center gap-1"
+          aria-label="Share"
+        >
+          <span className={RAIL_WELL}>
+            <Share2 className="h-6 w-6" />
+          </span>
+          <span className={RAIL_LABEL}>Share</span>
         </button>
         {me === clip.user_id ? (
           <button
             onClick={() => setShowViewers(true)}
-            className="flex flex-col items-center gap-1 text-white"
+            className="press flex flex-col items-center gap-1 text-white"
             aria-label="See who viewed"
           >
-            <Eye className="h-6 w-6" />
-            <span className="text-xs">{viewCount}</span>
+            <span className={RAIL_WELL}>
+              <Eye className="h-5 w-5" />
+            </span>
+            <span className={RAIL_LABEL}>{viewCount}</span>
           </button>
         ) : (
           <div className="flex flex-col items-center gap-1 text-white/80">
-            <Eye className="h-6 w-6" />
-            <span className="text-xs">{viewCount}</span>
+            <span className={RAIL_WELL}>
+              <Eye className="h-5 w-5" />
+            </span>
+            <span className={RAIL_LABEL}>{viewCount}</span>
           </div>
         )}
         {me === clip.user_id ? (
@@ -417,43 +453,54 @@ function ClipCard({
                 toast.success("Clip deleted");
               }
             }}
-            className="flex flex-col items-center gap-1 text-white/70"
+            className="press flex flex-col items-center gap-1 text-white/70"
             aria-label="Delete clip"
           >
-            <Trash2 className="h-5 w-5" />
+            <span className={RAIL_WELL}>
+              <Trash2 className="h-5 w-5" />
+            </span>
           </button>
         ) : (
           <button
             onClick={onReport}
-            className="flex flex-col items-center gap-1 text-white/70"
+            className="press flex flex-col items-center gap-1 text-white/70"
             aria-label="Report clip"
           >
-            <Flag className="h-5 w-5" />
+            <span className={RAIL_WELL}>
+              <Flag className="h-5 w-5" />
+            </span>
           </button>
         )}
       </div>
 
-      <div className="absolute inset-x-0 bottom-6 z-20 px-4 pr-20">
+      {/* author row */}
+      <div className="absolute inset-x-0 bottom-6 z-20 pe-20 ps-4">
         <div className="flex items-center gap-2">
-          {profile?.avatar_url ? (
-            <img
-              src={profile.avatar_url}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              className="h-9 w-9 rounded-full object-cover"
-            />
-          ) : (
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-bold">
-              {name.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <div className="text-sm font-semibold">@{handle}</div>
+          <span className="isolate shrink-0 rounded-full bg-world p-[2px]">
+            <span className="block rounded-full bg-black/40 p-[2px]">
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="h-9 w-9 rounded-full object-cover"
+                />
+              ) : (
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-world text-sm font-bold text-white">
+                  {name.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </span>
+          </span>
+          <div className="font-display text-[15px] text-white drop-shadow">@{handle}</div>
           {me && me !== clip.user_id && (
             <button
               onClick={toggleFollow}
-              className={`ml-2 flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${
-                following ? "border-white/40 text-white/80" : "border-white bg-white text-black"
+              className={`press ms-2 flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                following
+                  ? "bg-white/15 text-white ring-1 ring-white/30"
+                  : "bg-world text-white world-glow"
               }`}
             >
               {following ? (
@@ -465,9 +512,13 @@ function ClipCard({
             </button>
           )}
         </div>
-        {clip.caption && <p className="mt-2 text-sm text-white/95 line-clamp-2">{clip.caption}</p>}
+        {clip.caption && (
+          <p className="mt-2 text-sm leading-snug text-white/95 drop-shadow line-clamp-2">
+            {clip.caption}
+          </p>
+        )}
         {clip.hashtags && clip.hashtags.length > 0 && (
-          <div className="mt-1 flex flex-wrap gap-x-2 text-xs text-white/80">
+          <div className="mt-1 flex flex-wrap gap-x-2 text-xs font-medium text-white/80 drop-shadow">
             {clip.hashtags.map((t) => (
               <span key={t}>#{t}</span>
             ))}
@@ -539,15 +590,16 @@ function CommentsSheet({
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/70" onClick={onClose}>
       <div
-        className="max-h-[75vh] rounded-t-3xl border-t border-border bg-card p-5 text-foreground"
+        className="max-h-[75vh] rounded-t-3xl oniq-surface p-5 text-foreground"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" aria-hidden="true" />
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-display text-base font-semibold">Comments</h3>
+          <h3 className="font-display text-[15px] text-foreground">Comments</h3>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid h-8 w-8 place-items-center rounded-full bg-muted"
+            className="tap grid h-8 w-8 place-items-center rounded-full bg-surface-2"
           >
             <X className="h-4 w-4" />
           </button>
@@ -556,12 +608,12 @@ function CommentsSheet({
           {comments?.length ? (
             comments.map((c: any) => (
               <div key={c.id} className="flex gap-3">
-                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-primary-foreground">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-world text-xs font-bold text-white">
                   {(c.profiles?.display_name ?? c.profiles?.username ?? "U")
                     .charAt(0)
                     .toUpperCase()}
                 </div>
-                <div className="flex-1 rounded-2xl bg-muted px-3 py-2">
+                <div className="flex-1 rounded-2xl bg-surface-2 px-3 py-2">
                   <div className="text-xs font-medium">
                     {c.profiles?.display_name ?? c.profiles?.username ?? "User"}
                   </div>
@@ -575,7 +627,7 @@ function CommentsSheet({
             </p>
           )}
         </div>
-        <div className="mt-3 flex items-center gap-2 border-t border-border pt-3">
+        <div className="mt-3 flex items-center gap-2 border-t border-border/60 pt-3">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -583,13 +635,13 @@ function CommentsSheet({
               if (e.key === "Enter") send();
             }}
             placeholder="Add a comment…"
-            className="flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="min-w-0 flex-1 rounded-full bg-surface-2 px-4 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
           <button
             onClick={send}
             aria-label="Post comment"
             disabled={sending || !text.trim()}
-            className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"
+            className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-world text-white disabled:opacity-50"
           >
             <Send className="h-4 w-4" />
           </button>
@@ -782,15 +834,16 @@ function UploadSheet({
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/70" onClick={onClose}>
       <div
-        className="max-h-[85vh] rounded-t-3xl border-t border-border bg-card p-5 text-foreground"
+        className="max-h-[85vh] rounded-t-3xl oniq-surface p-5 text-foreground"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" aria-hidden="true" />
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-display text-base font-semibold">Post a clip</h3>
+          <h3 className="font-display text-[15px] text-foreground">Post a clip</h3>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid h-8 w-8 place-items-center rounded-full bg-muted"
+            className="tap grid h-8 w-8 place-items-center rounded-full bg-surface-2"
           >
             <X className="h-4 w-4" />
           </button>
@@ -820,18 +873,18 @@ function UploadSheet({
         {!file ? (
           <button
             onClick={() => setShowAttach(true)}
-            className="grid w-full place-items-center rounded-2xl border-2 border-dashed border-border py-14 text-sm text-muted-foreground"
+            className="press grid w-full place-items-center rounded-2xl border-2 border-dashed border-border-strong py-14 text-sm text-muted-foreground"
           >
             <span>Tap to pick a video</span>
             <span className="mt-1 text-xs">mp4 · webm · mov · max 90s · 100MB</span>
           </button>
         ) : (
-          <div className="rounded-2xl bg-muted p-3 text-sm">
+          <div className="rounded-2xl bg-surface-2 p-3 text-sm">
             <div className="truncate font-medium">{file.name}</div>
             <div className="text-xs text-muted-foreground">
               {homeFormat().bytes(file.size)} · {file.type}
             </div>
-            <button onClick={() => setFile(null)} className="mt-2 text-xs text-primary">
+            <button onClick={() => setFile(null)} className="mt-2 text-xs text-world">
               Choose another
             </button>
           </div>
@@ -842,33 +895,30 @@ function UploadSheet({
           onChange={(e) => setCaption(e.target.value)}
           rows={3}
           placeholder="Caption + #hashtags…"
-          className="mt-3 w-full resize-none rounded-2xl border border-border bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          className="mt-3 w-full resize-none rounded-2xl bg-surface-2 p-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
 
         <div className="mt-3">
           <div className="mb-1.5 text-xs text-muted-foreground">who can peep this? 👀</div>
-          <div className="flex gap-2">
+          <div className="flex gap-2" role="radiogroup" aria-label="Who can see this">
             {(["public", "moots"] as const).map((v) => {
               const active = visibility === v;
               const label = v === "public" ? "errbody 🌍" : "moots only 🤝";
               return (
-                <button
+                <OniqChip
                   key={v}
-                  type="button"
-                  data-testid={`clip-visibility-${v}`}
+                  role="radio"
+                  active={active}
+                  testId={`clip-visibility-${v}`}
+                  className="flex-1 justify-center"
                   onClick={() => {
                     setVisibility(v);
                     if (typeof sessionStorage !== "undefined")
                       sessionStorage.setItem("oniq_post_visibility", v);
                   }}
-                  className={`flex-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                    active
-                      ? "border-primary bg-primary/15 text-primary"
-                      : "border-border bg-card text-muted-foreground hover:bg-muted"
-                  }`}
                 >
                   {label}
-                </button>
+                </OniqChip>
               );
             })}
           </div>
@@ -877,7 +927,7 @@ function UploadSheet({
               type="checkbox"
               checked={isSynthetic}
               onChange={(e) => setIsSynthetic(e.target.checked)}
-              className="mt-0.5 accent-[hsl(var(--primary))]"
+              className="mt-0.5 accent-[var(--world-a)]"
             />
             <span>
               this clip is AI-generated or AI-edited 🤖{" "}
@@ -892,7 +942,7 @@ function UploadSheet({
           data-testid="publish-clip"
           onClick={publish}
           disabled={!file || busy}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          className="press mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-world py-3 text-sm font-semibold text-white world-glow disabled:opacity-50"
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {busy ? "Posting…" : "Publish"}

@@ -1,23 +1,33 @@
 import { moneyIn } from "@/lib/format";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { placesAutocomplete, placeDetails, type PlaceSuggestion } from "@/lib/places.functions";
 import {
-  ArrowLeft,
   MapPin,
   Navigation,
   Search,
   Car,
   Bike,
   Mic,
-  Sparkles,
   ChevronDown,
   ChevronRight,
+  Clock,
+  ExternalLink,
   IndianRupee,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  OniqAIOrb,
+  OniqCanvas,
+  OniqCard,
+  OniqError,
+  OniqHeader,
+  OniqSectionHeader,
+  OniqSkeleton,
+  OniqSkeletonRows,
+} from "@/components/oniq";
 import {
   geocode,
   uberLink,
@@ -414,23 +424,16 @@ function RidesScreen() {
   }
 
   return (
-    <div className="px-5 pt-12 pb-6">
-      <div className="flex items-center gap-3">
-        <Link
-          to="/app"
-          className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <h1 className="font-display text-2xl font-bold">Book a ride</h1>
-      </div>
-
-      {/* Genie bar */}
-      <div className="mt-4 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-3">
-        <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-primary">
-          <Sparkles className="h-3 w-3" /> Rides
-        </div>
-        <div className="flex gap-2">
+    <OniqCanvas world="rides" className="pb-8">
+      <OniqHeader
+        eyebrow="Rides"
+        title="Book a ride"
+        subtitle="Pickup, destination, then every fare in your city side by side."
+        back="/app"
+      >
+        {/* Genie bar */}
+        <div className="flex items-center gap-2 rounded-full oniq-surface py-1.5 pe-1.5 ps-2">
+          <OniqAIOrb size="sm" still={!listening} />
           <input
             data-testid="genie-input"
             value={genie}
@@ -442,285 +445,347 @@ function RidesScreen() {
               }
             }}
             placeholder={`try: "ride from Park Street to Howrah" 🧞`}
-            className="flex-1 rounded-xl border border-border bg-background py-3 px-3 text-sm focus:border-primary focus:outline-none"
+            aria-label="Ride genie"
+            className="min-w-0 flex-1 bg-transparent py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
           {micSupported && (
             <button
+              type="button"
               data-testid="genie-mic"
               onClick={toggleMic}
-              className={`grid h-11 w-11 place-items-center rounded-xl ${listening ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}
+              className={`press grid h-9 w-9 shrink-0 place-items-center rounded-full ${
+                listening
+                  ? "bg-destructive text-destructive-foreground"
+                  : "bg-world text-white world-glow"
+              }`}
               aria-label="Voice command"
             >
               <Mic className="h-4 w-4" />
             </button>
           )}
         </div>
-      </div>
+      </OniqHeader>
 
-      {/* Pickup */}
-      <div className="mt-3 rounded-2xl border border-border bg-card p-4">
-        <button
-          type="button"
-          data-testid="pickup-row"
-          onClick={() => {
-            setPickupEditing((v) => !v);
-            if (!pickupEditing) setPickupQuery(pickup && !pickupIsCurrent ? pickup.label : "");
-          }}
-          className="flex w-full items-center gap-3 text-left"
-        >
-          <div className="grid h-9 w-9 place-items-center rounded-full bg-primary/15 text-primary">
-            <Navigation className="h-4 w-4" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs text-muted-foreground">
-              Pickup {pickup && pickupIsCurrent && "· 📍 current"}
+      {/* Route panel — origin → destination, drawn in CSS. There is no map
+          SDK and no map key on the client, and this needs neither. */}
+      <section className="mt-5 px-5 rise rise-1">
+        <OniqCard padding="none" className="overflow-hidden">
+          <div className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-3 p-4">
+            {/* Stop 1 — pickup */}
+            <div className="flex flex-col items-center" aria-hidden="true">
+              <span className="mt-1.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-world-soft">
+                <span className="h-2.5 w-2.5 rounded-full bg-world" />
+              </span>
+              <span className="mt-1 w-0.5 flex-1 rounded-full bg-world opacity-60" />
             </div>
-            <div className="text-sm font-medium truncate">
-              {geoState === "locating" && !pickup
-                ? "Locating you…"
-                : pickup
-                  ? pickup.label
-                  : "tap to set pickup"}
-            </div>
-          </div>
-          <ChevronRight
-            className={`h-4 w-4 text-muted-foreground transition ${pickupEditing ? "rotate-90" : ""}`}
-          />
-        </button>
-
-        {pickupEditing && (
-          <div className="mt-3 space-y-3">
-            <button
-              data-testid="use-current-location"
-              onClick={() => {
-                setPickupEditing(false);
-                setPickupResults([]);
-                setPickupQuery("");
-                locateMe(true);
-              }}
-              disabled={locating}
-              className="w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
-            >
-              {locating ? "Locating…" : "📍 use current location"}
-            </button>
-
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  data-testid="pickup-search-input"
-                  value={pickupQuery}
-                  onChange={(e) => setPickupQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && searchPickup()}
-                  placeholder="search a pickup address…"
-                  className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-3 text-sm focus:border-primary focus:outline-none"
-                />
-              </div>
+            <div className="min-w-0">
               <button
-                onClick={searchPickup}
-                aria-label="Search pickup address"
-                disabled={pickupSearching}
-                className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50"
-              >
-                <Search className="h-4 w-4" />
-              </button>
-            </div>
-
-            {pickupSearching && <div className="h-10 animate-pulse rounded-xl bg-muted" />}
-
-            {pickupSuggests.length > 0 && (
-              <div className="space-y-1">
-                {pickupSuggests.map((s, i) => (
-                  <button
-                    key={s.placeId}
-                    data-testid={`pickup-suggest-${i}`}
-                    onClick={async () => {
-                      const pt = await resolveSuggest(s);
-                      if (!pt) return;
-                      setPickup(pt);
-                      setPickupIsCurrent(false);
-                      setPickupSuggests([]);
-                      setPickupResults([]);
-                      setPickupQuery(pt.label);
-                      setPickupEditing(false);
-                      toast.success("Pickup set 📍 " + pt.label);
-                    }}
-                    className="flex w-full items-start gap-2 rounded-xl p-2.5 text-left text-sm hover:bg-muted"
-                  >
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    <div className="min-w-0 flex-1">
-                      <div className="line-clamp-1 font-medium">{s.label}</div>
-                      {s.secondary && (
-                        <div className="line-clamp-1 text-xs text-muted-foreground">
-                          {s.secondary}
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {pickupResults.length > 0 && (
-              <div className="space-y-1">
-                {pickupResults.map((r, i) => (
-                  <button
-                    key={i}
-                    data-testid={`pickup-result-${i}`}
-                    onClick={() => {
-                      setPickup({ lat: r.lat, lon: r.lon, label: r.label });
-                      setPickupIsCurrent(false);
-                      setPickupResults([]);
-                      setPickupQuery(r.label);
-                      setPickupEditing(false);
-                      toast.success("Pickup set 📍 " + r.label);
-                    }}
-                    className="flex w-full items-start gap-2 rounded-xl p-2.5 text-left text-sm hover:bg-muted"
-                  >
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    <span className="line-clamp-2">{r.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {geoState === "denied" && (
-              <p className="text-xs text-muted-foreground">
-                Location is blocked — search a pickup address, or allow location and tap "use
-                current location".
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Destination search */}
-      <div className="mt-3 rounded-2xl border border-border bg-card p-4">
-        <div className="text-xs text-muted-foreground">Destination</div>
-        <div className="mt-2 flex gap-2">
-          <div className="relative flex-1">
-            <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && search()}
-              placeholder="where we going? 👀 e.g. Howrah Station"
-              className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-3 text-sm focus:border-primary focus:outline-none"
-            />
-          </div>
-          <button
-            onClick={search}
-            aria-label="Search destination"
-            disabled={searching}
-            className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50"
-          >
-            <Search className="h-4 w-4" />
-          </button>
-        </div>
-
-        {searching && <div className="mt-3 h-10 animate-pulse rounded-xl bg-muted" />}
-
-        {destSuggests.length > 0 && !destination && (
-          <div className="mt-3 space-y-1">
-            {destSuggests.map((s, i) => (
-              <button
-                key={s.placeId}
-                data-testid={`dest-suggest-${i}`}
-                onClick={async () => {
-                  const pt = await resolveSuggest(s);
-                  if (!pt) return;
-                  setDestination(pt);
-                  setDestSuggests([]);
-                  setResults([]);
-                  setQuery(pt.label);
+                type="button"
+                data-testid="pickup-row"
+                onClick={() => {
+                  setPickupEditing((v) => !v);
+                  if (!pickupEditing)
+                    setPickupQuery(pickup && !pickupIsCurrent ? pickup.label : "");
                 }}
-                className="flex w-full items-start gap-2 rounded-xl p-2.5 text-left text-sm hover:bg-muted"
+                className="flex w-full items-center gap-3 text-start"
               >
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 <div className="min-w-0 flex-1">
-                  <div className="line-clamp-1 font-medium">{s.label}</div>
-                  {s.secondary && (
-                    <div className="line-clamp-1 text-xs text-muted-foreground">{s.secondary}</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    {pickup && pickupIsCurrent ? "Your location · 📍 current" : "Pickup"}
+                  </div>
+                  <div className="mt-0.5 truncate text-sm font-medium normal-case text-foreground">
+                    {geoState === "locating" && !pickup
+                      ? "Locating you…"
+                      : pickup
+                        ? pickup.label
+                        : "tap to set pickup"}
+                  </div>
+                </div>
+                <ChevronRight
+                  className={`h-4 w-4 shrink-0 text-muted-foreground transition rtl:-scale-x-100 ${
+                    pickupEditing ? "rotate-90" : ""
+                  }`}
+                />
+              </button>
+
+              {pickupEditing && (
+                <div className="mt-3 space-y-3">
+                  <button
+                    type="button"
+                    data-testid="use-current-location"
+                    onClick={() => {
+                      setPickupEditing(false);
+                      setPickupResults([]);
+                      setPickupQuery("");
+                      locateMe(true);
+                    }}
+                    disabled={locating}
+                    className="press flex w-full items-center justify-center gap-2 rounded-2xl bg-world py-2.5 text-sm font-semibold text-white world-glow disabled:opacity-60"
+                  >
+                    <Navigation className="h-4 w-4" />
+                    {locating ? "Locating…" : "📍 use current location"}
+                  </button>
+
+                  <div className="flex gap-2">
+                    <div className="relative min-w-0 flex-1">
+                      <MapPin className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        data-testid="pickup-search-input"
+                        value={pickupQuery}
+                        onChange={(e) => setPickupQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && searchPickup()}
+                        placeholder="search a pickup address…"
+                        className="w-full rounded-2xl border border-border-strong bg-background py-3 pe-3 ps-10 text-sm text-foreground focus:border-world focus:outline-none"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={searchPickup}
+                      aria-label="Search pickup address"
+                      disabled={pickupSearching}
+                      className="press grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-world text-white disabled:opacity-50"
+                    >
+                      <Search className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {pickupSearching && <OniqSkeleton className="h-10 w-full" />}
+
+                  {pickupSuggests.length > 0 && (
+                    <div className="space-y-1">
+                      {pickupSuggests.map((s, i) => (
+                        <button
+                          key={s.placeId}
+                          type="button"
+                          data-testid={`pickup-suggest-${i}`}
+                          onClick={async () => {
+                            const pt = await resolveSuggest(s);
+                            if (!pt) return;
+                            setPickup(pt);
+                            setPickupIsCurrent(false);
+                            setPickupSuggests([]);
+                            setPickupResults([]);
+                            setPickupQuery(pt.label);
+                            setPickupEditing(false);
+                            toast.success("Pickup set 📍 " + pt.label);
+                          }}
+                          className="press flex w-full items-start gap-2 rounded-xl p-2.5 text-start text-sm normal-case hover:bg-surface-2"
+                        >
+                          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-world" />
+                          <div className="min-w-0 flex-1">
+                            <div className="line-clamp-1 font-medium text-foreground">
+                              {s.label}
+                            </div>
+                            {s.secondary && (
+                              <div className="line-clamp-1 text-xs font-normal text-muted-foreground">
+                                {s.secondary}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {pickupResults.length > 0 && (
+                    <div className="space-y-1">
+                      {pickupResults.map((r, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          data-testid={`pickup-result-${i}`}
+                          onClick={() => {
+                            setPickup({ lat: r.lat, lon: r.lon, label: r.label });
+                            setPickupIsCurrent(false);
+                            setPickupResults([]);
+                            setPickupQuery(r.label);
+                            setPickupEditing(false);
+                            toast.success("Pickup set 📍 " + r.label);
+                          }}
+                          className="press flex w-full items-start gap-2 rounded-xl p-2.5 text-start text-sm font-medium normal-case text-foreground hover:bg-surface-2"
+                        >
+                          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-world" />
+                          <span className="line-clamp-2">{r.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {geoState === "denied" && (
+                    <p className="text-xs text-muted-foreground">
+                      Location is blocked — search a pickup address, or allow location and tap "use
+                      current location".
+                    </p>
                   )}
                 </div>
-              </button>
-            ))}
+              )}
+            </div>
+
+            {/* Stop 2 — destination */}
+            <div className="flex flex-col items-center" aria-hidden="true">
+              <span className="h-5 w-0.5 rounded-full bg-world opacity-60" />
+              <span className="mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-world text-white world-glow">
+                <MapPin className="h-3.5 w-3.5" />
+              </span>
+            </div>
+            <div className="min-w-0 pt-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Destination
+              </div>
+              {destination ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDestination(null);
+                    setQuery("");
+                    setRoute(null);
+                    setOptions([]);
+                  }}
+                  className="mt-0.5 flex w-full items-center gap-2 text-start"
+                >
+                  <span className="line-clamp-1 flex-1 text-sm font-medium normal-case text-foreground">
+                    {destination.label}
+                  </span>
+                  <span className="shrink-0 text-[11px] font-semibold text-world">change</span>
+                </button>
+              ) : (
+                <div className="mt-0.5 text-sm font-medium text-muted-foreground">where to?</div>
+              )}
+            </div>
           </div>
-        )}
 
-        {results.length > 0 && !destination && (
-          <div className="mt-3 space-y-1">
-            {results.map((r, i) => (
-              <button
-                key={i}
-                onClick={() => {
-                  setDestination({ lat: r.lat, lon: r.lon, label: r.label });
-                  setResults([]);
-                  setQuery(r.label);
-                }}
-                className="flex w-full items-start gap-2 rounded-xl p-2.5 text-left text-sm hover:bg-muted"
-              >
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                <span className="line-clamp-2">{r.label}</span>
-              </button>
-            ))}
+          {/* Route summary — distance and time once the server has crunched it */}
+          {!comparing && route && (
+            <div className="flex items-center gap-2 border-t border-border px-4 py-3">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-world-soft px-3 py-1 text-[12px] font-semibold text-world">
+                <Navigation className="h-3.5 w-3.5" /> {route.km} km
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-world-soft px-3 py-1 text-[12px] font-semibold text-world">
+                <Clock className="h-3.5 w-3.5" /> ~{route.mins} min
+              </span>
+            </div>
+          )}
+        </OniqCard>
+      </section>
+
+      {/* Where to? — destination search */}
+      <section className="mt-3 px-5 rise rise-2">
+        <OniqCard>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
+            Where to?
           </div>
-        )}
+          <div className="mt-2 flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <MapPin className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && search()}
+                placeholder="where we going? 👀 e.g. Howrah Station"
+                aria-label="Destination"
+                className="w-full rounded-2xl border border-border-strong bg-background py-3 pe-3 ps-10 text-sm text-foreground focus:border-world focus:outline-none"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={search}
+              aria-label="Search destination"
+              disabled={searching}
+              className="press grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-world text-white world-glow disabled:opacity-50"
+            >
+              <Search className="h-4 w-4" />
+            </button>
+          </div>
 
-        {destination && (
-          <button
-            onClick={() => {
-              setDestination(null);
-              setQuery("");
-              setRoute(null);
-              setOptions([]);
-            }}
-            className="mt-3 flex w-full items-center gap-2 rounded-xl bg-primary/10 p-2.5 text-left text-sm text-primary"
-          >
-            <MapPin className="h-4 w-4 shrink-0" />
-            <span className="line-clamp-1 flex-1">{destination.label}</span>
-            <span className="text-xs underline">change</span>
-          </button>
-        )}
+          {searching && <OniqSkeleton className="mt-3 h-10 w-full" />}
 
-        {destination && pickup && (
-          <button
-            data-testid="ride-compare"
-            onClick={() => runCompare(pickup, destination)}
-            disabled={comparing}
-            className="mt-3 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            <IndianRupee className="h-4 w-4" />
-            {comparing ? "Crunching fares…" : "get best fare 💰"}
-          </button>
-        )}
-      </div>
+          {destSuggests.length > 0 && !destination && (
+            <div className="mt-3 space-y-1">
+              {destSuggests.map((s, i) => (
+                <button
+                  key={s.placeId}
+                  type="button"
+                  data-testid={`dest-suggest-${i}`}
+                  onClick={async () => {
+                    const pt = await resolveSuggest(s);
+                    if (!pt) return;
+                    setDestination(pt);
+                    setDestSuggests([]);
+                    setResults([]);
+                    setQuery(pt.label);
+                  }}
+                  className="press flex w-full items-start gap-2 rounded-xl p-2.5 text-start text-sm normal-case hover:bg-surface-2"
+                >
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-world" />
+                  <div className="min-w-0 flex-1">
+                    <div className="line-clamp-1 font-medium text-foreground">{s.label}</div>
+                    {s.secondary && (
+                      <div className="line-clamp-1 text-xs font-normal text-muted-foreground">
+                        {s.secondary}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
 
-      {/* Comparison results */}
+          {results.length > 0 && !destination && (
+            <div className="mt-3 space-y-1">
+              {results.map((r, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    setDestination({ lat: r.lat, lon: r.lon, label: r.label });
+                    setResults([]);
+                    setQuery(r.label);
+                  }}
+                  className="press flex w-full items-start gap-2 rounded-xl p-2.5 text-start text-sm font-medium normal-case text-foreground hover:bg-surface-2"
+                >
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-world" />
+                  <span className="line-clamp-2">{r.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {destination && pickup && (
+            <button
+              type="button"
+              data-testid="ride-compare"
+              onClick={() => runCompare(pickup, destination)}
+              disabled={comparing}
+              className="press mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-world py-3 text-sm font-semibold text-white world-glow disabled:opacity-50"
+            >
+              <IndianRupee className="h-4 w-4" />
+              {comparing ? "Crunching fares…" : "get best fare 💰"}
+            </button>
+          )}
+        </OniqCard>
+      </section>
+
+      {/* Best options — only what estimate-fares actually returned */}
       {comparing && (
-        <div className="mt-4 space-y-2">
-          <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-          <div className="h-20 animate-pulse rounded-2xl bg-muted" />
-          <div className="h-20 animate-pulse rounded-2xl bg-muted" />
-          <div className="h-20 animate-pulse rounded-2xl bg-muted" />
-        </div>
+        <section className="mt-6">
+          <OniqSectionHeader eyebrow="Best options" title="Crunching fares…" />
+          <OniqSkeletonRows rows={3} className="mt-3 px-5" />
+        </section>
       )}
 
       {!comparing && compareError && (
-        <div className="mt-4 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
-          {compareError}
+        <div className="mt-6 px-5">
+          <OniqError label={compareError} onRetry={() => runCompare(pickup, destination)} />
         </div>
       )}
 
       {!comparing && route && options.length > 0 && (
-        <div className="mt-5">
-          <p className="px-1 text-[11px] font-medium uppercase tracking-wider text-primary/80">
-            estimated fares — actual prices set by the provider and may surge
+        <section className="mt-6 rise rise-3">
+          <OniqSectionHeader eyebrow="Best options" title="estimated fares" />
+          <p className="mt-1 px-5 text-[11px] text-muted-foreground">
+            actual prices set by the provider and may surge · {route.km} km · ~{route.mins} min
           </p>
-          <div className="mt-1 px-1 text-xs text-muted-foreground">
-            {route.km} km · ~{route.mins} min
-          </div>
-          <div className="mt-2 space-y-2">
+          <div className="mt-3 grid gap-2 px-5">
             {options.map((opt, i) => (
               <FareCard
                 key={opt.providerId}
@@ -732,10 +797,10 @@ function RidesScreen() {
               />
             ))}
           </div>
-          <p className="mt-2 px-1 text-xs text-muted-foreground">
+          <p className="mt-2 px-5 text-[11px] text-muted-foreground">
             Final fare & driver assignment happen in the provider's app.
           </p>
-        </div>
+        </section>
       )}
 
       {/* Providers, filtered by city */}
@@ -750,10 +815,10 @@ function RidesScreen() {
         onBlocked={needDestination}
       />
 
-      <p className="mt-6 text-center text-xs text-muted-foreground">
+      <p className="mt-8 px-5 text-center text-[11px] text-muted-foreground">
         Rides are booked and paid in the provider's app. Pickup uses your live location.
       </p>
-    </div>
+    </OniqCanvas>
   );
 }
 
@@ -787,31 +852,34 @@ function FareCard({
   const inner = (
     <>
       <div
-        className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white"
+        className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white shadow-card"
         style={{ backgroundColor: opt.color }}
       >
         <Icon className="h-5 w-5" />
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <div className="text-sm font-semibold">{opt.providerName}</div>
-          <div className="text-xs text-muted-foreground">{opt.vehicle}</div>
-          {best && (
-            <span className="ml-auto rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary">
-              Best price 💸
-            </span>
-          )}
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-display text-[13px] text-foreground">{opt.providerName}</div>
+        <div className="mt-0.5 text-[11px] text-muted-foreground">{opt.vehicle}</div>
+        <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+          <Clock className="h-3 w-3" /> ~{opt.etaMins} min trip
         </div>
-        <div className="mt-1 text-base font-bold">
+      </div>
+      <div className="shrink-0 text-end">
+        <div className="font-display text-[17px] leading-none text-foreground">
           {moneyIn(opt.fareLow, "INR")}–{moneyIn(opt.fareHigh, "INR")}
         </div>
-        <div className="text-xs text-muted-foreground">~{opt.etaMins} min trip</div>
+        {best && (
+          <span className="mt-1.5 inline-block rounded-full bg-world px-2 py-0.5 text-[11px] font-semibold text-white">
+            Best price 💸
+          </span>
+        )}
       </div>
     </>
   );
 
-  const cls =
-    "flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition hover:border-primary/40";
+  const cls = `press flex w-full items-center gap-3 rounded-3xl p-4 text-start ${
+    best ? "border border-world bg-world-soft" : "oniq-surface"
+  }`;
   if (!href) {
     return (
       <a
@@ -868,27 +936,27 @@ function Provider({
   const body = (
     <>
       <div
-        className="grid h-11 w-11 place-items-center rounded-xl text-white"
+        className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white shadow-card"
         style={{ backgroundColor: color }}
       >
         <Icon className="h-5 w-5" />
       </div>
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <div className="text-sm font-semibold">{name}</div>
+          <div className="truncate font-display text-[13px] text-foreground">{name}</div>
           {tag && (
-            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+            <span className="shrink-0 rounded-full bg-world-soft px-2 py-0.5 text-[11px] font-medium text-world">
               {tag}
             </span>
           )}
         </div>
-        <div className="text-xs text-muted-foreground">{desc}</div>
+        <div className="mt-0.5 text-[11px] text-muted-foreground">{desc}</div>
       </div>
+      <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" />
     </>
   );
 
-  const cls =
-    "flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition hover:border-primary/40";
+  const cls = "press flex w-full items-center gap-3 rounded-3xl oniq-surface p-4 text-start";
   if (!href) {
     return (
       <a
@@ -961,12 +1029,10 @@ function CityProviders({
         : null;
 
   return (
-    <div data-testid="city-providers">
-      <h2 className="mt-6 px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">
-        pick your ride, main character
-      </h2>
-      {hint && <p className="mt-1 px-1 text-xs text-primary/80">{hint}</p>}
-      <div className="mt-3 space-y-2">
+    <section data-testid="city-providers" className="mt-7 rise rise-4">
+      <OniqSectionHeader eyebrow="Ride apps" title="pick your ride, main character" />
+      {hint && <p className="mt-1 px-5 text-[12px] font-medium text-world">{hint}</p>}
+      <div className="mt-3 grid gap-2 px-5">
         {available.map((p) => (
           <Provider
             key={p.id}
@@ -984,11 +1050,12 @@ function CityProviders({
       </div>
 
       {elsewhere.length > 0 && (
-        <div className="mt-4">
+        <div className="mt-3 px-5">
           <button
+            type="button"
             data-testid="toggle-elsewhere"
             onClick={() => setShowElsewhere(!showElsewhere)}
-            className="flex w-full items-center justify-between rounded-2xl border border-dashed border-border bg-card/50 px-4 py-2.5 text-left text-xs text-muted-foreground"
+            className="press flex w-full items-center justify-between rounded-2xl border border-dashed border-border-strong px-4 py-3 text-start text-[12px] font-medium normal-case text-muted-foreground"
           >
             <span>
               not in {city?.label ?? "your area"} yet 🙅 ({elsewhere.length})
@@ -996,7 +1063,7 @@ function CityProviders({
             <ChevronDown className={`h-4 w-4 transition ${showElsewhere ? "rotate-180" : ""}`} />
           </button>
           {showElsewhere && (
-            <div className="mt-2 space-y-2">
+            <div className="mt-2 grid gap-2">
               {elsewhere.map((p) => (
                 <Provider
                   key={p.id}
@@ -1014,6 +1081,6 @@ function CityProviders({
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 }

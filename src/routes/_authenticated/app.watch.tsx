@@ -40,7 +40,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
+  ChevronRight,
   ExternalLink,
   Pause,
   Pencil,
@@ -109,6 +109,7 @@ import { EMBED_PLATFORM_NAME, embedKey, isLiveEmbed } from "@/data/watchEmbeds";
 import { isAvailable } from "@/data/countryRegistry";
 import { useCountry } from "@/lib/country";
 import { useMediaCoordinator } from "@/lib/MediaProvider";
+import { OniqCanvas, OniqChip, OniqHeader, OniqSectionHeader } from "@/components/oniq";
 
 export const Route = createFileRoute("/_authenticated/app/watch")({
   component: WatchPage,
@@ -512,14 +513,14 @@ function WatchPage() {
   // tempts a hook underneath it.
   if (!isAvailable("watch", home)) {
     return (
-      <div className="min-h-dvh bg-background pb-24 text-foreground">
+      <OniqCanvas world="watch" className="pb-16">
         <Header />
-        <div className="mx-auto max-w-2xl px-4">
-          <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
+        <div className="px-5">
+          <div className="rounded-3xl oniq-surface p-5 text-sm text-muted-foreground">
             Watch isn&apos;t in ONIQ where you are yet 🌍
           </div>
         </div>
-      </div>
+      </OniqCanvas>
     );
   }
 
@@ -532,35 +533,38 @@ function WatchPage() {
   const url = current ? channelUrlOf(current.item) : null;
 
   return (
-    <div className="min-h-dvh bg-background pb-24 text-foreground">
+    <OniqCanvas world="watch" className="pb-16">
       <Header />
 
-      <div className="mx-auto max-w-2xl px-4">
+      <div className="px-5">
         {/* TABS — built-ins, then My TV, then the user's own, then the buttons
             that make more of them. Same order the original used. */}
-        <div className="no-scrollbar mb-3 flex items-center gap-2 overflow-x-auto pb-1">
-          <Chip active={tab === "all"} onClick={() => pickTab("all")}>
+        <div className="no-scrollbar -mx-5 mb-3 flex items-center gap-2 overflow-x-auto px-5 pb-1">
+          <OniqChip active={tab === "all"} onClick={() => pickTab("all")}>
             All {playableDir.length}
-          </Chip>
+          </OniqChip>
           {GENRES.map((g) => (
-            <Chip key={g.key} active={tab === g.key} onClick={() => pickTab(g.key)}>
+            <OniqChip key={g.key} active={tab === g.key} onClick={() => pickTab(g.key)}>
               {g.emoji} {g.label} {countFor.get(g.key) ?? 0}
-            </Chip>
+            </OniqChip>
           ))}
 
           {/* DEVOTIONAL. Only offered once a faith has been chosen — an
               unchosen faith has no roster, and showing a tab that leads to
               somebody else's tradition is the bleed bug, not a fallback. */}
           {faith && (
-            <Chip active={tab === DEVOTIONAL_GENRE_ID} onClick={() => pickTab(DEVOTIONAL_GENRE_ID)}>
+            <OniqChip
+              active={tab === DEVOTIONAL_GENRE_ID}
+              onClick={() => pickTab(DEVOTIONAL_GENRE_ID)}
+            >
               🙏 Devotional {devotionalCards.length}
-            </Chip>
+            </OniqChip>
           )}
 
           {userId && (
-            <Chip active={tab === MYTV_GENRE_ID} onClick={() => pickTab(MYTV_GENRE_ID)}>
+            <OniqChip active={tab === MYTV_GENRE_ID} onClick={() => pickTab(MYTV_GENRE_ID)}>
               📺 My TV {myTvCards.length}
-            </Chip>
+            </OniqChip>
           )}
 
           {userGenres.map((g) => {
@@ -568,9 +572,9 @@ function WatchPage() {
             const active = tab === id;
             return (
               <div key={g.id} className="inline-flex shrink-0 items-center gap-0.5">
-                <Chip active={active} onClick={() => pickTab(id)}>
+                <OniqChip active={active} onClick={() => pickTab(id)}>
                   🎯 {g.name}
-                </Chip>
+                </OniqChip>
                 {active && (
                   <>
                     <IconBtn label={`Rename ${g.name}`} onClick={() => renameUserGenre(g)}>
@@ -591,7 +595,7 @@ function WatchPage() {
               data-testid="user-genre-add"
               onClick={() => setAddGenreOpen(true)}
               aria-label="Add genre"
-              className="press inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+              className="press inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-border-strong px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
             >
               <Plus className="h-3 w-3" /> genre
             </button>
@@ -602,7 +606,7 @@ function WatchPage() {
               data-testid="mytv-manage"
               onClick={() => setManageOpen(true)}
               aria-label="Manage My TV"
-              className="press inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+              className="press inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full oniq-surface px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
             >
               <Settings className="h-3 w-3" /> My TV
             </button>
@@ -742,7 +746,7 @@ function WatchPage() {
         )}
 
         {/* THE STRIP */}
-        <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto pb-1" data-testid="watch-list">
+        <div className="snap-rail -mx-5 mt-3 gap-3 px-5 pb-1" data-testid="watch-list">
           {activeUserGenre && (
             <button
               type="button"
@@ -751,12 +755,14 @@ function WatchPage() {
                 setAddChannelFor({ id: activeUserGenre.id, name: activeUserGenre.name })
               }
               aria-label="Add channel"
-              className="press w-40 shrink-0 text-left"
+              className="press w-40 shrink-0 text-start"
             >
-              <div className="grid aspect-video place-items-center rounded-lg border border-dashed border-border bg-surface-2">
+              <div className="grid aspect-video place-items-center rounded-2xl border border-dashed border-border-strong">
                 <Plus className="h-6 w-6 text-muted-foreground" />
               </div>
-              <div className="mt-1.5 text-xs font-medium leading-snug">add channel</div>
+              <div className="mt-1.5 text-xs font-medium leading-snug text-foreground">
+                add channel
+              </div>
               <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
                 youtube · vimeo · dailymotion · twitch · archive link
               </div>
@@ -773,18 +779,18 @@ function WatchPage() {
                   onClick={() => pick(i)}
                   aria-label={`Play ${c.name}`}
                   aria-current={active}
-                  className={`press w-full text-left ${active ? "opacity-100" : "opacity-80 hover:opacity-100"}`}
+                  className={`press w-full text-start ${active ? "opacity-100" : "opacity-80 hover:opacity-100"}`}
                 >
                   {/* A GLYPH, NOT ARTWORK — see the file header for why the
                       destination's own thumbnail host must never appear here. */}
                   <div
-                    className={`grid aspect-video place-items-center rounded-lg border bg-surface-2 text-2xl ${
-                      active ? "border-primary" : "border-border"
+                    className={`grid aspect-video place-items-center rounded-2xl text-3xl ${
+                      active ? "bg-world text-white world-glow" : "oniq-surface"
                     }`}
                   >
                     {c.emoji}
                   </div>
-                  <div className="mt-1.5 line-clamp-2 text-xs font-medium leading-snug">
+                  <div className="mt-1.5 line-clamp-2 text-xs font-medium leading-snug text-foreground">
                     {c.name}
                   </div>
                   <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{c.sub}</div>
@@ -809,7 +815,7 @@ function WatchPage() {
             handle, so they stay honest link-outs rather than a dead play button. */}
         {!isCurated && linkOnly.length > 0 && (
           <div className="mt-6">
-            <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               also on YouTube
             </div>
             <ul className="flex flex-wrap gap-2">
@@ -823,7 +829,7 @@ function WatchPage() {
                       data-testid="watch-link"
                       onClick={() => openInApp(link)}
                       aria-label={`${e.name} — ${LINK_OUT_LABEL}`}
-                      className="press inline-flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-xs"
+                      className="press inline-flex items-center gap-1 rounded-full oniq-surface px-3 py-1.5 text-xs text-foreground"
                     >
                       {EMOJI_BY_GENRE.get(e.genre) ?? "📺"} {e.name}
                       <ExternalLink className="size-3 text-muted-foreground" />
@@ -841,10 +847,12 @@ function WatchPage() {
             CSP grant and Play declaration — src/data/watchPlatforms.ts. */}
         {!isCurated && platforms.length > 0 && (
           <div className="mt-6" data-testid="watch-platforms">
-            <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
-              more places to watch
-            </div>
-            <div className="no-scrollbar flex gap-3 overflow-x-auto pb-1">
+            <OniqSectionHeader
+              className="px-0"
+              eyebrow="beyond YouTube"
+              title="more places to watch"
+            />
+            <div className="snap-rail -mx-5 mt-3 gap-3 px-5 pb-1">
               {platforms.map((p) => (
                 <button
                   key={p.id}
@@ -852,13 +860,13 @@ function WatchPage() {
                   data-testid="watch-platform"
                   onClick={() => openInApp(p.url)}
                   aria-label={`${p.name} — ${opensIn(p.name)}`}
-                  className="press w-40 shrink-0 text-left opacity-80 hover:opacity-100"
+                  className="press w-40 shrink-0 text-start"
                 >
                   {/* A GLYPH, NOT A LOGO — the platform's mark stays on its site. */}
-                  <div className="grid aspect-video place-items-center rounded-lg border border-border bg-surface-2 text-2xl">
+                  <div className="grid aspect-video place-items-center rounded-2xl bg-world-soft text-3xl">
                     {p.emoji}
                   </div>
-                  <div className="mt-1.5 flex items-center gap-1 text-xs font-medium leading-snug">
+                  <div className="mt-1.5 flex items-center gap-1 text-xs font-medium leading-snug text-foreground">
                     <span className="truncate">{p.name}</span>
                     <ExternalLink className="size-3 shrink-0 text-muted-foreground" />
                   </div>
@@ -905,56 +913,42 @@ function WatchPage() {
           onAdded={invalidateUserWatch}
         />
       )}
-    </div>
+    </OniqCanvas>
   );
 }
 
 function Header() {
   return (
-    <div className="mx-auto mb-4 max-w-2xl px-4 pt-4">
-      <Link to="/app" className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-        <ArrowLeft className="size-4" /> Home
-      </Link>
-      <div className="mt-3 text-[11px] uppercase tracking-wider text-primary/80">watch 📺</div>
-      <h1 className="font-display text-2xl font-bold">channels, not a channel</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Plays in each platform&apos;s own player. ONIQ keeps the list, not the stream.
-      </p>
+    <OniqHeader
+      eyebrow="watch 📺"
+      title="channels, not a channel"
+      subtitle="Plays in each platform's own player. ONIQ keeps the list, not the stream."
+      back="/app"
+      className="mb-4"
+    >
       {/* THE LIBRARY (owner mission, 2026-09-03): saved videos across
-          providers, Continue, Inbox, Resurface, collections, threads. */}
+          providers, Continue, Inbox, Resurface, collections, threads. The
+          hero of the screen — ONIQ's own work, above anybody's player. */}
       <Link
         to="/app/watch/library"
         data-testid="watch-library-link"
-        className="press mt-3 inline-flex min-h-10 items-center gap-1 rounded-full border border-primary/50 bg-primary/15 px-4 py-2 text-sm font-semibold text-primary"
+        className="press flex min-h-10 items-center gap-3 rounded-3xl bg-world p-4 text-white world-glow"
       >
-        📚 Your library — Continue · Inbox · Resurface
+        <span
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/20 text-xl"
+          aria-hidden="true"
+        >
+          📚
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-[15px] leading-tight">Your library</span>
+          <span className="mt-0.5 block text-[12px] text-white/85">
+            Continue · Inbox · Resurface
+          </span>
+        </span>
+        <ChevronRight className="h-4 w-4 shrink-0 rtl:-scale-x-100" aria-hidden="true" />
       </Link>
-    </div>
-  );
-}
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`press shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-        active
-          ? "border-primary bg-primary text-primary-foreground shadow-[0_0_16px_-4px_var(--primary)]"
-          : "border-border bg-card text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      {children}
-    </button>
+    </OniqHeader>
   );
 }
 

@@ -11,6 +11,16 @@ export type Dict = Record<string, string>;
 // automatically.
 const en: Dict = {
   "home.greeting": "Hey",
+  "home.daypart.morning": "Good morning",
+  "home.daypart.afternoon": "Good afternoon",
+  "home.daypart.evening": "Good evening",
+  "home.daypart.night": "Still up",
+  "home.dayline.morning": "Let's make today count.",
+  "home.dayline.afternoon": "Keep the day moving.",
+  "home.dayline.evening": "Let's make today meaningful.",
+  "home.dayline.night": "Something calm, or one more thing.",
+  "nav.explore": "Explore",
+  "nav.create": "Create",
   "home.transparency": "words from across India, not just English slang 🇮🇳",
   // Stage-2 additions
   "nav.home": "Home",
@@ -42,6 +52,12 @@ const en: Dict = {
 const hi: Dict = {
   ...en,
   "home.greeting": "नमस्ते",
+  "home.daypart.morning": "सुप्रभात",
+  "home.daypart.afternoon": "नमस्ते",
+  "home.daypart.evening": "शुभ संध्या",
+  "home.daypart.night": "अभी भी जागे हैं",
+  "nav.explore": "खोजें",
+  "nav.create": "बनाएँ",
   "nav.home": "होम",
   "nav.chat": "चैट",
   "nav.profile": "प्रोफ़ाइल",

@@ -1,12 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  OniqAIOrb,
+  OniqAskBar,
+  OniqCanvas,
+  OniqProgressBar,
+  OniqSectionHeader,
+  OniqSkeleton,
+  OniqStoryRail,
+  OniqWorldCard,
+  type WorldId,
+} from "@/components/oniq";
+import { GREETING, dayPartOf, groupsFor, type WorldEntry } from "@/data/worlds";
+import type { CountryCode } from "@/lib/miniapps";
+import { useContinue } from "@/lib/watch/hooks";
+import { formatClock, formatMinutes } from "@/lib/watch/format";
+import { providerName } from "@/lib/watch/providers";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Sparkles,
-  Send,
-  Lock,
-  Clapperboard,
   Film,
   Play,
   Heart,
@@ -31,7 +44,6 @@ import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
 import { useCountry } from "@/lib/country";
 import { isAvailable } from "@/data/countryRegistry";
 import { useIsAdult18 } from "@/lib/useIsAdult18";
-import { SafeMount } from "@/components/SafeMount";
 import { RegionBanner } from "@/components/home/RegionBanner";
 import { HomeCountryPrompt } from "@/components/home/HomeCountryPrompt";
 import { useT } from "@/lib/i18n/LanguageProvider";
@@ -97,34 +109,42 @@ function HomeScreen() {
   const [hidden] = useHiddenTiles();
   const installPrompt = useInstallPrompt();
   const vitalsColor = useVitalsTileColor();
-  const { t } = useT();
+  const { t, lang } = useT();
+  const [home] = useCountry();
+  const isAdult = useIsAdult18();
+  const userId = useSession();
+  // The hour decides the greeting and the order of the worlds. Real clock,
+  // read once per visit; nothing is hidden by it (src/data/worlds.ts).
+  const dayPart = useMemo(() => dayPartOf(new Date().getHours()), []);
+  const groups = useMemo(() => groupsFor(dayPart), [dayPart]);
+  const pulse = useHomePulse(userId, home, hidden);
 
   const first = profile?.display_name?.split(" ")[0] ?? profile?.username ?? "there";
+  const greeting = GREETING[dayPart];
+  // The same three gates as everywhere a world is drawn: hidden by the person,
+  // unsupported in the Home country, or 18+ for a minor => not rendered at all.
+  const showWorld = (w: WorldEntry) =>
+    !(hidden as Set<string>).has(w.key) && isAvailable(w.key, home) && (!w.adultOnly || isAdult);
+  const worlds = groups.flatMap((g) => g.worlds).filter(showWorld);
 
   return (
     <MediaProvider>
-      <div className="relative pb-6 min-h-screen">
-        {/* Wallpaper is now rendered by the app shell (_authenticated/app.tsx)
-          so it persists across every /app/* tab. */}
+      <OniqCanvas world="home" className="relative pb-6">
+        {/* Wallpaper is rendered by the app shell (_authenticated/app.tsx) so it
+            persists across every /app/* tab; the canvas wash sits over it. */}
         <div className="relative z-10">
           <h1 className="sr-only">Your ONIQ dashboard</h1>
-          <div className="px-5 pt-[max(3rem,env(safe-area-inset-top))]">
-            <div className="flex items-center justify-between fade-up">
-              <div>
-                <div className="text-xs text-muted-foreground">main character detected ✨</div>
-                {profileLoading ? (
-                  <div className="mt-1 h-8 w-40 animate-pulse rounded-lg bg-surface" />
-                ) : (
-                  <p className="font-display text-3xl font-bold text-gradient-primary">
-                    {t("home.greeting", "Hey")}, {first} 👋
-                  </p>
-                )}
-              </div>
 
+          {/* ---- BRAND ROW + GREETING + ASK (the reference, top to bottom) --- */}
+          <div className="px-5 pt-[max(3rem,env(safe-area-inset-top))]">
+            <div className="flex items-center justify-between gap-3 rise">
+              <span className="font-display text-[26px] leading-none tracking-tight text-gradient-world">
+                ONIQ
+              </span>
               <Link
                 to="/app/profile"
                 aria-label="Open profile"
-                className="press grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground font-bold overflow-hidden"
+                className="press grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-world font-bold text-white world-glow"
               >
                 {profile?.avatar_url ? (
                   <img
@@ -138,13 +158,33 @@ function HomeScreen() {
               </Link>
             </div>
 
+            <div className="mt-5 rise rise-1">
+              <div className="text-sm text-foreground/80">
+                {t(`home.daypart.${dayPart}`, greeting.hello)},
+              </div>
+              {profileLoading ? (
+                <OniqSkeleton className="mt-2 h-9 w-48" />
+              ) : (
+                <p className="mt-0.5 font-display text-[30px] normal-case leading-[1.05] tracking-tight text-foreground">
+                  {first} 👋
+                </p>
+              )}
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t(`home.dayline.${dayPart}`, greeting.line)}
+              </p>
+            </div>
+
+            <div className="mt-4 rise rise-1">
+              <OniqAskBar testId="home-ask" />
+            </div>
+
             {installPrompt.canInstall && (
-              <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-border bg-card/85 px-3 py-2 fade-up">
+              <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl oniq-surface px-3 py-2 rise rise-1">
                 <span className="text-xs">📲 install ONIQ on your home screen</span>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={installPrompt.prompt}
-                    className="press rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
+                    className="press rounded-full bg-world px-3 py-1 text-xs font-semibold text-white"
                   >
                     Install
                   </button>
@@ -161,242 +201,293 @@ function HomeScreen() {
 
             <AnticipatoryCard />
 
-            <div className="mt-7 px-1 flex items-center justify-between">
-              <h2 className="font-display text-xs uppercase tracking-wider text-muted-foreground">
-                your feed
+            {/* ---- THE PULSE: only what is true right now ---------------- */}
+            {pulse.length > 0 && (
+              <OniqStoryRail className="mt-4 rise rise-2" ariaLabel="Right now">
+                {pulse.map((p) => (
+                  <Link
+                    key={p.id}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    to={p.to as any}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    search={p.search as any}
+                    data-world={p.world}
+                    data-testid={`home-pulse-${p.id}`}
+                    className="press flex min-w-[8.5rem] items-center gap-2.5 rounded-2xl oniq-surface px-3 py-2.5"
+                  >
+                    <span
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-world-soft text-base"
+                      aria-hidden="true"
+                    >
+                      {p.emoji}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-display text-[13px] leading-tight text-foreground">
+                        {p.title}
+                      </span>
+                      <span className="block truncate text-[11px] leading-tight text-muted-foreground">
+                        {p.sub}
+                      </span>
+                    </span>
+                  </Link>
+                ))}
+              </OniqStoryRail>
+            )}
+          </div>
+
+          {/* ---- CONTINUE WATCHING: the real unfinished item, or nothing --- */}
+          {pulse.some((p) => p.id === "continue") && (
+            <section className="mt-7 rise rise-2">
+              <OniqSectionHeader
+                title="Continue watching"
+                action={{
+                  label: "View all",
+                  to: "/app/watch/library",
+                  testId: "home-continue-library",
+                }}
+              />
+              <div className="mt-3 px-5">
+                <ContinueWatchingCard userId={userId} home={home} />
+              </div>
+            </section>
+          )}
+
+          {/* ---- FOR YOU TODAY: the feed faces, one at a time ---------------- */}
+          <section className="mt-7 rise rise-3">
+            <div className="flex items-end justify-between gap-3 px-5">
+              <h2 className="font-display text-[15px] leading-tight text-foreground">
+                For you today
               </h2>
               <CustomizeButton />
             </div>
-
-            <div className="mt-3">
+            <div className="mt-3 px-5">
               <HomeMediaBanner />
             </div>
+          </section>
 
+          <div className="px-5">
             <RegionBanner />
-
             <div className="mt-3">
               <HomeCountryPrompt />
             </div>
-
-            <div className="mt-7 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              also in ONIQ
-            </div>
-            <SafeMount name="AlsoInOniqRow">
-              <AlsoInOniqRow
-                tiles={[
-                  // Names come from the shared table (tileLabel.ts) — never inline.
-                  { key: "ting", to: "/app/ai" },
-                  { key: "learn", to: "/app/learn" },
-                  { key: "rides", to: "/app/rides" },
-                  { key: "miniapps", to: "/app/miniapps" },
-                  // NO UPI TILE — owner directive, 2026-08-17: Scan & Pay and
-                  // every pay-by-QR entry point is hidden. The route still
-                  // resolves for deep links; nothing on Home points at it.
-                  { key: "official", to: "/app/official" },
-                  { key: "pulse", to: "/app/news" },
-                  { key: "faith", to: "/app/faith" },
-                  // India-only by the feature registry, same as upi above —
-                  // owner directive 2026-08-16. Channels PLAY there, in
-                  // YouTube's own player, and the personal genres live there
-                  // too; see src/routes/_authenticated/app.watch.tsx.
-                  { key: "watch", to: "/app/watch" },
-                  { key: "vitals", to: "/app/vitals", color: vitalsColor },
-                  { key: "wander", to: "/app/travel" },
-                  { key: "earn", to: "/app/earn" },
-                  { key: "university", to: "/app/university" },
-                  { key: "lores", to: "/app/lores" },
-                  // 18+ only — hidden entirely for minors and null-DOB accounts.
-                  // Jobs is one screen now: the CV builder and the job & gig
-                  // directory are tabs of /app/jobs behind a single 18+ gate.
-                  // The separate "Job apps" tile is gone.
-                  { key: "jobs", to: "/app/jobs", adultOnly: true },
-                ]}
-                hidden={hidden}
-              />
-            </SafeMount>
           </div>
+
+          {/* ---- YOUR WORLDS: every world you can use, ordered by the hour ---- */}
+          {worlds.length > 0 && (
+            <section className="mt-7 rise rise-4">
+              <OniqSectionHeader
+                title="Your worlds"
+                action={{ label: "All", to: "/app/explore", testId: "home-explore" }}
+              />
+              <div className="mt-2 grid grid-cols-5 gap-x-1 gap-y-2 px-3">
+                {worlds.map((w) => (
+                  <OniqWorldCard
+                    key={w.key}
+                    world={w.world}
+                    emoji={w.emoji}
+                    label={tileName(lang, w.key, home)}
+                    to={w.to}
+                    search={w.search}
+                    skin={skins[w.key] ?? null}
+                    dot={w.key === "vitals" ? vitalsColor : null}
+                    onClick={() => void recordSignal("hub_open", w.key)}
+                    testId={`home-world-${w.key}`}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ---- ONIQ AI ------------------------------------------------- */}
+          <section className="mt-7 px-5 rise rise-5">
+            <Link
+              to="/app/ai"
+              data-world="ting"
+              data-testid="home-oniq-ai"
+              className="press flex items-center gap-4 rounded-3xl bg-world-soft border border-world p-4"
+              onClick={() => void recordSignal("hub_open", "ting")}
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block font-display text-[16px] leading-tight text-world">
+                  ONIQ AI
+                </span>
+                <span className="mt-1 block text-sm text-muted-foreground">
+                  Your personal super intelligence
+                </span>
+              </span>
+              <OniqAIOrb size="lg" className="shrink-0" />
+            </Link>
+          </section>
+
+          {/* ---- FIVE EXPERIENCES: the groups, one tap each ----------------- */}
+          <section className="mt-7 rise rise-5">
+            <OniqSectionHeader title="Five experiences" />
+            <OniqStoryRail className="mt-3" ariaLabel="Experiences">
+              {EXPERIENCES.map((x) =>
+                x.id === "create" ? (
+                  <button
+                    key={x.id}
+                    type="button"
+                    data-world="create"
+                    data-testid="home-experience-create"
+                    onClick={() => window.dispatchEvent(new CustomEvent("oniq:open-create"))}
+                    className="press flex w-[7.25rem] flex-col rounded-2xl oniq-surface p-3 text-start"
+                  >
+                    <span className="font-display text-[12px] text-world">{x.title}</span>
+                    <span className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                      {x.line}
+                    </span>
+                  </button>
+                ) : (
+                  <Link
+                    key={x.id}
+                    to="/app/explore"
+                    search={{ group: x.id }}
+                    data-world={x.world}
+                    data-testid={`home-experience-${x.id}`}
+                    className="press flex w-[7.25rem] flex-col rounded-2xl oniq-surface p-3 text-start"
+                  >
+                    <span className="font-display text-[12px] text-world">{x.title}</span>
+                    <span className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                      {x.line}
+                    </span>
+                  </Link>
+                ),
+              )}
+            </OniqStoryRail>
+          </section>
         </div>
-      </div>
+      </OniqCanvas>
     </MediaProvider>
   );
 }
 
-function Tile({
-  to,
-  icon: Icon,
-  label,
-  color,
-  skin,
-  locked = false,
-  delay = 0,
-}: {
-  to?: string;
-  icon: typeof Send;
-  label: string;
-  color?: string;
-  skin?: string;
-  locked?: boolean;
-  delay?: number;
-}) {
-  const [skinError, setSkinError] = useState(false);
-  const showSkin = skin && !skinError;
-  const tint = color ?? "#00D4B8";
-  const inner = (
-    <>
-      {showSkin && (
-        <>
-          <img
-            src={skin!}
-            alt=""
-            onError={() => setSkinError(true)}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
-        </>
-      )}
-      {!showSkin && (
-        <div
-          className="relative grid h-11 w-11 place-items-center rounded-2xl overflow-hidden transition-transform duration-200"
-          style={{
-            color: tint,
-            background: `${tint}26`,
-            boxShadow: `0 0 18px ${tint}40, inset 0 0 0 1px ${tint}33`,
-          }}
-        >
-          <Icon className="h-5 w-5" />
-        </div>
-      )}
-      {locked && (
-        <div className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-surface-2 border border-border z-10">
-          <Lock className="h-2.5 w-2.5 text-muted-foreground" />
-        </div>
-      )}
-      <span
-        className={`font-display relative z-10 text-xs font-medium ${showSkin ? "text-white drop-shadow" : ""} ${locked ? "text-muted-foreground" : ""}`}
-      >
-        {label}
-      </span>
-    </>
-  );
-  const base =
-    "press fade-up relative overflow-hidden flex flex-col items-center justify-center gap-2 rounded-2xl bg-card p-2 border border-border transition-colors";
-  const washStyle = !showSkin
-    ? {
-        background: `radial-gradient(120% 90% at 0% 0%, ${tint}47 0%, ${tint}14 35%, transparent 65%), hsl(var(--card))`,
-      }
-    : undefined;
-  const style = { animationDelay: `${delay}ms`, ...(washStyle ?? {}) };
-  if (locked) {
-    return (
-      <div className={`${base} opacity-60`} style={style}>
-        {inner}
-      </div>
-    );
-  }
-  return (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    <Link to={to as any} className={`${base} hover:brightness-110`} style={style}>
-      {inner}
-    </Link>
-  );
-}
+/** The reference's five experience cards. The first four open Explore on that group. */
+const EXPERIENCES: {
+  id: "connect" | "learn" | "live" | "discover" | "create";
+  world: WorldId;
+  title: string;
+  line: string;
+}[] = [
+  { id: "connect", world: "chat", title: "Connect", line: "Chat · Moments · Mast" },
+  { id: "learn", world: "study", title: "Learn", line: "Study · Campus · Scout" },
+  { id: "live", world: "rides", title: "Live", line: "Rides · Wanderlust · Pulse · Official" },
+  { id: "discover", world: "ting", title: "Discover", line: "Ting · Blessed · Vitals · Plug" },
+  { id: "create", world: "create", title: "Create", line: "Image · Video · Voice · Document · AI" },
+];
 
-function ClipsHeroTile({
-  skin,
-  gradient,
-  delay = 0,
-}: {
-  skin?: string;
-  gradient: string;
-  delay?: number;
-}) {
-  const [skinError, setSkinError] = useState(false);
-  const [errored, setErrored] = useState<Record<string, boolean>>({});
-  const [idx, setIdx] = useState(0);
-  const showSkin = skin && !skinError;
+type PulseItem = {
+  id: "continue" | "unread" | "study";
+  world: WorldId;
+  emoji: string;
+  title: string;
+  sub: string;
+  to: string;
+  search?: Record<string, string | boolean>;
+};
 
-  const { data: clips } = useQuery({
-    queryKey: ["latest-clips", 10],
-    staleTime: 5 * 60 * 1000,
+/**
+ * THE PULSE — what is true for this person right now, from data ONIQ
+ * already holds. A chip exists only when its fact does: an unfinished
+ * video (Watch library, India), unread chats, a learner profile. No
+ * weather, no ride status, no fabricated values. Everything here is a
+ * hook, and every hook runs on every render.
+ */
+function useHomePulse(userId: string | null, home: CountryCode, hidden: Set<TileKey>): PulseItem[] {
+  const watchOk = isAvailable("watch", home) && !hidden.has("watch");
+  const cont = useContinue(watchOk ? userId : null);
+  const study = useStudyHeroData(isAvailable("study", home) && !hidden.has("study"));
+  const unread = useQuery({
+    queryKey: ["home-unread", userId],
+    enabled: !!userId && !hidden.has("moments"),
+    staleTime: 30_000,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("clips")
-        .select("id, video_url")
-        .order("created_at", { ascending: false })
-        .limit(10);
-      return data ?? [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("get_chat_list");
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data ?? []) as any[]).reduce((n, r) => n + (Number(r.unread) || 0), 0) as number;
     },
   });
+  const items: PulseItem[] = [];
+  const next = cont.data?.[0];
+  if (next) {
+    items.push({
+      id: "continue",
+      world: "watch",
+      emoji: "▶️",
+      title: next.title,
+      sub: next.duration_seconds
+        ? `${formatMinutes(Math.max(0, next.duration_seconds - next.position_seconds))} left`
+        : "Continue watching",
+      to: "/app/watch/library",
+      search: { surface: "continue" },
+    });
+  }
+  if ((unread.data ?? 0) > 0) {
+    const n = unread.data as number;
+    items.push({
+      id: "unread",
+      world: "chat",
+      emoji: "💬",
+      title: `${n} unread`,
+      sub: n === 1 ? "one chat is waiting" : "chats are waiting",
+      to: "/app/chat",
+    });
+  }
+  const active = study.active;
+  if (active) {
+    items.push({
+      id: "study",
+      world: "study",
+      emoji: "📚",
+      title: study.recent?.subject ?? active.name,
+      sub: study.recent
+        ? "pick up where you stopped"
+        : `${active.board.toUpperCase()} · ${classLabel(active.class_level)}`,
+      to: "/app/study",
+    });
+  }
+  return items;
+}
 
-  const validClips = (clips ?? []).filter((c) => !errored[c.id]);
-  const total = validClips.length;
-  const current = !showSkin && total > 0 ? validClips[idx % total] : null;
-
-  useEffect(() => {
-    if (showSkin || total < 2) return;
-    let t: number | null = null;
-    const tick = () => {
-      if (typeof document !== "undefined" && document.hidden) {
-        t = window.setTimeout(tick, 20_000);
-        return;
-      }
-      setIdx((i) => (i + 1) % total);
-    };
-    t = window.setTimeout(tick, 20_000);
-    return () => {
-      if (t) window.clearTimeout(t);
-    };
-  }, [idx, total, showSkin]);
-
-  const videoUrl = current?.video_url ?? null;
-
+/** The first unfinished item from the Watch library, as a card with its progress. */
+function ContinueWatchingCard({ userId, home }: { userId: string | null; home: CountryCode }) {
+  const ok = isAvailable("watch", home);
+  const cont = useContinue(ok ? userId : null);
+  const item = cont.data?.[0];
+  if (!item) return null;
+  const done = item.duration_seconds ? item.position_seconds / item.duration_seconds : 0;
   return (
     <Link
-      to="/app/clips"
-      style={{ animationDelay: `${delay}ms` }}
-      className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-card bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
+      to="/app/watch/library"
+      search={{ surface: "continue" }}
+      data-world="watch"
+      data-testid="home-continue-card"
+      className="press block rounded-3xl oniq-surface p-4"
     >
-      {videoUrl && current && (
-        <video
-          key={current.id}
-          src={videoUrl}
-          autoPlay
-          muted
-          loop
-          playsInline
-          onError={() => {
-            setErrored((e) => ({ ...e, [current.id]: true }));
-            setIdx((i) => (total > 1 ? (i + 1) % total : i));
-          }}
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-        />
-      )}
-      {videoUrl && (
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/82 via-black/28 to-transparent" />
-      )}
-      {showSkin ? (
-        <>
-          <img
-            src={skin!}
-            alt=""
-            onError={() => setSkinError(true)}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/78 via-black/22 to-transparent" />
-        </>
-      ) : (
-        <Clapperboard className="relative h-10 w-10 text-foreground/90" strokeWidth={1.6} />
-      )}
-      <div className="relative">
-        <div
-          className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}
+      <div className="flex items-center gap-3">
+        <span
+          className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-world text-xl text-white world-glow"
+          aria-hidden="true"
         >
-          doomscroll era
-        </div>
-        <div
-          className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}
-        >
-          mast 🎬
+          ▶
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-display text-[14px] text-foreground">
+            {item.title}
+          </span>
+          <span className="block truncate text-[12px] text-muted-foreground">
+            {item.creator ? `${item.creator} · ` : ""}
+            {providerName(item.provider)}
+          </span>
+        </span>
+      </div>
+      <div className="mt-3">
+        <OniqProgressBar value={done} label="Progress" />
+        <div className="mt-1.5 flex justify-between text-[11px] text-muted-foreground">
+          <span>{formatClock(item.position_seconds)}</span>
+          <span>{item.duration_seconds ? formatClock(item.duration_seconds) : "—"}</span>
         </div>
       </div>
     </Link>
@@ -443,171 +534,6 @@ function useInstallPrompt() {
   };
 }
 
-type NewsItem = {
-  title: string;
-  link: string;
-  source: string;
-  publishedAt: string;
-  image?: string;
-};
-
-// ---------- Primary tiles ----------
-
-function PrimaryTile({
-  to,
-  icon: Icon,
-  label,
-  sub,
-  color,
-  span,
-  skin,
-  delay = 0,
-}: {
-  to: string;
-  icon: typeof Send;
-  label: string;
-  sub?: string;
-  color: string;
-  span: number;
-  skin?: string;
-  delay?: number;
-}) {
-  const [skinError, setSkinError] = useState(false);
-  const showSkin = skin && !skinError;
-
-  const spanClass = span === 6 ? "col-span-6" : span === 3 ? "col-span-3" : "col-span-2";
-  const height = span === 6 ? "h-28" : "h-24";
-
-  return (
-    <Link
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      to={to as any}
-      style={{
-        animationDelay: `${delay}ms`,
-        background: showSkin
-          ? undefined
-          : `radial-gradient(120% 90% at 0% 0%, ${color}40 0%, ${color}10 40%, transparent 70%), hsl(var(--card))`,
-      }}
-      className={`press fade-up relative overflow-hidden rounded-3xl border border-border bg-card p-4 ${spanClass} ${height} flex flex-col justify-between transition-colors hover:brightness-110`}
-    >
-      {showSkin && (
-        <>
-          <img
-            src={skin!}
-            alt=""
-            onError={() => setSkinError(true)}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-        </>
-      )}
-      <div
-        className="relative grid h-10 w-10 place-items-center rounded-2xl overflow-hidden"
-        style={{
-          color,
-          background: `${color}26`,
-          boxShadow: `0 0 18px ${color}40, inset 0 0 0 1px ${color}33`,
-        }}
-      >
-        <Icon className="h-5 w-5" />
-      </div>
-      <div className="relative">
-        <div
-          className={`font-display text-sm font-semibold ${showSkin ? "text-white drop-shadow" : "text-foreground"}`}
-        >
-          {label}
-        </div>
-        {sub && (
-          <div
-            className={`mt-0.5 font-sans text-[11px] normal-case tracking-normal font-normal ${showSkin ? "text-white/80 drop-shadow" : "text-muted-foreground"}`}
-          >
-            {sub}
-          </div>
-        )}
-      </div>
-    </Link>
-  );
-}
-
-// ---------- Section row (horizontal scrollable chip row) ----------
-
-type SectionTile = {
-  key: string;
-  to: string;
-  icon: typeof Send;
-  label: string;
-  color: string;
-};
-
-function SectionRow({
-  title,
-  tiles,
-  hidden,
-  skins,
-}: {
-  title: string;
-  tiles: SectionTile[];
-  hidden: Set<TileKey>;
-  skins: Record<string, string | undefined>;
-}) {
-  const [home] = useCountry();
-  const visible = tiles.filter(
-    (t) => !(hidden as Set<string>).has(t.key) && isAvailable(t.key, home),
-  );
-  if (visible.length === 0) return null;
-  return (
-    <div className="mt-5">
-      <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {title}
-      </h3>
-      <div className="no-scrollbar mt-2 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {visible.map((t) => {
-          const skin = skins[t.key];
-          const Icon = t.icon;
-          return (
-            <Link
-              key={t.key}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              to={t.to as any}
-              className="press fade-up relative flex min-w-[7.5rem] shrink-0 items-center gap-2 overflow-hidden rounded-2xl border border-border bg-card px-3 py-2.5"
-              style={{
-                background: skin
-                  ? undefined
-                  : `radial-gradient(120% 90% at 0% 0%, ${t.color}33 0%, ${t.color}0d 45%, transparent 75%), hsl(var(--card))`,
-              }}
-            >
-              {skin && (
-                <>
-                  <img src={skin} alt="" className="absolute inset-0 h-full w-full object-cover" />
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
-                </>
-              )}
-              <div
-                className="relative grid h-8 w-8 shrink-0 place-items-center rounded-xl"
-                style={{
-                  color: t.color,
-                  background: `${t.color}26`,
-                  boxShadow: `inset 0 0 0 1px ${t.color}33`,
-                }}
-              >
-                <Icon className="h-4 w-4" />
-              </div>
-              <span
-                className={`font-display relative text-xs font-medium ${skin ? "text-white drop-shadow" : "text-foreground"}`}
-              >
-                {t.label}
-              </span>
-              <ChevronRight className="relative ml-auto h-3.5 w-3.5 text-muted-foreground" />
-            </Link>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ---------- Study hero (Study-first home) ----------
-
 type LearnerProfileLite = { id: string; name: string; board: string; class_level: string };
 type RecentAttempt = {
   profile_id: string;
@@ -624,9 +550,14 @@ function classLabel(c: string): string {
   return `Class ${c}`;
 }
 
-function StudyHero() {
+/**
+ * The Study hero's data, shared with the pulse chip: one query key, one
+ * network call, two readers.
+ */
+function useStudyHeroData(enabled = true) {
   const { data, isLoading } = useQuery({
     queryKey: ["study-hero"],
+    enabled,
     staleTime: 30_000,
     queryFn: async () => {
       const [profilesRes, attemptsRes] = await Promise.all([
@@ -675,8 +606,13 @@ function StudyHero() {
 
   const profiles = data?.profiles ?? [];
   const recent = data?.recent ?? null;
-  const activeProfile =
+  const active =
     (recent && profiles.find((p) => p.id === recent.profile_id)) || profiles[0] || null;
+  return { profiles, recent, active, isLoading };
+}
+
+function StudyHero() {
+  const { profiles, recent, active: activeProfile, isLoading } = useStudyHeroData();
 
   const hasProfile = profiles.length > 0;
   const hasRecent = !!recent && !!activeProfile;
@@ -688,7 +624,7 @@ function StudyHero() {
       className="press fade-up relative block overflow-hidden rounded-3xl border border-border p-5"
       style={{
         background:
-          "radial-gradient(120% 90% at 0% 0%, #FB718540 0%, #FB718510 40%, transparent 70%), radial-gradient(120% 90% at 100% 100%, #FB923C33 0%, #FB923C0d 45%, transparent 75%), hsl(var(--card))",
+          "radial-gradient(120% 90% at 0% 0%, #FB718540 0%, #FB718510 40%, transparent 70%), radial-gradient(120% 90% at 100% 100%, #FB923C33 0%, #FB923C0d 45%, transparent 75%), var(--card)",
       }}
     >
       <div className="flex items-start justify-between gap-3">
@@ -702,7 +638,7 @@ function StudyHero() {
         >
           <BookOpen className="h-6 w-6" />
         </div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           study 📚
         </div>
       </div>
@@ -755,56 +691,6 @@ function StudyHero() {
 }
 
 // ---------- "also in ONIQ" chip row ----------
-
-function AlsoInOniqRow({
-  tiles,
-  hidden,
-}: {
-  tiles: {
-    key: TileKey;
-    to: string;
-    color?: string;
-    search?: Record<string, unknown>;
-    adultOnly?: boolean;
-  }[];
-  hidden: Set<TileKey>;
-}) {
-  const { lang } = useT();
-  const [home] = useCountry();
-  const isAdult = useIsAdult18();
-  // Unsupported in this Home country => the tile does not render at all.
-  // No greyed-out state, no disabled tile, no "coming soon".
-  const visible = tiles.filter(
-    (t) =>
-      !(hidden as Set<string>).has(t.key) && isAvailable(t.key, home) && (!t.adultOnly || isAdult),
-  );
-  if (visible.length === 0) return null;
-  return (
-    <div className="mt-2 flex flex-wrap gap-2">
-      {visible.map((t) => (
-        <Link
-          key={t.key}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          to={t.to as any}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          search={t.search as any}
-          onClick={() => void recordSignal("hub_open", t.key)}
-          className="press fade-up inline-flex items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
-          style={t.color ? { boxShadow: `inset 0 0 0 1px ${t.color}22` } : undefined}
-        >
-          {t.color && (
-            <span
-              aria-hidden
-              className="h-1.5 w-1.5 rounded-full"
-              style={{ background: t.color }}
-            />
-          )}
-          {tileName(lang, t.key, home)}
-        </Link>
-      ))}
-    </div>
-  );
-}
 
 // ---------- Home media banner: Study / Moments / Mast ----------
 
@@ -867,7 +753,7 @@ function HomeMediaBanner() {
 
   if (visibleTabs.length === 0) {
     return (
-      <p className="rounded-2xl border border-dashed border-border bg-card/50 px-4 py-3 text-xs text-muted-foreground">
+      <p className="rounded-2xl border border-dashed border-border oniq-surface px-4 py-3 text-xs text-muted-foreground">
         all feed tiles are hidden — bring them back anytime from Customize 🎨
       </p>
     );
@@ -878,7 +764,7 @@ function HomeMediaBanner() {
       <div
         role="tablist"
         aria-label="Home feed"
-        className="mb-3 inline-flex rounded-full border border-border bg-card/70 p-1 text-[11px] font-semibold uppercase tracking-wider"
+        className="no-scrollbar mb-3 inline-flex max-w-full overflow-x-auto rounded-full oniq-surface p-1 text-[11px] font-semibold uppercase tracking-wider"
       >
         {visibleTabs.map((t) => {
           const active = mode === t.id;
@@ -888,7 +774,7 @@ function HomeMediaBanner() {
               role="tab"
               aria-selected={active}
               onClick={() => setMode(t.id)}
-              className={`press rounded-full px-3 py-1.5 transition-colors ${active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+              className={`press whitespace-nowrap rounded-full px-3 py-1.5 transition-colors ${active ? "bg-world text-white" : "text-muted-foreground hover:text-foreground"}`}
             >
               {t.label}
             </button>
@@ -966,16 +852,16 @@ function MomentsPreview() {
       className="press fade-up relative block overflow-hidden rounded-3xl border border-border p-4"
       style={{
         background:
-          "radial-gradient(120% 90% at 0% 0%, #A78BFA40 0%, #A78BFA10 40%, transparent 70%), radial-gradient(120% 90% at 100% 100%, #F472B633 0%, #F472B60d 45%, transparent 75%), hsl(var(--card))",
+          "radial-gradient(120% 90% at 0% 0%, #A78BFA40 0%, #A78BFA10 40%, transparent 70%), radial-gradient(120% 90% at 100% 100%, #F472B633 0%, #F472B60d 45%, transparent 75%), var(--card)",
       }}
     >
       <div className="flex items-center justify-between">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           moments ✨
         </div>
         <Link
           to="/app/chat/moments"
-          className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1 hover:text-foreground"
+          className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1 hover:text-foreground"
         >
           Open all <ChevronRight className="h-3 w-3" />
         </Link>
@@ -1357,17 +1243,17 @@ function WatchPreview() {
       className="fade-up relative overflow-hidden rounded-3xl border border-border p-4"
       style={{
         background:
-          "radial-gradient(120% 90% at 0% 0%, #00D4B840 0%, #00D4B810 40%, transparent 70%), radial-gradient(120% 90% at 100% 100%, #00A8E833 0%, #00A8E80d 45%, transparent 75%), hsl(var(--card))",
+          "radial-gradient(120% 90% at 0% 0%, #00D4B840 0%, #00D4B810 40%, transparent 70%), radial-gradient(120% 90% at 100% 100%, #00A8E833 0%, #00A8E80d 45%, transparent 75%), var(--card)",
       }}
     >
       <div className="flex items-center justify-between">
-        <div className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-foreground">
+        <div className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-foreground">
           <Tv className="h-3 w-3" /> watch 📺
         </div>
         <button
           type="button"
           onClick={() => navigate({ to: "/app/watch" })}
-          className="press inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+          className="press inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
         >
           Open all <ChevronRight className="h-3 w-3" />
         </button>
@@ -1614,11 +1500,11 @@ function MastPreview() {
       className="press fade-up relative block cursor-pointer overflow-hidden rounded-3xl border border-border p-4"
       style={{
         background:
-          "radial-gradient(120% 90% at 0% 0%, #F59E0B40 0%, #F59E0B10 40%, transparent 70%), radial-gradient(120% 90% at 100% 100%, #EC489933 0%, #EC48990d 45%, transparent 75%), hsl(var(--card))",
+          "radial-gradient(120% 90% at 0% 0%, #F59E0B40 0%, #F59E0B10 40%, transparent 70%), radial-gradient(120% 90% at 100% 100%, #EC489933 0%, #EC48990d 45%, transparent 75%), var(--card)",
       }}
     >
       <div className="flex items-center justify-between">
-        <div className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider">
+        <div className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider">
           {(
             [
               ["mast", "mast 🎬"],
@@ -1645,7 +1531,7 @@ function MastPreview() {
             </button>
           ))}
         </div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1">
           Open all <ChevronRight className="h-3 w-3" />
         </div>
       </div>
@@ -1721,7 +1607,7 @@ function MastPreview() {
                 />
                 {/* Play's AI-content policy: generated video carries its label
                     wherever it plays, the home loop included. */}
-                <span className="absolute start-2 top-2 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300 backdrop-blur">
+                <span className="absolute start-2 top-2 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-amber-300 backdrop-blur">
                   AI-generated 🤖
                 </span>
               </>

@@ -289,6 +289,200 @@
   --sidebar-ring: #008f7a;
 }
 
+/* ---------------------------------------------------------------------------
+ * ONIQ 2026 — THE WORLD ACCENTS OVER THE DARK FOUNDATION.
+ *
+ * Owner directive, 2026-09-03, with the redesign reference "use it as given":
+ * a near-black canvas washed with neon — cyan, violet, magenta, green — one
+ * pair per world, glowing icon wells, glass chrome. The token contract above
+ * is untouched (:root dark, .light light, exactly as a11yContrast.test.ts
+ * parses them; dark stays the default); what is added is one accent pair
+ * per world and a canvas that washes the screen in that pair. Light mode
+ * keeps working with text-safe inks of its own.
+ *
+ * THE WORLD CONTRACT. Every screen renders inside a [data-world]. That sets
+ * four custom properties and nothing else:
+ *   --world-a / --world-b   the gradient pair, vivid, for fills and glows
+ *   --world-ink             text-safe: ≥4.5:1 on white in light, on #0e0f13
+ *                           in dark (the two are separate tokens, resolved
+ *                           per theme below)
+ *   --wash                  how much of the pair the canvas shows, so a calm
+ *                           world (Blessed, Official) can turn it down
+ * Components read the contract through the utilities that follow
+ * (oniq-canvas, bg-world, text-world, …) and never name a hex of their own —
+ * that is what makes eighteen worlds feel like one app.
+ * ------------------------------------------------------------------------- */
+:root {
+  --oniq-cyan: #22d3ee;
+  --oniq-aqua: #2dd4bf;
+  --oniq-violet: #8b5cf6;
+  --oniq-magenta: #ec4899;
+  --oniq-coral: #fb7185;
+  --oniq-emerald: #34d399;
+  --oniq-amber: #fbbf24;
+  --oniq-gold: #f5c542;
+  --oniq-sky: #38bdf8;
+  --oniq-blue: #60a5fa;
+  --oniq-mint: #6ee7b7;
+  --oniq-rose: #fda4af;
+
+  /* Brand pair, the default world (Home, Profile, anything unlabelled). */
+  --world-a: #06b6d4;
+  --world-b: #8b5cf6;
+  --world-ink-dark: #67e8f9;
+  --world-ink-light: #0e7490;
+  --world-ink: var(--world-ink-dark);
+  --world-on: #ffffff;
+  --wash: 20%;
+}
+.light {
+  --world-ink: var(--world-ink-light);
+  --wash: 12%;
+}
+
+/* One pair per world. Light inks are 600–800 shades measured at ≥4.5:1 on
+   white; dark inks are 300–400 shades, all well past 7:1 on #0e0f13. */
+[data-world="home"] {
+  --world-a: #06b6d4;
+  --world-b: #8b5cf6;
+  --world-ink-light: #0e7490;
+  --world-ink-dark: #67e8f9;
+}
+[data-world="chat"] {
+  --world-a: #3b82f6;
+  --world-b: #2dd4bf;
+  --world-ink-light: #1d4ed8;
+  --world-ink-dark: #93c5fd;
+}
+[data-world="moments"] {
+  --world-a: #fb7185;
+  --world-b: #f59e0b;
+  --world-ink-light: #be123c;
+  --world-ink-dark: #fda4af;
+}
+[data-world="mast"] {
+  --world-a: #7c3aed;
+  --world-b: #db2777;
+  --world-ink-light: #6d28d9;
+  --world-ink-dark: #d8b4fe;
+}
+[data-world="study"] {
+  --world-a: #2563eb;
+  --world-b: #14b8a6;
+  --world-ink-light: #1d4ed8;
+  --world-ink-dark: #7dd3fc;
+}
+[data-world="campus"] {
+  --world-a: #4f46e5;
+  --world-b: #38bdf8;
+  --world-ink-light: #4338ca;
+  --world-ink-dark: #a5b4fc;
+}
+[data-world="rides"] {
+  --world-a: #10b981;
+  --world-b: #06b6d4;
+  --world-ink-light: #047857;
+  --world-ink-dark: #6ee7b7;
+}
+[data-world="wanderlust"] {
+  --world-a: #0ea5e9;
+  --world-b: #f97316;
+  --world-ink-light: #0369a1;
+  --world-ink-dark: #7dd3fc;
+}
+[data-world="ting"] {
+  --world-a: #8b5cf6;
+  --world-b: #3b82f6;
+  --world-ink-light: #6d28d9;
+  --world-ink-dark: #c4b5fd;
+}
+[data-world="scout"] {
+  --world-a: #06b6d4;
+  --world-b: #3b82f6;
+  --world-ink-light: #0e7490;
+  --world-ink-dark: #67e8f9;
+}
+[data-world="blessed"] {
+  --world-a: #d4a017;
+  --world-b: #fde68a;
+  --world-ink-light: #92400e;
+  --world-ink-dark: #fcd34d;
+  --wash: 22%;
+  --world-on: #3b2a06;
+}
+[data-world="vitals"] {
+  --world-a: #34d399;
+  --world-b: #fb7185;
+  --world-ink-light: #047857;
+  --world-ink-dark: #6ee7b7;
+}
+[data-world="plug"] {
+  --world-a: #22d3ee;
+  --world-b: #a78bfa;
+  --world-ink-light: #0e7490;
+  --world-ink-dark: #67e8f9;
+}
+[data-world="pulse"] {
+  --world-a: #2563eb;
+  --world-b: #ef4444;
+  --world-ink-light: #1d4ed8;
+  --world-ink-dark: #93c5fd;
+}
+[data-world="official"] {
+  --world-a: #1e3a8a;
+  --world-b: #475569;
+  --world-ink-light: #1e3a8a;
+  --world-ink-dark: #93c5fd;
+  --wash: 8%;
+}
+[data-world="earn"] {
+  --world-a: #f59e0b;
+  --world-b: #10b981;
+  --world-ink-light: #92400e;
+  --world-ink-dark: #fcd34d;
+}
+[data-world="jobs"] {
+  --world-a: #3b82f6;
+  --world-b: #8b5cf6;
+  --world-ink-light: #1d4ed8;
+  --world-ink-dark: #a5b4fc;
+}
+[data-world="create"] {
+  --world-a: #22d3ee;
+  --world-b: #ec4899;
+  --world-ink-light: #6d28d9;
+  --world-ink-dark: #c4b5fd;
+}
+[data-world="watch"] {
+  --world-a: #00d4b8;
+  --world-b: #00a8e8;
+  --world-ink-light: #007a6a;
+  --world-ink-dark: #5eead4;
+}
+[data-world="lores"] {
+  --world-a: #db2777;
+  --world-b: #7c3aed;
+  --world-ink-light: #9d174d;
+  --world-ink-dark: #f9a8d4;
+}
+[data-world="clips"] {
+  --world-a: #f97316;
+  --world-b: #db2777;
+  --world-ink-light: #9a3412;
+  --world-ink-dark: #fdba74;
+}
+[data-world="profile"] {
+  --world-a: #00d4b8;
+  --world-b: #8b5cf6;
+  --world-ink-light: #00695c;
+  --world-ink-dark: #7ce8dc;
+}
+/* The ink is resolved on the SAME element that carries the pair: a custom
+   property inherits its computed value, so this cannot be done on <html>. */
+.light [data-world] {
+  --world-ink: var(--world-ink-light);
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
@@ -525,6 +719,170 @@
     0 0 2px color-mix(in oklab, var(--primary) 60%, transparent);
 }
 
+/* ---------------------------------------------------------------------------
+ * ONIQ 2026 UTILITIES — the world contract, read by components.
+ * ------------------------------------------------------------------------- */
+
+/* The canvas: the world's pair washed over whatever ground is already there,
+   two static radial gradients and nothing that repaints. No blur, no fixed
+   attachment — both are jank on cheap Android — so this costs one
+   rasterisation. Deliberately NO background-color: the app shell paints the
+   ground and, above it, the person's own wallpaper (app.tsx); an opaque
+   canvas here would hide that wallpaper on every screen. */
+@utility oniq-canvas {
+  background-image:
+    radial-gradient(
+      70% 42% at 0% 0%,
+      color-mix(in oklab, var(--world-a) var(--wash), transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      55% 38% at 100% 14%,
+      color-mix(in oklab, var(--world-b) var(--wash), transparent) 0%,
+      transparent 72%
+    );
+  background-repeat: no-repeat;
+}
+
+@utility bg-world {
+  background-image: linear-gradient(135deg, var(--world-a) 0%, var(--world-b) 100%);
+}
+@utility bg-world-soft {
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--world-a) 16%, var(--card)) 0%,
+    color-mix(in oklab, var(--world-b) 12%, var(--card)) 100%
+  );
+}
+@utility text-on-world {
+  color: var(--world-on);
+}
+@utility text-world {
+  color: var(--world-ink);
+}
+@utility text-gradient-world {
+  background-image: linear-gradient(135deg, var(--world-a), var(--world-b));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@utility border-world {
+  border-color: color-mix(in oklab, var(--world-a) 40%, var(--border));
+}
+@utility world-glow {
+  box-shadow: 0 12px 32px -14px color-mix(in oklab, var(--world-a) 55%, transparent);
+}
+
+/* Surfaces. A card is white (or the dark card) with a soft two-part shadow;
+   glass is reserved for chrome that floats over scrolling content — the nav,
+   a sticky header, a sheet — never for every card on a screen. */
+@utility oniq-surface {
+  background-color: var(--card);
+  border: 1px solid color-mix(in oklab, var(--world-a) 22%, var(--border));
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.06),
+    0 12px 32px -20px rgb(16 24 40 / 0.22);
+}
+@utility oniq-glass {
+  background-color: color-mix(in oklab, var(--card) 74%, transparent);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+}
+
+/* Horizontal rails hide their scrollbar and snap. `no-scrollbar` was used in
+   24 files before it existed anywhere — every one of those rows showed a
+   native scrollbar on desktop. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+@utility snap-rail {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 1.25rem;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  & > * {
+    scroll-snap-align: start;
+    flex-shrink: 0;
+  }
+}
+
+/* Motion that communicates state — an entrance, a breath, a shimmer — and
+   nothing that loops for decoration. All of it collapses to one frame under
+   prefers-reduced-motion (see the block further down). */
+@keyframes oniq-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@utility rise {
+  animation: oniq-rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@utility rise-1 {
+  animation-delay: 60ms;
+}
+@utility rise-2 {
+  animation-delay: 120ms;
+}
+@utility rise-3 {
+  animation-delay: 180ms;
+}
+@utility rise-4 {
+  animation-delay: 240ms;
+}
+@utility rise-5 {
+  animation-delay: 300ms;
+}
+
+@keyframes oniq-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+@utility animate-breathe {
+  animation: oniq-breathe 4.8s ease-in-out infinite;
+}
+
+@keyframes oniq-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@utility skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    color-mix(in oklab, var(--card) 70%, var(--surface-2)) 50%,
+    var(--surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: oniq-shimmer 1.6s linear infinite;
+}
+
 @keyframes float-slow {
   0%,
   100% {
@@ -674,7 +1032,9 @@ select:focus-visible,
   /* The ticker and the float are decorative and loop forever — the reduced
      state is simply "still", which is what they'd look like paused. */
   .oniq-pulse-ticker,
-  .animate-float-slow {
+  .animate-float-slow,
+  .animate-breathe,
+  .skeleton-shimmer {
     animation: none !important;
   }
 }

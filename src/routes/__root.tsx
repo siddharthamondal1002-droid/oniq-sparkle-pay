@@ -111,7 +111,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
          */
         content:
           "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=overlays-content",
-
       },
       { name: "theme-color", content: "#1a1230" },
       { title: "ONIQ — One App. Every World." },
@@ -278,7 +277,6 @@ function RootComponent() {
     if (next !== content) meta.setAttribute("content", next);
   }, []);
 
-
   /*
    * Apply the deferred Google Fonts stylesheet after first paint.
    *
@@ -335,7 +333,7 @@ function RootComponent() {
       <DeepLinkWatcher />
       <OfflineBanner />
       <Outlet />
-      <DirectionalToaster theme="dark" position="top-center" richColors />
+      <DirectionalToaster position="top-center" richColors />
     </QueryClientProvider>
   );
 }

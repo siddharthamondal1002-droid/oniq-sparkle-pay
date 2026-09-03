@@ -1,7 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useMemo, useState, type ReactNode } from "react";
 import {
-  ArrowLeft,
   CalendarDays,
   ExternalLink,
   GraduationCap,
@@ -9,6 +8,15 @@ import {
   ScrollText,
   ShieldQuestion,
 } from "lucide-react";
+import {
+  OniqCanvas,
+  OniqCard,
+  OniqChip,
+  OniqEmpty,
+  OniqHeader,
+  OniqSectionHeader,
+  OniqStoryRail,
+} from "@/components/oniq";
 import { openInApp } from "@/lib/miniapps";
 import { COUNTRIES, useCountry } from "@/lib/country";
 import { COUNTRY_ROUTE, ROUTE_EXPLAINERS } from "@/data/admissionRoutes";
@@ -18,7 +26,7 @@ import {
   institutionsFor,
   type Institution,
 } from "@/data/institutions";
-import { calendarFor } from "@/data/admissionsCalendar";
+import { calendarFor, type CalendarKind } from "@/data/admissionsCalendar";
 import {
   PRACTICE_DISCLAIMER,
   TEST_DISCLAIMER,
@@ -31,11 +39,7 @@ import {
   type PracticeSet,
 } from "@/data/admissionPractice";
 import { POLICY_STATUS_LABEL, policiesFor } from "@/data/policyWatch";
-import {
-  ELIGIBILITY_DISCLAIMER,
-  checkEligibility,
-  type EligibilityInput,
-} from "@/lib/eligibility";
+import { ELIGIBILITY_DISCLAIMER, checkEligibility, type EligibilityInput } from "@/lib/eligibility";
 
 export const Route = createFileRoute("/_authenticated/app/university")({
   head: () => ({
@@ -71,6 +75,14 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "check", label: "Quick check" },
 ];
 
+/** What kind of moment a calendar row is — drawn as the stop's eyebrow on the timeline. */
+const KIND_LABEL: Record<CalendarKind, string> = {
+  application: "Application",
+  exam: "Exam",
+  offer_round: "Offer round",
+  intake: "Intake",
+};
+
 function UniversityScreen() {
   const [country, setCountry] = useCountry();
   const [tab, setTab] = useState<Tab>("route");
@@ -80,161 +92,192 @@ function UniversityScreen() {
   const institutions = useMemo(() => institutionsFor(country), [country]);
   const events = useMemo(() => calendarFor(country), [country]);
   const policies = useMemo(() => policiesFor(country), [country]);
+  const countryName = COUNTRIES.find((c) => c.code === country)?.label ?? country;
 
   return (
-    <div className="px-5 pt-12 pb-24">
-      <div className="flex items-center gap-3">
-        <Link
-          to="/app"
-          className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div>
-          <h1 className="font-display text-2xl font-bold">University 🎓</h1>
-          <p className="text-xs text-muted-foreground">
-            admissions, deadlines &amp; policy — dated, never ranked
-          </p>
-        </div>
-      </div>
+    <OniqCanvas world="campus" className="pb-24">
+      <OniqHeader
+        eyebrow="Campus"
+        title="University 🎓"
+        subtitle="admissions, deadlines & policy — dated, never ranked"
+        back="/app"
+      >
+        {/* Country selector — writes the global home country via setCountry. */}
+        <OniqStoryRail role="radiogroup" ariaLabel="Country">
+          {COUNTRIES.map((c) => (
+            <OniqChip
+              key={c.code}
+              role="radio"
+              active={c.code === country}
+              onClick={() => setCountry(c.code)}
+              ariaLabel={c.label}
+            >
+              <span aria-hidden="true">{c.flag}</span> {c.code}
+            </OniqChip>
+          ))}
+        </OniqStoryRail>
 
-      {/* Country selector */}
-      <div className="no-scrollbar mt-4 flex gap-1.5 overflow-x-auto">
-        {COUNTRIES.map((c) => (
-          <button
-            key={c.code}
-            type="button"
-            onClick={() => setCountry(c.code)}
-            className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium ${
-              c.code === country
-                ? "border-primary bg-primary/15 text-primary"
-                : "border-border bg-card text-muted-foreground"
-            }`}
-          >
-            {c.flag} {c.code}
-          </button>
-        ))}
-      </div>
-
-      {/* Tabs */}
-      <div className="no-scrollbar mt-3 flex gap-1.5 overflow-x-auto">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${
-              t.id === tab ? "bg-foreground text-background" : "bg-card text-muted-foreground"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+        {/* Tabs */}
+        <OniqStoryRail className="mt-2" role="tablist" ariaLabel="Sections">
+          {TABS.map((t) => (
+            <OniqChip key={t.id} role="tab" active={t.id === tab} onClick={() => setTab(t.id)}>
+              {t.label}
+            </OniqChip>
+          ))}
+        </OniqStoryRail>
+      </OniqHeader>
 
       {tab === "route" && (
-        <section className="mt-5 space-y-3">
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <div className="flex items-center gap-2">
-              <GraduationCap className="h-4 w-4 text-primary" />
-              <h2 className="font-semibold">{explainer.label}</h2>
+        <section className="mt-5 space-y-4 px-5">
+          <OniqCard variant="hero" padding="lg" className="rise">
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
+              <GraduationCap className="h-4 w-4" aria-hidden="true" /> Admission route ·{" "}
+              {countryName}
             </div>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              {explainer.howItWorks}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <h3 className="text-sm font-semibold">Documents that usually matter</h3>
-            <ul className="mt-2 space-y-1.5">
-              {explainer.documents.map((d) => (
-                <li key={d} className="text-sm text-muted-foreground">
-                  • {d}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <OfficialLinkRow url={explainer.officialUrl} label={explainer.officialLabel} />
+            <h2 className="mt-1 font-display text-[24px] leading-tight">{explainer.label}</h2>
+          </OniqCard>
+          <Journey
+            stops={[
+              {
+                key: "how",
+                eyebrow: "Step 1",
+                title: "How it works",
+                body: (
+                  <OniqCard padding="md">
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      {explainer.howItWorks}
+                    </p>
+                  </OniqCard>
+                ),
+              },
+              {
+                key: "docs",
+                eyebrow: "Step 2",
+                title: "Documents that usually matter",
+                body: (
+                  <OniqCard padding="md">
+                    <ul className="space-y-1.5">
+                      {explainer.documents.map((d) => (
+                        <li key={d} className="flex gap-2 text-sm text-muted-foreground">
+                          <span aria-hidden="true" className="text-world">
+                            •
+                          </span>
+                          <span>{d}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </OniqCard>
+                ),
+              },
+              {
+                key: "official",
+                eyebrow: "Step 3",
+                title: "Where the rules live",
+                body: (
+                  <OfficialLinkRow url={explainer.officialUrl} label={explainer.officialLabel} />
+                ),
+              },
+            ]}
+          />
         </section>
       )}
 
       {tab === "institutions" && (
-        <section className="mt-5 space-y-3">
+        <section className="mt-5 space-y-3 px-5">
           <Note>{INSTITUTIONS_DISCLAIMER}</Note>
-          {institutions.map((i) => (
-            <InstitutionCard key={i.id} institution={i} />
+          {institutions.map((i, idx) => (
+            <InstitutionCard key={i.id} institution={i} index={idx} />
           ))}
         </section>
       )}
 
       {tab === "calendar" && (
-        <section className="mt-5 space-y-3">
+        <section className="mt-5 space-y-4 px-5">
           <Note>
             Dates move year to year. Where ONIQ has not verified this year&apos;s exact date, the
             entry says &quot;typically&quot; rather than inventing one.
           </Note>
-          {events.map((e) => (
-            <div key={e.id} className="rounded-2xl border border-border bg-card p-4">
-              <div className="flex items-start gap-2">
-                <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                <div className="min-w-0">
-                  <h3 className="text-sm font-semibold">{e.title}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{e.window}</p>
-                  {e.notes ? (
-                    <p className="mt-1 text-xs text-muted-foreground">{e.notes}</p>
-                  ) : null}
-                  <p className="mt-2 text-[11px] text-muted-foreground">
-                    Last verified {e.lastVerified}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void openInApp(e.sourceUrl)}
-                    className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary"
-                  >
-                    Official source <ExternalLink className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+          <OniqSectionHeader
+            className="px-0"
+            eyebrow={`${events.length} moments`}
+            title={`The year in ${countryName}`}
+          />
+          <Journey
+            stops={events.map((e) => ({
+              key: e.id,
+              eyebrow: KIND_LABEL[e.kind],
+              title: e.title,
+              body: (
+                <OniqCard padding="md">
+                  <div className="flex items-start gap-2">
+                    <CalendarDays
+                      className="mt-0.5 h-4 w-4 shrink-0 text-world"
+                      aria-hidden="true"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">{e.window}</p>
+                      {e.exactDate ? (
+                        <p className="mt-1 text-[12px] font-semibold text-world">
+                          Verified date: {e.exactDate}
+                        </p>
+                      ) : null}
+                      {e.notes ? (
+                        <p className="mt-1 text-[12px] text-muted-foreground">{e.notes}</p>
+                      ) : null}
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        Last verified {e.lastVerified}
+                      </p>
+                      <SourceButton url={e.sourceUrl} />
+                    </div>
+                  </div>
+                </OniqCard>
+              ),
+            }))}
+          />
         </section>
       )}
 
       {tab === "policy" && (
-        <section className="mt-5 space-y-3">
+        <section className="mt-5 space-y-4 px-5">
           <Note>
             Every row shows the date ONIQ last verified it. A visa rule without a verification date
             is not worth acting on.
           </Note>
           {policies.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No verified policy changes tracked for this country yet.
-            </p>
-          ) : null}
-          {policies.map((p) => (
-            <div key={p.id} className="rounded-2xl border border-border bg-card p-4">
-              <div className="flex items-start gap-2">
-                <ScrollText className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                <div className="min-w-0">
-                  <h3 className="text-sm font-semibold">{p.title}</h3>
-                  <span className="mt-1 inline-block rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                    {POLICY_STATUS_LABEL[p.status]}
-                  </span>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{p.summary}</p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Effective: {p.effectiveDate}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">Last verified {p.lastVerified}</p>
-                  <button
-                    type="button"
-                    onClick={() => void openInApp(p.sourceUrl)}
-                    className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary"
-                  >
-                    Official source <ExternalLink className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+            <OniqEmpty
+              emoji="📜"
+              title="No verified policy changes tracked for this country yet."
+            />
+          ) : (
+            <Journey
+              stops={policies.map((p) => ({
+                key: p.id,
+                eyebrow: POLICY_STATUS_LABEL[p.status],
+                eyebrowTone: p.status === "in_force" ? "solid" : "soft",
+                title: p.title,
+                body: (
+                  <OniqCard padding="md">
+                    <div className="flex items-start gap-2">
+                      <ScrollText
+                        className="mt-0.5 h-4 w-4 shrink-0 text-world"
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm leading-relaxed text-muted-foreground">{p.summary}</p>
+                        <p className="mt-2 text-[12px] font-medium text-foreground">
+                          Effective: {p.effectiveDate}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Last verified {p.lastVerified}
+                        </p>
+                        <SourceButton url={p.sourceUrl} />
+                      </div>
+                    </div>
+                  </OniqCard>
+                ),
+              }))}
+            />
+          )}
         </section>
       )}
 
@@ -243,7 +286,61 @@ function UniversityScreen() {
       {tab === "practice" && <PracticeSets destination={country} />}
 
       {tab === "check" && <QuickCheck destination={country} />}
-    </div>
+    </OniqCanvas>
+  );
+}
+
+/**
+ * A vertical journey: one line in the world's pair, a stop per item. Used for
+ * the admission route, the deadlines calendar and the policy watch, so the
+ * three read as one timeline rather than three lists.
+ */
+function Journey({
+  stops,
+}: {
+  stops: {
+    key: string;
+    eyebrow: string;
+    /** solid = filled with the world's pair (e.g. a rule already in force). */
+    eyebrowTone?: "solid" | "soft";
+    title: string;
+    body: ReactNode;
+  }[];
+}) {
+  return (
+    <ol className="relative ms-2 border-s-2 border-world ps-6">
+      {stops.map((s, i) => (
+        <li key={s.key} className={`relative pb-6 last:pb-0 rise rise-${Math.min(i + 1, 5)}`}>
+          <span
+            aria-hidden="true"
+            className="absolute -start-[29px] top-1 h-3.5 w-3.5 rounded-full bg-world world-glow"
+          />
+          <span
+            className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${
+              s.eyebrowTone === "solid" ? "bg-world text-white" : "bg-world-soft text-world"
+            }`}
+          >
+            {s.eyebrow}
+          </span>
+          <h3 className="mt-1.5 font-display text-[15px] leading-tight text-foreground">
+            {s.title}
+          </h3>
+          <div className="mt-2">{s.body}</div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function SourceButton({ url }: { url: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => void openInApp(url)}
+      className="press mt-2 inline-flex items-center gap-1 rounded-full bg-world-soft px-3 py-1.5 text-[12px] font-semibold text-world"
+    >
+      Official source <ExternalLink className="h-3 w-3" aria-hidden="true" />
+    </button>
   );
 }
 
@@ -258,7 +355,7 @@ function PracticeSets({ destination }: { destination: string }) {
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
-    <section className="mt-5 space-y-3">
+    <section className="mt-5 space-y-3 px-5">
       <Note>{PRACTICE_SET_DISCLAIMER}</Note>
       {sets.map((set) => (
         <PracticeSetCard
@@ -287,7 +384,7 @@ function PracticeSetCard({
   const [revealed, setRevealed] = useState<Record<string, number>>({});
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <OniqCard padding="md" className={open ? "border-world" : undefined}>
       <button
         type="button"
         onClick={onToggle}
@@ -295,15 +392,21 @@ function PracticeSetCard({
         className="flex w-full items-start justify-between gap-3 text-start"
       >
         <div className="min-w-0">
-          <h2 className="font-semibold">{set.title}</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <h2 className="font-display text-[15px] leading-tight text-foreground">{set.title}</h2>
+          <p className="mt-1 text-[12px] text-muted-foreground">
             {set.test} · {set.section} · {set.questions.length} questions · {set.minutes} min
           </p>
         </div>
-        <span className="shrink-0 text-xs text-primary">{open ? "Close" : "Start"}</span>
+        <span
+          className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold ${
+            open ? "bg-world-soft text-world" : "bg-world text-white"
+          }`}
+        >
+          {open ? "Close" : "Start"}
+        </span>
       </button>
 
-      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{set.skill}</p>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{set.skill}</p>
 
       {open && (
         <div className="mt-4 space-y-4">
@@ -311,8 +414,8 @@ function PracticeSetCard({
             const picked = revealed[q.id];
             const answered = picked !== undefined;
             return (
-              <div key={q.id} className="rounded-xl border border-border bg-muted/30 p-3">
-                <p className="text-sm font-medium leading-relaxed">
+              <div key={q.id} className="rounded-2xl bg-surface-2 p-3">
+                <p className="text-sm font-medium leading-relaxed text-foreground">
                   {qi + 1}. {q.question}
                 </p>
                 <ul className="mt-2 space-y-1.5">
@@ -325,14 +428,14 @@ function PracticeSetCard({
                           type="button"
                           disabled={answered}
                           onClick={() => setRevealed((r) => ({ ...r, [q.id]: oi }))}
-                          className={`w-full rounded-lg border px-3 py-2 text-start text-sm transition-colors ${
+                          className={`press w-full rounded-xl border px-3 py-2 text-start text-sm transition-colors ${
                             !answered
-                              ? "border-border bg-card"
+                              ? "border-border bg-card text-foreground"
                               : isAnswer
-                                ? "border-primary bg-primary/10 text-primary"
+                                ? "border-success bg-success/15 text-foreground"
                                 : isPicked
-                                  ? "border-destructive/50 bg-destructive/10"
-                                  : "border-border bg-card opacity-60"
+                                  ? "border-destructive/50 bg-destructive/10 text-foreground"
+                                  : "border-border bg-card text-foreground opacity-60"
                           }`}
                         >
                           {opt}
@@ -343,7 +446,7 @@ function PracticeSetCard({
                   })}
                 </ul>
                 {answered && (
-                  <p className="mt-2 rounded-lg bg-background/60 p-2 text-xs leading-relaxed text-muted-foreground">
+                  <p className="mt-2 rounded-xl bg-card p-2 text-[12px] leading-relaxed text-muted-foreground">
                     {q.explanation}
                   </p>
                 )}
@@ -353,14 +456,14 @@ function PracticeSetCard({
 
           <OfficialLinkRow url={set.officialUrl} label="Register and check the current format" />
 
-          <p className="text-[11px] text-muted-foreground/70">
+          <p className="text-[11px] text-muted-foreground">
             Written by ONIQ, checked on {set.verifiedOn}. {set.test} is owned by {set.owner}. ONIQ
             does not score this set and it does not predict a result — the official page is the
             authority on format.
           </p>
         </div>
       )}
-    </div>
+    </OniqCard>
   );
 }
 
@@ -378,7 +481,7 @@ function EnglishTests({ destination }: { destination: string }) {
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
-    <section className="mt-5 space-y-3">
+    <section className="mt-5 space-y-3 px-5">
       <Note>{TEST_DISCLAIMER}</Note>
 
       {tests.map((t) => (
@@ -403,7 +506,7 @@ function TestCard({
   onToggle: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <OniqCard padding="md" className={open ? "border-world" : undefined}>
       <button
         type="button"
         onClick={onToggle}
@@ -412,46 +515,54 @@ function TestCard({
       >
         <div className="min-w-0">
           {/* Text only. No logo, no imitation of any owner's lettering. */}
-          <h2 className="font-semibold">{test.name}</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">{test.totalMinutes}</p>
+          <h2 className="font-display text-[15px] leading-tight text-foreground">{test.name}</h2>
+          <p className="mt-1 text-[12px] text-muted-foreground">{test.totalMinutes}</p>
         </div>
-        <span className="shrink-0 text-xs text-primary">{open ? "Close" : "Open"}</span>
+        <span
+          className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold ${
+            open ? "bg-world-soft text-world" : "bg-world text-white"
+          }`}
+        >
+          {open ? "Close" : "Open"}
+        </span>
       </button>
 
-      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{test.acceptedFor}</p>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{test.acceptedFor}</p>
 
       {open && (
         <div className="mt-4 space-y-4">
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
               Scoring
             </h3>
-            <p className="mt-1 text-sm leading-relaxed">{test.scoring}</p>
+            <p className="mt-1 text-sm leading-relaxed text-foreground">{test.scoring}</p>
           </div>
 
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
               Structure
             </h3>
             <ul className="mt-2 space-y-2">
               {test.sections.map((sec) => (
-                <li key={sec.name} className="rounded-xl border border-border bg-muted/30 p-3">
+                <li key={sec.name} className="rounded-2xl bg-surface-2 p-3">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-sm font-medium">{sec.name}</span>
+                    <span className="text-sm font-medium text-foreground">{sec.name}</span>
                     <span className="shrink-0 text-[11px] text-muted-foreground">
                       {[sec.minutes ? `${sec.minutes} min` : null, sec.questions]
                         .filter(Boolean)
                         .join(" · ")}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{sec.what}</p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                    {sec.what}
+                  </p>
                 </li>
               ))}
             </ul>
           </div>
 
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
               Notes
             </h3>
             <ul className="mt-2 list-disc space-y-1.5 ps-4 text-sm leading-relaxed text-muted-foreground">
@@ -462,24 +573,24 @@ function TestCard({
           </div>
 
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
               Practice prompts
             </h3>
-            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/80">
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
               {PRACTICE_DISCLAIMER}
             </p>
             <ul className="mt-2 space-y-2">
               {test.practice.map((p) => (
-                <li key={p.id} className="rounded-xl border border-primary/25 bg-primary/5 p-3">
+                <li key={p.id} className="rounded-2xl border border-world bg-world-soft p-3">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-xs font-semibold text-primary">{p.section}</span>
+                    <span className="text-[12px] font-semibold text-world">{p.section}</span>
                     <span className="shrink-0 text-[11px] text-muted-foreground">
                       {p.minutes} min
                     </span>
                   </div>
-                  <p className="mt-1.5 text-sm leading-relaxed">{p.prompt}</p>
-                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                    <span className="font-medium text-foreground/80">What a strong answer does:</span>{" "}
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground">{p.prompt}</p>
+                  <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                    <span className="font-medium text-foreground">What a strong answer does:</span>{" "}
                     {p.lookFor}
                   </p>
                 </li>
@@ -489,21 +600,21 @@ function TestCard({
 
           <OfficialLinkRow url={test.officialUrl} label={`Register and check the current format`} />
 
-          <p className="text-[11px] text-muted-foreground/70">
+          <p className="text-[11px] text-muted-foreground">
             Structure above checked on {test.verifiedOn}. Owned by {test.owner}. Formats change —
             the official page is the authority, not this screen.
           </p>
         </div>
       )}
-    </div>
+    </OniqCard>
   );
 }
 
 function Note({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-2 rounded-2xl border border-border bg-muted/40 p-3">
-      <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-      <p className="text-xs leading-relaxed text-muted-foreground">{children}</p>
+    <div className="flex items-start gap-2 rounded-2xl border border-world bg-world-soft p-3">
+      <Info className="mt-0.5 h-4 w-4 shrink-0 text-world" aria-hidden="true" />
+      <p className="text-[12px] leading-relaxed text-foreground/80">{children}</p>
     </div>
   );
 }
@@ -513,10 +624,13 @@ function OfficialLinkRow({ url, label }: { url: string; label: string }) {
     <button
       type="button"
       onClick={() => void openInApp(url)}
-      className="flex w-full items-center justify-between rounded-2xl border border-border bg-card p-4 text-left"
+      className="press flex w-full items-center justify-between gap-3 rounded-2xl oniq-surface p-4 text-start"
     >
-      <span className="text-sm font-medium">{label}</span>
-      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-foreground">{label}</span>
+        <span className="mt-0.5 block text-[11px] text-muted-foreground">opens outside ONIQ</span>
+      </span>
+      <ExternalLink className="h-4 w-4 shrink-0 text-world" aria-hidden="true" />
     </button>
   );
 }
@@ -534,26 +648,26 @@ function signalChips(i: Institution): string[] {
   return chips;
 }
 
-function InstitutionCard({ institution }: { institution: Institution }) {
+function InstitutionCard({ institution, index }: { institution: Institution; index: number }) {
   const attribution = SOURCE_ATTRIBUTION[institution.source];
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
-      <h3 className="text-sm font-semibold">{institution.name}</h3>
+    <OniqCard padding="md" className={`rise rise-${Math.min(index + 1, 5)}`}>
+      <h3 className="font-display text-[15px] leading-tight text-foreground">{institution.name}</h3>
       {institution.city ? (
-        <p className="text-xs text-muted-foreground">{institution.city}</p>
+        <p className="mt-1 text-[12px] text-muted-foreground">{institution.city}</p>
       ) : null}
       <div className="mt-2 flex flex-wrap gap-1.5">
         {signalChips(institution).map((c) => (
           <span
             key={c}
-            className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+            className="rounded-full bg-world-soft px-2 py-0.5 text-[11px] font-medium text-world"
           >
             {c}
           </span>
         ))}
       </div>
       {institution.notes ? (
-        <p className="mt-2 text-xs text-muted-foreground">{institution.notes}</p>
+        <p className="mt-2 text-[12px] text-muted-foreground">{institution.notes}</p>
       ) : null}
       <p className="mt-2 text-[11px] text-muted-foreground">
         Source: {attribution ?? institution.source}
@@ -561,11 +675,11 @@ function InstitutionCard({ institution }: { institution: Institution }) {
       <button
         type="button"
         onClick={() => void openInApp(institution.websiteUrl)}
-        className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary"
+        className="press mt-2 inline-flex items-center gap-1 rounded-full bg-world-soft px-3 py-1.5 text-[12px] font-semibold text-world"
       >
-        Official website <ExternalLink className="h-3 w-3" />
+        Official website <ExternalLink className="h-3 w-3" aria-hidden="true" />
       </button>
-    </div>
+    </OniqCard>
   );
 }
 
@@ -589,12 +703,14 @@ function QuickCheck({ destination }: { destination: EligibilityInput["destinatio
   );
 
   return (
-    <section className="mt-5 space-y-3">
+    <section className="mt-5 space-y-3 px-5">
       <Note>{ELIGIBILITY_DISCLAIMER}</Note>
 
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">Where you are right now</h3>
-        <div className="mt-2 flex flex-wrap gap-1.5">
+      <OniqCard padding="lg" className="rise">
+        <h3 className="font-display text-[15px] leading-tight text-foreground">
+          Where you are right now
+        </h3>
+        <div className="mt-2 flex flex-wrap gap-1.5" role="radiogroup">
           {(
             [
               ["secondary_in_progress", "Still at school"],
@@ -612,38 +728,45 @@ function QuickCheck({ destination }: { destination: EligibilityInput["destinatio
           ))}
         </div>
 
-        <h3 className="mt-4 text-sm font-semibold">
+        <h3 className="mt-4 font-display text-[15px] leading-tight text-foreground">
           Have you completed the assessment this route expects?
         </h3>
         <YesNo value={hasRouteAssessment} onChange={setHasRouteAssessment} />
 
-        <h3 className="mt-4 text-sm font-semibold">Will you need a student visa?</h3>
+        <h3 className="mt-4 font-display text-[15px] leading-tight text-foreground">
+          Will you need a student visa?
+        </h3>
         <YesNo value={needsStudentVisa} onChange={setNeedsStudentVisa} />
 
-        <h3 className="mt-4 text-sm font-semibold">Do you have English language evidence?</h3>
+        <h3 className="mt-4 font-display text-[15px] leading-tight text-foreground">
+          Do you have English language evidence?
+        </h3>
         <YesNo value={hasLanguageEvidence} onChange={setHasLanguageEvidence} />
 
         <button
           type="button"
           onClick={() => setShown(true)}
-          className="mt-4 w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground"
+          className="press mt-5 w-full rounded-full bg-world py-3 text-sm font-semibold text-white world-glow"
         >
           Show orientation
         </button>
-      </div>
+      </OniqCard>
 
       {shown ? (
-        <div className="rounded-2xl border border-border bg-card p-4">
+        <OniqCard variant="tinted" padding="lg" className="rise rise-1">
           <div className="flex items-start gap-2">
-            <ShieldQuestion className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-            <p className="text-sm font-medium">{result.headline}</p>
+            <ShieldQuestion className="mt-0.5 h-4 w-4 shrink-0 text-world" aria-hidden="true" />
+            <p className="text-sm font-medium text-foreground">{result.headline}</p>
           </div>
 
           {result.considerations.length > 0 ? (
             <ul className="mt-3 space-y-1.5">
               {result.considerations.map((c) => (
-                <li key={c} className="text-sm text-muted-foreground">
-                  • {c}
+                <li key={c} className="flex gap-2 text-sm text-muted-foreground">
+                  <span aria-hidden="true" className="text-world">
+                    •
+                  </span>
+                  <span>{c}</span>
                 </li>
               ))}
             </ul>
@@ -651,10 +774,12 @@ function QuickCheck({ destination }: { destination: EligibilityInput["destinatio
 
           {result.missingInputs.length > 0 ? (
             <div className="mt-3">
-              <p className="text-xs font-semibold">Not enough information to comment on:</p>
+              <p className="text-[12px] font-semibold text-foreground">
+                Not enough information to comment on:
+              </p>
               <ul className="mt-1 space-y-1">
                 {result.missingInputs.map((m) => (
-                  <li key={m} className="text-xs text-muted-foreground">
+                  <li key={m} className="text-[12px] text-muted-foreground">
                     • {m}
                   </li>
                 ))}
@@ -663,7 +788,7 @@ function QuickCheck({ destination }: { destination: EligibilityInput["destinatio
           ) : null}
 
           {result.policies.map((p) => (
-            <p key={p.id} className="mt-3 text-xs text-muted-foreground">
+            <p key={p.id} className="mt-3 text-[12px] text-muted-foreground">
               <span className="font-medium text-foreground">{p.title}</span> —{" "}
               {POLICY_STATUS_LABEL[p.status]}, effective {p.effectiveDate}. Last verified{" "}
               {p.lastVerified}.
@@ -674,33 +799,17 @@ function QuickCheck({ destination }: { destination: EligibilityInput["destinatio
           <div className="mt-3">
             <OfficialLinkRow url={result.officialUrl} label={result.officialLabel} />
           </div>
-        </div>
+        </OniqCard>
       ) : null}
     </section>
   );
 }
 
-function Chip({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-}) {
+function Chip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-        active
-          ? "border-primary bg-primary/15 text-primary"
-          : "border-border bg-background text-muted-foreground"
-      }`}
-    >
+    <OniqChip role="radio" active={active} onClick={onClick}>
       {label}
-    </button>
+    </OniqChip>
   );
 }
 
@@ -712,7 +821,7 @@ function YesNo({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="mt-2 flex gap-1.5">
+    <div className="mt-2 flex gap-1.5" role="radiogroup">
       <Chip active={value === true} onClick={() => onChange(true)} label="Yes" />
       <Chip active={value === false} onClick={() => onChange(false)} label="No" />
     </div>

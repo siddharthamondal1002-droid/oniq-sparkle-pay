@@ -1,6 +1,8 @@
-import { createFileRoute, Outlet, Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Home, MessageCircle, User } from "lucide-react";
+import { Compass, Home, MessageCircle, User } from "lucide-react";
+import { OniqBottomNav, type NavTab } from "@/components/oniq/OniqBottomNav";
+import { OniqCreateLauncher } from "@/components/oniq/OniqCreateLauncher";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { GlobalIncomingCall } from "@/components/chat/GlobalIncomingCall";
@@ -13,28 +15,33 @@ import { SafeMount } from "@/components/SafeMount";
 import { MiniAppReturnWatcher } from "@/components/miniapps/MiniAppReturnWatcher";
 import { MessageNotifier } from "@/components/chat/MessageNotifier";
 import { usePresenceTracker } from "@/hooks/usePresence";
-import { useEffect, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { initPush } from "@/lib/push";
 import { syncSystemBarsOnBoot } from "@/lib/theme";
 import { PermissionsOnboarding } from "@/components/onboarding/PermissionsOnboarding";
 import { FullScreenIntentPrompt } from "@/components/onboarding/FullScreenIntentPrompt";
 import { CallReminderWatcher } from "@/components/chat/CallReminderWatcher";
 import { HealthDataWatcher } from "@/components/vitals/HealthDataWatcher";
-import { LanguageProvider, useT } from "@/lib/i18n/LanguageProvider";
+import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
 import { useDocumentDirection } from "@/lib/i18n/direction";
 
 export const Route = createFileRoute("/_authenticated/app")({
   component: AppShell,
 });
 
-type Tab = { to: string; labelKey: string; fallback: string; icon: typeof Home };
-const tabs: Tab[] = [
+/**
+ * Home · Chat · ✦ Create · Explore · Profile — owner mission, 2026-09-03.
+ * Create is not a route: it opens a sheet of the things ONIQ can really
+ * make (src/lib/create/capabilities.ts). The four tabs flank it.
+ */
+const tabs: NavTab[] = [
   { to: "/app", labelKey: "nav.home", fallback: "Home", icon: Home },
   { to: "/app/chat", labelKey: "nav.chat", fallback: "Chat", icon: MessageCircle },
+  { to: "/app/explore", labelKey: "nav.explore", fallback: "Explore", icon: Compass },
   { to: "/app/profile", labelKey: "nav.profile", fallback: "Profile", icon: User },
 ];
 
-const TOP_LEVEL = new Set(["/app", "/app/profile"]);
+const TOP_LEVEL = new Set(["/app", "/app/explore", "/app/profile"]);
 
 /** Chat sub-tabs share the /app/chat/ prefix but are ordinary scrolling pages. */
 const CHAT_SUBTABS = new Set([
@@ -57,6 +64,14 @@ function AppShell() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { data: theme } = useUserTheme();
+  const [createOpen, setCreateOpen] = useState(false);
+  // Home's "Create" experience card cannot reach this state directly, so it
+  // asks through a window event, the same way native push taps do below.
+  useEffect(() => {
+    const onOpen = () => setCreateOpen(true);
+    window.addEventListener("oniq:open-create", onOpen);
+    return () => window.removeEventListener("oniq:open-create", onOpen);
+  }, []);
   const { data: me } = useQuery({
     queryKey: ["me"],
     queryFn: async () => (await supabase.auth.getUser()).data.user,
@@ -317,42 +332,18 @@ function AppShell() {
           {showNav && (
             <>
               <div className="pointer-events-none fixed bottom-0 left-1/2 z-30 h-28 w-full max-w-md md:max-w-lg lg:max-w-xl -translate-x-1/2 bg-gradient-to-t from-background via-background/85 to-transparent" />
-              <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-md md:max-w-lg lg:max-w-xl -translate-x-1/2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-                <div className="grid grid-cols-3 rounded-3xl border border-border glass p-1.5 shadow-card">
-                  {tabs.map((t) => {
-                    const active =
-                      t.to === "/app" ? normalized === "/app" : normalized.startsWith(t.to);
-                    const Icon = t.icon;
-                    return (
-                      <Link
-                        key={t.to}
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        to={t.to as any}
-                        preload="intent"
-                        className={`flex flex-col items-center gap-1 rounded-2xl py-2 text-[10px] font-medium transition-all duration-200 ease-out active:scale-95 ${
-                          active
-                            ? "bg-primary/15 text-primary"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        <Icon
-                          className={`h-5 w-5 transition-transform duration-200 ${active ? "scale-110" : ""}`}
-                        />
-                        <NavLabel labelKey={t.labelKey} fallback={t.fallback} />
-                      </Link>
-                    );
-                  })}
-                </div>
-              </nav>
+              <OniqBottomNav
+                tabs={tabs}
+                isActive={(to) =>
+                  to === "/app" ? normalized === "/app" : normalized.startsWith(to)
+                }
+                onCreate={() => setCreateOpen(true)}
+              />
             </>
           )}
+          <OniqCreateLauncher open={createOpen} onClose={() => setCreateOpen(false)} />
         </div>
       </div>
     </LanguageProvider>
   );
-}
-
-function NavLabel({ labelKey, fallback }: { labelKey: string; fallback: string }) {
-  const { t } = useT();
-  return <>{t(labelKey, fallback)}</>;
 }

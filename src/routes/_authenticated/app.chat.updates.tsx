@@ -1,12 +1,13 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, X, Trash2, Image as ImageIcon, Eye } from "lucide-react";
+import { Plus, X, Trash2, Image as ImageIcon, Eye } from "lucide-react";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
 import { recordView } from "@/lib/views";
 import { toast } from "sonner";
 import { formatDistanceToNowStrict } from "date-fns";
+import { OniqCanvas, OniqCard, OniqEmpty, OniqHeader, OniqSectionHeader } from "@/components/oniq";
 
 export const Route = createFileRoute("/_authenticated/app/chat/updates")({
   component: UpdatesTab,
@@ -141,103 +142,127 @@ function UpdatesTab() {
     viewerUser === me?.id ? myStatuses : (grouped.find((g) => g.uid === viewerUser)?.arr ?? []);
 
   return (
-    <div className="px-4 pt-12 pb-4">
-      <div className="flex items-center gap-2 px-1">
-        <Link
-          to="/app/chat"
-          aria-label="Back"
-          className="grid h-10 w-10 place-items-center rounded-full hover:bg-muted"
+    <OniqCanvas world="chat" className="pb-4">
+      <OniqHeader
+        eyebrow="Chat"
+        title="Updates"
+        subtitle="What your moots are up to right now."
+        back="/app/chat"
+      />
+
+      {/* My status — the one row that is always here, so it leads */}
+      <div className="mt-5 px-5">
+        <OniqCard
+          variant="tinted"
+          padding="sm"
+          className="rise flex items-center gap-3"
+          ariaLabel="My status"
+          onClick={() => (myStatuses.length > 0 ? openViewer(me!.id) : setShowCompose(true))}
         >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <h1 className="font-display text-3xl font-bold">Updates</h1>
+          <div className="relative shrink-0">
+            <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-full bg-world font-display text-lg text-white world-glow">
+              {me?.user_metadata?.avatar_url ? (
+                <img
+                  src={me.user_metadata.avatar_url}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                (me?.email || "?").charAt(0).toUpperCase()
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowCompose(true);
+              }}
+              onKeyDown={(e) => e.stopPropagation()}
+              aria-label="Add status"
+              className="tap absolute -bottom-0.5 -end-0.5 grid h-6 w-6 place-items-center rounded-full bg-world text-white ring-2 ring-card"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="font-display text-[15px] text-foreground">My status</div>
+            <div className="mt-0.5 text-xs text-muted-foreground">
+              {myStatuses.length > 0
+                ? `${myStatuses.length} update${myStatuses.length > 1 ? "s" : ""} · tap to view`
+                : "Tap + to share an update"}
+            </div>
+          </div>
+        </OniqCard>
       </div>
 
-      {/* My status */}
-      <button
-        onClick={() => (myStatuses.length > 0 ? openViewer(me!.id) : setShowCompose(true))}
-        className="mt-4 flex w-full items-center gap-3 rounded-2xl p-2 text-left active:bg-muted/60"
-      >
-        <div className="relative">
-          <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-full bg-primary/20 font-semibold text-primary">
-            {me?.user_metadata?.avatar_url ? (
-              <img
-                src={me.user_metadata.avatar_url}
-                alt=""
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              (me?.email || "?").charAt(0).toUpperCase()
-            )}
-          </div>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowCompose(true);
-            }}
-            aria-label="Add status"
-            className="absolute -bottom-0.5 -right-0.5 grid h-6 w-6 place-items-center rounded-full bg-primary text-primary-foreground ring-2 ring-background"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="font-semibold">My status</div>
-          <div className="text-xs text-muted-foreground">
-            {myStatuses.length > 0
-              ? `${myStatuses.length} update${myStatuses.length > 1 ? "s" : ""} · tap to view`
-              : "Tap + to share an update"}
-          </div>
-        </div>
-      </button>
-
       {grouped.length > 0 && (
-        <div className="mt-4">
-          <div className="mb-2 px-1 text-xs uppercase tracking-wide text-muted-foreground">
-            Recent
+        <section className="mt-6 rise rise-1">
+          <OniqSectionHeader eyebrow="Moots" title="Recent" />
+          <div className="mt-3 px-5">
+            <OniqCard padding="none" className="overflow-hidden">
+              <ul className="divide-y divide-border/60">
+                {grouped.map((g) => {
+                  const p = profMap.get(g.uid);
+                  const name = p?.display_name || p?.username || "Someone";
+                  return (
+                    <li key={g.uid}>
+                      <button
+                        type="button"
+                        onClick={() => openViewer(g.uid)}
+                        className="flex w-full items-center gap-3 px-4 py-3 text-start transition-colors active:bg-surface-2"
+                      >
+                        {/* The ring carries the world's pair while something is unseen */}
+                        <span
+                          className={`isolate block shrink-0 rounded-full p-[2px] ${g.hasUnseen ? "bg-world" : "bg-border"}`}
+                        >
+                          <span className="block rounded-full bg-card p-[2px]">
+                            <span className="grid h-12 w-12 place-items-center overflow-hidden rounded-full bg-world-soft font-semibold text-world">
+                              {p?.avatar_url ? (
+                                <img
+                                  src={p.avatar_url}
+                                  alt=""
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                name.charAt(0).toUpperCase()
+                              )}
+                            </span>
+                          </span>
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[15px] font-semibold text-foreground">
+                            {name}
+                          </div>
+                          <div className="mt-0.5 text-xs text-muted-foreground">
+                            {timeAgo(g.latest.created_at)} ago
+                          </div>
+                        </div>
+                        {g.hasUnseen && (
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full bg-world"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </OniqCard>
           </div>
-          <ul className="divide-y divide-border/50">
-            {grouped.map((g) => {
-              const p = profMap.get(g.uid);
-              const name = p?.display_name || p?.username || "Someone";
-              return (
-                <li key={g.uid}>
-                  <button
-                    onClick={() => openViewer(g.uid)}
-                    className="flex w-full items-center gap-3 py-3 text-left active:bg-muted/60"
-                  >
-                    <div
-                      className={`grid h-14 w-14 place-items-center rounded-full ${g.hasUnseen ? "ring-2 ring-primary" : "ring-2 ring-border"} overflow-hidden bg-primary/20 font-semibold text-primary`}
-                    >
-                      {p?.avatar_url ? (
-                        <img
-                          src={p.avatar_url}
-                          alt=""
-                          loading="lazy"
-                          decoding="async"
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        name.charAt(0).toUpperCase()
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-semibold">{name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {timeAgo(g.latest.created_at)} ago
-                      </div>
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+        </section>
       )}
 
       {grouped.length === 0 && myStatuses.length === 0 && (
-        <div className="mt-10 text-center text-sm text-muted-foreground">
-          No updates yet. Share what you're up to ✨
+        <div className="mt-6 px-5">
+          <OniqEmpty
+            className="rise rise-1"
+            emoji="✨"
+            title="No updates yet"
+            body="Share what you're up to ✨"
+          />
         </div>
       )}
 
@@ -264,7 +289,7 @@ function UpdatesTab() {
           }}
         />
       )}
-    </div>
+    </OniqCanvas>
   );
 }
 
@@ -339,27 +364,28 @@ function ComposeStatusSheet({ onClose, onDone }: { onClose: () => void; onDone: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/70 backdrop-blur-sm sm:items-center sm:justify-center">
-      <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
+      <div className="w-full max-w-md rounded-t-3xl oniq-glass p-5 sm:rounded-3xl">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" aria-hidden="true" />
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">Share an update</h2>
+          <h2 className="font-display text-[18px] text-foreground">Share an update</h2>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+            className="tap grid h-9 w-9 place-items-center rounded-full oniq-surface"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-muted p-1">
+        <div className="mb-4 grid grid-cols-2 gap-1 rounded-full oniq-surface p-1">
           <button
             onClick={() => setTab("text")}
-            className={`rounded-xl py-2 text-sm font-medium ${tab === "text" ? "bg-primary/15 text-primary" : "text-muted-foreground"}`}
+            className={`rounded-full py-2 text-sm font-medium transition-colors ${tab === "text" ? "bg-world text-white" : "text-muted-foreground"}`}
           >
             Text
           </button>
           <button
             onClick={() => setTab("image")}
-            className={`rounded-xl py-2 text-sm font-medium ${tab === "image" ? "bg-primary/15 text-primary" : "text-muted-foreground"}`}
+            className={`rounded-full py-2 text-sm font-medium transition-colors ${tab === "image" ? "bg-world text-white" : "text-muted-foreground"}`}
           >
             Image
           </button>
@@ -375,13 +401,13 @@ function ComposeStatusSheet({ onClose, onDone }: { onClose: () => void; onDone: 
                 className="min-h-[120px] w-full resize-none bg-transparent text-center text-lg font-semibold text-white placeholder:text-white/60 focus:outline-none"
               />
             </div>
-            <div className="mt-3 flex items-center gap-2 overflow-x-auto">
+            <div className="mt-3 flex items-center gap-2 overflow-x-auto no-scrollbar">
               {BG_COLORS.map((c) => (
                 <button
                   key={c}
                   onClick={() => setBg(c)}
                   aria-label={`Color ${c}`}
-                  className={`h-8 w-8 shrink-0 rounded-full border-2 ${bg === c ? "border-primary" : "border-transparent"}`}
+                  className={`press h-8 w-8 shrink-0 rounded-full border-2 ${bg === c ? "border-foreground" : "border-transparent"}`}
                   style={{ background: c }}
                 />
               ))}
@@ -391,13 +417,13 @@ function ComposeStatusSheet({ onClose, onDone }: { onClose: () => void; onDone: 
           <>
             <button
               onClick={() => fileRef.current?.click()}
-              className="grid min-h-[160px] w-full place-items-center rounded-2xl border-2 border-dashed border-border p-4 text-sm text-muted-foreground hover:bg-muted"
+              className="grid min-h-[160px] w-full place-items-center rounded-2xl border-2 border-dashed border-border-strong p-4 text-sm text-muted-foreground"
             >
               {preview ? (
                 <img src={preview} alt="" className="max-h-48 rounded-xl" />
               ) : (
                 <div className="flex flex-col items-center gap-2">
-                  <ImageIcon className="h-8 w-8 text-primary" />
+                  <ImageIcon className="h-8 w-8 text-world" />
                   <span>Tap to pick an image</span>
                 </div>
               )}
@@ -413,7 +439,7 @@ function ComposeStatusSheet({ onClose, onDone }: { onClose: () => void; onDone: 
               value={text}
               onChange={(e) => setText(e.target.value.slice(0, 200))}
               placeholder="Add a caption (optional)"
-              className="mt-3 w-full rounded-2xl border border-border bg-input/40 px-4 py-2.5 text-sm focus:border-primary focus:outline-none"
+              className="mt-3 w-full rounded-2xl oniq-surface px-4 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
             />
           </>
         )}
@@ -421,7 +447,7 @@ function ComposeStatusSheet({ onClose, onDone }: { onClose: () => void; onDone: 
         <button
           onClick={submit}
           disabled={busy}
-          className="press mt-4 w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-60"
+          className="press mt-4 w-full rounded-2xl bg-world py-3 font-semibold text-white world-glow disabled:opacity-60"
         >
           {busy ? "Posting…" : "Post status"}
         </button>
@@ -508,7 +534,7 @@ function StatusViewer({
         <button
           onClick={onClose}
           aria-label="Close"
-          className="ml-2 grid h-9 w-9 place-items-center rounded-full bg-white/10"
+          className="ms-2 grid h-9 w-9 place-items-center rounded-full bg-white/10"
         >
           <X className="h-4 w-4" />
         </button>
@@ -516,7 +542,7 @@ function StatusViewer({
 
       <div className="relative flex-1" onClick={next}>
         <div
-          className="absolute left-0 top-0 h-full w-1/4"
+          className="absolute start-0 top-0 h-full w-1/4"
           onClick={(e) => {
             e.stopPropagation();
             prev();
@@ -535,7 +561,7 @@ function StatusViewer({
               <img src={cur.media_url} alt="" className="max-h-full max-w-full object-contain" />
             )}
             {cur.content && (
-              <div className="absolute bottom-20 left-0 right-0 px-6 text-center text-sm">
+              <div className="absolute inset-x-0 bottom-20 px-6 text-center text-sm">
                 {cur.content}
               </div>
             )}

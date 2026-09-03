@@ -3,16 +3,20 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  AlertCircle,
+  Camera,
+  Check,
+  Eye,
+  Film,
   Heart,
   MessageCircle,
-  Play,
-  Eye,
+  MoreHorizontal,
   Pencil,
-  X,
-  Check,
-  Film,
+  Play,
+  RotateCw,
   Sparkles,
-  Camera,
+  Trash2,
+  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AvatarEditorSheet } from "@/components/profile/AvatarEditorSheet";
@@ -20,8 +24,8 @@ import { ViewersSheet } from "@/components/reels/ViewersSheet";
 import { backfillClipThumb } from "@/lib/clipThumbs";
 import { ReelTile, ReelTileSkeleton } from "@/components/reels/ReelTile";
 import { ReelOwnerSheet } from "@/components/reels/ReelOwnerSheet";
-import { MoreHorizontal, Trash2 } from "lucide-react";
 import { removeStorageObjects } from "@/lib/storagePath";
+import { OniqCanvas, OniqCard, OniqChip, OniqEmpty, OniqHeader } from "@/components/oniq";
 
 export const Route = createFileRoute("/_authenticated/app/chat/me")({
   component: MyPageTab,
@@ -182,144 +186,145 @@ function MyPageTab() {
   const initial = name.charAt(0).toUpperCase();
 
   return (
-    <div className="pb-6 pt-[max(1rem,env(safe-area-inset-top))]">
-      {/* FB-style cover strip */}
-      <div className="relative h-28 bg-gradient-to-br from-primary/40 via-fuchsia-500/30 to-amber-400/30">
-        <div className="absolute inset-0 bg-[radial-gradient(80%_120%_at_20%_0%,rgba(255,255,255,0.12),transparent)]" />
-      </div>
+    <OniqCanvas world="chat" className="pb-6">
+      <OniqHeader
+        eyebrow="My Page"
+        title={name}
+        subtitle={me?.username ? `@${me.username}` : undefined}
+        back={null}
+      />
 
-      {/* IG-style header */}
-      <div className="px-5">
-        <div className="-mt-12 flex items-end justify-between">
-          {/* story-ring avatar — tap to change/remove the photo */}
-          <button
-            type="button"
-            onClick={() => setEditAvatar(true)}
-            aria-label="Edit profile photo"
-            className="relative isolate rounded-full bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary p-[3px]"
-          >
-            <span className="block rounded-full bg-background p-[3px]">
+      {/* Cover + identity: the one card that carries the world's pair */}
+      <div className="mt-4 px-5">
+        <OniqCard variant="hero" padding="none" className="rise relative overflow-hidden">
+          <div
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_120%_at_20%_0%,rgba(255,255,255,0.18),transparent)]"
+            aria-hidden="true"
+          />
+          <div className="relative flex items-center gap-4 p-4">
+            {/* tap to change/remove the photo */}
+            <button
+              type="button"
+              onClick={() => setEditAvatar(true)}
+              aria-label="Edit profile photo"
+              className="press relative shrink-0 rounded-full ring-[3px] ring-white/80"
+            >
               {me?.avatar_url ? (
                 <img src={me.avatar_url} alt="" className="h-20 w-20 rounded-full object-cover" />
               ) : (
-                <span className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-display text-2xl font-bold text-primary-foreground">
+                <span className="grid h-20 w-20 place-items-center rounded-full bg-white/20 font-display text-2xl text-white">
                   {initial}
                 </span>
               )}
-            </span>
-            <span className="absolute bottom-0 right-0 grid h-7 w-7 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground">
-              <Camera className="h-3.5 w-3.5" />
-            </span>
-          </button>
-          {/* IG-style stats */}
-          <div className="mb-1 flex flex-1 items-center justify-evenly pl-2 text-center">
-            <div>
-              <div className="font-display text-lg font-bold">{moments.length}</div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                moments
+              <span className="absolute -bottom-0.5 -end-0.5 grid h-7 w-7 place-items-center rounded-full bg-black/45 text-white ring-2 ring-white/70">
+                <Camera className="h-3.5 w-3.5" />
+              </span>
+            </button>
+            <div className="flex min-w-0 flex-1 items-center justify-evenly text-center text-white">
+              <div>
+                <div className="font-display text-[22px] leading-none">{moments.length}</div>
+                <div className="mt-1 text-[11px] uppercase tracking-wider text-white/80">
+                  moments
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="font-display text-lg font-bold">{clips.length}</div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                reels
+              <div>
+                <div className="font-display text-[22px] leading-none">{clips.length}</div>
+                <div className="mt-1 text-[11px] uppercase tracking-wider text-white/80">reels</div>
               </div>
-            </div>
-            <div>
-              <div className="font-display text-lg font-bold">{totalLikes}</div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                likes
+              <div>
+                <div className="font-display text-[22px] leading-none">{totalLikes}</div>
+                <div className="mt-1 text-[11px] uppercase tracking-wider text-white/80">likes</div>
               </div>
             </div>
           </div>
-        </div>
-
-        <div className="mt-3">
-          <div className="font-display text-xl font-bold leading-tight">{name}</div>
-          {me?.username && <div className="text-xs text-muted-foreground">@{me.username}</div>}
-
-          {/* status / bio */}
-          {editingBio ? (
-            <div className="mt-2">
-              <textarea
-                value={bioDraft}
-                onChange={(e) => setBioDraft(e.target.value)}
-                maxLength={160}
-                rows={2}
-                autoFocus
-                placeholder="drop your vibe… (160 chars)"
-                className="w-full resize-none rounded-2xl border border-border bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-              <div className="mt-1.5 flex items-center justify-end gap-2">
-                <button
-                  onClick={() => setEditingBio(false)}
-                  className="press grid h-8 w-8 place-items-center rounded-full border border-border text-muted-foreground"
-                  aria-label="Cancel"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={saveBio}
-                  disabled={savingBio}
-                  className="press flex h-8 items-center gap-1 rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-50"
-                >
-                  <Check className="h-3.5 w-3.5" /> save
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => {
-                setBioDraft(me?.bio ?? "");
-                setEditingBio(true);
-              }}
-              className="mt-2 flex w-full items-start gap-2 rounded-2xl border border-dashed border-border/70 bg-card/50 px-3 py-2 text-left"
-            >
-              <span
-                className={`flex-1 text-sm ${me?.bio ? "text-foreground/90" : "italic text-muted-foreground"}`}
-              >
-                {me?.bio || "no status yet — tap to drop your vibe ✨"}
-              </span>
-              <Pencil className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            </button>
-          )}
-        </div>
-
-        {/* TikTok-style content switcher */}
-        <div className="mt-5 grid grid-cols-2 rounded-full border border-border bg-card p-1 text-center text-xs font-semibold">
-          <button
-            onClick={() => setGrid("moments")}
-            className={`flex items-center justify-center gap-1.5 rounded-full py-2 transition ${
-              grid === "moments" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-            }`}
-          >
-            <Sparkles className="h-3.5 w-3.5" /> my moments
-          </button>
-          <button
-            onClick={() => setGrid("reels")}
-            className={`flex items-center justify-center gap-1.5 rounded-full py-2 transition ${
-              grid === "reels" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-            }`}
-          >
-            <Film className="h-3.5 w-3.5" /> my reels
-          </button>
-        </div>
+        </OniqCard>
       </div>
 
-      {/* IG-style 3-column grid */}
-      <div className="mt-3 px-1">
+      {/* status / bio */}
+      <div className="mt-3 px-5">
+        {editingBio ? (
+          <OniqCard padding="sm" className="rise rise-1">
+            <textarea
+              value={bioDraft}
+              onChange={(e) => setBioDraft(e.target.value)}
+              maxLength={160}
+              rows={2}
+              autoFocus
+              placeholder="drop your vibe… (160 chars)"
+              className="w-full resize-none rounded-2xl bg-surface-2 p-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            />
+            <div className="mt-1.5 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setEditingBio(false)}
+                className="press grid h-8 w-8 place-items-center rounded-full border border-border text-muted-foreground"
+                aria-label="Cancel"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <button
+                onClick={saveBio}
+                disabled={savingBio}
+                className="press flex h-8 items-center gap-1 rounded-full bg-world px-3 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                <Check className="h-3.5 w-3.5" /> save
+              </button>
+            </div>
+          </OniqCard>
+        ) : (
+          <button
+            onClick={() => {
+              setBioDraft(me?.bio ?? "");
+              setEditingBio(true);
+            }}
+            className="press rise rise-1 flex w-full items-start gap-2 rounded-3xl border border-dashed border-border-strong bg-world-soft px-4 py-3 text-start"
+          >
+            <span
+              className={`flex-1 text-sm ${me?.bio ? "text-foreground/90" : "italic text-muted-foreground"}`}
+            >
+              {me?.bio || "no status yet — tap to drop your vibe ✨"}
+            </span>
+            <Pencil className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          </button>
+        )}
+      </div>
+
+      {/* content switcher */}
+      <div className="mt-5 flex gap-2 px-5" role="tablist" aria-label="My content">
+        <OniqChip
+          role="tab"
+          active={grid === "moments"}
+          onClick={() => setGrid("moments")}
+          className="min-h-10 flex-1 justify-center"
+        >
+          <Sparkles className="h-3.5 w-3.5" /> my moments
+        </OniqChip>
+        <OniqChip
+          role="tab"
+          active={grid === "reels"}
+          onClick={() => setGrid("reels")}
+          className="min-h-10 flex-1 justify-center"
+        >
+          <Film className="h-3.5 w-3.5" /> my reels
+        </OniqChip>
+      </div>
+
+      {/* 3-column grid */}
+      <div className="mt-3 px-3">
         {grid === "moments" ? (
           momentsError ? (
-            <div className="px-6 py-10 text-center text-sm text-muted-foreground">
-              <p>
-                Couldn't load your moments right now — a connection problem, not an empty profile.
-              </p>
+            <div role="alert" className="mx-2 rounded-3xl oniq-surface p-4 text-sm">
+              <div className="flex items-start gap-2 text-muted-foreground">
+                <AlertCircle className="mt-[2px] h-4 w-4 shrink-0 text-amber-500" />
+                <p>
+                  Couldn't load your moments right now — a connection problem, not an empty profile.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => refetchMoments()}
-                className="press mt-3 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+                className="press mt-3 inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
               >
-                Try again
+                <RotateCw className="h-3.5 w-3.5" /> Try again
               </button>
             </div>
           ) : moments.length === 0 ? (
@@ -332,7 +337,7 @@ function MyPageTab() {
                   <button
                     key={m.id}
                     onClick={() => setViewMoment(m)}
-                    className="relative aspect-square overflow-hidden rounded-lg bg-card"
+                    className="press relative aspect-square overflow-hidden rounded-xl bg-black"
                   >
                     {media && !isAudioUrl(media) ? (
                       isVideoUrl(media) ? (
@@ -344,7 +349,7 @@ function MyPageTab() {
                             preload="metadata"
                             className="h-full w-full object-cover"
                           />
-                          <Play className="absolute right-1.5 top-1.5 h-4 w-4 text-white drop-shadow" />
+                          <Play className="absolute end-1.5 top-1.5 h-4 w-4 text-white drop-shadow" />
                         </>
                       ) : (
                         <img
@@ -355,14 +360,14 @@ function MyPageTab() {
                         />
                       )
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/15 to-fuchsia-500/15 p-2">
-                        <span className="line-clamp-4 text-[10px] leading-snug text-foreground/85">
+                      <div className="flex h-full w-full items-center justify-center bg-world-soft p-2">
+                        <span className="line-clamp-4 text-[11px] leading-snug text-foreground/85">
                           {media ? "🎧 audio" : m.content}
                         </span>
                       </div>
                     )}
                     {(m.like_count ?? 0) > 0 && (
-                      <span className="absolute bottom-1 left-1.5 flex items-center gap-0.5 text-[10px] font-semibold text-white drop-shadow">
+                      <span className="absolute bottom-1 start-1.5 flex items-center gap-0.5 text-[11px] font-semibold text-white drop-shadow">
                         <Heart className="h-3 w-3 fill-current" /> {m.like_count}
                       </span>
                     )}
@@ -372,18 +377,23 @@ function MyPageTab() {
             </div>
           )
         ) : clipsError ? (
-          <div className="px-6 py-10 text-center text-sm text-muted-foreground">
-            <p>Couldn't load your reels right now — a connection problem, not an empty profile.</p>
+          <div role="alert" className="mx-2 rounded-3xl oniq-surface p-4 text-sm">
+            <div className="flex items-start gap-2 text-muted-foreground">
+              <AlertCircle className="mt-[2px] h-4 w-4 shrink-0 text-amber-500" />
+              <p>
+                Couldn't load your reels right now — a connection problem, not an empty profile.
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => refetchClips()}
-              className="press mt-3 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+              className="press mt-3 inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
             >
-              Try again
+              <RotateCw className="h-3.5 w-3.5" /> Try again
             </button>
           </div>
         ) : clipsLoading ? (
-          <div className="grid grid-cols-3 gap-0.5">
+          <div className="grid grid-cols-3 gap-1">
             {[0, 1, 2, 3, 4, 5].map((i) => (
               <ReelTileSkeleton key={i} />
             ))}
@@ -391,7 +401,7 @@ function MyPageTab() {
         ) : clips.length === 0 ? (
           <EmptyState label="no reels yet — create one 🎬 your main-character era awaits" />
         ) : (
-          <div className="grid grid-cols-3 gap-0.5">
+          <div className="grid grid-cols-3 gap-1">
             {clips.map((c) => (
               <ReelTile
                 key={c.id}
@@ -457,11 +467,11 @@ function MyPageTab() {
               <img
                 src={viewMoment.media_urls[0]}
                 alt=""
-                className="max-h-[60vh] w-full rounded-2xl object-contain"
+                className="max-h-[60vh] w-full rounded-2xl bg-black object-contain"
               />
             ))}
           {viewMoment.is_synthetic && (
-            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[11px] font-semibold text-amber-300">
               AI-generated content 🤖
             </span>
           )}
@@ -476,12 +486,12 @@ function MyPageTab() {
               <MessageCircle className="h-3.5 w-3.5" /> {viewMoment.comment_count ?? 0}
             </span>
             {viewMoment.visibility === "moots" && (
-              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+              <span className="rounded-full bg-world-soft px-2 py-0.5 text-[11px] font-semibold text-world">
                 moots only 🤝
               </span>
             )}
             {viewMoment.created_at && (
-              <span className="ml-auto">
+              <span className="ms-auto">
                 {new Date(viewMoment.created_at).toLocaleDateString()}
               </span>
             )}
@@ -506,7 +516,7 @@ function MyPageTab() {
               qc.invalidateQueries({ queryKey: ["my-page-moments"] });
               qc.invalidateQueries({ queryKey: ["moments"] });
             }}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-500/40 py-2.5 text-sm font-semibold text-red-400 active:bg-red-500/10"
+            className="press mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-500/40 py-2.5 text-sm font-semibold text-red-400 active:bg-red-500/10"
           >
             <Trash2 className="h-4 w-4" /> delete post
           </button>
@@ -525,7 +535,7 @@ function MyPageTab() {
             className="max-h-[65vh] w-full rounded-2xl bg-black object-contain"
           />
           {viewClip.is_synthetic && (
-            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[11px] font-semibold text-amber-300">
               AI-generated content 🤖
             </span>
           )}
@@ -540,7 +550,7 @@ function MyPageTab() {
               onClick={() => setViewersFor(viewClip.id)}
               role="button"
               aria-label="See who viewed"
-              className="flex min-h-[32px] items-center gap-1 text-primary active:opacity-70"
+              className="flex min-h-[32px] items-center gap-1 text-world active:opacity-70"
             >
               <Eye className="h-3.5 w-3.5" /> {viewClip.view_count}
             </button>
@@ -548,19 +558,19 @@ function MyPageTab() {
               <MessageCircle className="h-3.5 w-3.5" /> {viewClip.comment_count}
             </span>
             {viewClip.created_at && (
-              <span className="ml-auto">{new Date(viewClip.created_at).toLocaleDateString()}</span>
+              <span className="ms-auto">{new Date(viewClip.created_at).toLocaleDateString()}</span>
             )}
           </div>
         </MediaViewer>
       )}
-    </div>
+    </OniqCanvas>
   );
 }
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="mx-4 mt-6 rounded-3xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-      {label}
+    <div className="mx-2 mt-2">
+      <OniqEmpty title="Empty for now" body={label} />
     </div>
   );
 }
@@ -572,14 +582,14 @@ function MediaViewer({ children, onClose }: { children: React.ReactNode; onClose
       onClick={onClose}
     >
       <div
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-border bg-card p-4 sm:rounded-3xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl oniq-surface p-4 sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex justify-end">
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid h-8 w-8 place-items-center rounded-full bg-muted"
+            className="tap grid h-8 w-8 place-items-center rounded-full bg-surface-2"
           >
             <X className="h-4 w-4" />
           </button>
