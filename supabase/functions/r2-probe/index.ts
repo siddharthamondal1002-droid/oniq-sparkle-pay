@@ -5,12 +5,16 @@
 // rotated token changed nothing: a status is not a diagnosis, and a film is
 // not a probe.
 //
-// SERVICE ROLE ONLY. The gateway verifies a JWT (this function has no
-// verify_jwt = false entry in config.toml, so the default holds), and on top
-// of that the bearer must BE the service-role key: an anon key is a valid JWT
-// and must not reach a function that writes to a bucket. No credential value
-// is ever returned — only statuses, R2's error code and message, and the
-// SHAPE of the endpoint (whether it is an R2 host, whether it carries a path).
+// SERVICE ROLE ONLY. The gateway verifies the credential (this function has
+// no verify_jwt = false entry in config.toml, so the default holds), and on
+// top of that the caller must be the service role: an anon key is a valid
+// credential and must not reach a function that writes to a bucket. The
+// check reads the gateway-verified identity — a JWT whose `role` claim is
+// service_role, or a Supabase secret key — rather than comparing bytes with
+// this runtime's own copy of the key: the first version did that and refused
+// a genuine service-role caller whose key was the same secret in a different
+// format (2026-09-03). No credential value is ever returned — only statuses,
+// R2's error code and message, and the SHAPE of the endpoint.
 //
 // WHAT IT DOES, per bucket: HEAD the bucket, PUT a 12-byte probe object under
 // `_probe/`, then DELETE it. The probe object is the PNG signature and four
@@ -31,6 +35,30 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+/**
+ * The gateway has already verified this credential belongs to the project;
+ * what is decided here is only WHICH role it carries. A legacy service-role
+ * key is a JWT whose payload says `role: service_role`; a new-format secret
+ * key is a `sb_secret_` string the gateway would have refused if it were not
+ * the project's. Anything else — an anon JWT, a publishable key, nothing —
+ * is not the service role. The payload is decoded, never verified again:
+ * verification is the gateway's job and was done before this ran.
+ */
+function callerIsServiceRole(bearer: string): boolean {
+  if (!bearer) return false;
+  if (bearer.startsWith("sb_secret_")) return true;
+  const parts = bearer.split(".");
+  if (parts.length !== 3) return false;
+  try {
+    const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded)) as { role?: unknown };
+    return payload?.role === "service_role";
+  } catch {
+    return false;
+  }
+}
+
 type Attempt = { status: number | null; detail: string; error?: string };
 
 async function attempt(run: () => Promise<Response>): Promise<Attempt> {
@@ -44,9 +72,8 @@ async function attempt(run: () => Promise<Response>): Promise<Attempt> {
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-  if (!serviceKey || bearer !== serviceKey) return json({ error: "service role only" }, 401);
+  if (!callerIsServiceRole(bearer)) return json({ error: "service role only" }, 401);
 
   const store = readStillStoreEnv((k) => Deno.env.get(k));
   if ("missing" in store) return json({ configured: false, missing: store.missing });
