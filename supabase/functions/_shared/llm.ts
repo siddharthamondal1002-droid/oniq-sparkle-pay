@@ -1,4 +1,5 @@
 import { geminiOutputTokens } from "./searchBudget.ts";
+import { TEXT_DIRECT_HEAVY, TEXT_DIRECT_STANDARD } from "./modelRegistry.ts";
 import { readGrounding, requireGroundingEvidence, translateSearchTools } from "./geminiSearch.ts";
 
 // Shared Anthropic (Claude) client for ONIQ edge functions.
@@ -1012,16 +1013,22 @@ function isGatewayCreditsExhausted(status: number): boolean {
 }
 
 /** Anthropic tool shape -> OpenAI function shape. Server tools have no equivalent and are dropped. */
-function translateToolsToOpenAI(
-  tools: unknown[] | undefined,
-): { tools: unknown[] | undefined; droppedServerTools: number } {
+function translateToolsToOpenAI(tools: unknown[] | undefined): {
+  tools: unknown[] | undefined;
+  droppedServerTools: number;
+} {
   if (!Array.isArray(tools) || tools.length === 0) {
     return { tools: undefined, droppedServerTools: 0 };
   }
   const out: unknown[] = [];
   let droppedServerTools = 0;
   for (const t of tools) {
-    const tool = t as { name?: unknown; description?: unknown; input_schema?: unknown; type?: unknown };
+    const tool = t as {
+      name?: unknown;
+      description?: unknown;
+      input_schema?: unknown;
+      type?: unknown;
+    };
     // Anthropic server tools (web_search and friends) carry a `type` and are
     // executed by Anthropic, not by us. There is no OpenAI equivalent to send,
     // so they are counted rather than silently discarded — callText refuses
@@ -1079,7 +1086,10 @@ function translateOpenAIResponseToAnthropic(oai: any, model: string): any {
     }
     content.push({
       type: "tool_use",
-      id: typeof call?.id === "string" ? call.id : `toolu_gw_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
+      id:
+        typeof call?.id === "string"
+          ? call.id
+          : `toolu_gw_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
       name: fn.name,
       input: input && typeof input === "object" ? input : {},
     });
@@ -1094,7 +1104,10 @@ function translateOpenAIResponseToAnthropic(oai: any, model: string): any {
   const completion = typeof usage.completion_tokens === "number" ? usage.completion_tokens : 0;
   const total = typeof usage.total_tokens === "number" ? usage.total_tokens : 0;
   return {
-    id: typeof oai?.id === "string" ? oai.id : `msg_gw_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
+    id:
+      typeof oai?.id === "string"
+        ? oai.id
+        : `msg_gw_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
     type: "message",
     role: "assistant",
     model: `gateway/${model}`,
@@ -1162,10 +1175,16 @@ export async function callGatewayText(
         return { ok: false, reason: "unparseable gateway response" };
       }
       if (!body) return { ok: false, reason: "empty gateway response" };
-      return { ok: true, data: translateOpenAIResponseToAnthropic(body, model), provider: "gemini" };
+      return {
+        ok: true,
+        data: translateOpenAIResponseToAnthropic(body, model),
+        provider: "gemini",
+      };
     }
     if (isGatewayCreditsExhausted(res.status)) {
-      console.warn(`callGatewayText: gateway credits exhausted or rate limited (http ${res.status}) key=${mask(key)}`);
+      console.warn(
+        `callGatewayText: gateway credits exhausted or rate limited (http ${res.status}) key=${mask(key)}`,
+      );
       return { ok: false, reason: `http ${res.status}`, creditsExhausted: true };
     }
     console.warn(`callGatewayText: http ${res.status} key=${mask(key)} body=${text.slice(0, 200)}`);
@@ -1194,15 +1213,29 @@ function translateToolChoiceToOpenAI(choice: unknown): unknown {
 /**
  * THE ENTRY POINT every text caller should use.
  *
- * Gemini on the gateway first; Claude when the credit pool is exhausted, when
- * the gateway is unreachable, or when the caller's tools mean the gateway
- * cannot honestly serve it at all.
+ * OWNER DIRECTIVE, 2026-09-04b: "make images, Voice, music, documents direct
+ * Gemini not via lovable". Text — which is what Document and AI run on — moves
+ * from the Lovable gateway onto Google's own endpoint, on GOOGLE_AI_API_KEY.
+ * Gemini DIRECT first; Claude when Google is unreachable or refuses, and when
+ * the caller's tools mean Gemini cannot honestly serve it at all.
+ *
+ * The failover is unchanged in shape and direction — still Gemini serving and
+ * Claude catching, per the 2026-09-04 directive. Only the road to Gemini moved,
+ * and with it whose account pays for the ordinary case.
  */
 export async function callText(
   opts: CallClaudeOpts & { tier?: "standard" | "heavy" },
 ): Promise<CallClaudeResult> {
-  // Search-bound callers keep Claude and its server tools. See the header:
-  // this is a correctness gate, not a cost one.
+  // Search-bound callers keep Claude and its server tools.
+  //
+  // NOTE THAT THE ORIGINAL REASON HAS WEAKENED. This gate was written because
+  // the GATEWAY's chat endpoint carries no search tools at all, and a
+  // search-less engine invents its sources. callGemini, the direct caller,
+  // DOES translate web_search onto Google's google_search and fails closed
+  // when it cannot. So the gate is now conservative rather than forced.
+  // It stays as it is deliberately: which engine answers a "find live prices
+  // and cite them" question is a quality decision about ONIQ's answers, not a
+  // consequence of this plumbing change, and widening it is the owner's call.
   const needsServerTools =
     opts.requireSearch === true ||
     opts.allowFallback === false ||
@@ -1210,12 +1243,15 @@ export async function callText(
       opts.tools.some((t) => typeof (t as { type?: unknown })?.type === "string"));
   if (needsServerTools) return callClaude(opts);
 
-  const primary = await callGatewayText(opts);
+  // The tier ids, POST-verified direct 2026-09-04 (200s at 738 and 1,388
+  // bytes). Unprefixed: the gateway's `google/…` ids 404 on this endpoint.
+  const primary = await callGemini({
+    ...opts,
+    geminiModel: opts.tier === "heavy" ? TEXT_DIRECT_HEAVY.id : TEXT_DIRECT_STANDARD.id,
+  });
   if (primary.ok) return primary;
 
-  console.warn(
-    `callText: gateway failed (${primary.reason}${primary.creditsExhausted ? ", credits" : ""}) — falling back to Anthropic`,
-  );
+  console.warn(`callText: direct Gemini failed (${primary.reason}) — falling back to Anthropic`);
   const secondary = await callClaude(opts);
   if (secondary.ok) return secondary;
   // Both engines are down. Report the PRIMARY failure, with the catcher's
