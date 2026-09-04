@@ -23,6 +23,10 @@ export type Capability =
   | "VIDEO"
   | "VIDEO_AUDIO"
   | "TTS"
+  // Flat-fee-per-generation, not per-token — Lyria reports no cost and no
+  // MODEL_RATES entry, so its own bucket carries the owner's per-song figure
+  // directly rather than one SEARCH's token ceiling would silently cap it at.
+  | "MUSIC"
   // GPU is time-billed, not unit-billed: a worker costs from boot to
   // termination whether it computes or wedges. It is its own capability so
   // its ceiling moves independently of SEARCH's, which happens to share the

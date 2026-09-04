@@ -52,8 +52,8 @@ import {
   refusalMessage,
   requestIdFrom,
   serviceRoleRpc,
-  withSearchSpendGuard,
-} from "../_shared/searchGuard.ts";
+  withProviderSpendGuard,
+} from "../_shared/financialLedger.ts";
 import { MUSIC_MODEL, MUSIC_PROMPT_MAX, validateMusicPrompt } from "../_shared/musicCore.ts";
 
 /**
@@ -226,28 +226,44 @@ Deno.serve(async (req) => {
 
   // ---- ONE billable call, inside the financial ledger ----------------------
   //
-  // Same reservation path as every other billable caller in the repository,
-  // and it is why music-generate is not in searchSpendCoverage's frozen tail:
-  // that list records what was already unguarded on 2026-08-24, and its own
-  // header says the right move for a NEW caller is to guard it.
+  // ITS OWN CAPABILITY, not the shared per-token search guard. That was the
+  // original design (music-generate is why it's not in searchSpendCoverage's
+  // frozen tail — that list records what was already unguarded on 2026-08-24,
+  // and its own header says the right move for a NEW caller is to guard it)
+  // but it shipped wrong: withSearchSpendGuard reserves via a MODEL_RATES
+  // lookup, which is per token, and Lyria is deliberately absent from that
+  // table (below). An absent rate always throws, so admission always refused
+  // "unpriced-model" — every call died before Google was ever reached, for
+  // everyone, since the day this shipped. Fixed 2026-09-04 by reserving the
+  // owner's flat per-song figure directly against MUSIC's own budget row
+  // (provider_budget_config) instead. Reusing SEARCH's bucket was rejected on
+  // the same page's own warning: "one capability's runaway drains another's."
   //
-  // ONE THING THE LEDGER CANNOT DO HERE, recorded rather than papered over.
-  // Settlement prices a call from MODEL_RATES, which is per token. Lyria is
-  // not priced per token — the owner's figure is $0.08 A SONG — and Google's
-  // response carries no cost and no duration to settle against. So the model
-  // is deliberately absent from MODEL_RATES, actualUsdFromUsage returns null,
-  // and the ledger records the call and its measured tokens with the dollars
-  // marked unknown. An invented per-token rate that happened to average $0.08
-  // would look like arithmetic and be a guess.
-  const guarded = await withSearchSpendGuard(
+  // ONE THING THE LEDGER STILL CANNOT DO HERE, recorded rather than papered
+  // over. Settlement prices a call from MODEL_RATES, which is per token, and
+  // Google's response carries no cost and no duration to settle against
+  // either way. So the model stays out of MODEL_RATES, actualUsdFromUsage
+  // returns null, and the ledger charges the $0.08 reservation with the
+  // measured tokens kept in `detail` for provenance only. An invented
+  // per-token rate that happened to average $0.08 would look like arithmetic
+  // and be a guess.
+  const guarded = await withProviderSpendGuard(
     serviceRoleRpc(),
     {
       requestId: requestIdFrom(typeof body.requestId === "string" ? body.requestId : undefined),
+      capability: "MUSIC",
       provider: "google",
       model: MUSIC_MODEL,
-      searchType: "music-generate",
+      unit: "provider_unit",
+      units: 1,
+      // Lyria bills per song, not per token — it has no MODEL_RATES entry and
+      // never will (see the settlement note below) — so this reserves the
+      // owner's own flat per-song figure directly, the same number
+      // MUSIC_BUDGET has always carried. Routing this through the shared
+      // token-priced search guard is what caused every call to be refused
+      // "unpriced-model" before a single request ever reached Google.
+      estimatedUsd: MUSIC_BUDGET.maxEstimatedUsd,
       userId: user.id,
-      budget: MUSIC_BUDGET,
     },
     async () => {
       const ctrl = new AbortController();
@@ -266,28 +282,27 @@ Deno.serve(async (req) => {
         const meta = parsed?.usageMetadata ?? null;
         return {
           value: { ok: res.ok, status: res.status, data: parsed } as const,
+          // The request left this machine, so it may have been charged even
+          // though no answer came back. `neverCalled` would tell the ledger to
+          // release the whole reservation, and that would be a guess.
           neverCalled: false,
-          usage: meta
+          outcome: res.ok ? ("ACCEPTED" as const) : ("FAILED" as const),
+          // Kept for provenance only — Google's response carries no cost field
+          // for Lyria, so there is nothing here to settle a dollar amount
+          // against; the ledger charges the reservation instead.
+          detail: meta
             ? {
-                input_tokens: typeof meta.promptTokenCount === "number" ? meta.promptTokenCount : 0,
-                output_tokens: geminiOutputTokens(meta),
-                server_tool_use: { web_search_requests: 0 },
+                inputTokens: typeof meta.promptTokenCount === "number" ? meta.promptTokenCount : 0,
+                outputTokens: geminiOutputTokens(meta),
               }
-            : null,
-          stopReason: null,
-          terminationReason: res.ok ? undefined : ("PROVIDER_ERROR" as const),
+            : undefined,
         };
       } catch (e) {
         const reason = (e as Error)?.name === "AbortError" ? "timeout" : "network";
         return {
           value: { ok: false, status: 0, data: null, reason } as const,
-          // The request left this machine, so it may have been charged even
-          // though no answer came back. `neverCalled` would tell the ledger to
-          // release the whole reservation, and that would be a guess.
           neverCalled: false,
-          usage: null,
-          stopReason: null,
-          terminationReason: "PROVIDER_ERROR" as const,
+          outcome: "FAILED" as const,
         };
       } finally {
         clearTimeout(timer);
