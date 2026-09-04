@@ -101,6 +101,97 @@ export const MUSIC_ACCEPTS_IMAGE_REFERENCE = true;
 export const MUSIC_IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const MUSIC_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
 
+/**
+ * What a person may attach as a REFERENCE TRACK.
+ *
+ * The same list the transcribe path takes, because the file goes to the same
+ * place: an ordinary Gemini model, which listens to it and describes it. It
+ * never reaches Lyria — see MUSIC_ACCEPTS_AUDIO_REFERENCE above and
+ * musicBrief.ts for the pipeline.
+ */
+export const MUSIC_AUDIO_MIMES = [
+  "audio/wav",
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/mp4",
+  "audio/aac",
+  "audio/ogg",
+  "audio/webm",
+  "audio/flac",
+] as const;
+
+/** 8 MB decoded — a couple of minutes of compressed audio, not a whole album. */
+export const MUSIC_AUDIO_MAX_BYTES = 8 * 1024 * 1024;
+
+/** Base64 with no data: prefix, no whitespace, correct padding. */
+const B64 = /^[A-Za-z0-9+/]+={0,2}$/;
+
+/**
+ * The decoded size of a base64 string, WORKED OUT rather than decoded.
+ *
+ * A 30 MB body is then refused without ever being materialised in memory,
+ * which is the same rule the still-upload path follows.
+ */
+function decodedBytes(data: string): number {
+  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+  return Math.floor((data.length * 3) / 4) - padding;
+}
+
+/** The shape checks every inline attachment needs, before the mime-specific ones. */
+function inlineFaults(ref: unknown): { mimeType: string; data: string } | string {
+  if (typeof ref !== "object" || ref === null) return "That attachment could not be read.";
+  const { mimeType, data } = ref as { mimeType?: unknown; data?: unknown };
+  if (typeof mimeType !== "string" || typeof data !== "string") {
+    return "That attachment could not be read.";
+  }
+  if (data.length === 0) return "That attachment was empty.";
+  // A data: URL prefix is the commonest client mistake and produces an opaque
+  // 400 from Google — caught here with a sentence a person can act on.
+  if (data.startsWith("data:") || !B64.test(data)) return "That attachment could not be read.";
+  return { mimeType, data };
+}
+
+/**
+ * Returns an error message when an attached PICTURE cannot be sent, or null.
+ *
+ * Runs before the billable call, so a bad attachment costs nothing. Checked
+ * server-side even though the client checks it too: the client is a
+ * suggestion.
+ */
+export function validateMusicImage(ref: unknown): string | null {
+  if (ref === undefined || ref === null) return null;
+  const parsed = inlineFaults(ref);
+  if (typeof parsed === "string") return parsed;
+  if (!(MUSIC_IMAGE_MIMES as readonly string[]).includes(parsed.mimeType)) {
+    return "Attach a JPG, PNG or WebP picture.";
+  }
+  if (decodedBytes(parsed.data) > MUSIC_IMAGE_MAX_BYTES) {
+    return "That picture is too large. Under 4MB, please.";
+  }
+  return null;
+}
+
+/**
+ * Returns an error message when an attached TRACK cannot be sent, or null.
+ *
+ * The mime is compared on its BASE, before any `;codecs=` parameter:
+ * MediaRecorder tags its blobs "audio/webm;codecs=opus", and comparing the
+ * whole string would reject every recording the app itself made.
+ */
+export function validateMusicAudio(ref: unknown): string | null {
+  if (ref === undefined || ref === null) return null;
+  const parsed = inlineFaults(ref);
+  if (typeof parsed === "string") return parsed;
+  const base = parsed.mimeType.split(";")[0].trim().toLowerCase();
+  if (!(MUSIC_AUDIO_MIMES as readonly string[]).includes(base)) {
+    return "Attach an audio file — WAV, MP3, M4A, OGG or WebM.";
+  }
+  if (decodedBytes(parsed.data) > MUSIC_AUDIO_MAX_BYTES) {
+    return "That track is too long. Under 8MB, please.";
+  }
+  return null;
+}
+
 /** A sentence, not an essay. Long prompts do not buy longer songs here. */
 export const MUSIC_PROMPT_MAX = 300;
 

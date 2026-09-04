@@ -67,11 +67,14 @@ export function OniqAttachAudio({
   value,
   onChange,
   disabled,
+  label = "Attach audio",
   className,
 }: {
   value: AttachedAudio | null;
   onChange: (next: AttachedAudio | null) => void;
   disabled?: boolean;
+  /** Music says "Reference track"; Voice says "Attach audio". */
+  label?: string;
   className?: string;
 }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -195,7 +198,7 @@ export function OniqAttachAudio({
         className="press inline-flex items-center gap-2 rounded-full border border-border-strong px-3 py-2 text-[13px] font-medium normal-case tracking-normal text-foreground disabled:opacity-50"
       >
         <Paperclip className="h-4 w-4" aria-hidden="true" />
-        {value ? "Change" : "Attach audio"}
+        {value ? "Change" : label}
       </button>
 
       <button

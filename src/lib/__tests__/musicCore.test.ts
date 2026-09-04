@@ -9,13 +9,20 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  MUSIC_AUDIO_MAX_BYTES,
+  MUSIC_AUDIO_MIMES,
+  MUSIC_IMAGE_MAX_BYTES,
+  MUSIC_IMAGE_MIMES,
   MUSIC_MODEL,
   MUSIC_PROMPT_MAX,
+  validateMusicAudio,
+  validateMusicImage,
   validateMusicPrompt,
 } from "../../../supabase/functions/_shared/musicCore";
 
 const ROOT = process.cwd();
-const FN = readFileSync(join(ROOT, "supabase/functions/music-generate/index.ts"), "utf8");
+const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
+const FN = read("supabase/functions/music-generate/index.ts");
 
 /** Comments describe code; they are not code. Same rule searchSpendCoverage uses. */
 const CODE = FN.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
@@ -53,13 +60,22 @@ describe("the model id is the one that was measured", () => {
 
   it("sends Google's native contents shape with an explicit role", () => {
     // The OpenAI field names come back as "Unknown name ...: Cannot find field".
-    expect(FN).toMatch(/contents:\s*\[\{\s*role:\s*"user"/);
+    // The shape moved into the shared caller when image and voice joined this
+    // route (owner directive 2026-09-04b), so it is asserted where it lives —
+    // together with the fact that this function goes through that caller
+    // rather than growing a fifth copy of the same fetch.
+    const direct = read("supabase/functions/_shared/googleDirect.ts");
+    expect(direct).toMatch(/contents:\s*\[\{\s*role:\s*"user"/);
+    expect(FN).toContain("googleGenerateContent");
   });
 });
 
 describe("the cost guards are in the order that keeps them honest", () => {
   it("checks the kill switch, the admin gate and BOTH caps before the call", () => {
-    const call = CODE.indexOf("await fetch(`${GOOGLE_URL}");
+    // The first provider call of either stage — listening to a reference is
+    // billable too, so the gates have to come before THAT, not merely before
+    // the song.
+    const call = CODE.indexOf("googleGenerateContent(");
     expect(call).toBeGreaterThan(-1);
     for (const gate of [
       "music_enabled",
@@ -88,12 +104,21 @@ describe("the cost guards are in the order that keeps them honest", () => {
     expect(CODE.match(/\.gte\("created_at", since\)/g) ?? []).toHaveLength(2);
   });
 
-  it("has no retry around the billable call", () => {
+  it("has no retry around either billable call", () => {
     // A prompt Google refuses will be refused again identically, and a loop is
     // how a month of credits disappears in an hour. Checked against CODE: the
     // header comment says the word "retry" precisely to explain its absence.
     expect(CODE).not.toMatch(/\bretry\b|\.retries|maxRetries/i);
-    expect(CODE.match(/await fetch\(/g) ?? []).toHaveLength(1);
+    // Two provider calls at most — listen, then generate — and no raw fetch
+    // of its own now that everything goes through the shared caller.
+    expect(CODE).not.toMatch(/await fetch\(/);
+    expect(CODE.match(/await googleGenerateContent\(/g) ?? []).toHaveLength(2);
+  });
+
+  it("wraps every provider call in its own spend reservation", () => {
+    // Two calls, two guards. Folding the listening stage into the song's
+    // reservation would mean the ledger recorded a charge it never reserved.
+    expect(CODE.match(/await withProviderSpendGuard\(/g) ?? []).toHaveLength(2);
   });
 
   it("never puts the key's VALUE in a log or a reply", () => {
@@ -104,7 +129,122 @@ describe("the cost guards are in the order that keeps them honest", () => {
     for (const call of CODE.matchAll(/(console\.[a-z]+|json)\(([^;]*)\)/g)) {
       expect(call[2], `${call[1]} must not carry the key`).not.toMatch(/\bkey\b(?!Env)/);
     }
-    // It may only ever reach the provider URL.
-    expect(CODE.match(/encodeURIComponent\(key\)/g) ?? []).toHaveLength(1);
+    // It may only ever reach the shared caller, which is the one place that
+    // puts it in a URL.
+    expect(CODE).not.toMatch(/encodeURIComponent\(key\)/);
+    const direct = read("supabase/functions/_shared/googleDirect.ts");
+    expect(direct.match(/encodeURIComponent\(opts\.key\)/g) ?? []).toHaveLength(1);
   });
+});
+
+/* ------------------------------------------------------- attached references
+ * Owner directive 2026-09-04c. A PICTURE goes straight to Lyria (measured
+ * 200); a TRACK goes to Gemini and never to Lyria (measured 400 every way).
+ * Both are validated before either billable call, so a body a person can fix
+ * costs nothing to reject.
+ * -------------------------------------------------------------------------- */
+const b64 = (n: number) => Buffer.alloc(n, 1).toString("base64");
+
+describe("validateMusicImage", () => {
+  it("is optional", () => {
+    expect(validateMusicImage(undefined)).toBeNull();
+    expect(validateMusicImage(null)).toBeNull();
+  });
+
+  it("accepts each mime the picker offers", () => {
+    for (const mimeType of MUSIC_IMAGE_MIMES) {
+      expect(validateMusicImage({ mimeType, data: b64(64) }), mimeType).toBeNull();
+    }
+  });
+
+  it("refuses a mime Lyria has not been measured on", () => {
+    for (const mimeType of ["image/heic", "image/gif", "audio/wav", ""]) {
+      expect(validateMusicImage({ mimeType, data: b64(64) }), mimeType).toBe(
+        "Attach a JPG, PNG or WebP picture.",
+      );
+    }
+  });
+
+  it("measures the ceiling on DECODED bytes, not on the base64 string", () => {
+    // Base64 is 4/3 of what it carries; a limit read off the string silently
+    // admits a third more than it claims to.
+    const atLimit = b64(MUSIC_IMAGE_MAX_BYTES);
+    expect(validateMusicImage({ mimeType: "image/png", data: atLimit })).toBeNull();
+    expect(atLimit.length).toBeGreaterThan(MUSIC_IMAGE_MAX_BYTES);
+    expect(
+      validateMusicImage({ mimeType: "image/png", data: b64(MUSIC_IMAGE_MAX_BYTES + 1024) }),
+    ).toBe("That picture is too large. Under 4MB, please.");
+  });
+});
+
+describe("validateMusicAudio", () => {
+  it("is optional", () => {
+    expect(validateMusicAudio(undefined)).toBeNull();
+    expect(validateMusicAudio(null)).toBeNull();
+  });
+
+  it("accepts what a browser recorder and a file picker actually produce", () => {
+    for (const mimeType of MUSIC_AUDIO_MIMES) {
+      expect(validateMusicAudio({ mimeType, data: b64(64) }), mimeType).toBeNull();
+    }
+  });
+
+  it("accepts a MediaRecorder mime with its codecs parameter", () => {
+    // MediaRecorder tags its blobs "audio/webm;codecs=opus". Comparing the
+    // whole string would reject every recording the app itself made.
+    expect(validateMusicAudio({ mimeType: "audio/webm;codecs=opus", data: b64(64) })).toBeNull();
+    expect(validateMusicAudio({ mimeType: "AUDIO/WAV", data: b64(64) })).toBeNull();
+  });
+
+  it("refuses a picture sent down the audio slot, and says what to attach", () => {
+    for (const mimeType of ["image/png", "video/mp4", "application/pdf", ""]) {
+      expect(validateMusicAudio({ mimeType, data: b64(64) }), mimeType).toBe(
+        "Attach an audio file — WAV, MP3, M4A, OGG or WebM.",
+      );
+    }
+  });
+
+  it("measures its own ceiling on decoded bytes too", () => {
+    expect(
+      validateMusicAudio({ mimeType: "audio/mpeg", data: b64(MUSIC_AUDIO_MAX_BYTES) }),
+    ).toBeNull();
+    expect(
+      validateMusicAudio({ mimeType: "audio/mpeg", data: b64(MUSIC_AUDIO_MAX_BYTES + 1024) }),
+    ).toBe("That track is too long. Under 8MB, please.");
+  });
+});
+
+describe("both validators, on the shapes a client actually gets wrong", () => {
+  for (const [name, validate] of [
+    ["image", validateMusicImage],
+    ["audio", validateMusicAudio],
+  ] as const) {
+    it(`refuses a data: URL on the ${name} slot`, () => {
+      // It produces an opaque 400 from Google, so it is caught here with a
+      // sentence instead.
+      const mimeType = name === "image" ? "image/png" : "audio/wav";
+      expect(validate({ mimeType, data: `data:${mimeType};base64,AAAA` })).toBe(
+        "That attachment could not be read.",
+      );
+    });
+
+    it(`refuses anything that is not base64 on the ${name} slot`, () => {
+      const mimeType = name === "image" ? "image/png" : "audio/wav";
+      for (const data of ["not base64!", "AA AA", "AAAA\n", "%%%%"]) {
+        expect(validate({ mimeType, data }), data).toBe("That attachment could not be read.");
+      }
+    });
+
+    it(`refuses an empty ${name} rather than sending an empty part`, () => {
+      const mimeType = name === "image" ? "image/png" : "audio/wav";
+      expect(validate({ mimeType, data: "" })).toBe("That attachment was empty.");
+    });
+
+    it(`refuses a malformed ${name} object without throwing`, () => {
+      for (const bad of [42, "nope", [], {}, { mimeType: "image/png" }, { data: "AAAA" }]) {
+        expect(() => validate(bad)).not.toThrow();
+        expect(validate(bad), JSON.stringify(bad)).toBeTruthy();
+      }
+    });
+  }
 });

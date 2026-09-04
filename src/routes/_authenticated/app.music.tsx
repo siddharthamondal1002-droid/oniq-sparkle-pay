@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Music4, Sparkles } from "lucide-react";
+import { Ear, Music4, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeError";
@@ -14,6 +14,8 @@ import {
   OniqSectionHeader,
   OniqSkeletonRows,
 } from "@/components/oniq";
+import { OniqAttachAudio, type AttachedAudio } from "@/components/oniq/OniqAttachAudio";
+import { OniqAttachImage, type AttachedImage } from "@/components/oniq/OniqAttachImage";
 
 export const Route = createFileRoute("/_authenticated/app/music")({
   component: MusicScreen,
@@ -32,6 +34,20 @@ export const Route = createFileRoute("/_authenticated/app/music")({
  * pretend: when music is switched off, or not yet open beyond admins, the
  * server says so and that sentence is what appears. A disabled feature that
  * looks alive is the thing this codebase keeps deciding not to ship.
+ *
+ * THE TWO ATTACHMENTS BEHAVE DIFFERENTLY, AND THE SCREEN SAYS SO.
+ *
+ *   A PICTURE goes straight to the music model. Measured 2026-09-04: a PNG
+ *   before the text returned 200 with lyrics visibly drawn from the image.
+ *
+ *   A TRACK DOES NOT. It is LISTENED TO by a separate model, turned into a
+ *   description — genre, tempo, instruments, mood — and that description is
+ *   what the music model is given. The recording never reaches it. Owner
+ *   directive 2026-09-04c, and the wording below is not decoration: a person
+ *   attaching a song they like has to understand they are getting something
+ *   NEW in that style, not a remix of their file, and ONIQ has to be visibly
+ *   not in the business of copying somebody else's melody. What was heard is
+ *   shown back for exactly that reason.
  */
 const PROMPT_MAX = 300;
 
@@ -42,13 +58,24 @@ const IDEAS = [
   "bright morning acoustic",
 ];
 
-type Song = { id: string; createdAt: string; prompt: string; url: string | null };
+type Song = {
+  id: string;
+  createdAt: string;
+  prompt: string;
+  url: string | null;
+  /** "image" | "audio" | null — what was attached, if anything. */
+  reference?: string | null;
+  /** The one-line description heard in a reference track. */
+  brief?: string | null;
+};
 
 function MusicScreen() {
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [songs, setSongs] = useState<Song[] | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [picture, setPicture] = useState<AttachedImage | null>(null);
+  const [track, setTrack] = useState<AttachedAudio | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -74,7 +101,13 @@ function MusicScreen() {
     if (!text || busy) return;
     setBusy(true);
     const { data, error } = await supabase.functions.invoke("music-generate", {
-      body: { prompt: text },
+      body: {
+        prompt: text,
+        // previewUrl and label are for this screen, never for the wire — one
+        // is a data: URL the size of the picture and the other is a filename.
+        referenceImage: picture ? { mimeType: picture.mimeType, data: picture.data } : null,
+        referenceAudio: track ? { mimeType: track.mimeType, data: track.data } : null,
+      },
     });
     setBusy(false);
     // The server's own sentence is the one worth showing — it is the only
@@ -92,6 +125,11 @@ function MusicScreen() {
     }
     setSongs((prev) => [data as Song, ...(prev ?? [])]);
     setPrompt("");
+    // The attachments clear with the prompt. Leaving a reference behind means
+    // the next song silently inherits it — and, for a track, silently spends a
+    // second listening call nobody asked for.
+    setPicture(null);
+    setTrack(null);
   };
 
   return (
@@ -117,6 +155,38 @@ function MusicScreen() {
             placeholder="calm piano for studying"
             className="w-full resize-none bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
+          {/* The two attachments, under the words they modify. */}
+          <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
+            <OniqAttachImage
+              value={picture}
+              onChange={setPicture}
+              disabled={busy}
+              label="Add picture"
+            />
+            <OniqAttachAudio
+              value={track}
+              onChange={setTrack}
+              disabled={busy}
+              label="Reference track"
+            />
+          </div>
+
+          {/* Shown only when a track is attached, because that is the only
+              case where what happens is not what a person would assume. */}
+          {track ? (
+            <p
+              data-testid="music-reference-note"
+              className="mt-2 flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground"
+            >
+              <Ear className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>
+                ONIQ listens to your track and describes its style — genre, tempo, instruments —
+                then writes something new from that description. Your recording is not copied,
+                remixed or sent to the music engine.
+              </span>
+            </p>
+          ) : null}
+
           <div className="mt-2 flex items-center justify-between gap-3">
             <span className="text-[11px] text-muted-foreground">
               {prompt.length}/{PROMPT_MAX}
@@ -172,6 +242,20 @@ function MusicScreen() {
                     {s.prompt}
                   </span>
                 </div>
+                {/* Provenance stays with the song, not just with the moment it
+                    was made — the brief is the evidence that a reference
+                    produced a DESCRIPTION and not a copy. */}
+                {s.reference === "audio" && s.brief ? (
+                  <p
+                    data-testid="music-song-brief"
+                    className="mt-1 flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground"
+                  >
+                    <Ear className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span className="min-w-0">Heard in your track: {s.brief}</span>
+                  </p>
+                ) : s.reference === "image" ? (
+                  <p className="mt-1 text-[11px] text-muted-foreground">From a picture you added</p>
+                ) : null}
                 {s.url ? (
                   <audio controls preload="none" src={s.url} className="mt-2 w-full">
                     <track kind="captions" />

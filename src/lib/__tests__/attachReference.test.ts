@@ -2,17 +2,23 @@
  * ATTACHING A REFERENCE — what may be offered, and what may not.
  *
  * The owner's reference draws an attach control on Image, Music AND Voice.
- * Only ONE of the three can be built, and that is not a judgement call — it
- * was measured on 2026-09-04 against the real endpoints:
+ * All three are now built, and each goes somewhere different, which was
+ * measured rather than assumed — 2026-09-04, against the real endpoints:
  *
  *   Image  gemini-3.1-flash-image        + inlineData jpeg  -> 200, edited picture
- *   Music  lyria-3-pro-preview           + inlineData wav   -> 400 unsupported
+ *   Music  lyria-3-pro-preview           + inlineData png   -> 200, 5.2 MB track
+ *          lyria-3-pro-preview           + inlineData wav   -> 400 unsupported
  *          (same prompt, no attachment, control)            -> 200, 5.5 MB track
  *   Voice  gemini-3.1-flash-tts-preview  + inlineData wav   -> 400 not enabled
+ *          gemini-3.1-flash-lite         + inlineData wav   -> 200, a transcript
  *
- * These tests exist so a later pass cannot quietly add the two dead buttons
- * back to match the picture. A control that 400s every generation it touches
- * is worse than an absent one.
+ * TWO OF THOSE 400s ARE STILL LOAD-BEARING, and the features that sit on top
+ * of them route AROUND the closed door rather than through it: a reference
+ * TRACK goes to a listening model and never to Lyria (musicBrief.ts), and
+ * attached voice audio goes to an ordinary text model and never to the TTS
+ * one. These tests exist so a later pass cannot quietly wire either
+ * attachment straight into the model that refuses it. A control that 400s
+ * every generation it touches is worse than an absent one.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -69,11 +75,42 @@ describe("what the three engines actually accept", () => {
     expect(voice).toContain("Audio input modality is not enabled for this model");
   });
 
-  it("ships no reference control on Music, where every shape 400s", () => {
-    const src = read("src/routes/_authenticated/app.music.tsx");
-    expect(src, "music must not offer an attachment that 400s").not.toMatch(
-      /OniqAttachImage|OniqAttachAudio|referenceAudio/,
-    );
+  it("ships both controls on Music, and sends the track somewhere Lyria is not", () => {
+    // The picture goes to Lyria (200, measured). The track goes to Gemini and
+    // is turned into a description; the recording never reaches Lyria, which
+    // is the owner's 2026-09-04c architecture and also the rights answer.
+    const screen = read("src/routes/_authenticated/app.music.tsx");
+    expect(screen).toContain("OniqAttachImage");
+    expect(screen).toContain("OniqAttachAudio");
+    expect(screen).toContain("referenceAudio");
+
+    const fn = read("supabase/functions/music-generate/index.ts");
+    const code = fn.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
+    // The ONE place referenceAudio's bytes are put into a request part must be
+    // the listening call, and it must come BEFORE the Lyria call.
+    const listen = code.indexOf("model: AUDIO_UNDERSTANDING_MODEL");
+    const lyria = code.indexOf("model: MUSIC_MODEL");
+    expect(listen, "the listening stage is missing").toBeGreaterThan(-1);
+    expect(lyria, "the Lyria call is missing").toBeGreaterThan(-1);
+    expect(listen, "the track must be described BEFORE the song is written").toBeLessThan(lyria);
+    // And the part list handed to Lyria must never carry the track's bytes.
+    const from = code.indexOf("const parts: GooglePart[]");
+    expect(from, "the Lyria part list is missing").toBeGreaterThan(-1);
+    const lyriaCall = code.slice(from, code.indexOf("signal: ctrl.signal", from));
+    expect(lyriaCall, "a reference TRACK must never reach Lyria").not.toContain("refAudio");
+    expect(lyriaCall).toContain("body.referenceImage");
+  });
+
+  it("tells the person what a reference track actually does", () => {
+    // Somebody attaching a song they like will otherwise assume a remix. The
+    // owner asked for this to be explicit; it is also the difference between
+    // ONIQ generating original music and appearing to launder a recording.
+    // Read with whitespace collapsed: the sentence is prose in JSX and
+    // Prettier reflows it, so asserting on line breaks would fail the next
+    // time a word is added.
+    const screen = read("src/routes/_authenticated/app.music.tsx").replace(/\s+/g, " ");
+    expect(screen).toContain("music-reference-note");
+    expect(screen).toMatch(/not copied, remixed or sent to the music engine/);
   });
 
   it("ships one on Image, which is the one that works", () => {
