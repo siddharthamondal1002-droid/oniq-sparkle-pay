@@ -67,6 +67,14 @@ export const NATIVE_CAPABILITIES = [
  */
 export const AI_SURFACES = [
   {
+    // Create — Music. Declared BEFORE the screen shipped, which is the ordering
+    // Lores got wrong: a hub of generated video went out with no label because
+    // the guard had nothing to grep for until someone remembered to add it.
+    id: "music_ai_output",
+    screen: "Create — Music",
+    file: "src/routes/_authenticated/app.music.tsx",
+  },
+  {
     id: "cv_ai_output",
     screen: "Jobs — CV builder",
     file: "src/routes/_authenticated/app.jobs.tsx",

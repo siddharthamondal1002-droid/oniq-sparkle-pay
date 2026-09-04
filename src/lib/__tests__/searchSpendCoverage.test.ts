@@ -78,8 +78,13 @@ const GUARDED = ["smart-scout", "hotel-scout", "ting", "health-scan"];
  * Callers that hold a reservation for TOKENS ONLY — no web_search, so they are
  * not part of the search fleet, but they are billable and therefore guarded.
  * watch-ask (owner mission, 2026-09-03) answers from a person's own notes.
+ * music-generate (owner directive, 2026-09-04) turns a sentence into a song on
+ * the metered Google key. It reserves for one call and settles with the
+ * dollars marked unknown: Lyria is not priced per token, and Google's response
+ * carries neither a cost nor a duration to settle against — so it is
+ * deliberately absent from MODEL_RATES rather than given an invented rate.
  */
-const GUARDED_TOKEN_ONLY = ["watch-ask"];
+const GUARDED_TOKEN_ONLY = ["watch-ask", "music-generate"];
 
 describe("every SEARCH in the repository is reserved for", () => {
   const fns = edgeFunctions();

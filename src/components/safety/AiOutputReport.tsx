@@ -36,7 +36,9 @@ export type AiSurface =
   /** Home — the Originals face of the front-door loop card. */
   | "home_originals_loop"
   /** Watch library — "Ask ONIQ about this video", answered from the person's own notes. */
-  | "watch_ai_output";
+  | "watch_ai_output"
+  /** Create — Music. The whole track is generated, from the person's own sentence. */
+  | "music_ai_output";
 
 export function AiOutputReport({
   surface,

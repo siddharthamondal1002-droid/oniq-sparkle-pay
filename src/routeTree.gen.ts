@@ -49,6 +49,7 @@ import { Route as AuthenticatedAppJobsAppsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppLearnRouteImport } from './routes/_authenticated/app.learn'
 import { Route as AuthenticatedAppLoresRouteImport } from './routes/_authenticated/app.lores'
 import { Route as AuthenticatedAppMiniappsRouteImport } from './routes/_authenticated/app.miniapps'
+import { Route as AuthenticatedAppMusicRouteImport } from './routes/_authenticated/app.music'
 import { Route as AuthenticatedAppNewsRouteImport } from './routes/_authenticated/app.news'
 import { Route as AuthenticatedAppOfficialRouteImport } from './routes/_authenticated/app.official'
 import { Route as AuthenticatedAppProfileRouteImport } from './routes/_authenticated/app.profile'
@@ -287,6 +288,11 @@ const AuthenticatedAppMiniappsRoute =
     path: '/miniapps',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppMusicRoute = AuthenticatedAppMusicRouteImport.update({
+  id: '/music',
+  path: '/music',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppNewsRoute = AuthenticatedAppNewsRouteImport.update({
   id: '/news',
   path: '/news',
@@ -505,6 +511,7 @@ export interface FileRoutesByFullPath {
   '/app/learn': typeof AuthenticatedAppLearnRoute
   '/app/lores': typeof AuthenticatedAppLoresRoute
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
+  '/app/music': typeof AuthenticatedAppMusicRoute
   '/app/news': typeof AuthenticatedAppNewsRoute
   '/app/official': typeof AuthenticatedAppOfficialRoute
   '/app/profile': typeof AuthenticatedAppProfileRoute
@@ -576,6 +583,7 @@ export interface FileRoutesByTo {
   '/app/learn': typeof AuthenticatedAppLearnRoute
   '/app/lores': typeof AuthenticatedAppLoresRoute
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
+  '/app/music': typeof AuthenticatedAppMusicRoute
   '/app/news': typeof AuthenticatedAppNewsRoute
   '/app/official': typeof AuthenticatedAppOfficialRoute
   '/app/profile': typeof AuthenticatedAppProfileRoute
@@ -651,6 +659,7 @@ export interface FileRoutesById {
   '/_authenticated/app/learn': typeof AuthenticatedAppLearnRoute
   '/_authenticated/app/lores': typeof AuthenticatedAppLoresRoute
   '/_authenticated/app/miniapps': typeof AuthenticatedAppMiniappsRoute
+  '/_authenticated/app/music': typeof AuthenticatedAppMusicRoute
   '/_authenticated/app/news': typeof AuthenticatedAppNewsRoute
   '/_authenticated/app/official': typeof AuthenticatedAppOfficialRoute
   '/_authenticated/app/profile': typeof AuthenticatedAppProfileRoute
@@ -726,6 +735,7 @@ export interface FileRouteTypes {
     | '/app/learn'
     | '/app/lores'
     | '/app/miniapps'
+    | '/app/music'
     | '/app/news'
     | '/app/official'
     | '/app/profile'
@@ -797,6 +807,7 @@ export interface FileRouteTypes {
     | '/app/learn'
     | '/app/lores'
     | '/app/miniapps'
+    | '/app/music'
     | '/app/news'
     | '/app/official'
     | '/app/profile'
@@ -871,6 +882,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/learn'
     | '/_authenticated/app/lores'
     | '/_authenticated/app/miniapps'
+    | '/_authenticated/app/music'
     | '/_authenticated/app/news'
     | '/_authenticated/app/official'
     | '/_authenticated/app/profile'
@@ -1216,6 +1228,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppMiniappsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/music': {
+      id: '/_authenticated/app/music'
+      path: '/music'
+      fullPath: '/app/music'
+      preLoaderRoute: typeof AuthenticatedAppMusicRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/news': {
       id: '/_authenticated/app/news'
       path: '/news'
@@ -1498,6 +1517,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppLearnRoute: typeof AuthenticatedAppLearnRoute
   AuthenticatedAppLoresRoute: typeof AuthenticatedAppLoresRoute
   AuthenticatedAppMiniappsRoute: typeof AuthenticatedAppMiniappsRoute
+  AuthenticatedAppMusicRoute: typeof AuthenticatedAppMusicRoute
   AuthenticatedAppNewsRoute: typeof AuthenticatedAppNewsRoute
   AuthenticatedAppOfficialRoute: typeof AuthenticatedAppOfficialRoute
   AuthenticatedAppProfileRoute: typeof AuthenticatedAppProfileRoute
@@ -1538,6 +1558,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppLearnRoute: AuthenticatedAppLearnRoute,
   AuthenticatedAppLoresRoute: AuthenticatedAppLoresRoute,
   AuthenticatedAppMiniappsRoute: AuthenticatedAppMiniappsRoute,
+  AuthenticatedAppMusicRoute: AuthenticatedAppMusicRoute,
   AuthenticatedAppNewsRoute: AuthenticatedAppNewsRoute,
   AuthenticatedAppOfficialRoute: AuthenticatedAppOfficialRoute,
   AuthenticatedAppProfileRoute: AuthenticatedAppProfileRoute,
