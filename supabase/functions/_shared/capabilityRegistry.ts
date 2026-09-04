@@ -179,23 +179,32 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
   "music.referenceAudio": {
     id: "music.referenceAudio",
     provider: "google",
-    state: "EXPERIMENTAL",
+    state: "LIVE",
     evidence:
       "TWO-STAGE, owner directive 2026-09-04c: the reference NEVER reaches " +
       "Lyria. Gemini listens to it and writes a structured music brief; Lyria " +
       "generates from that brief. Sending audio to Lyria directly is CLOSED " +
       "and stays closed — measured 2026-09-04 as 400 'Unsupported input mime " +
       "type for this model: audio/s16le', identically for wav and mp3, on " +
-      "every lyria id, with a text-only control returning 200. The Gemini " +
-      "half is measured (see voice.transcribe); the joined pipeline is not " +
-      "yet proven end to end, which is why this is not LIVE. BUILT AND WIRED " +
-      "2026-09-04: musicBrief.ts holds the ask, the parser and the compiled " +
-      "prompt; music-generate runs the listening call under its own spend " +
-      "reservation before the Lyria call, refuses rather than generating " +
-      "from an empty brief, and records a music_jobs row when the brief " +
-      "fails so the daily caps count it. What remains for LIVE is a real " +
-      "run through the DEPLOYED function — the function is not deployed at " +
-      "the time of writing, and a green test suite is not a deploy.",
+      "every lyria id, with a text-only control returning 200. " +
+      "PROVEN END TO END ON PRODUCTION, 2026-09-04, which is what moved this " +
+      "from EXPERIMENTAL: one POST to the DEPLOYED music-generate carrying an " +
+      "8.0s 24kHz mono 16-bit WAV of a C/Am/F/G progression (384,044 bytes) " +
+      "returned HTTP 200 with reference 'audio' and brief " +
+      "'Ambient, Electronic · Slow, sustained · " +
+      "ethereal/dreamy/introspective/tranquil · synthesizer, pad'. " +
+      "TWO THINGS THAT SENTENCE PROVES, beyond the 200. First, its SHAPE is " +
+      "describeBrief's exactly — genre, then tempo, then mood joined by '/', " +
+      "then instruments joined by ', ' — so parseMusicBrief read real JSON " +
+      "off the listening model and compileMusicPrompt fed it forward; a " +
+      "failure anywhere in that chain returns 502, never a formatted brief. " +
+      "Second, the WORDS could only have come from the audio: the person's " +
+      "prompt was 'something for a long drive at night' and the mood chip " +
+      "was 'chill', and neither yields 'sustained' or 'synthesizer, pad' — " +
+      "which is what slow sine chords under an exponential decay actually " +
+      "sound like. The model listened rather than paraphrasing the prompt " +
+      "back, and that is the difference between this feature working and " +
+      "merely appearing to.",
   },
   "music.referenceImage": {
     id: "music.referenceImage",
