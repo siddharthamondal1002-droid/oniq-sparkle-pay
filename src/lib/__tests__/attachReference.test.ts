@@ -22,7 +22,12 @@ import {
   REFERENCE_MIMES,
   validateReferenceImage,
 } from "../../../supabase/functions/_shared/imageCore.ts";
-import { MUSIC_ACCEPTS_AUDIO_REFERENCE } from "../../../supabase/functions/_shared/musicCore.ts";
+import {
+  MUSIC_ACCEPTS_AUDIO_REFERENCE,
+  MUSIC_ACCEPTS_IMAGE_REFERENCE,
+  MUSIC_CLIP_MODEL,
+  MUSIC_MODEL,
+} from "../../../supabase/functions/_shared/musicCore.ts";
 import {
   TRANSCRIBE_MAX_BYTES,
   validateAudioAttachment,
@@ -257,5 +262,43 @@ describe("the transcribe path on the server", () => {
 
   it("treats a 200 with no text as the failure it is", () => {
     expect(SRC).toContain("Nothing could be heard in that recording.");
+  });
+});
+
+describe("what Lyria actually takes, measured 2026-09-04", () => {
+  const SRC = read("supabase/functions/_shared/musicCore.ts");
+
+  it("keeps the alias that already resolves to 3.5", () => {
+    // The owner asked for lyria-3.5-pro-preview. That id 404s. But
+    // lyria-3-pro-preview — what MUSIC_MODEL has always been — answers 200
+    // and reports modelVersion lyria-3.5, so the ask was already satisfied.
+    expect(MUSIC_MODEL).toBe("lyria-3-pro-preview");
+    expect(SRC, "the 404 and the alias must stay written down").toContain("modelVersion lyria-3.5");
+    expect(SRC).toContain("lyria-3.5-pro-preview    404");
+  });
+
+  it("names the clip model, which is genuinely separate", () => {
+    // 993,519 bytes against 5,816,261 — a different model, not an alias.
+    expect(MUSIC_CLIP_MODEL).toBe("lyria-3-clip-preview");
+    expect(MUSIC_CLIP_MODEL).not.toBe(MUSIC_MODEL);
+  });
+
+  it("says image YES and audio NO, which is the whole architecture", () => {
+    expect(MUSIC_ACCEPTS_IMAGE_REFERENCE).toBe(true);
+    expect(MUSIC_ACCEPTS_AUDIO_REFERENCE).toBe(false);
+  });
+
+  it("keeps the evidence for both, including the refusal case", () => {
+    expect(SRC).toContain("5,215,484");
+    expect(SRC).toContain("Unsupported input mime type for this model");
+    // A 200 with no audio is the silent-failure shape every path here guards
+    // against; the caller needs to know it can happen.
+    expect(SRC).toContain("PROHIBITED_CONTENT");
+  });
+
+  it("does not adopt the bare lyria-3.5 the alias points at", () => {
+    // It answers, but the alias has the production history and swapping for
+    // an id that resolves to the same engine buys nothing.
+    expect(MUSIC_MODEL).not.toBe("lyria-3.5");
   });
 });

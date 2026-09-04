@@ -90,6 +90,20 @@ describe("googleGenerateContent — the request", () => {
     expect(cfg.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName).toBe("Kore");
   });
 
+  it("carries responseMimeType, because asking in the prompt is not enough", async () => {
+    // Measured 2026-09-04: told "strict JSON, JSON only" in the prompt,
+    // gemini-3.1-flash-lite still fenced it in ```json. The prompt is a
+    // request; this field is the setting.
+    const seen = stubFetch({ status: 200, body: {} });
+    await googleGenerateContent({
+      model: "m",
+      key: "k",
+      parts: [{ text: "hi" }],
+      responseMimeType: "application/json",
+    });
+    expect(bodyOf(seen[0]).generationConfig.responseMimeType).toBe("application/json");
+  });
+
   it("passes an inline media part through untouched, for a reference image", async () => {
     const seen = stubFetch({ status: 200, body: {} });
     await googleGenerateContent({

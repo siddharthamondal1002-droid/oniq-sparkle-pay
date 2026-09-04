@@ -25,28 +25,81 @@
 export const MUSIC_MODEL = "lyria-3-pro-preview";
 
 /**
- * NO AUDIO REFERENCE. Measured 2026-09-04, not assumed.
+ * THE FULL-SONG MODEL IS ALREADY 3.5, UNDER AN OLDER NAME.
  *
- * The owner's reference draws an "+ Add reference (optional)" row on Create —
- * Music. It cannot be built today, and the reason is worth keeping so nobody
- * spends an afternoon rediscovering it:
+ * Owner directive 2026-09-04c asked for `lyria-3.5-pro-preview`. Measured:
+ * that id 404s, and so does `lyria-3.5-clip-preview`. But the ask is already
+ * satisfied — `lyria-3-pro-preview`, which is what MUSIC_MODEL has always
+ * been, answers 200 and reports `modelVersion: lyria-3.5`. It is an ALIAS
+ * that Google already points at 3.5, so ONIQ has been on the newer engine
+ * without the id changing.
  *
- *   POST lyria-3-pro-preview:generateContent with an inlineData audio part
- *   before the text  ->  400 "Unsupported input mime type for this model:
- *                        audio/s16le"
- *   the same prompt with NO attachment (control)
- *                    ->  200, 5,578,562 bytes, a real audio/mpeg track
+ * Measured 2026-09-04, text prompt "a calm lo-fi track":
+ *   lyria-3.5-pro-preview    404  not found for v1beta / generateContent
+ *   lyria-3.5-clip-preview   404  not found
+ *   lyria-3.5                200  5,755,844 B  modelVersion lyria-3.5
+ *   lyria-3-pro-preview      200  5,816,261 B  modelVersion lyria-3.5   <- ours
+ *   lyria-3-clip-preview     200    993,519 B  modelVersion lyria-3-clip-preview
  *
- * Sent as audio/wav and again as audio/mpeg: the error names `audio/s16le`
- * BOTH times, so Lyria is decoding the attachment and then refusing audio as
- * an input modality — it is not a container or codec problem that a different
- * export would fix. The control proves the failure is the reference, not the
- * call.
+ * The bare `lyria-3.5` is NOT adopted. It answers, but the alias is what has
+ * production history here, and swapping a working id for one that resolves to
+ * the same engine buys nothing while risking the alias and the target drifting
+ * apart later.
+ */
+
+/** ~30 seconds rather than a full song. A genuinely different model. */
+export const MUSIC_CLIP_MODEL = "lyria-3-clip-preview";
+
+/**
+ * NO AUDIO REFERENCE — and that is not the end of the feature.
  *
- * So a reference button here would 400 every generation it was used on. When
- * Google enables audio input on this model, re-probe and delete this note.
+ * Sending a recording to Lyria is closed, thoroughly:
+ *
+ *   lyria + inlineData wav   400  and lyria + inlineData mp3  400, both with
+ *        the identical message, so it is not a container or codec problem:
+ *        "Unsupported input mime type for this model: audio/s16le"
+ *   same prompt, no audio    200  5,578,562 bytes, a real track
+ *   :predict on every id     404  lyria supports only generateContent
+ *   lyria-002                404  does not exist
+ *
+ * OWNER DIRECTIVE 2026-09-04c gives the right architecture instead:
+ *
+ *   reference audio -> Gemini listens -> structured music brief -> Lyria
+ *
+ * The recording never reaches Lyria; a description of it does. See
+ * _shared/musicBrief.ts. That is better than a direct transform, not a
+ * consolation prize: ONIQ generates something original from characteristics
+ * rather than laundering a recording it does not own.
  */
 export const MUSIC_ACCEPTS_AUDIO_REFERENCE = false;
+
+/**
+ * AN IMAGE REFERENCE, ON THE OTHER HAND, GOES STRAIGHT IN.
+ *
+ * The owner said Lyria takes text AND image. Measured 2026-09-04, a 256x256
+ * PNG as an inlineData part before the text "music inspired by this picture":
+ *
+ *   lyria-3-pro-preview    200  5,215,484 B  audio/mpeg back, and the lyrics
+ *                               were visibly derived from the picture
+ *                               ("Colors bouncing off the walls of my mind
+ *                                 ... green and blue and a dash of bright red")
+ *   lyria-3-clip-preview   200    994,461 B  audio/mpeg back
+ *   lyria-3.5              200    no audio — promptFeedback.blockReason
+ *                               PROHIBITED_CONTENT on that one sampling
+ *
+ * Google billed the image in `promptTokensDetails` as modality IMAGE, 258
+ * tokens, so it was genuinely read rather than ignored.
+ *
+ * THAT LAST ROW IS THE REASON THE CALLER NEEDS A REFUSAL PATH. A safety
+ * filter can return 200 with no audio at all, which is a silent failure
+ * wearing a success status — the same shape every generation path here
+ * guards against.
+ */
+export const MUSIC_ACCEPTS_IMAGE_REFERENCE = true;
+
+/** What a person may attach as a picture, and the ceiling on it. */
+export const MUSIC_IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
+export const MUSIC_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
 
 /** A sentence, not an essay. Long prompts do not buy longer songs here. */
 export const MUSIC_PROMPT_MAX = 300;

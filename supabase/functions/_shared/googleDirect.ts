@@ -54,12 +54,23 @@ export async function googleGenerateContent(opts: {
   parts: GooglePart[];
   /** ["IMAGE"] or ["AUDIO"]; omitted entirely for ordinary text. */
   responseModalities?: string[];
+  /**
+   * "application/json" to get JSON back rather than JSON wearing a fence.
+   *
+   * Measured 2026-09-04: asked in the PROMPT for "strict JSON, JSON only",
+   * gemini-3.1-flash-lite still answered inside a ```json block and added a
+   * thoughtSignature part. Asking in the prompt is a request; this field is
+   * the setting. Any caller that parses the reply should use it rather than
+   * stripping fences and hoping the next model does the same thing.
+   */
+  responseMimeType?: string;
   /** Merged into generationConfig — e.g. speechConfig for a TTS voice. */
   generationConfig?: Record<string, unknown>;
   signal?: AbortSignal;
 }): Promise<GoogleCallResult> {
   const generationConfig: Record<string, unknown> = { ...(opts.generationConfig ?? {}) };
   if (opts.responseModalities) generationConfig.responseModalities = opts.responseModalities;
+  if (opts.responseMimeType) generationConfig.responseMimeType = opts.responseMimeType;
   const body: Record<string, unknown> = {
     contents: [{ role: "user", parts: opts.parts }],
   };

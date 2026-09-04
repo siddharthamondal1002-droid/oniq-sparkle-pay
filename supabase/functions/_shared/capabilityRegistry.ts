@@ -115,15 +115,25 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
     // The exact wording the owner asked for. It is not "unavailable".
     userMessage: "Google Voice Replication — Access required",
     evidence:
-      "2026-09-04: `customVoiceConfig` and its `customVoiceSample` subfield " +
-      "PARSE on gemini-3.1-flash-tts-preview — a made-up sibling is rejected " +
-      'as `Unknown name "voiceCloningConfig": Cannot find field` while these ' +
-      "are not — but a real wav in them returns a generic 400 'Request " +
-      "contains an invalid argument'. The field exists in the proto and this " +
-      "key is not admitted to it. Google documents two replication routes " +
-      "(Chirp 3 Instant Custom Voice, and Gemini-TTS replication), both " +
-      "allow-listed previews; this environment cannot read those docs, so " +
-      "that part is the owner's information, not a measurement.",
+      "GATED ON CREDENTIALS, and now we know which. Measured 2026-09-04: " +
+      "`customVoiceConfig` PARSES on gemini-3.1-flash-tts-preview where a " +
+      'made-up sibling is rejected as `Unknown name "voiceCloningConfig": ' +
+      "Cannot find field`, so the field is real — but it carries NO " +
+      "replication-key subfield (voiceReplicationKey inside it is also " +
+      "'Cannot find field'), and all four replication RPC names " +
+      "(:generateVoiceReplicationKey, :createVoiceReplicationKey, " +
+      "/voiceReplicationKeys at both paths) return 404 with an EMPTY body — " +
+      "unrouted on generativelanguage.googleapis.com/v1beta. The model object " +
+      "itself advertises only generateContent, countTokens and " +
+      "batchGenerateContent. " +
+      "THE BLOCKER IS THE CREDENTIAL, NOT THE FEATURE: " +
+      "texttospeech.googleapis.com IS reachable and answers 401 'API keys are " +
+      "not supported by this API. Expected OAuth2 access token' " +
+      "(CREDENTIALS_MISSING). The owner's documented routes (Chirp 3 Instant " +
+      "Custom Voice; Gemini-TTS replication) live behind Cloud TTS, which " +
+      "needs a SERVICE ACCOUNT rather than the API key ONIQ holds — the same " +
+      "wall the Weather API hit. Provisioning one is an owner decision. Until " +
+      "then this is 'Access required', not 'unavailable'.",
   },
   "voice.realtime": {
     id: "voice.realtime",
@@ -165,10 +175,16 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
     provider: "google",
     state: "EXPERIMENTAL",
     evidence:
-      "Owner directive 2026-09-04c states Lyria accepts text AND image input. " +
-      "Being POST-verified before it is wired; until that measurement lands " +
-      "this stays EXPERIMENTAL and unwired, because an owner's reading of a " +
-      "doc is not a measurement and this file does not pretend otherwise.",
+      "THE OWNER WAS RIGHT — Lyria takes an image. Measured 2026-09-04, a " +
+      "256x256 PNG as an inlineData part before the text: " +
+      "lyria-3-pro-preview -> 200, 5,215,484 bytes of audio/mpeg with lyrics " +
+      "visibly derived from the picture; lyria-3-clip-preview -> 200, " +
+      "994,461 bytes. Google billed it in promptTokensDetails as modality " +
+      "IMAGE, 258 tokens, so it was read rather than ignored. The bare " +
+      "lyria-3.5 returned 200 with NO audio on one sampling " +
+      "(promptFeedback.blockReason PROHIBITED_CONTENT), which is why the " +
+      "caller needs a refusal path. EXPERIMENTAL until it has run end to end " +
+      "through the deployed function, not because the capability is in doubt.",
   },
 
   "text.generate": {
