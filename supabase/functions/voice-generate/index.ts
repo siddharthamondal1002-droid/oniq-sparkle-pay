@@ -38,8 +38,8 @@ import {
   refusalMessage,
   requestIdFrom,
   serviceRoleRpc,
-  withSearchSpendGuard,
-} from "../_shared/searchGuard.ts";
+  withProviderSpendGuard,
+} from "../_shared/financialLedger.ts";
 import { firstInlineAudio, GATEWAY_VOICE_URL, voiceRequestBody } from "../_shared/gatewayVoice.ts";
 import {
   needsWavHeader,
@@ -229,26 +229,32 @@ Deno.serve(async (req) => {
 
   // ---- ONE billable call, inside the financial ledger ----------------------
   //
-  // Same reservation path as every other billable caller in the repository,
-  // and it is why voice-generate is not in searchSpendCoverage's frozen tail:
-  // that list records what was already unguarded on 2026-08-24, and its own
-  // header says the right move for a NEW caller is to guard it.
+  // ITS OWN CAPABILITY, not the shared per-token search guard — the same fix
+  // music-generate needed (20260904110000). withSearchSpendGuard reserves via
+  // a MODEL_RATES lookup, which is per token; this id is absent from that
+  // table (below), so an absent rate always throws and admission always
+  // refuses "unpriced-model" before the gateway is ever reached. Caught here
+  // before it shipped live: voice_enabled is still false, so nothing has hit
+  // this yet, but turning it on would have broken exactly like music did.
   //
-  // ONE THING THE LEDGER CANNOT DO HERE, recorded rather than papered over.
-  // Settlement prices a call from MODEL_RATES, and this id is absent from it.
-  // TTS is billed per output AUDIO token, a unit MODEL_RATES does not carry,
-  // and the gateway is a reseller charging credits whose price no response
-  // states. The ledger therefore records the call with the dollars marked
-  // unknown — the same choice the music and image paths made.
-  const guarded = await withSearchSpendGuard(
+  // ONE THING THE LEDGER STILL CANNOT DO HERE, recorded rather than papered
+  // over. Settlement prices a call from MODEL_RATES, and this id is absent
+  // from it. TTS is billed per output AUDIO token, a unit MODEL_RATES does
+  // not carry, and the gateway is a reseller charging credits whose price no
+  // response states. The ledger therefore charges the flat reservation and
+  // keeps no per-token detail here (the gateway reports none) — the same
+  // choice the music and image paths make.
+  const guarded = await withProviderSpendGuard(
     serviceRoleRpc(),
     {
       requestId: requestIdFrom(typeof body.requestId === "string" ? body.requestId : undefined),
+      capability: "TTS",
       provider: "lovable-gateway",
       model: VOICE_MODEL,
-      searchType: "voice-generate",
+      unit: "provider_unit",
+      units: 1,
+      estimatedUsd: VOICE_BUDGET.maxEstimatedUsd,
       userId: user.id,
-      budget: VOICE_BUDGET,
     },
     async () => {
       const ctrl = new AbortController();
@@ -279,24 +285,14 @@ Deno.serve(async (req) => {
         return {
           value: { ok: res.ok, status: res.status, audio } as const,
           neverCalled: false,
-          // The gateway reports no usage on this endpoint — it answers bytes,
-          // not a JSON envelope with a token count. Reporting zeros would be a
-          // measurement nobody made, so it reports none.
-          usage: null,
-          stopReason: null,
-          terminationReason: res.ok ? undefined : ("PROVIDER_ERROR" as const),
+          outcome: res.ok ? ("ACCEPTED" as const) : ("FAILED" as const),
         };
       } catch (e) {
         const reason = (e as Error)?.name === "AbortError" ? "timeout" : "network";
         return {
           value: { ok: false, status: 0, audio: null, reason } as const,
-          // The request left this machine, so it may have been charged even
-          // though no answer came back. `neverCalled` would tell the ledger to
-          // release the whole reservation, and that would be a guess.
           neverCalled: false,
-          usage: null,
-          stopReason: null,
-          terminationReason: "PROVIDER_ERROR" as const,
+          outcome: "FAILED" as const,
         };
       } finally {
         clearTimeout(timer);

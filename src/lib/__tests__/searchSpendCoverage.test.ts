@@ -75,24 +75,34 @@ const UNGUARDED_AI_CALLERS: Record<string, string> = {
 /** Callers wired to the ledger in this pass. */
 const GUARDED = ["smart-scout", "hotel-scout", "ting", "health-scan"];
 /**
- * Callers that hold a reservation for TOKENS ONLY — no web_search, so they are
- * not part of the search fleet, but they are billable and therefore guarded.
- * watch-ask (owner mission, 2026-09-03) answers from a person's own notes.
- * music-generate (owner directive, 2026-09-04) turns a sentence into a song on
- * the metered Google key. It reserves for one call and settles with the
- * dollars marked unknown: Lyria is not priced per token, and Google's response
- * carries neither a cost nor a duration to settle against — so it is
- * deliberately absent from MODEL_RATES rather than given an invented rate.
- * image-generate (owner directive, 2026-09-04) turns a sentence into a picture
- * on the Lovable gateway. It settles the same way and for the same reason: an
- * image is billed per picture, not per token, and the gateway returns no price
- * — so the reservation covers one call and the dollars stay unknown.
- * voice-generate (same directive) reads a typed line aloud. Its unit is the
- * output AUDIO token, which MODEL_RATES does not carry, and the endpoint
- * answers bytes with no usage envelope at all — so it reports no usage rather
- * than inventing zeros, and settles with the dollars unknown.
+ * Callers that hold a reservation for TOKENS ONLY via the search adapter — no
+ * web_search, so they are not part of the search fleet, but they are billable
+ * and therefore guarded. watch-ask (owner mission, 2026-09-03) answers from a
+ * person's own notes.
  */
-const GUARDED_TOKEN_ONLY = ["watch-ask", "music-generate", "image-generate", "voice-generate"];
+const GUARDED_TOKEN_ONLY = ["watch-ask"];
+
+/**
+ * Callers reserved DIRECTLY against the financial ledger, bypassing the
+ * per-token search adapter (`withSearchSpendGuard`) entirely — because doing
+ * it the other way is a production incident that already happened.
+ * music-generate (owner directive, 2026-09-04) shipped on the search adapter
+ * first, which reserves via a MODEL_RATES lookup. Lyria is not priced per
+ * token — it is deliberately absent from that table, same reason as the
+ * settlement note below — so the lookup always threw, admission always
+ * refused "unpriced-model", and every request died before Google was ever
+ * called, for every user, until 2026-09-04. image-generate and voice-generate
+ * had the identical bug, caught before either shipped live (both still ship
+ * with their kill switch off).
+ *
+ * Each now reserves a flat, owner-given per-generation figure — $0.08/song,
+ * ~$0.067/image, ~$0.16/voice-clip — directly against its own
+ * provider_budget_config capability (MUSIC / IMAGE / TTS), and settles the
+ * same way the search adapter always did: Google/the gateway reports no cost
+ * for any of these units, so the ledger charges the reservation and keeps
+ * measured tokens (where the response carries any) for provenance only.
+ */
+const GUARDED_DIRECT_LEDGER = ["music-generate", "image-generate", "voice-generate"];
 
 describe("every SEARCH in the repository is reserved for", () => {
   const fns = edgeFunctions();
@@ -144,7 +154,7 @@ describe("every AI CALL in the repository is either reserved for or listed", () 
     const unexplained: string[] = [];
     for (const f of fns) {
       if (!PROVIDER_CALL.test(f.src)) continue;
-      const guarded = /withSearchSpendGuard\(/.test(f.src);
+      const guarded = /withSearchSpendGuard\(/.test(f.src) || /withProviderSpendGuard\(/.test(f.src);
       if (guarded) continue;
       if (!(f.name in UNGUARDED_AI_CALLERS)) unexplained.push(f.name);
     }
@@ -174,6 +184,20 @@ describe("every AI CALL in the repository is either reserved for or listed", () 
       const src = read(join(FN_DIR, name, "index.ts"));
       expect(src, `${name} runs web_search but is listed as token-only`).not.toMatch(SEARCH_TOOL);
       expect(src, `${name} must reserve for zero searches`).toMatch(/maxSearches:\s*0/);
+    }
+  });
+
+  it("the direct-ledger set is exactly what it claims to be", () => {
+    const direct = fns.filter((f) => /withProviderSpendGuard\(/.test(f.src)).map((f) => f.name);
+    expect(direct.sort()).toEqual([...GUARDED_DIRECT_LEDGER].sort());
+  });
+  it("a direct-ledger caller never uses the metered web_search tool", () => {
+    // The whole point of bypassing the search adapter is that these units
+    // aren't search — a caller that both bypasses it AND runs web_search
+    // would spend the $10/1,000 search fee with nothing reserving for it.
+    for (const name of GUARDED_DIRECT_LEDGER) {
+      const src = read(join(FN_DIR, name, "index.ts"));
+      expect(src, `${name} runs web_search but is listed as direct-ledger`).not.toMatch(SEARCH_TOOL);
     }
   });
 });

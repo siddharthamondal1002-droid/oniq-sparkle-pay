@@ -37,8 +37,8 @@ import {
   refusalMessage,
   requestIdFrom,
   serviceRoleRpc,
-  withSearchSpendGuard,
-} from "../_shared/searchGuard.ts";
+  withProviderSpendGuard,
+} from "../_shared/financialLedger.ts";
 import { GATEWAY_IMAGE_URL, mimeOfB64 } from "../_shared/gatewayImage.ts";
 import { IMAGE_MODEL, IMAGE_PROMPT_MAX, validateImagePrompt } from "../_shared/imageCore.ts";
 
@@ -215,28 +215,34 @@ Deno.serve(async (req) => {
 
   // ---- ONE billable call, inside the financial ledger ----------------------
   //
-  // Same reservation path as every other billable caller in the repository,
-  // and it is why image-generate is not in searchSpendCoverage's frozen tail:
-  // that list records what was already unguarded on 2026-08-24, and its own
-  // header says the right move for a NEW caller is to guard it.
+  // ITS OWN CAPABILITY, not the shared per-token search guard — the same fix
+  // music-generate needed (20260904110000). withSearchSpendGuard reserves via
+  // a MODEL_RATES lookup, which is per token; this id is absent from that
+  // table (below), so an absent rate always throws and admission always
+  // refuses "unpriced-model" before the gateway is ever reached. Caught here
+  // before it shipped live: image_enabled is still false, so nothing has hit
+  // this yet, but turning it on would have broken exactly like music did.
   //
-  // ONE THING THE LEDGER CANNOT DO HERE, recorded rather than papered over.
-  // Settlement prices a call from MODEL_RATES, and this id is absent from it.
-  // The gateway does report tokens — measured at {input 3, output 1120} — but
-  // it is a reseller charging credits, and no response says what a credit
-  // costs, so a dollar figure derived from those tokens would describe
-  // Google's list price rather than ONIQ's bill. The ledger therefore records
-  // the call and its measured tokens with the dollars marked unknown, which is
-  // the same choice the music path made for the same reason.
-  const guarded = await withSearchSpendGuard(
+  // ONE THING THE LEDGER STILL CANNOT DO HERE, recorded rather than papered
+  // over. Settlement prices a call from MODEL_RATES, and this id is absent
+  // from it. The gateway does report tokens — measured at {input 3, output
+  // 1120} — but it is a reseller charging credits, and no response says what
+  // a credit costs, so a dollar figure derived from those tokens would
+  // describe Google's list price rather than ONIQ's bill. The ledger
+  // therefore charges the flat reservation and keeps the measured tokens in
+  // `detail` for provenance only — the same choice the music path makes for
+  // the same reason.
+  const guarded = await withProviderSpendGuard(
     serviceRoleRpc(),
     {
       requestId: requestIdFrom(typeof body.requestId === "string" ? body.requestId : undefined),
+      capability: "IMAGE",
       provider: "lovable-gateway",
       model: IMAGE_MODEL,
-      searchType: "image-generate",
+      unit: "provider_unit",
+      units: 1,
+      estimatedUsd: IMAGE_BUDGET.maxEstimatedUsd,
       userId: user.id,
-      budget: IMAGE_BUDGET,
     },
     async () => {
       const ctrl = new AbortController();
@@ -258,27 +264,20 @@ Deno.serve(async (req) => {
         return {
           value: { ok: res.ok, status: res.status, data: parsed } as const,
           neverCalled: false,
-          usage: meta
+          outcome: res.ok ? ("ACCEPTED" as const) : ("FAILED" as const),
+          detail: meta
             ? {
-                input_tokens: typeof meta.input_tokens === "number" ? meta.input_tokens : 0,
-                output_tokens: typeof meta.output_tokens === "number" ? meta.output_tokens : 0,
-                server_tool_use: { web_search_requests: 0 },
+                inputTokens: typeof meta.input_tokens === "number" ? meta.input_tokens : 0,
+                outputTokens: typeof meta.output_tokens === "number" ? meta.output_tokens : 0,
               }
-            : null,
-          stopReason: null,
-          terminationReason: res.ok ? undefined : ("PROVIDER_ERROR" as const),
+            : undefined,
         };
       } catch (e) {
         const reason = (e as Error)?.name === "AbortError" ? "timeout" : "network";
         return {
           value: { ok: false, status: 0, data: null, reason } as const,
-          // The request left this machine, so it may have been charged even
-          // though no answer came back. `neverCalled` would tell the ledger to
-          // release the whole reservation, and that would be a guess.
           neverCalled: false,
-          usage: null,
-          stopReason: null,
-          terminationReason: "PROVIDER_ERROR" as const,
+          outcome: "FAILED" as const,
         };
       } finally {
         clearTimeout(timer);
