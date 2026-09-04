@@ -61,6 +61,8 @@ import {
   rateOf,
   resolveVoice,
   validateVoiceText,
+  AUDIO_UNDERSTANDING_MODEL,
+  validateAudioAttachment,
   VOICE_MODEL,
   VOICE_TEXT_MAX,
   wrapPcmAsWav,
@@ -131,7 +133,16 @@ Deno.serve(async (req) => {
   const user = userRes?.user;
   if (!user) return json(401, { error: "Sign in to make voice clips" });
 
-  let body: { action?: string; text?: string; voice?: string; requestId?: string };
+  let body: {
+    action?: string;
+    text?: string;
+    voice?: string;
+    requestId?: string;
+    /** A recording to transcribe, base64 with no data: prefix. */
+    audio?: { mimeType: string; data: string };
+    /** A language name; present means translate rather than transcribe. */
+    translateTo?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -163,6 +174,126 @@ Deno.serve(async (req) => {
       });
     }
     return json(200, { clips });
+  }
+
+  // ---- TRANSCRIBE: an attached recording, turned into text -----------------
+  //
+  // The reference's "Voice Input" and "Translate" tabs. This is NOT the TTS
+  // model — that one speaks and does not listen, which is the confusion
+  // recorded at length in voiceCore.ts. It goes to an ordinary text model,
+  // which was measured accepting inlineData audio/wav at 200 on 2026-09-04.
+  //
+  // It gets the SAME gates as speaking, in the same order, because it is the
+  // same kind of thing: a user-facing button that spends money on a provider
+  // call. Cheaper per call than TTS, not free.
+  if (body.action === "transcribe") {
+    const badAudio = validateAudioAttachment(body.audio);
+    if (badAudio) return json(400, { error: badAudio });
+    if (!body.audio) return json(400, { error: "Attach a recording first." });
+
+    const { data: tcfg } = await admin
+      .from("video_gen_config")
+      .select("voice_enabled, voice_admin_only, voice_per_user_daily_cap")
+      .maybeSingle();
+    if (!tcfg || tcfg.voice_enabled !== true) {
+      return json(503, { error: "Voice is switched off right now." });
+    }
+    const { data: tprof } = await admin
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (tcfg.voice_admin_only === true && tprof?.is_admin !== true) {
+      return json(403, { error: "Voice isn't open to everyone yet." });
+    }
+    // One rolling 24h window, counted against THIS user, sharing the voice
+    // per-user cap rather than inventing a second uncapped surface.
+    const tSince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count: tMine } = await admin
+      .from("voice_jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .gte("created_at", tSince);
+    const tCap =
+      typeof tcfg.voice_per_user_daily_cap === "number" ? tcfg.voice_per_user_daily_cap : 0;
+    if ((tMine ?? 0) >= tCap) {
+      return json(429, { error: `You've used voice ${tMine} times today (limit ${tCap}).` });
+    }
+
+    const tKey = Deno.env.get("GOOGLE_AI_API_KEY");
+    if (!tKey) return json(503, { error: "Voice is not configured." });
+
+    const translateTo = typeof body.translateTo === "string" ? body.translateTo.trim() : "";
+    // The instruction is built HERE, not taken from the client: a caller that
+    // could send arbitrary instructions alongside their audio would be an open
+    // prompt surface on a paid model.
+    const ask = translateTo
+      ? `Transcribe this audio and translate it into ${translateTo}. Reply with the translation only, no commentary.`
+      : "Transcribe this audio exactly. Reply with the transcript only, no commentary.";
+
+    const tGuarded = await withProviderSpendGuard(
+      serviceRoleRpc(),
+      {
+        requestId: requestIdFrom(typeof body.requestId === "string" ? body.requestId : undefined),
+        capability: "TTS",
+        provider: "google",
+        model: AUDIO_UNDERSTANDING_MODEL,
+        unit: "provider_unit",
+        units: 1,
+        // Reserved at the SPEAKING rate even though listening is cheaper.
+        // Over-reserving refuses too early; under-reserving lets a charge
+        // through a ceiling that was supposed to stop it, and only one of
+        // those two failures costs money.
+        estimatedUsd: VOICE_BUDGET.maxEstimatedUsd,
+        userId: user.id,
+      },
+      async () => {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), CALL_TIMEOUT_MS);
+        try {
+          const res = await googleGenerateContent({
+            model: AUDIO_UNDERSTANDING_MODEL,
+            key: tKey,
+            // The recording FIRST, then the instruction about it — the same
+            // ordering the image reference needed.
+            parts: [
+              { inlineData: { mimeType: body.audio!.mimeType, data: body.audio!.data } },
+              { text: ask },
+            ],
+            signal: ctrl.signal,
+          });
+          return {
+            value: {
+              ok: res.ok,
+              status: res.status,
+              text: res.ok ? joinedText(res.data).trim() : "",
+              errorMessage: res.errorMessage,
+            } as const,
+            neverCalled: false,
+            outcome: res.ok ? ("ACCEPTED" as const) : ("FAILED" as const),
+            detail: googleUsage(res.data) ?? undefined,
+          };
+        } finally {
+          clearTimeout(timer);
+        }
+      },
+    );
+
+    if (!tGuarded.admitted) {
+      console.warn(`voice-generate: transcribe refused (${tGuarded.reason})`);
+      return json(429, { error: refusalMessage(tGuarded.reason) });
+    }
+    const t = tGuarded.value;
+    if (!t.ok) {
+      console.error("voice-generate transcribe upstream", t.status, t.errorMessage ?? "");
+      return json(502, { error: "Couldn't read that recording. Try another one." });
+    }
+    if (!t.text) {
+      // A 200 with no text is a refusal wearing a success status — the same
+      // silent-failure shape the speaking path guards against.
+      return json(502, { error: "Nothing could be heard in that recording." });
+    }
+    return json(200, { text: t.text, translated: Boolean(translateTo) });
   }
 
   // ---- kill switch ---------------------------------------------------------

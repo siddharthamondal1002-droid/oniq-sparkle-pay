@@ -13,7 +13,7 @@
  * to the text path. A card that offers three things and does one is worse than
  * a card that does one.
  */
-import { VOICE_TTS_DIRECT } from "./modelRegistry.ts";
+import { TEXT_DIRECT_STANDARD, VOICE_TTS_DIRECT } from "./modelRegistry.ts";
 
 /**
  * The id Create — Voice calls, DIRECT on Google.
@@ -26,22 +26,85 @@ import { VOICE_TTS_DIRECT } from "./modelRegistry.ts";
 export const VOICE_MODEL = VOICE_TTS_DIRECT.id;
 
 /**
- * NO AUDIO INPUT AT ALL. Measured 2026-09-04, not assumed.
+ * AUDIO IN AND OUT ARE DIFFERENT MODELS, and conflating them was a mistake
+ * this comment exists to stop being repeated.
  *
- * The owner's reference draws "+ Attach audio (optional)" on Create — Voice.
- * Two shapes were tried against this exact id:
+ * A first probe attached audio to the TTS model, got
+ * 400 "Audio input modality is not enabled for this model", and concluded
+ * — wrongly — that ONIQ could not offer
+ * "attach audio" at all. That was wrong, and the owner said so. The TTS model
+ * speaks; it does not listen. ORDINARY GEMINI LISTENS. Re-probed 2026-09-04,
+ * inlineData audio/wav plus "Transcribe this audio exactly":
  *
- *   inlineData audio part + text, WITH speechConfig     -> 400
- *   inlineData audio part + text, WITHOUT speechConfig  -> 400
- *   both: "Audio input modality is not enabled for this model"
+ *   gemini-3.1-flash-lite   200,   818 bytes, text back
+ *   gemini-3.6-flash        200, 3,619 bytes, text back
+ *   gemini-3.1-pro-preview  200, 2,117 bytes, text back
  *
- * Dropping speechConfig does not turn an attachment into a voice sample. So
- * the control cannot be built, and separately: cloning a voice from a sample
- * is a consent and likeness question before it is an engineering one, which
- * is the note already standing at the top of this file. Both would have to be
- * answered, and today neither can be.
+ * So attaching a recording IS offerable — for transcription and translation,
+ * which is what the reference's "Voice Input" and "Translate" tabs are. It
+ * routes to a text model, not to this one.
+ *
+ * WHAT IS STILL NOT AVAILABLE, measured rather than assumed:
+ *
+ * - Speaking in a voice from a sample (cloning). `customVoiceConfig` and its
+ *   `customVoiceSample` subfield ARE REAL — they parse, where a made-up name
+ *   is rejected as `Unknown name "…": Cannot find field` — but a real wav in
+ *   them returns a generic 400 "Request contains an invalid argument". The
+ *   field exists and this key is not admitted to it. So it is gated, not
+ *   missing, and re-probing later is worth it. Separately, cloning is a
+ *   consent and likeness question before it is an engineering one.
+ * - Live, streaming voice. gemini-3.5-transcribe-live,
+ *   gemini-3.5-live-translate-preview and the gemini-2.5-flash-native-audio
+ *   family exist and support ONLY `bidiGenerateContent` — a WebSocket, not
+ *   REST. Reachable, but a different transport than anything ONIQ speaks
+ *   today.
  */
-export const VOICE_ACCEPTS_AUDIO_INPUT = false;
+export const VOICE_TTS_ACCEPTS_AUDIO_INPUT = false;
+
+/** Attaching a recording works — through a TEXT model. See above. */
+export const AUDIO_UNDERSTANDING_MODEL = TEXT_DIRECT_STANDARD.id;
+
+/** What a person can attach to be transcribed, and the ceiling on it. */
+export const TRANSCRIBE_MIMES = [
+  "audio/wav",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/webm",
+  "audio/ogg",
+] as const;
+
+/**
+ * 8 MB decoded. Gemini bills audio input per second, so the real limiter is
+ * length rather than bytes; this is the crude guard that stops a crafted body,
+ * and the per-user cap is what bounds cost. Checked on DECODED length, for the
+ * same reason the image reference is: base64 is 4/3 of what it carries.
+ */
+export const TRANSCRIBE_MAX_BYTES = 8 * 1024 * 1024;
+
+const B64 = /^[A-Za-z0-9+/]+={0,2}$/;
+
+/** Returns why an attached recording cannot be sent, or null when it can. */
+export function validateAudioAttachment(att: unknown): string | null {
+  if (att === undefined || att === null) return null;
+  if (typeof att !== "object") return "That recording could not be read.";
+  const { mimeType, data } = att as { mimeType?: unknown; data?: unknown };
+  if (typeof mimeType !== "string" || typeof data !== "string") {
+    return "That recording could not be read.";
+  }
+  // The browser tags a MediaRecorder blob with codecs, e.g.
+  // "audio/webm;codecs=opus". Compare the type only.
+  const base = mimeType.split(";")[0].trim().toLowerCase();
+  if (!(TRANSCRIBE_MIMES as readonly string[]).includes(base)) {
+    return "Attach an audio recording — WAV, MP3, M4A, WebM or Ogg.";
+  }
+  if (data.length === 0) return "That recording was empty.";
+  if (data.startsWith("data:")) return "That recording could not be read.";
+  if (!B64.test(data)) return "That recording could not be read.";
+  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+  const decoded = Math.floor((data.length * 3) / 4) - padding;
+  if (decoded > TRANSCRIBE_MAX_BYTES) return "That recording is too long. Under 8MB, please.";
+  return null;
+}
 
 /**
  * The voices, and every one of them POST-verified.

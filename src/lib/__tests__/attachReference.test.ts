@@ -23,7 +23,11 @@ import {
   validateReferenceImage,
 } from "../../../supabase/functions/_shared/imageCore.ts";
 import { MUSIC_ACCEPTS_AUDIO_REFERENCE } from "../../../supabase/functions/_shared/musicCore.ts";
-import { VOICE_ACCEPTS_AUDIO_INPUT } from "../../../supabase/functions/_shared/voiceCore.ts";
+import {
+  TRANSCRIBE_MAX_BYTES,
+  validateAudioAttachment,
+  VOICE_TTS_ACCEPTS_AUDIO_INPUT,
+} from "../../../supabase/functions/_shared/voiceCore.ts";
 
 const ROOT = process.cwd();
 const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
@@ -34,9 +38,18 @@ function b64OfBytes(n: number): string {
 }
 
 describe("what the three engines actually accept", () => {
-  it("records Music and Voice as refusing audio input", () => {
+  it("records Music as refusing an audio reference, and TTS as not listening", () => {
     expect(MUSIC_ACCEPTS_AUDIO_REFERENCE).toBe(false);
-    expect(VOICE_ACCEPTS_AUDIO_INPUT).toBe(false);
+    // The TTS model specifically. NOT "Gemini cannot hear" — the first probe
+    // drew that conclusion from this one 400 and it was wrong; ordinary
+    // Gemini transcribes audio fine, which is what the transcribe path uses.
+    expect(VOICE_TTS_ACCEPTS_AUDIO_INPUT).toBe(false);
+  });
+
+  it("keeps the correction visible, so the wrong conclusion is not redrawn", () => {
+    const voice = read("supabase/functions/_shared/voiceCore.ts");
+    expect(voice, "the measured 200s that disproved it").toContain("gemini-3.1-flash-lite   200");
+    expect(voice, "customVoiceConfig is gated, not absent").toContain("customVoiceSample");
   });
 
   it("keeps the measured evidence next to each flag", () => {
@@ -51,16 +64,11 @@ describe("what the three engines actually accept", () => {
     expect(voice).toContain("Audio input modality is not enabled for this model");
   });
 
-  it("ships no attach control on the Music or Voice screens", () => {
-    for (const screen of ["app.music.tsx", "app.voice.tsx"]) {
-      const src = read(`src/routes/_authenticated/${screen}`);
-      expect(src, `${screen} must not offer an attachment that 400s`).not.toContain(
-        "OniqAttachImage",
-      );
-      expect(src, `${screen} must not send a reference`).not.toMatch(
-        /referenceImage|referenceAudio/,
-      );
-    }
+  it("ships no reference control on Music, where every shape 400s", () => {
+    const src = read("src/routes/_authenticated/app.music.tsx");
+    expect(src, "music must not offer an attachment that 400s").not.toMatch(
+      /OniqAttachImage|OniqAttachAudio|referenceAudio/,
+    );
   });
 
   it("ships one on Image, which is the one that works", () => {
@@ -164,5 +172,90 @@ describe("the attach control itself", () => {
     expect(body).toContain("mimeType");
     expect(body).toContain("data:");
     expect(body, "previewUrl is for an <img>, not for the wire").not.toContain("previewUrl");
+  });
+});
+
+describe("validateAudioAttachment", () => {
+  const b64 = (n: number) => Buffer.alloc(n, 1).toString("base64");
+
+  it("is optional", () => {
+    expect(validateAudioAttachment(undefined)).toBeNull();
+    expect(validateAudioAttachment(null)).toBeNull();
+  });
+
+  it("accepts what a browser recorder and a file picker actually produce", () => {
+    for (const mimeType of ["audio/wav", "audio/mpeg", "audio/mp4", "audio/webm", "audio/ogg"]) {
+      expect(validateAudioAttachment({ mimeType, data: b64(64) }), mimeType).toBeNull();
+    }
+  });
+
+  it("accepts a MediaRecorder mime with its codecs parameter", () => {
+    // MediaRecorder tags its blobs "audio/webm;codecs=opus". Comparing the
+    // whole string would reject every recording the app itself made.
+    expect(
+      validateAudioAttachment({ mimeType: "audio/webm;codecs=opus", data: b64(64) }),
+    ).toBeNull();
+    expect(validateAudioAttachment({ mimeType: "AUDIO/WAV", data: b64(64) })).toBeNull();
+  });
+
+  it("refuses a picture, a document and an empty type", () => {
+    for (const mimeType of ["image/jpeg", "application/pdf", "video/mp4", ""]) {
+      expect(validateAudioAttachment({ mimeType, data: b64(64) }), mimeType).toBe(
+        "Attach an audio recording — WAV, MP3, M4A, WebM or Ogg.",
+      );
+    }
+  });
+
+  it("refuses a data: URL and anything that is not base64", () => {
+    for (const data of ["data:audio/wav;base64,AAAA", "not base64!", "AA AA"]) {
+      expect(validateAudioAttachment({ mimeType: "audio/wav", data }), data).toBe(
+        "That recording could not be read.",
+      );
+    }
+  });
+
+  it("measures its ceiling on decoded bytes, both sides of the boundary", () => {
+    expect(
+      validateAudioAttachment({ mimeType: "audio/wav", data: b64(TRANSCRIBE_MAX_BYTES) }),
+    ).toBeNull();
+    expect(
+      validateAudioAttachment({ mimeType: "audio/wav", data: b64(TRANSCRIBE_MAX_BYTES + 1024) }),
+    ).toBe("That recording is too long. Under 8MB, please.");
+  });
+});
+
+describe("the transcribe path on the server", () => {
+  const SRC = read("supabase/functions/voice-generate/index.ts");
+
+  it("goes to a TEXT model, not to the TTS one that cannot listen", () => {
+    expect(SRC).toContain("AUDIO_UNDERSTANDING_MODEL");
+    const block = SRC.slice(SRC.indexOf('body.action === "transcribe"'));
+    expect(block.slice(0, 4000)).not.toContain("VOICE_MODEL");
+  });
+
+  it("puts the recording BEFORE the instruction", () => {
+    const block = SRC.slice(SRC.indexOf('body.action === "transcribe"'));
+    expect(block.indexOf("inlineData")).toBeLessThan(block.indexOf("{ text: ask }"));
+  });
+
+  it("builds the instruction server-side, never from the caller", () => {
+    // A client-supplied instruction alongside audio would be an open prompt
+    // surface on a paid model.
+    expect(SRC).toMatch(/const ask = translateTo/);
+    expect(SRC, "no free-text instruction from the body").not.toMatch(/body\.(prompt|instruction)/);
+  });
+
+  it("applies the kill switch, the admin gate and the per-user cap first", () => {
+    const block = SRC.slice(SRC.indexOf('body.action === "transcribe"'));
+    const call = block.indexOf("googleGenerateContent(");
+    for (const gate of ["voice_enabled", "voice_admin_only", "voice_per_user_daily_cap"]) {
+      const at = block.indexOf(gate);
+      expect(at, `${gate} missing`).toBeGreaterThan(-1);
+      expect(at, `${gate} runs after the billable call`).toBeLessThan(call);
+    }
+  });
+
+  it("treats a 200 with no text as the failure it is", () => {
+    expect(SRC).toContain("Nothing could be heard in that recording.");
   });
 });

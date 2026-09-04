@@ -177,8 +177,15 @@ describe("story-voice's own copy has not drifted from the shared one", () => {
 
 describe("the cost guards are in the order that keeps them honest", () => {
   it("checks the kill switch, the admin gate and BOTH caps before the call", () => {
-    const call = CODE.indexOf("googleGenerateContent(");
-    expect(call).toBeGreaterThan(-1);
+    // TWO billable paths now — transcribe (attached audio -> text) and speak
+    // (text -> audio). Each is checked against ITS OWN call, because the file
+    // reads top to bottom and a positional test that only knew about one
+    // would silently start measuring the wrong pair.
+    const speakAt = CODE.indexOf("const guarded = await withProviderSpendGuard");
+    const CODE_SPEAK = CODE.slice(speakAt);
+    const call = speakAt + CODE_SPEAK.indexOf("googleGenerateContent(");
+    expect(speakAt).toBeGreaterThan(-1);
+    expect(call).toBeGreaterThan(speakAt);
     for (const gate of [
       "voice_enabled",
       "voice_admin_only",
@@ -202,11 +209,33 @@ describe("the cost guards are in the order that keeps them honest", () => {
     expect(CODE.match(/\.gte\("created_at", since\)/g) ?? []).toHaveLength(2);
   });
 
+  it("gates the TRANSCRIBE path on its own, not on the speak path's checks", () => {
+    // The two paths return separately; transcribe never reaches the code
+    // below it. So its gates have to be inside its own block, and a test that
+    // only looked at the file as a whole would pass on the speak path's.
+    const block = CODE.slice(
+      CODE.indexOf('body.action === "transcribe"'),
+      CODE.indexOf("// ---- kill switch"),
+    );
+    expect(block.length).toBeGreaterThan(200);
+    const call = block.indexOf("googleGenerateContent(");
+    expect(call).toBeGreaterThan(-1);
+    for (const gate of ["voice_enabled", "voice_admin_only", "voice_per_user_daily_cap"]) {
+      const at = block.indexOf(gate);
+      expect(at, `${gate} is not checked on the transcribe path`).toBeGreaterThan(-1);
+      expect(at, `${gate} is checked after the billable call`).toBeLessThan(call);
+    }
+    // And it counts against THIS user, not everyone.
+    expect(block).toMatch(/\.eq\("user_id", user\.id\)/);
+  });
+
   it("has no retry around the billable call", () => {
     expect(CODE).not.toMatch(/\bretry\b|\.retries|maxRetries/i);
     // The fetch moved into _shared/googleDirect.ts (which has its own
-    // no-retry test); this file must make exactly ONE call to it.
-    expect(CODE.match(/googleGenerateContent\(/g) ?? []).toHaveLength(1);
+    // no-retry test). TWO calls to it now, one per path — transcribe and
+    // speak — and neither is inside a loop or a catch that calls again.
+    expect(CODE.match(/googleGenerateContent\(/g) ?? []).toHaveLength(2);
+    expect(CODE.match(/withProviderSpendGuard\(/g) ?? []).toHaveLength(2);
   });
 
   it("goes DIRECT to Google, on the metered key", () => {
