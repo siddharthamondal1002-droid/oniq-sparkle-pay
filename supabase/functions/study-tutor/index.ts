@@ -1,10 +1,10 @@
 // study-tutor — patient AI tutor for kids studying under Indian boards.
-// JWT-gated. Uses shared callClaude with attachment + language support.
+// JWT-gated. Uses shared callText with attachment + language support.
 // Phase 2: ONIQ Study Vault — read via FTS before answering, write distilled
 // original notes after answering. All vault ops are best-effort; any failure
 // falls back to today's exact tutoring behaviour.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callText, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
 
 function buildSystem(profile: { name: string; board: string; classLevel: string; chapter?: string }): string {
   const board = BOARD_LABEL[profile.board] ?? "CBSE";
@@ -142,7 +142,7 @@ async function saveDistilledNote(
       },
     };
 
-    const res = await callClaude({
+    const res = await callText({
       system,
       messages: [
         {
@@ -156,7 +156,7 @@ async function saveDistilledNote(
       timeoutMs: 10000,
     });
     if (!res.ok) {
-      console.warn("saveDistilledNote: callClaude failed", res.reason);
+      console.warn("saveDistilledNote: callText failed", res.reason);
       return;
     }
     const blocks = Array.isArray(res.data?.content) ? res.data.content : [];
@@ -287,7 +287,7 @@ Deno.serve(async (req) => {
 
   const system = buildSystem(profile) + vaultSystemAppendix(vaultNotes) + langInstruction(body.lang);
 
-  const res = await callClaude({
+  const res = await callText({
     system,
     // deno-lint-ignore no-explicit-any
     messages: outMessages as any,

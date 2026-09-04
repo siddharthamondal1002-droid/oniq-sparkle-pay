@@ -2,7 +2,7 @@
 // into structured intent via Claude tool use. INTENT ONLY — never returns
 // coordinates, fares, or facts. Falls back silently on the client.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { callClaude, corsHeaders, json, langInstruction } from "../_shared/llm.ts";
+import { callText, corsHeaders, json, langInstruction } from "../_shared/llm.ts";
 
 const SYSTEM = [
   "You extract ride-booking intent from Indian users speaking casually.",
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     ? "\n\nLOCALISATION: The `reply` field must be written in the target language below. The `pickup` and `destination` fields MUST remain in their original script exactly as the user said them — never translate or transliterate place names." + langExtra
     : "";
 
-  const res = await callClaude({
+  const res = await callText({
     system: SYSTEM + localisedNote,
     messages: [{ role: "user", content: `${userPreamble}${text}` }],
     tools: [TOOL],

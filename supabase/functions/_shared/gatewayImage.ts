@@ -33,11 +33,31 @@
 export const GATEWAY_IMAGE_URL = "https://ai.gateway.lovable.dev/v1/images/generations";
 
 /**
- * The model, unchanged from the 2026-08-14 routing. Mirrored in
- * modelRegistry.ts as IMAGE_STILL_GATEWAY — the registry is the place that
- * carries lifecycle and capability, this constant is what goes on the wire.
+ * The model. Mirrored in modelRegistry.ts as IMAGE_STILL_GATEWAY — the
+ * registry is the place that carries lifecycle and capability, this constant
+ * is what goes on the wire.
+ *
+ * MOVED 2026-09-04 from `google/gemini-2.5-flash-image` by owner directive:
+ * "Nano Banana 2" is the owner's name for it, `google/gemini-3.1-flash-image`
+ * is the id the gateway answers to. Google had already marked the 2.5 image
+ * model legacy and recommended the move (GOOGLE_AI_RESEARCH.md), and
+ * ENGINE_AUDIT.md carried "does the image stage migrate off Nano Banana?" as
+ * an open question; this is the answer to it.
+ *
+ * POST-VERIFIED before it was written here, because a listing is not proof —
+ * see the measured 404 table in llm.ts for the model that sat in ListModels
+ * and failed every real call. Measured on the gateway, this body shape:
+ *
+ *   google/gemini-3.1-flash-image       200, b64_json image returned
+ *                                       usage {input 3, output 1120}
+ *   google/gemini-3.1-flash-lite-image  400 upstream_error — routed, but
+ *                                       rejects `prompt`/`modalities`
+ *
+ * The lite tier is therefore NOT wired here. It exists and the gateway routes
+ * it, but it wants a different envelope, and a cheaper image that 400s is not
+ * cheaper. See IMAGE_STILL_GATEWAY_LITE in the registry.
  */
-export const GATEWAY_IMAGE_MODEL = "google/gemini-2.5-flash-image";
+export const GATEWAY_IMAGE_MODEL = "google/gemini-3.1-flash-image";
 
 /**
  * Portrait, matching the episode pipeline. The aspect rides IN THE PROMPT

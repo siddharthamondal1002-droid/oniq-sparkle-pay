@@ -17,6 +17,50 @@
  * every provider below is carried over EXACTLY as it was found. Changing one
  * changes a bill, and that is a question, not a refactor.
  *
+ * OWNER DIRECTIVE, 2026-09-04 — the Google model mapping, and it supersedes
+ * the text half of the 2026-08-14 split. The owner named the models and the
+ * prices, and answered three questions directly:
+ *
+ *   1. EVERY model below runs through the Lovable gateway on LOVABLE_API_KEY.
+ *      Lovable credits, not the metered Google key. Veo clips are untouched
+ *      and stay on the Google key; stills and voice stay where 2026-08-14 put
+ *      them, on the gateway, and only their ids move.
+ *   2. GEMINI BECOMES THE PRIMARY TEXT ENGINE — Flash-Lite for ordinary work,
+ *      the Pro tier for the heavier tier. This is a reversal of "text runs
+ *      Claude-first" above, and it is the owner's. Asked whether Claude was
+ *      to be kept or removed, the owner chose to SWAP THE FAILOVER DIRECTION:
+ *      the existing billing-exhaustion fallback stays exactly as it is and
+ *      simply points the other way, so Gemini serves and Claude catches. The
+ *      outage path is preserved, not deleted — ONIQ still has two engines.
+ *   3. MUSIC IS TO BE BUILT, and it is the one exception to (1). The Lovable
+ *      gateway does not carry Lyria: its catalogue has no id matching lyria,
+ *      music or song (measured 2026-09-04, 33,554-byte response), and
+ *      /v1/audio/music 404s from the gateway itself. Told that gateway-for-all
+ *      and build-music could not both hold, the owner routed MUSIC ALONE to
+ *      the metered Google key — the same route Veo clips already take. So
+ *      song generation spends the Google bill; everything else spends credits.
+ *
+ * The mapping as the owner gave it:
+ *
+ *   image generation/edit      Nano Banana 2          ~$0.067  / 1K image
+ *   image, cheaper tier        Nano Banana 2 Lite     ~$0.0336 / 1K image
+ *   full music / song          Lyria 3 Pro             $0.08   / song
+ *   text-to-speech             Gemini 3.1 Flash TTS    $20 / 1M output audio tokens
+ *   AI                         Gemini 3.1 Flash-Lite   $0.25/M in + $1.50/M out
+ *   better AI                  Gemini 3.1 Pro          $2/M in + $12/M out
+ *   search grounding           Gemini 3                (no price given)
+ *
+ * THOSE PRICES ARE RECORDED AS THE OWNER GAVE THEM, and they are not verified
+ * here: this environment cannot reach Google's pricing pages (GOOGLE_AI_RESEARCH.md
+ * records the same egress block). Two things follow. A Google list price is
+ * not what the gateway charges — the gateway is a reseller with its own credit
+ * accounting, so these numbers size a decision, they do not settle a bill. And
+ * the owner named MARKETING NAMES, not ids; "Nano Banana 2" is a name, the id
+ * behind it is what this file must carry. Every id below was POST-verified on
+ * the gateway before it was written down, because ListModels cannot validate a
+ * name — see the measured table in llm.ts, where a listed model 404'd on every
+ * real call for months.
+ *
  * `shutdownOn` IS THE POINT. It is the date Google has published for the id
  * being switched off, and src/lib/__tests__/modelRegistry.test.ts fails the
  * build once today is past it. That turns "somebody has to remember to read
@@ -92,8 +136,8 @@ export type Capabilities = {
   durationsSec: number[] | null;
   /** Aspect ratios the provider emits. [] = unconstrained or unrecorded. */
   aspectRatios: string[];
-  /** Accepts a reference image/frame as input. */
-  referenceSupport: boolean;
+  /** Accepts a reference image/frame as input. null = unmeasured here. */
+  referenceSupport: boolean | null;
   /** Its OWN output carries audio. (The clip stage is silent — the worker composites audio separately.) */
   audioSupport: boolean;
   /** Cleared for commercial use under the provider ToS, as far as recorded. null = unverified here. */
@@ -136,6 +180,70 @@ export type ModelEntry = {
  * has been; the audit found the fallback path is what kept films rendering
  * through an earlier Gemini text outage.
  */
+/**
+ * TEXT, THE ENGINE THAT NOW ANSWERS — owner directive 2026-09-04.
+ *
+ * Two tiers, both on the Lovable gateway's OpenAI-compatible chat endpoint,
+ * both POST-verified there before being written down. `callText` in llm.ts is
+ * the only thing that reads them; callers ask for a TIER, never an id, so a
+ * later re-tiering is one edit here and not a sweep through fourteen edge
+ * functions.
+ *
+ * The Claude entries below are no longer what serves ONIQ. They are what
+ * catches it — see their notes.
+ */
+export const TEXT_GATEWAY_STANDARD: ModelEntry = {
+  id: "google/gemini-3.1-flash-lite",
+  provider: "lovable-gateway",
+  keyEnv: "LOVABLE_API_KEY",
+  usedBy: "llm.ts callText, default tier — every text caller that does not ask for heavy",
+  status: "current",
+  shutdownOn: null,
+  note:
+    "The owner's 'AI' row, $0.25/M in + $1.50/M out as the owner gave it — " +
+    "a Google list price, not necessarily what the gateway meters. " +
+    "POST-verified 2026-09-04: 200, usage in OpenAI shape. Note this id was " +
+    "already in the codebase as searchBudget's GEMINI_FAILOVER_MODEL at " +
+    "exactly that price, so the owner's row confirmed a number already here.",
+  capabilities: {
+    modality: "text",
+    durationsSec: null,
+    aspectRatios: [],
+    referenceSupport: false,
+    audioSupport: false,
+    commercialUse: null,
+    note:
+      "Function calling via the OpenAI tools shape. NO Google Search " +
+      "grounding and NO Anthropic server tools — the endpoint has no field " +
+      "for either, which is why callText refuses to send a search-bound " +
+      "caller here rather than letting it answer from memory.",
+  },
+};
+
+export const TEXT_GATEWAY_HEAVY: ModelEntry = {
+  id: "google/gemini-3.1-pro-preview",
+  provider: "lovable-gateway",
+  keyEnv: "LOVABLE_API_KEY",
+  usedBy: "llm.ts callText, tier:'heavy' — story-plot's planner",
+  status: "current",
+  shutdownOn: null,
+  note:
+    "The owner's 'Better AI' row, $2/M in + $12/M out as given. The owner " +
+    "named 'Gemini 3.1 Pro'; the gateway carries only the -preview id and no " +
+    "unsuffixed variant, so preview is what ONIQ can call. POST-verified " +
+    "2026-09-04: 200. Preview ids can be withdrawn without a deprecation " +
+    "window — null shutdownOn here means unknown, not safe.",
+  capabilities: {
+    modality: "text",
+    durationsSec: null,
+    aspectRatios: [],
+    referenceSupport: false,
+    audioSupport: false,
+    commercialUse: null,
+    note: "Same envelope and same grounding limits as the standard tier.",
+  },
+};
+
 export const TEXT_PRIMARY: ModelEntry = {
   id: "claude-sonnet-4-6",
   provider: "anthropic",
@@ -172,7 +280,13 @@ export const TEXT_TOOLS: ModelEntry = {
   // every caller that passes no model runs on it — story-plot, smart-scout,
   // ting, hotel-scout. Kept named TEXT_TOOLS for continuity; the pipeline text
   // default lives here, not in TEXT_PRIMARY.
-  note: "The live callClaude default model, and the tool-use path.",
+  note:
+    "The callClaude default, and the tool-use path. AS OF 2026-09-04 THIS " +
+    "IS THE CATCHER, NOT THE SERVER: callText sends text to the gateway " +
+    "first and reaches Claude when the credit pool is exhausted or the " +
+    "gateway is unreachable. It is also still the FIRST choice, not the " +
+    "second, for any caller that needs real search — Anthropic server " +
+    "tools have no equivalent on the gateway's chat endpoint.",
   capabilities: {
     modality: "text",
     durationsSec: null,
@@ -277,15 +391,19 @@ export const IMAGE_STILL: ModelEntry = {
  * bucket, which the 2026-08-20 probe measured holding a character's identity.
  */
 export const IMAGE_STILL_GATEWAY: ModelEntry = {
-  id: "google/gemini-2.5-flash-image",
+  id: "google/gemini-3.1-flash-image",
   provider: "lovable-gateway",
   keyEnv: "LOVABLE_API_KEY",
   usedBy: "story-still (STILL_PROVIDER=gateway, the 2026-09-01 default)",
-  status: "unknown",
+  status: "current",
   shutdownOn: null,
   note:
-    "No published gateway lifecycle found for this id. Ran this stage for the " +
-    "whole 2026-08-14 to 2026-08-27 era and is restored unchanged.",
+    "The owner's 'Nano Banana 2', 2026-09-04. Replaced " +
+    "google/gemini-2.5-flash-image, which Google had marked legacy with this " +
+    "as the recommended successor, and which ENGINE_AUDIT.md carried as an " +
+    "open question. POST-verified on the gateway before being written down: " +
+    "200 with a b64_json image, usage {input 3, output 1120}. No published " +
+    "gateway lifecycle found, so shutdownOn stays null — unknown, not safe.",
   capabilities: {
     modality: "text-to-image",
     durationsSec: null,
@@ -306,18 +424,79 @@ export const IMAGE_STILL_GATEWAY: ModelEntry = {
 };
 
 /**
+ * IMAGE, CHEAPER TIER — recorded, deliberately NOT wired.
+ *
+ * The owner's "Nano Banana 2 Lite" row, at roughly half the list price of the
+ * tier above. The gateway lists it and routes it, but the same request body
+ * that earns a 200 from `google/gemini-3.1-flash-image` earns a 400 from this
+ * id — `upstream_error`, Google's protobuf parser rejecting `prompt` and
+ * `modalities` by name. So the id is real and the envelope is different.
+ *
+ * The working envelope WAS then measured — Google's native `contents` with an
+ * explicit role, on the same endpoint:
+ *
+ *   POST /v1/images/generations
+ *   {"model":"google/gemini-3.1-flash-lite-image",
+ *    "contents":[{"role":"user","parts":[{"text":"..."}]}]}   200, real JPEG
+ *
+ * IT IS STILL NOT WIRED, and the measurement is why. The gateway reported
+ * usage {input 3, output 1120, total 1123} for this id — byte-for-byte the
+ * SAME usage it reported for the full-price `gemini-3.1-flash-image` on the
+ * same prompt. The owner's ~50% saving is a Google LIST-price difference; on
+ * the gateway both tiers bill the same token count, and no response carries a
+ * cost or credits field to contradict that. So switching to the lite tier
+ * would buy a cheaper image on Google's price sheet and, as far as anything
+ * measurable here shows, exactly nothing on the bill ONIQ actually pays —
+ * while giving up whatever quality the full tier has. That is a question for
+ * the owner, not a saving to take silently.
+ */
+export const IMAGE_STILL_GATEWAY_LITE: ModelEntry = {
+  id: "google/gemini-3.1-flash-lite-image",
+  provider: "lovable-gateway",
+  keyEnv: "LOVABLE_API_KEY",
+  usedBy: "nothing yet — recorded 2026-09-04, no working request shape",
+  status: "unknown",
+  shutdownOn: null,
+  note:
+    "Owner-named cheaper image tier (~$0.0336/1K image against ~$0.067 for " +
+    "the tier above, prices as the owner gave them and unverified here). " +
+    "Measured 2026-09-04: 200 with a real JPEG on the native `contents` " +
+    "envelope, and usage IDENTICAL to the full tier (3 in / 1120 out), so " +
+    "the list-price saving is not visible in what the gateway meters.",
+  capabilities: {
+    modality: "text-to-image",
+    durationsSec: null,
+    aspectRatios: [],
+    referenceSupport: null,
+    audioSupport: false,
+    commercialUse: null,
+    note:
+      "Takes Google's native `contents` with an explicit role:'user', NOT " +
+      "the OpenAI `prompt`/`modalities` fields its full-price sibling takes " +
+      "on the same endpoint. Returns JPEG. Reference conditioning unmeasured.",
+  },
+};
+
+/**
  * VOICE — narration and dialogue.
  *
  * Also the Lovable gateway, same directive, same reasoning.
  */
 export const VOICE_TTS: ModelEntry = {
-  id: "google/gemini-2.5-flash-tts",
+  id: "google/gemini-3.1-flash-tts-preview",
   provider: "lovable-gateway",
   keyEnv: "LOVABLE_API_KEY",
   usedBy: "story-voice",
-  status: "unknown",
+  status: "current",
   shutdownOn: null,
-  note: "No published gateway lifecycle found. Left exactly as found.",
+  note:
+    "The owner's 'Gemini 3.1 Flash TTS', 2026-09-04, replacing " +
+    "google/gemini-2.5-flash-tts. The gateway carries only the -preview id; " +
+    "there is no unsuffixed variant to prefer. POST-verified: 200 with a " +
+    "RIFF/WAVE, PCM 16-bit mono 24 kHz, on the native contents+speechConfig " +
+    "body story-voice already sends. A preview id can be withdrawn without a " +
+    "deprecation window, so treat a null shutdownOn here as ignorance, not " +
+    "safety — that is exactly what this column is for.",
   capabilities: {
     modality: "text-to-speech",
     durationsSec: null,
@@ -325,7 +504,11 @@ export const VOICE_TTS: ModelEntry = {
     referenceSupport: false,
     audioSupport: true,
     commercialUse: null,
-    note: "Text-to-speech: story-voice returns s16le PCM the worker wraps as WAV.",
+    note:
+      "Text-to-speech. The 2.5 id answered raw s16le PCM which the worker " +
+      "wrapped as WAV; this id answers a complete RIFF/WAVE container " +
+      "(PCM 16-bit mono 24 kHz), and story-voice forks on the mime so both " +
+      "shapes stay correct. Prebuilt voice names are unchanged.",
   },
 };
 
@@ -398,6 +581,9 @@ export const VIDEO_CLIP_FALLBACK: ModelEntry = {
 
 /** Everything, for the registry test and for anything that wants to report. */
 export const MODEL_REGISTRY: ModelEntry[] = [
+  TEXT_GATEWAY_STANDARD,
+  TEXT_GATEWAY_HEAVY,
+  IMAGE_STILL_GATEWAY_LITE,
   TEXT_PRIMARY,
   TEXT_TOOLS,
   TEXT_FALLBACK,

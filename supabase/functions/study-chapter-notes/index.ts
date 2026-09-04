@@ -2,7 +2,7 @@
 // Cache-first from public.chapter_notes; on miss, generate via Claude and
 // service-role upsert. JWT-gated. Mirrors study-chapters' shape.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callText, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
 
 const SOURCE_NOTE = "AI-generated study notes — verify against your exact textbook edition";
 
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
 
   const userMsg = `Write study notes for this chapter:\n- Board: ${boardLabel}\n- Class/Level: ${classLevel}\n- Subject: ${subject}\n- Chapter: ${chapter}\n\nBegin directly with the first "## " section header.`;
 
-  const res = await callClaude({
+  const res = await callText({
     system,
     messages: [{ role: "user", content: userMsg }],
     maxTokens: 2400,
@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
   });
 
   if (!res.ok) {
-    console.warn(`study-chapter-notes: callClaude failed board=${board} class=${classLevel} subject="${subject}" chapter="${chapter}" reason=${res.reason}`);
+    console.warn(`study-chapter-notes: callText failed board=${board} class=${classLevel} subject="${subject}" chapter="${chapter}" reason=${res.reason}`);
     return json(200, { source: "unavailable", content: "", reason: res.reason });
   }
 

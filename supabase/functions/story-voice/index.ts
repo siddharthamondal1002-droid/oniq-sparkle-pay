@@ -36,7 +36,24 @@ const corsHeaders = {
  * own step-down (in-house Piper) is the fallback that remains, and it is
  * free.
  */
-const TTS_MODEL = "google/gemini-2.5-flash-tts";
+// MOVED 2026-09-04 by owner directive (the Google model mapping) from
+// `google/gemini-2.5-flash-tts`. The owner's "Gemini 3.1 Flash TTS"; the
+// gateway's id for it carries the -preview suffix and there is no unsuffixed
+// variant in its catalogue, so preview is what ONIQ can actually call.
+//
+// POST-VERIFIED before landing, on the exact body this file already sends:
+// 200 with a RIFF/WAVE, PCM 16-bit mono 24 kHz, ~46 KB for one word. The
+// envelope needed no change — this file had already learned that the OpenAI
+// input/voice fields fail here and had already moved to Google's native
+// contents + speechConfig shape, and the prebuilt voice names ride unchanged.
+// The reply is a CONTAINER, not the raw PCM the 2.5 id answered with; the
+// mime branch below already forks on exactly that, so the worker keeps
+// wrapping raw PCM and keeps passing containers through untouched.
+//
+// PREVIEW IS A RISK AND IS NOT A MOVING ALIAS. It can be withdrawn without a
+// deprecation window; what it cannot do is change under ONIQ silently, the
+// way `-latest` would. The registry carries status/shutdownOn for it.
+const TTS_MODEL = "google/gemini-3.1-flash-tts-preview";
 
 /**
  * Default narrator.
