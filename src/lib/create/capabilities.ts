@@ -26,7 +26,14 @@ export type CreateCapability = {
 
 /** The six grid cards, in the reference's order. */
 export const CREATE_GRID: CreateCapability[] = [
-  { id: "image", label: "Image", hint: "Generate / Edit", emoji: "🖼️", status: "soon" },
+  {
+    id: "image",
+    label: "Image",
+    hint: "Describe a picture, get it",
+    emoji: "🖼️",
+    status: "live",
+    to: "/app/image",
+  },
   {
     id: "video",
     label: "Video",

@@ -82,6 +82,13 @@ export const AI_SURFACES = [
     file: "src/routes/_authenticated/app.music.tsx",
   },
   {
+    // Create — Image. Same ordering as Music: declared with the screen, not
+    // after it.
+    id: "image_ai_output",
+    screen: "Create — Image",
+    file: "src/routes/_authenticated/app.image.tsx",
+  },
+  {
     id: "cv_ai_output",
     screen: "Jobs — CV builder",
     file: "src/routes/_authenticated/app.jobs.tsx",

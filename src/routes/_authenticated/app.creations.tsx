@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Clapperboard, Music4 } from "lucide-react";
+import { Clapperboard, ImageIcon, Music4 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { isWatchable, listStories, type StoryJobRow } from "@/components/stories/storyJobsClient";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
@@ -25,33 +25,39 @@ export const Route = createFileRoute("/_authenticated/app/creations")({
  * made: films under Lores, songs under Music, with nothing that answered
  * "what have I made?". This is that answer.
  *
- * IT INVENTS NOTHING. Both halves come from the same sources their own
- * screens read — listStories() for films, music-generate's list action for
- * songs — so a row here is a row there. When one source fails and the other
- * does not, the screen shows what loaded and says plainly what did not,
- * rather than presenting a short list as if it were the whole shelf.
+ * IT INVENTS NOTHING. Every part comes from the same source its own screen
+ * reads — listStories() for films, music-generate's list action for songs,
+ * image-generate's for pictures — so a row here is a row there. When one
+ * source fails and the others do not, the screen shows what loaded and says
+ * plainly what did not, rather than presenting a short list as if it were the
+ * whole shelf.
  *
  * It is an AI surface: every item on it was generated, so it carries the
  * label and the report control, and it is declared in playCompliance.
  */
-type Song = { id: string; createdAt: string; prompt: string; url: string | null };
+/** The list shape both the music and the image function answer with. */
+type Made = { id: string; createdAt: string; prompt: string; url: string | null };
 type Item =
   | { kind: "film"; id: string; at: string; title: string; row: StoryJobRow }
-  | { kind: "song"; id: string; at: string; title: string; url: string | null };
+  | { kind: "song"; id: string; at: string; title: string; url: string | null }
+  | { kind: "picture"; id: string; at: string; title: string; url: string | null };
 
-type Filter = "all" | "film" | "song";
+type Filter = "all" | "film" | "song" | "picture";
 
 const FILTERS: Array<{ id: Filter; label: string }> = [
   { id: "all", label: "All" },
   { id: "film", label: "Films" },
   { id: "song", label: "Songs" },
+  { id: "picture", label: "Pictures" },
 ];
 
 function CreationsScreen() {
   const [films, setFilms] = useState<StoryJobRow[] | null>(null);
-  const [songs, setSongs] = useState<Song[] | null>(null);
+  const [songs, setSongs] = useState<Made[] | null>(null);
+  const [pictures, setPictures] = useState<Made[] | null>(null);
   const [filmsFailed, setFilmsFailed] = useState(false);
   const [songsFailed, setSongsFailed] = useState(false);
+  const [picturesFailed, setPicturesFailed] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
 
   useEffect(() => {
@@ -77,14 +83,26 @@ function CreationsScreen() {
         setSongsFailed(true);
         return;
       }
-      setSongs(data.songs as Song[]);
+      setSongs(data.songs as Made[]);
+    })();
+    void (async () => {
+      const { data, error } = await supabase.functions.invoke("image-generate", {
+        body: { action: "list" },
+      });
+      if (!alive) return;
+      if (error || !Array.isArray(data?.images)) {
+        setPictures([]);
+        setPicturesFailed(true);
+        return;
+      }
+      setPictures(data.images as Made[]);
     })();
     return () => {
       alive = false;
     };
   }, []);
 
-  const loading = films === null || songs === null;
+  const loading = films === null || songs === null || pictures === null;
   const items: Item[] = [
     ...(films ?? []).map((row) => ({
       kind: "film" as const,
@@ -100,19 +118,31 @@ function CreationsScreen() {
       title: s.prompt?.trim() || "Untitled song",
       url: s.url,
     })),
+    ...(pictures ?? []).map((p) => ({
+      kind: "picture" as const,
+      id: p.id,
+      at: p.createdAt,
+      title: p.prompt?.trim() || "Untitled picture",
+      url: p.url,
+    })),
   ].sort((a, b) => (a.at < b.at ? 1 : -1));
 
   const shown = filter === "all" ? items : items.filter((i) => i.kind === filter);
-  // Said only when something is missing, and it names WHICH half — a person
-  // looking at a short list deserves to know it is short for a reason.
+  // Said only when something is missing, and it names WHICH part — a person
+  // looking at a short list deserves to know it is short for a reason. Built
+  // from the list rather than nested ternaries, because a third source made
+  // that chain eight cases and a fourth would make it sixteen.
+  const failed = [
+    filmsFailed ? "films" : null,
+    songsFailed ? "songs" : null,
+    picturesFailed ? "pictures" : null,
+  ].filter((x): x is string => x !== null);
   const missing =
-    filmsFailed && songsFailed
-      ? "films and songs"
-      : filmsFailed
-        ? "films"
-        : songsFailed
-          ? "songs"
-          : null;
+    failed.length === 0
+      ? null
+      : failed.length === 1
+        ? failed[0]
+        : `${failed.slice(0, -1).join(", ")} and ${failed[failed.length - 1]}`;
 
   return (
     <OniqCanvas world="create" className="pb-28">
@@ -155,12 +185,38 @@ function CreationsScreen() {
           <OniqEmpty
             emoji="✨"
             title="Nothing here yet"
-            body="Make a film or a song and it lands here."
+            body="Make a film, a song or a picture and it lands here."
           />
         ) : (
           <div className="grid gap-2">
             {shown.map((item) =>
-              item.kind === "song" ? (
+              item.kind === "picture" ? (
+                <OniqCard
+                  key={item.id}
+                  variant="surface"
+                  className="p-3"
+                  data-testid="creation-picture"
+                >
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4 shrink-0 text-world" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
+                      {item.title}
+                    </span>
+                  </div>
+                  {item.url ? (
+                    <img
+                      src={item.url}
+                      alt={item.title}
+                      loading="lazy"
+                      className="mt-2 w-full rounded-xl bg-black"
+                    />
+                  ) : (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      This one could not be loaded.
+                    </p>
+                  )}
+                </OniqCard>
+              ) : item.kind === "song" ? (
                 <OniqCard
                   key={item.id}
                   variant="surface"

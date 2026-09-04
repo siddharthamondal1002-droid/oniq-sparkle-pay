@@ -30,7 +30,7 @@ describe("Create capabilities", () => {
     for (const c of SOON_CAPABILITIES) {
       expect(c.to, `${c.id} is 'soon' but has a destination`).toBeUndefined();
     }
-    expect(SOON_CAPABILITIES.map((c) => c.id).sort()).toEqual(["image", "voice"]);
+    expect(SOON_CAPABILITIES.map((c) => c.id).sort()).toEqual(["voice"]);
   });
 
   it("names no provider, model, GPU or price", () => {

@@ -92,6 +92,13 @@ function createdTables(): string[] {
  * And the same caveat as story_jobs, for the same reason: this is not a claim
  * that generated music needs no age consideration. It is a claim that THIS
  * gate is not where such a consideration would live.
+ *
+ * public.image_jobs is the sixth, and it is music_jobs' argument verbatim with
+ * the medium changed: the picture-generation ledger, "jobs" as in background
+ * tasks, every column about one generation — prompt, model, stored path,
+ * bytes, error. It holds no employer, no salary, no education, no CV. Same RLS
+ * shape too: select is own-row and authenticated holds no write at all,
+ * because every write goes through the edge function on the service role.
  */
 const NOT_CAREER = new Set([
   "video_jobs",
@@ -99,6 +106,7 @@ const NOT_CAREER = new Set([
   "story_jobs",
   "gpu_video_jobs",
   "music_jobs",
+  "image_jobs",
 ]);
 
 const careerTables = createdTables().filter((t) => CAREER_TABLE.test(t) && !NOT_CAREER.has(t));
