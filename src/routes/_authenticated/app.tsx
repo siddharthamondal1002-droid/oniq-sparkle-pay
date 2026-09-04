@@ -264,8 +264,14 @@ function AppShell() {
   // The chat section is the case that was wrong: /app/chat/* is not TOP_LEVEL,
   // so it used to reserve 1rem while rendering its own six-tab bar roughly
   // five times that tall — the last contact row sat under it.
+  // `--oniq-nav-h` is MEASURED by OniqBottomNav (orb top → window bottom, so
+  // it already contains the safe-area inset and the orb's overhang) and
+  // republished on resize/rotate. The 7rem fallback is only what the first
+  // paint uses before that measurement lands; every frame after is the real
+  // geometry. The `+1rem` is breathing room so the last card does not sit
+  // flush against the bar.
   const chromeBottom = showNav
-    ? "7rem"
+    ? "calc(var(--oniq-nav-h, 7rem) + 1rem)"
     : isChatThread
       ? "0px"
       : isChatSubtab

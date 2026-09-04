@@ -8,8 +8,58 @@
  */
 import { Link } from "@tanstack/react-router";
 import { Sparkles } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
+
+/**
+ * PUBLISH THE NAV'S REAL HEIGHT, so content can reserve exactly it.
+ *
+ * Reported 2026-09-04: the last section of Home ("Five experiences") sat
+ * underneath this bar. The shell reserved a hardcoded 7rem while the bar is
+ * actually its own box PLUS the safe-area inset PLUS the Create orb, which
+ * `-mt-7` lifts clean out of the flex flow — a negative margin does not grow
+ * the parent, so the orb overhangs a box that never counted it.
+ *
+ * Measuring from the TOP OF THE ORB to the bottom of the window captures all
+ * three at once and keeps capturing them when the device changes: a taller
+ * gesture inset, a larger font scale, a translated label that wraps. The
+ * alternative — adding up paddings in a comment and hoping — is what the 7rem
+ * was.
+ */
+function usePublishNavHeight(navRef: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const root = document.documentElement;
+    const measure = () => {
+      // The orb is the highest point of the chrome; fall back to the bar
+      // itself where it is missing (it never is, but a null here would
+      // silently reserve nothing).
+      const orb = nav.querySelector<HTMLElement>("[data-nav-peak]") ?? nav;
+      const top = orb.getBoundingClientRect().top;
+      const h = Math.max(0, Math.round(window.innerHeight - top));
+      if (h > 0) root.style.setProperty("--oniq-nav-h", `${h}px`);
+    };
+    measure();
+    // Guarded the way LayoutGrid guards it: an old WebView without
+    // ResizeObserver should lose the re-measure, not throw and take the whole
+    // nav down. The resize/orientation listeners still cover the common cases.
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(measure);
+      ro.observe(nav);
+    }
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+      root.style.removeProperty("--oniq-nav-h");
+    };
+  }, [navRef]);
+}
 
 export type NavTab = {
   to: string;
@@ -29,6 +79,8 @@ export function OniqBottomNav({
   onCreate: () => void;
 }) {
   const { t } = useT();
+  const navRef = useRef<HTMLElement | null>(null);
+  usePublishNavHeight(navRef);
   const start = tabs.slice(0, 2);
   const end = tabs.slice(2, 4);
   const renderTab = (tab: NavTab) => {
@@ -62,6 +114,7 @@ export function OniqBottomNav({
   };
   return (
     <nav
+      ref={navRef}
       data-world="home"
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-md px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:max-w-lg lg:max-w-xl"
@@ -73,6 +126,7 @@ export function OniqBottomNav({
             type="button"
             onClick={onCreate}
             data-testid="nav-create"
+            data-nav-peak
             data-world="create"
             aria-label={t("nav.create", "Create")}
             className="press -mt-7 grid h-14 w-14 place-items-center rounded-full bg-world text-on-world world-glow ring-4 ring-background"

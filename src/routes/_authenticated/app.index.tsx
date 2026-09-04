@@ -47,7 +47,8 @@ import { useIsAdult18 } from "@/lib/useIsAdult18";
 import { RegionBanner } from "@/components/home/RegionBanner";
 import { HomeCountryPrompt } from "@/components/home/HomeCountryPrompt";
 import { useT } from "@/lib/i18n/LanguageProvider";
-import { tileName, type TileKey } from "@/lib/i18n/tileLabel";
+import { tileName, tileNamePlain, type TileKey } from "@/lib/i18n/tileLabel";
+import { WORLD_ICON } from "@/data/worldIcons";
 import { AnticipatoryCard } from "@/components/home/AnticipatoryCard";
 import { recordSignal } from "@/lib/personalisation";
 import { LORE_COLLECTIONS } from "@/data/lores";
@@ -279,21 +280,29 @@ function HomeScreen() {
                 title="Your worlds"
                 action={{ label: "All", to: "/app/explore", testId: "home-explore" }}
               />
-              <div className="mt-2 grid grid-cols-5 gap-x-1 gap-y-2 px-3">
-                {worlds.map((w) => (
-                  <OniqWorldCard
-                    key={w.key}
-                    world={w.world}
-                    emoji={w.emoji}
-                    label={tileName(lang, w.key, home)}
-                    to={w.to}
-                    search={w.search}
-                    skin={skins[w.key] ?? null}
-                    dot={w.key === "vitals" ? vitalsColor : null}
-                    onClick={() => void recordSignal("hub_open", w.key)}
-                    testId={`home-world-${w.key}`}
-                  />
-                ))}
+              <div className="mt-2 grid grid-cols-5 gap-x-1 gap-y-3 px-3">
+                {worlds.map((w) => {
+                  const Icon = WORLD_ICON[w.key];
+                  return (
+                    <OniqWorldCard
+                      key={w.key}
+                      world={w.world}
+                      emoji={w.emoji}
+                      // A drawn icon where we have one; the emoji only backs it
+                      // up. And the PLAIN name — the label's own trailing emoji
+                      // would otherwise be the second copy of the glyph in the
+                      // well, which is what used to wrap onto its own line.
+                      icon={Icon ? <Icon className="h-5 w-5" /> : undefined}
+                      label={tileNamePlain(lang, w.key, home)}
+                      to={w.to}
+                      search={w.search}
+                      skin={skins[w.key] ?? null}
+                      dot={w.key === "vitals" ? vitalsColor : null}
+                      onClick={() => void recordSignal("hub_open", w.key)}
+                      testId={`home-world-${w.key}`}
+                    />
+                  );
+                })}
               </div>
             </section>
           )}
@@ -319,62 +328,24 @@ function HomeScreen() {
             </Link>
           </section>
 
-          {/* ---- FIVE EXPERIENCES: the groups, one tap each ----------------- */}
-          <section className="mt-7 rise rise-5">
-            <OniqSectionHeader title="Five experiences" />
-            <OniqStoryRail className="mt-3" ariaLabel="Experiences">
-              {EXPERIENCES.map((x) =>
-                x.id === "create" ? (
-                  <button
-                    key={x.id}
-                    type="button"
-                    data-world="create"
-                    data-testid="home-experience-create"
-                    onClick={() => window.dispatchEvent(new CustomEvent("oniq:open-create"))}
-                    className="press flex w-[7.25rem] flex-col rounded-2xl oniq-surface p-3 text-start"
-                  >
-                    <span className="font-display text-[12px] text-world">{x.title}</span>
-                    <span className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                      {x.line}
-                    </span>
-                  </button>
-                ) : (
-                  <Link
-                    key={x.id}
-                    to="/app/explore"
-                    search={{ group: x.id }}
-                    data-world={x.world}
-                    data-testid={`home-experience-${x.id}`}
-                    className="press flex w-[7.25rem] flex-col rounded-2xl oniq-surface p-3 text-start"
-                  >
-                    <span className="font-display text-[12px] text-world">{x.title}</span>
-                    <span className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                      {x.line}
-                    </span>
-                  </Link>
-                ),
-              )}
-            </OniqStoryRail>
-          </section>
+          {/*
+            FIVE EXPERIENCES USED TO SIT HERE, and it was the last thing on the
+            page — which is how it ended up underneath the bottom bar.
+
+            Removing it is not just a layout fix. Home carried TWO navigations:
+            "Your worlds" (18 tiles) and "Five experiences" (the same worlds,
+            grouped five ways). A person who wants a world has two places to
+            look and no reason to prefer either, and the grouped one is a worse
+            version of Explore — which already renders these exact groups from
+            WORLD_GROUPS, with a chip row and search over them. So the concept
+            moves to where it was already implemented, and Home spends its last
+            screenful on the person's own content instead of a second menu.
+          */}
         </div>
       </OniqCanvas>
     </MediaProvider>
   );
 }
-
-/** The reference's five experience cards. The first four open Explore on that group. */
-const EXPERIENCES: {
-  id: "connect" | "learn" | "live" | "discover" | "create";
-  world: WorldId;
-  title: string;
-  line: string;
-}[] = [
-  { id: "connect", world: "chat", title: "Connect", line: "Chat · Moments · Mast" },
-  { id: "learn", world: "study", title: "Learn", line: "Study · Campus · Scout" },
-  { id: "live", world: "rides", title: "Live", line: "Rides · Wanderlust · Pulse · Official" },
-  { id: "discover", world: "ting", title: "Discover", line: "Ting · Blessed · Vitals · Plug" },
-  { id: "create", world: "create", title: "Create", line: "Image · Video · Voice · Document · AI" },
-];
 
 type PulseItem = {
   id: "continue" | "unread" | "study";

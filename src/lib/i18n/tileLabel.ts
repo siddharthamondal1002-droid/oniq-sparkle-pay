@@ -36,7 +36,6 @@ export type TileKey =
   | "watch"
   | "cv";
 
-
 /** International English — shown for every locale except `hi`. */
 export const TILE_LABELS: Record<TileKey, string> = {
   study: "Study 📚",
@@ -68,9 +67,7 @@ export const TILE_LABELS: Record<TileKey, string> = {
  * speaker in the US still reads सीवी. Keep this table tiny: it exists for
  * words that are genuinely different in a market, not for flavour.
  */
-export const TILE_LABELS_BY_COUNTRY: Partial<
-  Record<TileKey, Partial<Record<Country, string>>>
-> = {
+export const TILE_LABELS_BY_COUNTRY: Partial<Record<TileKey, Partial<Record<Country, string>>>> = {
   // Americans say résumé (one page); everywhere else says CV.
   cv: { US: "Résumé" },
 };
@@ -121,4 +118,24 @@ export function tileName(lang: string, key: TileKey, country?: Country): string 
     country,
     labelByCountry: TILE_LABELS_BY_COUNTRY[key],
   });
+}
+
+/**
+ * The name WITHOUT its trailing emoji — for a tile that already draws a glyph.
+ *
+ * Every label above carries its emoji inline ("Moments ✨", "मस्त 🎬"), which
+ * is right for a heading that stands alone and wrong for a tile whose icon
+ * well is already showing one: the person sees the same glyph twice, and on
+ * 2026-09-04 the second one wrapped onto its own line under a broken name
+ * ("MOMENTS ✨" over a lone "✨"). Stripping is done by Unicode property, not
+ * by a list of the emoji we happen to use today, so the Hindi labels and any
+ * label added later are covered without a second edit.
+ *
+ * Only the TRAILING run goes. A name that is deliberately a glyph keeps it,
+ * because stripping everything would leave an empty tile.
+ */
+export function tileNamePlain(lang: string, key: TileKey, country?: Country): string {
+  const full = tileName(lang, key, country);
+  const bare = full.replace(/[\s‍️\p{Extended_Pictographic}]+$/u, "").trim();
+  return bare || full;
 }

@@ -46,9 +46,13 @@ export function OniqWorldCard({
     <span
       data-world={world}
       className={cn(
-        "relative grid shrink-0 place-items-center overflow-hidden rounded-2xl text-on-world world-glow",
-        layout === "tile" ? "h-14 w-14" : "h-12 w-12",
-        !skin && "bg-world",
+        "relative grid shrink-0 place-items-center overflow-hidden rounded-2xl",
+        // A TINTED well, not a solid one. The reference draws each world as a
+        // coloured mark on its own pale wash — legible on a light canvas and
+        // far calmer than 18 saturated blocks shouting at once. Skins still
+        // win, and still fill the whole well.
+        layout === "tile" ? "h-12 w-12" : "h-11 w-11",
+        !skin && "bg-world-soft text-world",
       )}
       aria-hidden="true"
     >
@@ -63,7 +67,7 @@ export function OniqWorldCard({
       ) : icon ? (
         icon
       ) : (
-        <span className={layout === "tile" ? "text-2xl" : "text-xl"}>{emoji}</span>
+        <span className={layout === "tile" ? "text-xl" : "text-lg"}>{emoji}</span>
       )}
       {dot ? (
         <span
@@ -73,13 +77,27 @@ export function OniqWorldCard({
       ) : null}
     </span>
   );
+  // `w-full` is load-bearing for the truncate below: inside a centred flex
+  // column the span would otherwise shrink to its text and never clip.
   const text = (
-    <span className={cn("min-w-0", layout === "tile" ? "mt-2 text-center" : "text-start")}>
+    <span className={cn("min-w-0", layout === "tile" ? "mt-1.5 w-full text-center" : "text-start")}>
+      {/*
+        ONE LINE, NEVER BROKEN MID-WORD.
+
+        `break-words` was here, and it is what rendered "WANDERLUS" over "T":
+        overflow-wrap:break-word is allowed to split INSIDE a word once the
+        word cannot fit, and at five tiles to a row a long name never fits.
+        `truncate` (nowrap + ellipsis) cannot split a word by construction —
+        a name too long for its tile ends in "…" and stays readable, which is
+        the failure mode worth having. The title attribute keeps the full
+        name reachable for anyone who needs it.
+      */}
       <span
         className={cn(
           "block font-display leading-tight text-foreground",
-          layout === "tile" ? "line-clamp-2 break-words text-[11px]" : "truncate text-[12px]",
+          layout === "tile" ? "truncate text-[10.5px]" : "truncate text-[12px]",
         )}
+        title={typeof label === "string" ? label : undefined}
       >
         {label}
       </span>

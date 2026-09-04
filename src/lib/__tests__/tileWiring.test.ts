@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   tileName,
+  tileNamePlain,
   TILE_LABELS,
   TILE_LABELS_HI,
   TILE_LABELS_BY_COUNTRY,
@@ -63,5 +64,40 @@ describe("the Pay tile on the home row", () => {
     expect(tileName("hi", "upi")).toBe(TILE_LABELS_HI.upi);
     expect(TILE_LABELS.upi).toBeTruthy();
     expect(TILE_LABELS_HI.upi).toBeTruthy();
+  });
+});
+
+describe("tileNamePlain — the name a drawn tile shows", () => {
+  const ALL = Object.keys(TILE_LABELS) as TileKey[];
+
+  it("never leaves a trailing emoji for a tile that draws its own icon", () => {
+    // The bug this exists for: "Moments ✨" under a well already showing ✨,
+    // with the second copy wrapping onto its own line. Assert by Unicode
+    // property so a label added later is covered without editing this test.
+    const trailing = /[\s\u200d\ufe0f\p{Extended_Pictographic}]+$/u;
+    for (const k of ALL) {
+      expect(tileNamePlain("en", k), `en ${k}`).not.toMatch(trailing);
+      expect(tileNamePlain("hi", k), `hi ${k}`).not.toMatch(trailing);
+    }
+  });
+
+  it("never returns an empty name", () => {
+    for (const k of ALL) {
+      expect(tileNamePlain("en", k).length).toBeGreaterThan(0);
+      expect(tileNamePlain("hi", k).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps the word itself, and the country override with it", () => {
+    expect(tileNamePlain("en", "wander")).toBe("Wanderlust");
+    expect(tileNamePlain("en", "moments")).toBe("Moments");
+    expect(tileNamePlain("hi", "wander")).toBe("सफ़र");
+    expect(tileNamePlain("en", "cv", "US")).toBe("Résumé");
+  });
+
+  it("is a no-op for a label that never had an emoji", () => {
+    for (const k of ["pulse", "moots", "university", "jobs", "cv"] as TileKey[]) {
+      expect(tileNamePlain("en", k)).toBe(tileName("en", k));
+    }
   });
 });
