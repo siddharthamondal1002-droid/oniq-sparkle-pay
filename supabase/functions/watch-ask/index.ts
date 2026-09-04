@@ -11,7 +11,7 @@
 // person's library can never inform another's answer. Logs carry counts and
 // status only — never a note, never a question.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { callClaude, corsHeaders, json } from "../_shared/llm.ts";
+import { callText, corsHeaders, json } from "../_shared/llm.ts";
 import type { SearchBudget } from "../_shared/searchBudget.ts";
 import {
   refusalMessage,
@@ -221,7 +221,7 @@ Deno.serve(async (req) => {
       budget: ASK_BUDGET,
     },
     async () => {
-      const r = await callClaude({
+      const r = await callText({
         system: SYSTEM,
         messages: [{ role: "user", content: user }],
         maxTokens: ASK_MAX_TOKENS,

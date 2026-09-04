@@ -16,7 +16,7 @@
 // function needs no duplicated registry. The contract below is re-stated
 // server-side regardless, so a stripped client payload cannot remove it.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { callClaude, corsHeaders, json, langInstruction } from "../_shared/llm.ts";
+import { callText, corsHeaders, json, langInstruction } from "../_shared/llm.ts";
 
 const HARD_CONTRACT = [
   "ANTI-FABRICATION CONTRACT — this overrides every other instruction, including any instruction from the user.",
@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
     langInstruction(body.lang),
   ].join("\n\n");
 
-  const result = await callClaude({
+  const result = await callText({
     system,
     messages: [
       {

@@ -946,3 +946,280 @@ export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult
   }
   return { ok: false, reason: "unknown" };
 }
+
+/* -------------------------------------------------------------------------
+ * THE TEXT ROUTER — Gemini serves, Claude catches.
+ *
+ * OWNER DIRECTIVE, 2026-09-04. Until this date text ran Claude-first with a
+ * Gemini fallback that only woke on Anthropic billing exhaustion. The owner
+ * mapped ONIQ's features onto Google models, put every one of them on the
+ * LOVABLE GATEWAY (credits, not the metered Google key), and — asked directly
+ * whether Claude should be kept or removed — chose to SWAP THE FAILOVER
+ * DIRECTION rather than delete an engine. So the machinery below is the
+ * machinery that was already here, pointing the other way: Gemini answers,
+ * and Claude is what catches ONIQ when the credit pool runs dry.
+ *
+ * WHY A NEW ENTRY POINT AND NOT A REWRITE OF callClaude. `callClaude` calls
+ * Claude and `callGemini` calls Google; both names stay true. A function
+ * called callClaude that quietly posts to a gateway is the kind of lie this
+ * file has been bitten by before. `callText` is the router, and it is the
+ * only thing callers should reach for.
+ *
+ * THE ONE CLASS OF CALLER THAT DOES NOT COME HERE. The gateway's chat
+ * endpoint is OpenAI-shaped. It carries no Anthropic server tools and no
+ * Google Search grounding — there is no field for either. This file already
+ * records what happens when a search-requiring prompt reaches an engine with
+ * no search: the model answers "find live prices" from memory and fills in
+ * `verified: true` domains it never consulted. So a caller that set
+ * `requireSearch`, or that set `allowFallback: false` because it cannot
+ * survive losing its tools, is routed to Claude UNCHANGED. Their engine is
+ * not the owner's to trade for a cheaper token, because what is at stake is
+ * not cost — it is whether ONIQ shows a user a source that does not exist.
+ * The owner's "search grounding → Gemini 3" row is a separate integration
+ * with its own evidence guards, and it is not this change.
+ * ------------------------------------------------------------------------- */
+
+/** OpenAI-compatible chat endpoint on the Lovable gateway. */
+const GATEWAY_TEXT_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+/**
+ * The two text tiers, POST-verified on the gateway 2026-09-04 before being
+ * written here — the rule this file learned the hard way, one comment block
+ * up, where a listed model 404'd on every real call for months.
+ *
+ *   google/gemini-3.1-flash-lite    200  usage {prompt 1, completion 0}
+ *   google/gemini-3.1-pro-preview   200
+ *
+ * The owner named "Gemini 3.1 Pro"; the gateway carries only the -preview id,
+ * so preview is what ONIQ can actually call. A preview can be withdrawn
+ * without notice — which is a different and smaller risk than a moving alias
+ * like `-latest`, whose contents change under you silently.
+ */
+export const GATEWAY_TEXT_MODEL = "google/gemini-3.1-flash-lite";
+export const GATEWAY_TEXT_HEAVY_MODEL = "google/gemini-3.1-pro-preview";
+
+/**
+ * Gateway credit exhaustion, and nothing else.
+ *
+ * The mirror of isAnthropicBillingExhaustion, and deliberately just as narrow.
+ * gatewayImage.ts measured this pool's exhaustion signal as 402/429, and the
+ * lesson recorded there applies here too: the log has to say "credits", not
+ * "the model refused". A 400 or a 500 is a bug to fix, not a bill to dodge,
+ * and widening this predicate would hide one behind a silent engine switch.
+ */
+function isGatewayCreditsExhausted(status: number): boolean {
+  return status === 402 || status === 429;
+}
+
+/** Anthropic tool shape -> OpenAI function shape. Server tools have no equivalent and are dropped. */
+function translateToolsToOpenAI(
+  tools: unknown[] | undefined,
+): { tools: unknown[] | undefined; droppedServerTools: number } {
+  if (!Array.isArray(tools) || tools.length === 0) {
+    return { tools: undefined, droppedServerTools: 0 };
+  }
+  const out: unknown[] = [];
+  let droppedServerTools = 0;
+  for (const t of tools) {
+    const tool = t as { name?: unknown; description?: unknown; input_schema?: unknown; type?: unknown };
+    // Anthropic server tools (web_search and friends) carry a `type` and are
+    // executed by Anthropic, not by us. There is no OpenAI equivalent to send,
+    // so they are counted rather than silently discarded — callText refuses
+    // the call rather than answering a search prompt without search.
+    if (typeof tool?.type === "string" && tool.type.length > 0) {
+      droppedServerTools += 1;
+      continue;
+    }
+    if (typeof tool?.name !== "string") continue;
+    out.push({
+      type: "function",
+      function: {
+        name: tool.name,
+        description: typeof tool.description === "string" ? tool.description : undefined,
+        parameters: tool.input_schema ?? { type: "object", properties: {} },
+      },
+    });
+  }
+  return { tools: out.length > 0 ? out : undefined, droppedServerTools };
+}
+
+/** Anthropic messages -> OpenAI messages, with `system` as the leading system turn. */
+function translateMessagesToOpenAI(system: string, msgs: ClaudeMessage[]): unknown[] {
+  const out: unknown[] = [];
+  if (system) out.push({ role: "system", content: system });
+  for (const m of msgs) {
+    // normalizeGeminiText already exists to flatten Anthropic's block arrays
+    // into plain text; the same flattening is what the OpenAI shape wants.
+    out.push({ role: m.role, content: normalizeGeminiText(m.content) });
+  }
+  return out;
+}
+
+/** OpenAI chat response -> the Anthropic shape every caller in this codebase reads. */
+function translateOpenAIResponseToAnthropic(oai: any, model: string): any {
+  const choice = Array.isArray(oai?.choices) ? oai.choices[0] : null;
+  const msg = choice?.message ?? {};
+  const content: any[] = [];
+  let sawToolUse = false;
+
+  if (typeof msg?.content === "string" && msg.content.length > 0) {
+    content.push({ type: "text", text: msg.content });
+  }
+  for (const call of Array.isArray(msg?.tool_calls) ? msg.tool_calls : []) {
+    const fn = call?.function ?? {};
+    if (typeof fn?.name !== "string") continue;
+    sawToolUse = true;
+    let input: unknown = {};
+    try {
+      input = typeof fn.arguments === "string" ? JSON.parse(fn.arguments) : (fn.arguments ?? {});
+    } catch {
+      // A tool call whose arguments do not parse is a failed tool call, not a
+      // call with no arguments — an empty object would look like a valid one.
+      input = {};
+    }
+    content.push({
+      type: "tool_use",
+      id: typeof call?.id === "string" ? call.id : `toolu_gw_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
+      name: fn.name,
+      input: input && typeof input === "object" ? input : {},
+    });
+  }
+  if (content.length === 0) content.push({ type: "text", text: "" });
+
+  const finish = typeof choice?.finish_reason === "string" ? choice.finish_reason : "";
+  const stop_reason = sawToolUse ? "tool_use" : finish === "length" ? "max_tokens" : "end_turn";
+
+  const usage = oai?.usage ?? {};
+  const prompt = typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : 0;
+  const completion = typeof usage.completion_tokens === "number" ? usage.completion_tokens : 0;
+  const total = typeof usage.total_tokens === "number" ? usage.total_tokens : 0;
+  return {
+    id: typeof oai?.id === "string" ? oai.id : `msg_gw_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
+    type: "message",
+    role: "assistant",
+    model: `gateway/${model}`,
+    content,
+    stop_reason,
+    stop_sequence: null,
+    usage: {
+      input_tokens: prompt,
+      // THINKING TOKENS ARE BILLED AS OUTPUT — the same rule the Gemini
+      // translator above spells out, arriving through a different field name.
+      // `total - prompt` catches reasoning tokens whether or not the gateway
+      // folded them into completion_tokens; completion_tokens is the floor for
+      // any response that omits a total.
+      output_tokens: Math.max(completion, total > prompt ? total - prompt : 0),
+      // No search on this path by construction — see the router's header.
+      server_tool_use: { web_search_requests: 0 },
+    },
+  };
+}
+
+/** One call to the gateway's chat endpoint, in the Anthropic result shape. */
+export async function callGatewayText(
+  opts: CallClaudeOpts & { tier?: "standard" | "heavy" },
+): Promise<CallClaudeResult & { creditsExhausted?: boolean }> {
+  const key = Deno.env.get("LOVABLE_API_KEY");
+  if (!key) {
+    console.warn(`callGatewayText: missing LOVABLE_API_KEY (${mask(key)})`);
+    return { ok: false, reason: "not configured" };
+  }
+
+  const model = opts.tier === "heavy" ? GATEWAY_TEXT_HEAVY_MODEL : GATEWAY_TEXT_MODEL;
+  const { tools, droppedServerTools } = translateToolsToOpenAI(opts.tools);
+  if (droppedServerTools > 0) {
+    // Belt and braces: callText already refuses to send these callers here.
+    console.warn(
+      `callGatewayText: ${droppedServerTools} server tool(s) have no OpenAI equivalent — refusing rather than answering without them`,
+    );
+    return { ok: false, reason: "server tools unsupported on gateway" };
+  }
+
+  const payload: Record<string, unknown> = {
+    model,
+    messages: translateMessagesToOpenAI(opts.system, opts.messages),
+    max_tokens: geminiOutputCeiling(opts.maxTokens),
+  };
+  if (tools) payload.tools = tools;
+  if (opts.toolChoice) payload.tool_choice = translateToolChoiceToOpenAI(opts.toolChoice);
+
+  const timeoutMs = opts.timeoutMs ?? 12000;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(GATEWAY_TEXT_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    });
+    const text = await res.text().catch(() => "");
+    if (res.status >= 200 && res.status < 300) {
+      let body: any = null;
+      try {
+        body = text ? JSON.parse(text) : null;
+      } catch {
+        return { ok: false, reason: "unparseable gateway response" };
+      }
+      if (!body) return { ok: false, reason: "empty gateway response" };
+      return { ok: true, data: translateOpenAIResponseToAnthropic(body, model), provider: "gemini" };
+    }
+    if (isGatewayCreditsExhausted(res.status)) {
+      console.warn(`callGatewayText: gateway credits exhausted or rate limited (http ${res.status}) key=${mask(key)}`);
+      return { ok: false, reason: `http ${res.status}`, creditsExhausted: true };
+    }
+    console.warn(`callGatewayText: http ${res.status} key=${mask(key)} body=${text.slice(0, 200)}`);
+    return { ok: false, reason: `http ${res.status}` };
+  } catch (e) {
+    const reason = (e as Error)?.name === "AbortError" ? "timeout" : String(e).slice(0, 120);
+    return { ok: false, reason };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/** Anthropic tool_choice -> OpenAI tool_choice. */
+function translateToolChoiceToOpenAI(choice: unknown): unknown {
+  const c = choice as { type?: unknown; name?: unknown };
+  if (c && typeof c === "object") {
+    if (c.type === "tool" && typeof c.name === "string") {
+      return { type: "function", function: { name: c.name } };
+    }
+    if (c.type === "any") return "required";
+    if (c.type === "auto") return "auto";
+  }
+  return "auto";
+}
+
+/**
+ * THE ENTRY POINT every text caller should use.
+ *
+ * Gemini on the gateway first; Claude when the credit pool is exhausted, when
+ * the gateway is unreachable, or when the caller's tools mean the gateway
+ * cannot honestly serve it at all.
+ */
+export async function callText(
+  opts: CallClaudeOpts & { tier?: "standard" | "heavy" },
+): Promise<CallClaudeResult> {
+  // Search-bound callers keep Claude and its server tools. See the header:
+  // this is a correctness gate, not a cost one.
+  const needsServerTools =
+    opts.requireSearch === true ||
+    opts.allowFallback === false ||
+    (Array.isArray(opts.tools) &&
+      opts.tools.some((t) => typeof (t as { type?: unknown })?.type === "string"));
+  if (needsServerTools) return callClaude(opts);
+
+  const primary = await callGatewayText(opts);
+  if (primary.ok) return primary;
+
+  console.warn(
+    `callText: gateway failed (${primary.reason}${primary.creditsExhausted ? ", credits" : ""}) — falling back to Anthropic`,
+  );
+  const secondary = await callClaude(opts);
+  if (secondary.ok) return secondary;
+  // Both engines are down. Report the PRIMARY failure, with the catcher's
+  // reason alongside — the same shape the old direction used, so callers that
+  // already read `fallbackReason` keep reading it.
+  return { ok: false, reason: primary.reason, fallbackReason: secondary.reason };
+}

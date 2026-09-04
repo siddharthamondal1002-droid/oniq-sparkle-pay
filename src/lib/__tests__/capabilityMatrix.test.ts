@@ -34,7 +34,17 @@ describe("every model carries a well-formed capability envelope", () => {
         ["text", "text-to-image", "image-to-video", "text-to-speech"],
         `${m.id} modality`,
       ).toContain(m.capabilities.modality);
-      expect(typeof m.capabilities.referenceSupport, `${m.id} referenceSupport`).toBe("boolean");
+      // null is allowed here and false is not a substitute for it. The
+      // registry's rule is that an unverified limit is recorded as unknown
+      // rather than invented, and `false` on referenceSupport would assert a
+      // measurement nobody made — the exact kind of confident-looking guess
+      // this suite exists to keep out. A model wired into a caller has been
+      // measured by definition; an unwired, recorded-only entry may not have.
+      expect(
+        m.capabilities.referenceSupport === null ||
+          typeof m.capabilities.referenceSupport === "boolean",
+        `${m.id} referenceSupport must be boolean or null`,
+      ).toBe(true);
       expect(typeof m.capabilities.audioSupport, `${m.id} audioSupport`).toBe("boolean");
       expect(Array.isArray(m.capabilities.aspectRatios), `${m.id} aspectRatios`).toBe(true);
     }

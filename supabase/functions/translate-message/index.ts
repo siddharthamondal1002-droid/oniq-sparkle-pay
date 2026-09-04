@@ -22,7 +22,7 @@
 // authorisation check is the same one the chat screen already passes, not a
 // second copy of it that could drift.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { corsHeaders, json, SUPPORTED_LANGS, callClaude, callGemini } from "../_shared/llm.ts";
+import { corsHeaders, json, SUPPORTED_LANGS, callText, callGemini } from "../_shared/llm.ts";
 
 /** Long messages are rare and expensive. Matches the standalone translator. */
 const MAX_CHARS = 1000;
@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
     "Return ONLY the translation as plain text — no quotes, no commentary, no romanization " +
     "unless the target language uses the Latin script.";
 
-  // callClaude returns { ok, data } where data is Anthropic-shaped, and it
+  // callText returns { ok, data } where data is Anthropic-shaped, and it
   // already falls back to Gemini internally on credit exhaustion — the shared
   // helper normalises Gemini's response into the same shape. So there is one
   // call here, not a hand-rolled fallback chain: a second one would duplicate
@@ -140,8 +140,8 @@ Deno.serve(async (req) => {
     timeoutMs: 20000,
   };
 
-  let res = await callClaude(opts).catch((e) => {
-    console.error("callClaude threw", e);
+  let res = await callText(opts).catch((e) => {
+    console.error("callText threw", e);
     return { ok: false as const, reason: "threw" };
   });
 

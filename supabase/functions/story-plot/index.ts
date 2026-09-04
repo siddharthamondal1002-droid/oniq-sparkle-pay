@@ -57,7 +57,7 @@
 // requested duration, and the count is passed in. A second shot planner living
 // in a system prompt would drift from the first one and nobody would notice
 // until a Story came back the wrong length.
-import { callGemini, callClaude, SUPPORTED_LANGS } from "../_shared/llm.ts";
+import { callGemini, callText, SUPPORTED_LANGS } from "../_shared/llm.ts";
 import { orchestratePlan } from "../_shared/planOrchestrator.ts";
 import { verifyJobToken } from "../_shared/jobToken.ts";
 
@@ -306,7 +306,7 @@ Deno.serve(async (req) => {
       if (!hasClaude) {
         return json({ error: "The story check is unavailable right now — try again later." }, 503);
       }
-      const gate = await callClaude({
+      const gate = await callText({
         system: CONTENT_GATE_SYSTEM,
         messages: [
           {
@@ -348,6 +348,13 @@ Deno.serve(async (req) => {
         : "";
 
     const opts = {
+      // THE HEAVY TIER. Owner directive 2026-09-04 named two text models, an
+      // "AI" and a "Better AI"; planning a whole film from one sentence is
+      // what the better one is for, and this call was on claude-opus-5 before
+      // the switch. Every other caller takes the standard tier by default —
+      // see callText. The tier is a routing hint, not a model id: it is the
+      // router's job to know which id each tier means.
+      tier: "heavy" as const,
       system: SYSTEM + storyLanguageInstruction(lang),
       messages: [
         {
@@ -446,7 +453,7 @@ Deno.serve(async (req) => {
           `Return exactly ${shots} beats.`;
       const parseSpineReply = (t: string) =>
         isVerbatim ? parseSpineStructure(t, narrations) : parseSpine(t, shots);
-      const callFor = (engine: string) => (engine === "gemini" ? callGemini : callClaude);
+      const callFor = (engine: string) => (engine === "gemini" ? callGemini : callText);
 
       // SPINE on ONE engine within `timeoutMs`. A transient failure bubbles up
       // for the orchestrator to fall over; a reply that ARRIVED but would not
@@ -606,7 +613,7 @@ Deno.serve(async (req) => {
       const first =
         firstMs === 0
           ? ({ ok: false, reason: "no time left after the spine" } as const)
-          : await callClaude({ ...opts, timeoutMs: firstMs });
+          : await callText({ ...opts, timeoutMs: firstMs });
       if (first.ok) {
         const r = parsePlan(textOf(first.data), shots);
         if ("plan" in r) plan = r.plan;
@@ -635,7 +642,7 @@ Deno.serve(async (req) => {
         const retry =
           retryMs === 0
             ? ({ ok: false, reason: "no time left after the first attempt" } as const)
-            : await callClaude({
+            : await callText({
                 ...opts,
                 timeoutMs: retryMs,
                 messages: [

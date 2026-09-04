@@ -1,7 +1,7 @@
 // smart-scout — Claude price/deal scout with web_search tool
 // Purchaser-centric: decisive best-value pick, verified retailer preference,
 // visible source domains, and location-aware (street + PIN, not just city).
-import { langInstruction, callClaude, type ClaudeMessage } from "../_shared/llm.ts";
+import { langInstruction, callText, type ClaudeMessage } from "../_shared/llm.ts";
 import type { SearchBudget } from "../_shared/searchBudget.ts";
 import {
   refusalMessage,
@@ -242,7 +242,7 @@ Deno.serve(async (req) => {
     // Exploratory local-service queries legitimately need multiple sequential
     // web_search hops; 180s gives room for ~7 tool hops plus synthesis while
     // staying well below the platform ceiling.
-    // Migrated onto the shared callClaude helper so smart-scout inherits the
+    // Migrated onto the shared callText helper so smart-scout inherits the
     // Gemini billing-exhaustion fallback and system-prompt caching (system
     // is ~1.5k tokens and reused identically across every search).
     const messages = [
@@ -270,7 +270,7 @@ Deno.serve(async (req) => {
         cacheWriteTokens: SCOUT_SYSTEM_CACHE_TOKENS,
       },
       async () => {
-        const res = await callClaude({
+        const res = await callText({
           system,
           messages,
           tools: [
@@ -292,7 +292,7 @@ Deno.serve(async (req) => {
           requireSearch: true,
         });
         // "not configured" is the ONLY reason we know no request left the box —
-        // callClaude checks the key before it fetches. A timeout or a 5xx may
+        // callText checks the key before it fetches. A timeout or a 5xx may
         // well have been served and billed, so those settle, they do not
         // release.
         const neverCalled = !res.ok && res.reason === "not configured";
@@ -314,7 +314,7 @@ Deno.serve(async (req) => {
 
     if (!claudeRes.ok) {
       const reason = claudeRes.reason ?? "";
-      console.error("smart-scout callClaude failed:", reason);
+      console.error("smart-scout callText failed:", reason);
       if (/timeout/i.test(reason))
         return friendly("scout took too long — try a more specific query 🐢");
       if (/http 429/.test(reason)) return friendly("rate limit hit — try again in a moment 🐢");

@@ -1,7 +1,7 @@
 // study-quiz — generate a 5-question board/class-aware quiz for a learner.
-// JWT-gated; reuses shared callClaude. Returns HTTP 200 always.
+// JWT-gated; reuses shared callText. Returns HTTP 200 always.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callText, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
 
 const QUIZ_TOOL = {
   name: "generate_quiz",
@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     "- Return ONLY via the generate_quiz tool.",
   ].filter(Boolean).join("\n") + langInstruction(body.lang);
 
-  const res = await callClaude({
+  const res = await callText({
     system,
     messages: [{ role: "user", content: chapter
       ? `Please generate the 5-question quiz on ${subject} — chapter "${chapter}".`

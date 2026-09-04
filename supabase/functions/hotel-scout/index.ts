@@ -2,7 +2,7 @@
 // Same principle as smart-scout (products) and ride-genie (rides): parse a
 // casual Indian-English/Hinglish request, search the live web across verified
 // booking sites, and return a decisive best-value pick with visible sources.
-import { langInstruction, callClaude, type ClaudeMessage } from "../_shared/llm.ts";
+import { langInstruction, callText, type ClaudeMessage } from "../_shared/llm.ts";
 import type { SearchBudget } from "../_shared/searchBudget.ts";
 import {
   refusalMessage,
@@ -178,7 +178,7 @@ Deno.serve(async (req) => {
         cacheWriteTokens: STAY_SYSTEM_CACHE_TOKENS,
       },
       async () => {
-        const res = await callClaude({
+        const res = await callText({
           system,
           messages,
           tools: [{ type: "web_search_20250305", name: "web_search", max_uses: STAY_MAX_SEARCHES }],
@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
 
     if (!claudeRes.ok) {
       const reason = claudeRes.reason ?? "";
-      console.error("hotel-scout callClaude failed:", reason);
+      console.error("hotel-scout callText failed:", reason);
       if (/timeout/i.test(reason))
         return friendly("stay scout took too long — try a tighter search 🐢");
       if (/http 429/.test(reason)) return friendly("rate limit hit — try again in a moment 🐢");

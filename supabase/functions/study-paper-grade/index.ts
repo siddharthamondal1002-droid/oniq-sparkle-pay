@@ -3,7 +3,7 @@
 // Accepts either a typed answer (`answer`) or a photo of a handwritten
 // answer (`answer_image`) for short/long questions.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { callClaude, corsHeaders, json } from "../_shared/llm.ts";
+import { callText, corsHeaders, json } from "../_shared/llm.ts";
 
 type StoredQ =
   | { id: string; type: "mcq"; marks: number; question: string; options: string[]; correct_index: number; explanation: string }
@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
     userContent = `${contextText}\n\nStudent's answer:\n${studentAnswer.slice(0, 6000)}`;
   }
 
-  const res = await callClaude({
+  const res = await callText({
     system,
     // deno-lint-ignore no-explicit-any
     messages: [{ role: "user", content: userContent as any }],

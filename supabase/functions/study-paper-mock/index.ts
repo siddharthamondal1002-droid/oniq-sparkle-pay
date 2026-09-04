@@ -8,7 +8,7 @@
 //
 // JWT-gated. Ownership verified via learner_profiles.user_id.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json } from "../_shared/llm.ts";
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callText, corsHeaders, gradeString, json } from "../_shared/llm.ts";
 
 const MCQ_ITEM_SCHEMA = {
   type: "object",
@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
     const toolName = "return_mcq";
     const userMsg = `Generate the ${subject} MCQs for a ${boardLabel} ${gradeStr} timed mock test.`;
 
-    const r = await callClaude({
+    const r = await callText({
       system: baseSystem + "\n\n" + instr + `\nReturn ONLY via the ${toolName} tool.`,
       messages: [{ role: "user", content: userMsg }],
       tools: [{ name: toolName, description: "Return the MCQ section.", input_schema: MCQ_SECTION_SCHEMA }],

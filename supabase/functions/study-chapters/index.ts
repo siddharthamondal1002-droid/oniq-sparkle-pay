@@ -3,7 +3,7 @@
 // textbook TOC and writes it once via service role. Never regenerates for the
 // same combo. JWT-gated like study-tutor.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callText, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
 
 type ChapterRow = { chapter_number: number; chapter_title: string; source_note?: string };
 
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
 
   const userMsg = `List the standard chapters (real textbook TOC, in order) for:\n- Board: ${boardLabel}\n- Class/Level: ${classLevel}\n- Subject: ${subject}\n\nReturn via the list_chapters tool. If "${subject}" is not exactly how ${boardLabel} labels it at class ${classLevel}, resolve to the closest real subject grouping this board uses and return THOSE chapters — never return an empty list for a naming mismatch.`;
 
-  const res = await callClaude({
+  const res = await callText({
     system,
     messages: [{ role: "user", content: userMsg }],
     tools: [tool],
@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
   });
 
   if (!res.ok) {
-    console.warn(`study-chapters: callClaude failed board=${board} class=${classLevel} subject="${subject}" reason=${res.reason}`);
+    console.warn(`study-chapters: callText failed board=${board} class=${classLevel} subject="${subject}" reason=${res.reason}`);
     await logDebug({ source: "callClaude_failed", reason: res.reason, http_reason: res.reason });
     return json(200, {
       source: "unavailable",

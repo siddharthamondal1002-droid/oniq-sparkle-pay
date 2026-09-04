@@ -2,7 +2,7 @@
 // JWT-gated. Uses service role to store answer key server-side; returns a
 // sanitized paper (no correct_index / model_answer / rubric_points) to client.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callText, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
 import { orderMcqOptions } from "../_shared/mcqOrder.ts";
 import { describePayload, extractItems } from "../_shared/toolPayload.ts";
 
@@ -281,7 +281,7 @@ Deno.serve(async (req) => {
     // again rather than to throw away good work.
     let lastReason = `${kind}: no attempts`;
     for (let attempt = 1; attempt <= 3; attempt++) {
-      const r = await callClaude({
+      const r = await callText({
         system: baseSystem + "\n\n" + instr +
           (attempt > 1
             ? `\nThe previous attempt returned no items. Return the ${kind} array with EXACTLY ${count} entries and nothing else.`

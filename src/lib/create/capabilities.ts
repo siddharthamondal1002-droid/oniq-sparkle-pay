@@ -46,7 +46,14 @@ export const CREATE_GRID: CreateCapability[] = [
     search: { tab: "stories" },
   },
   { id: "voice", label: "Voice", hint: "Speak / Clone / Translate", emoji: "🎙️", status: "soon" },
-  { id: "music", label: "Music", hint: "Generate soundtrack", emoji: "🎵", status: "soon" },
+  {
+    id: "music",
+    label: "Music",
+    hint: "Generate soundtrack",
+    emoji: "🎵",
+    status: "live",
+    to: "/app/music",
+  },
   {
     id: "document",
     label: "Document",
