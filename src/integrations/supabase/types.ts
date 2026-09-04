@@ -6116,6 +6116,27 @@ export type Database = {
           },
         ]
       }
+      weather_cache: {
+        Row: {
+          air: Json | null
+          cell: string
+          fetched_at: string
+          reading: Json
+        }
+        Insert: {
+          air?: Json | null
+          cell: string
+          fetched_at?: string
+          reading: Json
+        }
+        Update: {
+          air?: Json | null
+          cell?: string
+          fetched_at?: string
+          reading?: Json
+        }
+        Relationships: []
+      }
     }
     Views: {
       gpu_video_cogs: {
