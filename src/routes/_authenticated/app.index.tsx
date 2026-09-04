@@ -28,6 +28,7 @@ import {
 import { readPlace, weatherDeclined, type WeatherPlace } from "@/lib/weatherPlace";
 import { WeatherInvite } from "@/components/home/WeatherInvite";
 import { isLive } from "@/data/capabilities";
+import { useIsAdmin } from "@/lib/useIsAdmin";
 import { formatClock, formatMinutes } from "@/lib/watch/format";
 import { providerName } from "@/lib/watch/providers";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -145,6 +146,9 @@ function HomeScreen() {
   // location looks like it did nothing until the next visit.
   const [place, setPlace] = useState(readPlace);
   const [declined] = useState(weatherDeclined);
+  // Shows the operator an EXPERIMENTAL capability so it can be exercised and
+  // promoted. Presentation only — see useIsAdmin.
+  const isAdmin = useIsAdmin();
   const pulse = useHomePulse(userId, home, hidden, place);
   // Same hook, same cache key as the chips below — see useUnreadChats.
   const unread = useUnreadChats(userId, !hidden.has("moments")).data ?? 0;
@@ -319,8 +323,16 @@ function HomeScreen() {
                 Google — so asking somebody for their location today would be
                 asking for a permission in exchange for nothing. The day that
                 call comes back 200, the registry flips and the invite
-                appears; nothing else has to change. */}
-            {isLive("weather.current") && !place && !declined ? (
+                appears; nothing else has to change.
+
+                UNTIL THEN AN ADMIN SEES IT, which is what makes the flip
+                possible at all. Gating on isLive alone produced a deadlock:
+                the capability needed a real call to be promoted, and the only
+                way to make one was through the screen the EXPERIMENTAL state
+                was hiding. Same resolution ONIQ already uses for movie grade
+                and the GPU tool — visible to an operator, invisible to
+                everyone else. See useIsAdmin. */}
+            {(isLive("weather.current") || isAdmin) && !place && !declined ? (
               <WeatherInvite onAdded={setPlace} />
             ) : null}
           </div>

@@ -674,14 +674,34 @@ describe("what the registry claims about both APIs", () => {
 });
 
 describe("nothing user-facing is offered before it can work", () => {
+  it("lets an ADMIN through, or the capability could never be promoted", () => {
+    // THE DEADLOCK THIS RESOLVES: capabilityRegistry promotes a capability to
+    // LIVE only on evidence from a real call, and the screens hide anything
+    // not LIVE — so the only surface that could produce that evidence was
+    // hidden by the state it was meant to escape. A feature that cannot be
+    // exercised cannot be promoted.
+    //
+    // ONIQ already solves this the same way twice: movie grade is admin-only
+    // until purchased seconds learn grades, and the in-house GPU tool was
+    // admin-gated before it opened to users.
+    expect(HOME).toContain('(isLive("weather.current") || isAdmin)');
+    expect(SCREEN).toContain('!isLive("weather.current") && !isAdmin && !place');
+    // Presentation only — the hook says so, and no admin POWER hangs off it.
+    expect(read("src/lib/useIsAdmin.ts")).toMatch(/PRESENTATION ONLY/);
+    expect(read("src/lib/useIsAdmin.ts")).toMatch(/fails? closed/i);
+  });
+
   it("asks for nobody's location while the capability is EXPERIMENTAL", () => {
     // THE RULE THIS REPO KEEPS: a button that cannot work is worse than no
     // button — the same one that kept a reference control off Music while
     // Lyria refused audio, and a clone button off Voice while Google had not
     // admitted this account. Asking for a location in exchange for nothing is
     // the worst version of it, because the price is a permission.
-    expect(HOME).toContain('isLive("weather.current") && !place && !declined');
-    expect(SCREEN).toContain('!isLive("weather.current") && !place');
+    // Still true for a USER: the invite needs isLive, and only an admin
+    // bypasses it. A non-admin sees nothing until the row flips.
+    expect(HOME).toContain("!place && !declined");
+    expect(HOME).toContain('isLive("weather.current") || isAdmin');
+    expect(SCREEN).toContain('!isLive("weather.current") && !isAdmin && !place');
   });
 
   it("says the registry's own sentence rather than a retyped one", () => {
