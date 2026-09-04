@@ -546,6 +546,22 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
     purpose: "Current conditions for the place the user chose.",
     avoidable: true,
   },
+  {
+    // A SEPARATE HOST AND A SEPARATE ENTRY, added with owner directive
+    // 2026-09-04i. It travels with the weather lookup and is enabled
+    // separately on the project, so one can be reachable while the other is
+    // not — the same reason capabilityRegistry gives them a row each. Folding
+    // it into the weather line would make this list say "one Google host" when
+    // there are two, and a Data safety declaration that is approximately true
+    // is the failure this file exists to prevent.
+    host: "airquality.googleapis.com",
+    triggeredBy:
+      "The same tap as the weather lookup: the Home chip and the Weather screen, only for a person who has explicitly added their location. Never at launch.",
+    sends:
+      "The same latitude and longitude SNAPPED TO A ~11 KM GRID, from the SERVER (the `weather` edge function), in the same round as the weather call. The credential never reaches the device, the exact position is never sent, and nothing identifies the person.",
+    purpose: "The air quality index for the place the user chose.",
+    avoidable: true,
+  },
 ];
 
 /**

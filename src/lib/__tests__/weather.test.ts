@@ -193,6 +193,18 @@ describe("the exact position never leaves ONIQ", () => {
     // The dead OpenWeather path is gone, not dormant.
     expect(THIRD_PARTY_REQUESTS.map((r) => r.host)).not.toContain("api.openweathermap.org");
   });
+
+  it("declares BOTH Google hosts, not one standing for two", () => {
+    // They are separate hosts, separately enabled, and a Data safety
+    // declaration that is approximately true is the failure this file exists
+    // to prevent — Play treats a wrong declaration as a violation in its own
+    // right, independently of what the app actually does.
+    const air = THIRD_PARTY_REQUESTS.find((r) => r.host === "airquality.googleapis.com");
+    expect(air, "airquality.googleapis.com is undeclared").toBeTruthy();
+    expect(air!.sends).toMatch(/SNAPPED TO A ~11 KM GRID/);
+    expect(air!.sends).toMatch(/from the SERVER/);
+    expect(air!.triggeredBy).toMatch(/Never at launch/);
+  });
 });
 
 describe("a metered call is never spent on rubbish", () => {
