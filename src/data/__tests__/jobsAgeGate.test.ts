@@ -78,8 +78,28 @@ function createdTables(): string[] {
  * an argument that THIS gate — the one protecting career data — is not where
  * that consideration belongs. If user-generated video turns out to need a
  * minimum age, it needs its own gate for its own reason.
+ *
+ * public.music_jobs (owner directive 2026-09-04) is the fifth, and it is added
+ * with the same argument the four above had to make. It is the song-generation
+ * ledger — "jobs" as in background tasks — and every column in it is about a
+ * generation: the prompt, the model version that served, the stored path, the
+ * bytes, the error. Nothing in it describes a person's employment, education
+ * or earnings, so a career-data age gate would restrict it for a reason that
+ * does not apply to it. It is gated by RLS on its own axis instead: select is
+ * own-row, and authenticated holds no insert, update or delete at all, because
+ * every write goes through the edge function on the service role.
+ *
+ * And the same caveat as story_jobs, for the same reason: this is not a claim
+ * that generated music needs no age consideration. It is a claim that THIS
+ * gate is not where such a consideration would live.
  */
-const NOT_CAREER = new Set(["video_jobs", "episode_jobs", "story_jobs", "gpu_video_jobs"]);
+const NOT_CAREER = new Set([
+  "video_jobs",
+  "episode_jobs",
+  "story_jobs",
+  "gpu_video_jobs",
+  "music_jobs",
+]);
 
 const careerTables = createdTables().filter((t) => CAREER_TABLE.test(t) && !NOT_CAREER.has(t));
 
