@@ -10,6 +10,7 @@ import {
   OniqSkeletonRows,
 } from "@/components/oniq";
 import { isLive, unavailableMessage } from "@/data/capabilities";
+import { useIsAdmin } from "@/lib/useIsAdmin";
 import {
   airLabel,
   airTint,
@@ -61,6 +62,7 @@ function WeatherScreen() {
   const [place, setPlace] = useState<WeatherPlace | null>(readPlace);
   const [asking, setAsking] = useState(false);
   const [refused, setRefused] = useState(false);
+  const isAdmin = useIsAdmin();
   const weather = useWeather(place);
 
   const add = async () => {
@@ -95,13 +97,18 @@ function WeatherScreen() {
       <OniqHeader eyebrow="Right now" title="Weather" back="/app" />
 
       <div className="mt-4 px-5">
-        {!isLive("weather.current") && !place ? (
+        {!isLive("weather.current") && !isAdmin && !place ? (
           // NOT YET, AND SAY SO RATHER THAN ASK. The capability is
           // EXPERIMENTAL until one call from the deployed function proves this
           // account may reach Google; until then, asking somebody to hand over
           // their location would be trading a permission for nothing. The
           // sentence is the registry's own, so it cannot drift from the state
           // it describes.
+          //
+          // AN ADMIN PASSES THROUGH, because somebody has to be able to make
+          // the call that promotes it. Gating everyone out made the capability
+          // unprovable: EXPERIMENTAL hid the only screen that could produce
+          // the evidence for LIVE.
           <OniqEmpty
             emoji="🌥️"
             title={unavailableMessage("weather.current") ?? "Not available yet"}

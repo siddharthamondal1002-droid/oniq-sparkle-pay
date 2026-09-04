@@ -273,13 +273,31 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
       "waved away, and the API-key path is a visibly different error route. That is the " +
       'OPPOSITE of what Vertex said to an API key ("API keys are not supported by this ' +
       'API"), and it is what makes owner directive 2026-09-04h buildable. ' +
-      "STILL UNPROVEN, hence EXPERIMENTAL: that the Firebase service account may call it " +
-      "— the project may not have the Weather API enabled, and neither the service " +
-      "account's permission nor the project's billing has been exercised. Only a POST " +
-      "from the DEPLOYED weather function can say, because the key is a Supabase secret " +
-      "and reaches nowhere else. GET, not POST, is also measured: the probes carried the " +
-      "coordinates as query parameters and were answered on the credential rather than " +
-      "refused as the wrong method.",
+      "GET, not POST, is also measured: the probes carried the coordinates as query " +
+      "parameters and were answered on the credential rather than refused as the wrong " +
+      "method. " +
+      "THEN THE DEPLOYED FUNCTION ANSWERED, 2026-09-04, one POST on production, HTTP 200: " +
+      '{"configured":true,"unavailable":true,"reason":"Caller does not have required ' +
+      "permission to use project oniq-309bd. Grant the caller the " +
+      "roles/serviceusage.serviceUsageConsumer role, or a custom role with the " +
+      "serviceusage.services.use permission, by visiting " +
+      "https://console.developers.google.com/iam-admin/iam?project=oniq-309bd and then " +
+      'retry."} ' +
+      "THAT ANSWER PROVES MORE THAN A REFUSAL WOULD. The credential chain works end to " +
+      "end on production: FIREBASE_SERVICE_ACCOUNT parsed, the JWT signed, and Google's " +
+      "token endpoint exchanged it for a real access token — a failure there returns " +
+      "configured:false naming the missing secret, and it did not. Google then " +
+      "AUTHENTICATED that token and got as far as an AUTHORIZATION check, which confirms " +
+      "the OAuth finding above against the REAL service account rather than a nonsense " +
+      "one. The payer is confirmed as oniq-309bd, the Firebase project, per directive " +
+      "2026-09-04e. " +
+      "STILL EXPERIMENTAL, and the reason matters: THE NEXT ANSWER IS NOT YET KNOWN. The " +
+      "serviceusage permission check fires BEFORE the API-enablement check, so whether " +
+      "the Weather API is switched on for that project is a question this response never " +
+      "reached. One grant, one retry, then we learn it — do not read the grant as the " +
+      "last step. " +
+      "The cache held under a real failure: weather_cache had 0 rows afterwards, so a " +
+      "reading that could not be read was never stored and served for a quarter hour.",
   },
   "air.current": {
     id: "air.current",
@@ -305,10 +323,18 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
       "Google's HTML 404 page — no JSON error and no credential check, which is what a " +
       "wrong method looks like on this host, where weather answered the identical GET on " +
       "its credential. " +
+      "THE FIRST PRODUCTION CALL NEVER REACHED THIS API'S OWN GATE. Both lookups go out " +
+      "together, and the weather half came back with an IAM refusal on the quota project " +
+      "— see weather.current for the verbatim text and what it proves about the " +
+      "credential. The air half was fired in the same round and its result discarded into " +
+      "a log, by design: losing a temperature because an air index was missing would " +
+      "trade a working feature for one that is not. " +
       "STILL UNPROVEN, hence EXPERIMENTAL: that the service account may call it, and that " +
       "the Air Quality API is enabled on the project. Weather and air are enabled " +
       "separately, so one may work while the other does not — which is why the function " +
-      "settles them separately and this row is separate too.",
+      "settles them separately and this row is separate too. Expect to learn this one " +
+      "only AFTER the roles/serviceusage.serviceUsageConsumer grant clears the shared " +
+      "gate.",
   },
 };
 
