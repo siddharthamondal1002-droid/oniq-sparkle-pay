@@ -19,12 +19,22 @@ export const Route = createFileRoute("/_authenticated/app/create")({
  * Creations without becoming a scroll inside a scroll. Asked which to build,
  * the owner chose the screen as drawn.
  *
- * THE HERO CARRIES NO CHIPS YET, AND THAT IS DELIBERATE. The reference draws
- * four — Imagine, Transform, Create, Explore — and what they DO is not
- * legible from a picture. Guessing would put four controls on the most
- * prominent surface in the app that go nowhere, or somewhere wrong, which is
- * precisely the failure this codebase keeps deciding not to ship. The owner
- * is telling us what they are; they land here when they do.
+ * THE HERO'S FOUR CHIPS ARE THE OWNER'S MAPPING, 2026-09-04g, not a guess.
+ * The reference draws Imagine / Transform / Create / Explore and what they DO
+ * is not legible from a picture — so the screen shipped without them rather
+ * than putting four controls that go nowhere on the most prominent surface in
+ * the app. Asked, the owner said:
+ *
+ *   Imagine   -> Image
+ *   Transform -> Image, in its EDIT frame (a picture plus what to change)
+ *   Create    -> Video
+ *   Explore   -> Explore
+ *
+ * Two of the four therefore land on the same screen, and that is right rather
+ * than lazy: an edit IS a generation with one inlineData part before the
+ * text, measured 2026-09-04, so a separate screen would be the same form with
+ * a different heading. `?mode=edit` is what makes Transform arrive saying
+ * "add a picture and say what to change" instead of "describe a picture".
  *
  * MY CREATIONS IS THE PERSON'S OWN WORK, so it is fetched rather than
  * decorated: three `list` actions, which are free — they read rows and sign
@@ -50,6 +60,22 @@ function pickRecent(pictures: Made[], songs: Made[], voices: Made[]): Recent[] {
 }
 
 const KIND_ICON = { picture: ImageIcon, song: Music4, voice: Mic } as const;
+
+/**
+ * The hero's shortcuts, exactly as the owner mapped them (2026-09-04g).
+ *
+ * Typed loosely on `to` because TanStack's route union does not narrow well
+ * through a data array; every value is checked against the real route files
+ * by createScreen.test.ts, which is the guarantee that matters — a chip
+ * pointing at a route that does not exist is the failure this list exists to
+ * avoid, and a type error would only have caught it at build time anyway.
+ */
+const HERO_LINKS: { label: string; to: string; search?: Record<string, string> }[] = [
+  { label: "Imagine", to: "/app/image" },
+  { label: "Transform", to: "/app/image", search: { mode: "edit" } },
+  { label: "Create", to: "/app/lores", search: { tab: "stories" } },
+  { label: "Explore", to: "/app/explore" },
+];
 
 function CreateScreen() {
   const [recent, setRecent] = useState<Recent[] | null>(null);
@@ -86,15 +112,30 @@ function CreateScreen() {
       />
 
       <div className="mt-4 px-5">
-        {/* THE HERO. One orb on a soft wash of the world, and the question the
-            reference asks. Nothing here is tappable, so nothing here can
-            disappoint. */}
+        {/* THE HERO. One orb on a soft wash of the world, the question the
+            reference asks, and the owner's four shortcuts under it. Every one
+            is a Link to a route that exists — createScreen.test.ts checks
+            each destination resolves to a real file, the same way
+            createCapabilities.test.ts checks the cards below. */}
         <OniqCard variant="surface" className="overflow-hidden p-0">
           <div className="flex flex-col items-center gap-3 bg-world-soft px-5 py-7 text-center">
             <OniqAIOrb size="xl" />
             <p className="font-display text-[17px] leading-tight text-foreground">
               What will you create today?
             </p>
+            <div className="flex flex-wrap justify-center gap-1.5">
+              {HERO_LINKS.map((h) => (
+                <Link
+                  key={h.label}
+                  to={h.to}
+                  search={h.search}
+                  data-testid={`create-hero-${h.label.toLowerCase()}`}
+                  className="press inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-world bg-card/70 px-2.5 py-1.5 text-[12px] font-semibold normal-case tracking-normal text-world"
+                >
+                  {h.label}
+                </Link>
+              ))}
+            </div>
           </div>
         </OniqCard>
 

@@ -23,7 +23,14 @@ import {
   type ImageStyle,
 } from "@/data/createStyles";
 
+type ImageSearch = { mode?: "edit" };
+
 export const Route = createFileRoute("/_authenticated/app/image")({
+  // ?mode=edit from Create's "Transform" chip (owner directive 2026-09-04g).
+  // Anything else is dropped, never thrown on — the same shape app.lores uses.
+  validateSearch: (s: Record<string, unknown>): ImageSearch => ({
+    mode: s.mode === "edit" ? "edit" : undefined,
+  }),
   component: ImageScreen,
 });
 
@@ -51,6 +58,15 @@ const IDEAS = [
 type Picture = { id: string; createdAt: string; prompt: string; url: string | null };
 
 function ImageScreen() {
+  // "Transform" is the SAME SCREEN in a different frame of mind: a picture
+  // plus what to change about it. Owner directive 2026-09-04g mapped the
+  // hero's Transform chip here rather than to a screen of its own, and the
+  // engine agrees — an edit is one inlineData part before the text, measured
+  // 2026-09-04. All this flag does is say so up front, so somebody arriving
+  // from that chip is not left looking at a blank box that says "describe a
+  // picture" when they came to change one.
+  const { mode } = Route.useSearch();
+  const editing = mode === "edit";
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<ImageStyle>("auto");
   const [ratio, setRatio] = useState<AspectRatio | null>(null);
@@ -126,7 +142,11 @@ function ImageScreen() {
       <OniqHeader
         eyebrow="Create"
         title="Image 🖼️"
-        subtitle="Describe a picture and ONIQ draws it."
+        subtitle={
+          editing
+            ? "Add a picture and say what to change."
+            : "Describe a picture and ONIQ draws it."
+        }
         back="/app"
       />
 
@@ -141,7 +161,9 @@ function ImageScreen() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value.slice(0, PROMPT_MAX))}
             rows={3}
-            placeholder={reference ? "make the wall green" : "a red bicycle against a blue wall"}
+            placeholder={
+              reference || editing ? "make the wall green" : "a red bicycle against a blue wall"
+            }
             className="w-full resize-none bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
           {/*

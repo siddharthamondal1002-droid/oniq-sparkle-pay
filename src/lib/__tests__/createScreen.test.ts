@@ -87,13 +87,41 @@ describe("the hero", () => {
     expect(SCREEN).toContain("OniqAIOrb");
   });
 
-  it("carries nothing tappable, until somebody says what the chips do", () => {
-    const from = SCREEN.indexOf("THE HERO.");
-    const to = SCREEN.indexOf("<OniqCreateGrid");
-    expect(from).toBeGreaterThan(-1);
-    expect(to).toBeGreaterThan(from);
-    const hero = SCREEN.slice(from, to);
-    expect(hero).not.toMatch(/<button|onClick=|OniqChip|<Link/);
+  it("carries the owner's four chips, in the reference's order", () => {
+    // They shipped absent first, on purpose: what they DO is not legible from
+    // a picture, and four controls that go nowhere on the app's most
+    // prominent surface is the failure this repo keeps avoiding. Owner
+    // directive 2026-09-04g supplied the mapping; this pins it.
+    const labels = [...SCREEN.matchAll(/label: "(\w+)", to:/g)].map((m) => m[1]);
+    expect(labels).toEqual(["Imagine", "Transform", "Create", "Explore"]);
+  });
+
+  it("points every chip at a route that actually exists", () => {
+    // The same discipline createCapabilities.test.ts applies to the cards
+    // below: a destination is a claim about a file, so check the file.
+    const dests = [...SCREEN.matchAll(/to: "\/app\/(\w[\w-]*)"/g)].map((m) => m[1]);
+    expect(dests.length).toBeGreaterThanOrEqual(4);
+    for (const d of new Set(dests)) {
+      expect(
+        existsSync(join(ROOT, `src/routes/_authenticated/app.${d}.tsx`)),
+        `/app/${d} has no route file`,
+      ).toBe(true);
+    }
+  });
+
+  it("sends Transform to the edit frame, and that frame is real", () => {
+    // Two chips land on the same screen, which is right rather than lazy: an
+    // edit IS a generation with one inlineData part before the text. What
+    // makes Transform different is the state it arrives in.
+    expect(SCREEN).toContain('to: "/app/image", search: { mode: "edit" }');
+    const image = read("src/routes/_authenticated/app.image.tsx");
+    // The route must ACCEPT the param, or TanStack drops it and the chip is
+    // indistinguishable from Imagine.
+    expect(image).toContain("validateSearch");
+    expect(image).toMatch(/mode: s\.mode === "edit" \? "edit" : undefined/);
+    // And it must CHANGE something, or accepting it is theatre.
+    expect(image).toContain('const editing = mode === "edit"');
+    expect(image).toContain("Add a picture and say what to change.");
   });
 });
 
