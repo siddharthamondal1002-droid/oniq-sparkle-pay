@@ -151,6 +151,22 @@ describe("the cache, which is the cost control", () => {
     expect(mapAt).toBeLessThan(writeAt);
   });
 
+  it("is never quiet about a cache it could not read", () => {
+    // THE VERSION OF THIS FUNCTION THAT WAS NEARLY DEPLOYED discarded this
+    // error. With the table missing — a function can deploy before its
+    // migration, which is the commonest case — every request would fall
+    // through to two metered Google calls, forever, and the only symptom
+    // would be the invoice.
+    expect(FN).toContain("error: cacheError");
+    expect(FN).toContain("CACHE UNAVAILABLE");
+    // It still serves: refusing the weather because a cache is missing would
+    // trade a working feature for a saving.
+    const logAt = FN.indexOf("CACHE UNAVAILABLE");
+    const returnAt = FN.indexOf("await googleAccessToken()");
+    expect(logAt).toBeLessThan(returnAt);
+    expect(FN).not.toMatch(/if \(cacheError\) return/);
+  });
+
   it("is a shared table, not a per-isolate Map", () => {
     // Supabase runs many isolates; a Map would let every cold start pay again.
     expect(FN).toContain('.from("weather_cache")');

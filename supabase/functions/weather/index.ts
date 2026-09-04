@@ -113,12 +113,26 @@ Deno.serve(async (req) => {
 
   // ---- the cache, which is the cost control -------------------------------
   const freshAfter = new Date(Date.now() - CACHE_TTL_SECONDS * 1000).toISOString();
-  const { data: hit } = await admin
+  const { data: hit, error: cacheError } = await admin
     .from("weather_cache")
     .select("reading, air, fetched_at")
     .eq("cell", key)
     .gte("fetched_at", freshAfter)
     .maybeSingle();
+  // A CACHE THAT CANNOT BE READ IS A BILL, NOT A BUG, and it would be silent.
+  // Discarding this error is the version of this function that was nearly
+  // deployed: if the table is missing — the migration not applied yet, the
+  // commonest case, since a function can deploy before its migration — every
+  // request falls through to TWO metered Google calls, forever, and the only
+  // symptom is the invoice. Serving is still right (refusing to show the
+  // weather because a cache is missing trades a working feature for a saving),
+  // but it must never be quiet about it.
+  if (cacheError) {
+    console.error(
+      "[weather] CACHE UNAVAILABLE — every request is now a billable lookup:",
+      cacheError.message,
+    );
+  }
   if (hit) {
     const row = hit as CacheRow;
     return json(200, {
