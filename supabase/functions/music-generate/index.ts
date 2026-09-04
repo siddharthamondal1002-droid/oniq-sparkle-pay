@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
   // ---- kill switch ---------------------------------------------------------
   const { data: cfg } = await admin
     .from("video_gen_config")
-    .select("music_enabled, music_daily_cap, music_admin_only")
+    .select("music_enabled, music_daily_cap, music_admin_only, music_per_user_daily_cap")
     .maybeSingle();
   if (!cfg || cfg.music_enabled !== true) {
     return json(503, { error: "Music generation is switched off right now." });
@@ -173,16 +173,44 @@ Deno.serve(async (req) => {
     return json(403, { error: "Music is not open to everyone yet." });
   }
 
-  // ---- daily cap, BEFORE any charge ---------------------------------------
+  // ---- the two caps, BOTH BEFORE any charge --------------------------------
+  //
+  // THE HOUSE CAP bounds the bill. THE PER-USER CAP bounds who can spend it,
+  // and it exists because the house cap alone does not: with music open to
+  // everyone (owner directive 2026-09-04) a single account — or a script —
+  // could take the entire day's allowance in one run, which is both the whole
+  // bill and a feature nobody else can use until tomorrow. The pair is the
+  // point: one number protects the money, the other protects its distribution.
+  //
+  // Both are counted over a rolling 24h rather than a calendar day, so the
+  // limit cannot be doubled by generating either side of midnight.
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { count } = await admin
+
+  const { count: houseCount } = await admin
     .from("music_jobs")
     .select("id", { count: "exact", head: true })
     .gte("created_at", since);
-  const usedToday = count ?? 0;
+  const usedToday = houseCount ?? 0;
   const cap = typeof cfg.music_daily_cap === "number" ? cfg.music_daily_cap : 0;
   if (usedToday >= cap) {
     return json(429, { error: `Daily music cap reached (${usedToday}/${cap}). Try tomorrow.` });
+  }
+
+  const { count: mineCount } = await admin
+    .from("music_jobs")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .gte("created_at", since);
+  const usedByMe = mineCount ?? 0;
+  const perUserCap =
+    typeof cfg.music_per_user_daily_cap === "number" ? cfg.music_per_user_daily_cap : 0;
+  if (usedByMe >= perUserCap) {
+    // Deliberately says YOUR limit, not the house's: a person who has used
+    // their own allowance should not be told the service is out, and a person
+    // locked out by someone else's usage should not be told it was theirs.
+    return json(429, {
+      error: `You've made ${usedByMe} songs today (limit ${perUserCap}). Try again tomorrow.`,
+    });
   }
 
   // ---- validation ----------------------------------------------------------

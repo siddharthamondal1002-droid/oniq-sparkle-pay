@@ -58,16 +58,34 @@ describe("the model id is the one that was measured", () => {
 });
 
 describe("the cost guards are in the order that keeps them honest", () => {
-  it("checks the kill switch, the admin gate and the cap before the call", () => {
-    const killSwitch = FN.indexOf("music_enabled");
-    const adminGate = FN.indexOf("music_admin_only");
-    const cap = FN.indexOf("music_daily_cap");
-    const call = FN.indexOf("await fetch(`${GOOGLE_URL}");
-    expect(killSwitch).toBeGreaterThan(-1);
+  it("checks the kill switch, the admin gate and BOTH caps before the call", () => {
+    const call = CODE.indexOf("await fetch(`${GOOGLE_URL}");
     expect(call).toBeGreaterThan(-1);
-    expect(killSwitch).toBeLessThan(call);
-    expect(adminGate).toBeLessThan(call);
-    expect(cap).toBeLessThan(call);
+    for (const gate of [
+      "music_enabled",
+      "music_admin_only",
+      "music_daily_cap",
+      "music_per_user_daily_cap",
+    ]) {
+      const at = CODE.indexOf(gate);
+      expect(at, `${gate} is not read at all`).toBeGreaterThan(-1);
+      expect(at, `${gate} is read after the billable call`).toBeLessThan(call);
+    }
+  });
+
+  it("counts the per-user cap against THIS user, not everyone", () => {
+    // A per-user cap that forgets to filter by user is just a second house
+    // cap, and it would lock everyone out the moment one person hit it.
+    const perUser = CODE.slice(CODE.indexOf("music_per_user_daily_cap") - 600);
+    expect(perUser).toMatch(/\.eq\("user_id", user\.id\)/);
+  });
+
+  it("counts both caps over a rolling 24h, so midnight cannot double them", () => {
+    expect(CODE).toMatch(/24 \* 60 \* 60 \* 1000/);
+    // One `since`, used by both counts — two different windows would be a bug
+    // nobody would see until a bill arrived.
+    expect(CODE.match(/const since =/g) ?? []).toHaveLength(1);
+    expect(CODE.match(/\.gte\("created_at", since\)/g) ?? []).toHaveLength(2);
   });
 
   it("has no retry around the billable call", () => {
