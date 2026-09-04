@@ -138,10 +138,26 @@ describe("story-voice's own copy has not drifted from the shared one", () => {
    * cost of that choice is exactly this risk, so it is paid here: if either
    * side of the pair moves, this fails.
    */
-  it("names the same model id", () => {
-    expect(VOICE_MODEL).toBe("google/gemini-3.1-flash-tts-preview");
-    expect(STORY_VOICE).toContain(`TTS_MODEL = "${VOICE_MODEL}"`);
-    expect(SHARED).toContain(`GATEWAY_VOICE_MODEL = "${VOICE_MODEL}"`);
+  it("keeps STORY narration on the gateway, and says so out loud", () => {
+    // THE SPLIT IS DELIBERATE, and this is the test that stops it becoming an
+    // accident. Owner directive 2026-09-04b named four CREATE features —
+    // "images, Voice, music, documents" — and Create's Voice screen is now
+    // direct on Google. Story NARRATION was not in that list and stays on the
+    // gateway, so ONIQ now runs two TTS routes on two different bills.
+    //
+    // That is a real thing to know rather than a detail: if the owner intends
+    // narration to move too, this test is what has to change, and it will fail
+    // loudly the moment somebody edits one side and forgets the other.
+    expect(STORY_VOICE).toContain('TTS_MODEL = "google/gemini-3.1-flash-tts-preview"');
+    expect(SHARED).toContain('GATEWAY_VOICE_MODEL = "google/gemini-3.1-flash-tts-preview"');
+  });
+
+  it("gives Create — Voice the DIRECT id, unprefixed", () => {
+    // POST-verified 2026-09-04 direct with speechConfig: 200, 144,129 bytes,
+    // inlineData 'audio/l16; rate=24000; channels=1'. The gateway's prefixed
+    // id 404s on this endpoint, which is why the two cannot simply share one.
+    expect(VOICE_MODEL).toBe("gemini-3.1-flash-tts-preview");
+    expect(VOICE_MODEL, "a gateway-prefixed id 404s direct").not.toContain("/");
   });
 
   it("posts to the same endpoint", () => {
@@ -161,7 +177,7 @@ describe("story-voice's own copy has not drifted from the shared one", () => {
 
 describe("the cost guards are in the order that keeps them honest", () => {
   it("checks the kill switch, the admin gate and BOTH caps before the call", () => {
-    const call = CODE.indexOf("await fetch(VOICE_URL");
+    const call = CODE.indexOf("googleGenerateContent(");
     expect(call).toBeGreaterThan(-1);
     for (const gate of [
       "voice_enabled",
@@ -188,24 +204,45 @@ describe("the cost guards are in the order that keeps them honest", () => {
 
   it("has no retry around the billable call", () => {
     expect(CODE).not.toMatch(/\bretry\b|\.retries|maxRetries/i);
-    expect(CODE.match(/await fetch\(/g) ?? []).toHaveLength(1);
+    // The fetch moved into _shared/googleDirect.ts (which has its own
+    // no-retry test); this file must make exactly ONE call to it.
+    expect(CODE.match(/googleGenerateContent\(/g) ?? []).toHaveLength(1);
   });
 
-  it("goes to the gateway, on gateway credits", () => {
-    expect(CODE).toMatch(/GATEWAY_VOICE_URL/);
-    expect(CODE).toMatch(/LOVABLE_API_KEY/);
-    expect(CODE, "voice must not touch the metered key").not.toMatch(/GOOGLE_AI_API_KEY/);
+  it("goes DIRECT to Google, on the metered key", () => {
+    // WHOSE MONEY, asserted. Owner directive 2026-09-04b moved Create — Voice
+    // onto the metered Google account.
+    expect(CODE).toMatch(/GOOGLE_AI_API_KEY/);
+    expect(CODE).toMatch(/googleGenerateContent/);
+    expect(CODE, "voice must not touch gateway credits").not.toMatch(/LOVABLE_API_KEY/);
+    expect(CODE, "voice must not go through the gateway").not.toMatch(/GATEWAY_VOICE_URL/);
+  });
+
+  it("sends speechConfig, without which this id returns 400", () => {
+    // Measured 2026-09-04: the SAME id answered 400 INVALID_ARGUMENT to a bare
+    // responseModalities:["AUDIO"] body and 200 once a prebuilt voice was
+    // attached. Dropping speechConfig would look like a dead model id.
+    expect(CODE).toMatch(/prebuiltVoiceConfig/);
+    expect(CODE).toMatch(/responseModalities: \["AUDIO"\]/);
+  });
+
+  it("still reads headerless PCM, which is all the direct route returns", () => {
+    expect(CODE).toMatch(/firstInlinePart\(res\.data, "audio\/"\)/);
   });
 
   it("never puts the key's VALUE in a log or a reply", () => {
     // The NAME of a missing variable is operator information; no value ever
     // is — which is why the "not set" log is allowed to name it.
     const key = CODE.match(/const key = ([A-Za-z.()"'_ ]+);/)?.[1];
-    expect(key).toContain("LOVABLE_API_KEY");
+    expect(key).toContain("GOOGLE_AI_API_KEY");
     for (const call of CODE.matchAll(/(console\.[a-z]+|json)\(([^;]*)\)/g)) {
       expect(call[2], `${call[1]} must not carry the key`).not.toMatch(/\bkey\b(?!Env)/);
     }
-    expect(CODE.match(/Bearer \$\{key\}/g) ?? []).toHaveLength(1);
+    // It may only ever reach the provider, handed to the shared caller once.
+    // googleDirect puts it in the query string — Google rejects a bearer
+    // header here — and its own test pins that it never reaches a log.
+    expect(CODE.match(/^\s*key,$/gm) ?? []).toHaveLength(1);
+    expect(CODE, "no bearer header on the direct route").not.toMatch(/Bearer \$\{key\}/);
   });
 
   it("records every failed attempt rather than discarding it", () => {

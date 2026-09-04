@@ -13,10 +13,17 @@
  * to the text path. A card that offers three things and does one is worse than
  * a card that does one.
  */
-import { GATEWAY_VOICE_MODEL } from "./gatewayVoice.ts";
+import { VOICE_TTS_DIRECT } from "./modelRegistry.ts";
 
-/** One id, defined next to the endpoint that answers it. */
-export const VOICE_MODEL = GATEWAY_VOICE_MODEL;
+/**
+ * The id Create — Voice calls, DIRECT on Google.
+ *
+ * Owner directive 2026-09-04b. Unprefixed: the gateway's id for the same
+ * model is `google/gemini-3.1-flash-tts-preview` and 404s on the direct
+ * endpoint. Taken from the registry so the id and the measurement that
+ * justifies it stay in one place.
+ */
+export const VOICE_MODEL = VOICE_TTS_DIRECT.id;
 
 /**
  * The voices, and every one of them POST-verified.

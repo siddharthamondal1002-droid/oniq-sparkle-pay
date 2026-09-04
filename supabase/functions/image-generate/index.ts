@@ -1,13 +1,13 @@
-// image-generate — a picture from a sentence, on Lovable credits.
+// image-generate — a picture from a sentence, direct on Google.
 //
 // Owner reference, 2026-09-04: Image is a live Create card. The ENGINE is not
 // new — ONIQ has drawn story stills through this gateway since 2026-09-01, on
 // the id the owner's model mapping moved to Nano Banana 2. What was missing
 // was a screen and the guards a user-facing, money-spending button needs.
 //
-// WHOSE MONEY. Lovable credits, not the metered Google key — the same pool
-// story-still and story-voice already spend, and the route the 2026-09-04
-// directive put every model on except music.
+// WHOSE MONEY. The METERED GOOGLE ACCOUNT, per owner directive 2026-09-04b —
+// the same key music and Veo clips already spend. It was Lovable credits until
+// that directive; story-still still is, so the two image routes now differ.
 //
 // The guards are the order every ONIQ generation tool enforces:
 //
@@ -16,7 +16,7 @@
 //
 // Both caps are counted BEFORE the charge, over a rolling 24h from one shared
 // `since` so midnight cannot double either. There is no batching and no
-// retry: a prompt the gateway refuses will be refused again identically.
+// retry: a prompt Google refuses will be refused again identically.
 // The kill switch ships OFF, because nothing should start spending on the
 // strength of a deploy nobody watched.
 //
@@ -25,11 +25,21 @@
 // does that deliberately, a money guard that reads top to bottom in one file
 // is worth more than the duplication it costs.
 //
-// LOVABLE_API_KEY is read here and nowhere else in this file's reach. Never
-// returned, never logged, never in an error message.
+// GOOGLE_AI_API_KEY is read here and nowhere else in this file's reach. Never
+// returned, never logged, never in an error message. It reaches the provider
+// only by being handed to googleGenerateContent, which puts it in the query
+// string — this endpoint rejects a bearer header.
 //
-// MEASURED before it was written: the gateway answers this exact body with a
-// b64_json image, usage {input 3, output 1120}, on google/gemini-3.1-flash-image.
+// OWNER DIRECTIVE 2026-09-04b: "make images, Voice, music, documents direct
+// Gemini not via lovable". This path spends the METERED GOOGLE ACCOUNT now,
+// not Lovable credits. Recorded in full in _shared/modelRegistry.ts.
+//
+// MEASURED before it was written, direct on generativelanguage.googleapis.com:
+// gemini-3.1-flash-image answers Google's native contents envelope with
+// responseModalities:['IMAGE'] at 200, 3,329,851 bytes, one inlineData part of
+// image/jpeg. And with an inlineData jpeg placed BEFORE the text part
+// ("make the wall green"): 200, 2,405,500 bytes, an edited picture back — which
+// is what makes the reference-image attachment on this screen real.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/llm.ts";
 import { type SearchBudget } from "../_shared/searchBudget.ts";
@@ -39,8 +49,20 @@ import {
   serviceRoleRpc,
   withProviderSpendGuard,
 } from "../_shared/financialLedger.ts";
-import { GATEWAY_IMAGE_URL, mimeOfB64 } from "../_shared/gatewayImage.ts";
-import { IMAGE_MODEL, IMAGE_PROMPT_MAX, validateImagePrompt } from "../_shared/imageCore.ts";
+import { mimeOfB64 } from "../_shared/gatewayImage.ts";
+import {
+  firstInlinePart,
+  googleGenerateContent,
+  googleUsage,
+  type GooglePart,
+} from "../_shared/googleDirect.ts";
+import {
+  IMAGE_MODEL,
+  IMAGE_PROMPT_MAX,
+  validateImagePrompt,
+  validateReferenceImage,
+  type ReferenceImage,
+} from "../_shared/imageCore.ts";
 
 /**
  * The spend reservation for one image.
@@ -55,12 +77,16 @@ import { IMAGE_MODEL, IMAGE_PROMPT_MAX, validateImagePrompt } from "../_shared/i
  * reverse-engineered to average the owner's figure would look like arithmetic
  * and be a guess — the same reasoning the music path records.
  *
- * AND THE GATEWAY IS A RESELLER. That ~$0.067 is Google's list price; what
- * ONIQ actually pays is Lovable credits at whatever rate the gateway sets,
- * which no response here reports.
+ * AND THE LIST PRICE IS NOW THE RELEVANT ONE. That ~$0.067 is Google's own
+ * published figure, and since owner directive 2026-09-04b this path bills the
+ * Google account directly rather than a reseller's credits — so it sizes the
+ * real bill rather than a rough proxy for it. Still not VERIFIED here: this
+ * container cannot reach Google's pricing pages, and the response carries no
+ * cost field, which is why settlement keeps the tokens and marks the dollars
+ * unknown rather than multiplying a number nobody confirmed.
  *
  * `maxWallClockMs` is 120s because drawing is not a chat turn, and a ceiling
- * that fires mid-draw abandons a call the gateway has already begun to bill.
+ * that fires mid-draw abandons a call Google has already begun to bill.
  */
 export const IMAGE_BUDGET: SearchBudget = {
   maxSearches: 0,
@@ -72,8 +98,6 @@ export const IMAGE_BUDGET: SearchBudget = {
   maxEstimatedUsd: 0.067,
 };
 
-/** The gateway's OpenAI-shaped images endpoint, shared with the story path. */
-const IMAGE_URL = GATEWAY_IMAGE_URL;
 const BUCKET = "video-gen";
 
 /** One generation's ceiling, kept well inside the function timeout. */
@@ -106,7 +130,13 @@ Deno.serve(async (req) => {
   const user = userRes?.user;
   if (!user) return json(401, { error: "Sign in to make pictures" });
 
-  let body: { action?: string; prompt?: string; requestId?: string };
+  let body: {
+    action?: string;
+    prompt?: string;
+    requestId?: string;
+    /** An optional picture to change, base64 with no data: prefix. */
+    referenceImage?: ReferenceImage;
+  };
   try {
     body = await req.json();
   } catch {
@@ -207,9 +237,18 @@ Deno.serve(async (req) => {
   const invalid = validateImagePrompt(prompt);
   if (invalid) return json(400, { error: invalid });
 
-  const key = Deno.env.get("LOVABLE_API_KEY");
+  // The reference is validated with the prompt, BEFORE the billable call, so a
+  // bad attachment costs nothing. Server-side even though the client checks
+  // too — the client is a suggestion.
+  const badRef = validateReferenceImage(body.referenceImage);
+  if (badRef) return json(400, { error: badRef });
+  const reference = body.referenceImage ?? null;
+
+  // OWNER DIRECTIVE 2026-09-04b: direct Google, not the Lovable gateway. This
+  // is the same key music-generate and Veo already spend.
+  const key = Deno.env.get("GOOGLE_AI_API_KEY");
   if (!key) {
-    console.error("image-generate: LOVABLE_API_KEY is not set");
+    console.error("image-generate: GOOGLE_AI_API_KEY is not set");
     return json(503, { error: "Image generation is not configured." });
   }
 
@@ -225,10 +264,10 @@ Deno.serve(async (req) => {
   //
   // ONE THING THE LEDGER STILL CANNOT DO HERE, recorded rather than papered
   // over. Settlement prices a call from MODEL_RATES, and this id is absent
-  // from it. The gateway does report tokens — measured at {input 3, output
-  // 1120} — but it is a reseller charging credits, and no response says what
-  // a credit costs, so a dollar figure derived from those tokens would
-  // describe Google's list price rather than ONIQ's bill. The ledger
+  // from it. Google does report tokens in usageMetadata, but no response
+  // carries a cost field and this container cannot reach the pricing pages,
+  // so a dollar figure multiplied out here would be a published list price
+  // asserted as a bill rather than measured as one. The ledger
   // therefore charges the flat reservation and keeps the measured tokens in
   // `detail` for provenance only — the same choice the music path makes for
   // the same reason.
@@ -237,7 +276,10 @@ Deno.serve(async (req) => {
     {
       requestId: requestIdFrom(typeof body.requestId === "string" ? body.requestId : undefined),
       capability: "IMAGE",
-      provider: "lovable-gateway",
+      // OWNER DIRECTIVE 2026-09-04b — this spends the metered Google account
+      // now, not Lovable credits. The reservation is unchanged; whose money it
+      // reserves against is what moved.
+      provider: "google",
       model: IMAGE_MODEL,
       unit: "provider_unit",
       units: 1,
@@ -248,29 +290,34 @@ Deno.serve(async (req) => {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), CALL_TIMEOUT_MS);
       try {
-        const res = await fetch(IMAGE_URL, {
-          method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-          // The OpenAI-shaped body this id answered on 2026-09-04, measured.
-          // Its cheaper sibling `google/gemini-3.1-flash-lite-image` routes but
-          // answers this same body 400 upstream_error — which is why the id and
-          // the envelope are chosen together rather than independently, and why
-          // the lite tier is recorded in the registry and left unwired.
-          body: JSON.stringify({ model: IMAGE_MODEL, prompt, modalities: ["image", "text"] }),
+        // THE REFERENCE GOES FIRST. Measured 2026-09-04: an inlineData part
+        // BEFORE the text part is what returned an edited picture; the model
+        // reads the parts in order and the instruction has to follow the
+        // thing it is about.
+        const parts: GooglePart[] = reference
+          ? [
+              { inlineData: { mimeType: reference.mimeType, data: reference.data } },
+              { text: prompt },
+            ]
+          : [{ text: prompt }];
+        const res = await googleGenerateContent({
+          model: IMAGE_MODEL,
+          key,
+          parts,
+          responseModalities: ["IMAGE"],
           signal: ctrl.signal,
         });
-        const parsed = res.ok ? await res.json().catch(() => null) : null;
-        const meta = parsed?.usage ?? null;
+        const usage = googleUsage(res.data);
         return {
-          value: { ok: res.ok, status: res.status, data: parsed } as const,
+          value: {
+            ok: res.ok,
+            status: res.status,
+            data: res.data,
+            errorMessage: res.errorMessage,
+          } as const,
           neverCalled: false,
           outcome: res.ok ? ("ACCEPTED" as const) : ("FAILED" as const),
-          detail: meta
-            ? {
-                inputTokens: typeof meta.input_tokens === "number" ? meta.input_tokens : 0,
-                outputTokens: typeof meta.output_tokens === "number" ? meta.output_tokens : 0,
-              }
-            : undefined,
+          detail: usage ?? undefined,
         };
       } catch (e) {
         const reason = (e as Error)?.name === "AbortError" ? "timeout" : "network";
@@ -292,7 +339,12 @@ Deno.serve(async (req) => {
 
   const outcome = guarded.value;
   if (!outcome.ok) {
-    console.error("image-generate upstream", outcome.status);
+    // GOOGLE'S OWN MESSAGE, LOGGED. A bare status cannot tell "that model id
+    // does not exist" from "your prompt was refused" from "quota exhausted",
+    // and all three arrive here as some 4xx. The row keeps it too, so a
+    // failure can still be diagnosed a week later from the table alone.
+    const detail = "errorMessage" in outcome ? (outcome.errorMessage ?? null) : null;
+    console.error("image-generate upstream", outcome.status, detail ?? "");
     // A failed attempt that may still have cost money is recorded, not
     // discarded — the ledger is for what happened, not for what worked.
     await admin.from("image_jobs").insert({
@@ -300,15 +352,20 @@ Deno.serve(async (req) => {
       prompt,
       model: IMAGE_MODEL,
       status: "failed",
-      error: outcome.status ? `http ${outcome.status}` : "network",
+      error: [outcome.status ? `http ${outcome.status}` : "network", detail]
+        .filter(Boolean)
+        .join(": ")
+        .slice(0, 500),
     });
     return json(502, { error: "The picture engine refused that one. Try different words." });
   }
 
   const data = outcome.data;
-  // The gateway answers images/generations in OpenAI's shape: the picture is
-  // base64 under data[0].b64_json, with no mime field of its own.
-  const b64 = typeof data?.data?.[0]?.b64_json === "string" ? data.data[0].b64_json : null;
+  // Google answers generateContent in ITS OWN shape — the picture is an
+  // inlineData part on the first candidate, not OpenAI's data[0].b64_json.
+  // Asked for by mime prefix so a text part sitting alongside it (the model
+  // sometimes narrates what it drew) cannot be mistaken for the picture.
+  const b64 = firstInlinePart(data, "image/")?.data ?? null;
 
   if (!b64) {
     // A refusal arrives as a 200 with no picture rather than as an error
@@ -349,11 +406,10 @@ Deno.serve(async (req) => {
     return json(500, { error: "The picture was made but could not be saved." });
   }
 
-  // The id that ANSWERED where the reply names one. The measured gateway reply
-  // did not carry a model field at all, so this is almost always the id that
-  // was asked for — read anyway, because a gateway that starts naming its
-  // substitutions should be recorded doing it rather than papered over.
-  const served = typeof data?.model === "string" ? data.model : IMAGE_MODEL;
+  // The id that ANSWERED. Google names it in `modelVersion`, which is how a
+  // silent substitution (an alias resolving to something else) becomes
+  // visible in the row rather than being assumed away.
+  const served = typeof data?.modelVersion === "string" ? data.modelVersion : IMAGE_MODEL;
   const { data: row } = await admin
     .from("image_jobs")
     .insert({

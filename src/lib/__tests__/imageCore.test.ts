@@ -40,42 +40,65 @@ describe("the image prompt gate", () => {
 });
 
 describe("the model id is the one that was measured", () => {
-  it("is the id the gateway answered, not the lite sibling that 400s", () => {
-    // Measured 2026-09-04 on the gateway: google/gemini-3.1-flash-image
-    // returns 200 with a b64_json image; google/gemini-3.1-flash-lite-image
-    // routes but answers the same body 400 upstream_error.
-    expect(IMAGE_MODEL).toBe("google/gemini-3.1-flash-image");
+  it("is the DIRECT id, unprefixed — the gateway's would 404 here", () => {
+    // Owner directive 2026-09-04b moved this off the gateway. The two routes
+    // carry genuinely different ids for the same model: `google/…` on the
+    // gateway, bare on generativelanguage.googleapis.com. POST-verified
+    // 2026-09-04 direct: 200, 3,329,851 bytes, one image/jpeg inlineData part.
+    expect(IMAGE_MODEL).toBe("gemini-3.1-flash-image");
+    expect(IMAGE_MODEL, "a gateway-prefixed id 404s on the direct endpoint").not.toContain("/");
   });
 
-  it("does not redefine the id — it imports the one the story path uses", () => {
+  it("does not redefine the id — it takes the registry's, with its evidence", () => {
     const core = readFileSync(
       join(ROOT, "supabase/functions/_shared/imageCore.ts"),
       "utf8",
     ).replace(/\/\*[\s\S]*?\*\//g, "");
-    expect(core).toMatch(/import \{ GATEWAY_IMAGE_MODEL \}/);
-    expect(core, "the id is written out a second time").not.toMatch(/"google\/gemini/);
+    expect(core).toMatch(/import \{ IMAGE_DIRECT \}/);
+    expect(core, "the id is written out a second time").not.toMatch(/"gemini-3/);
   });
 
-  it("goes to the gateway, on gateway credits", () => {
-    // WHOSE MONEY, asserted rather than trusted to a comment: the owner's
-    // 2026-09-04 mapping put image on the Lovable gateway, and the metered
-    // Google key must not appear anywhere in this path.
-    expect(CODE).toMatch(/GATEWAY_IMAGE_URL/);
-    expect(CODE).toMatch(/LOVABLE_API_KEY/);
-    expect(CODE, "image must not touch the metered key").not.toMatch(/GOOGLE_AI_API_KEY/);
-    expect(CODE, "image must not call Google directly").not.toMatch(/generativelanguage/);
+  it("goes DIRECT to Google, on the metered key", () => {
+    // WHOSE MONEY, asserted rather than trusted to a comment. Owner directive
+    // 2026-09-04b: image spends the metered Google account, not Lovable
+    // credits, and the gateway must not appear anywhere in this path.
+    expect(CODE).toMatch(/GOOGLE_AI_API_KEY/);
+    expect(CODE).toMatch(/googleGenerateContent/);
+    expect(CODE, "image must not touch gateway credits").not.toMatch(/LOVABLE_API_KEY/);
+    expect(CODE, "image must not go through the gateway").not.toMatch(/GATEWAY_IMAGE_URL/);
   });
 
-  it("reads the OpenAI-shaped reply the gateway actually sends", () => {
-    expect(CODE).toMatch(/b64_json/);
-    // usageMetadata is Google's native field; this endpoint reports `usage`.
-    expect(CODE).not.toMatch(/usageMetadata/);
+  it("reads Google's native reply shape, not OpenAI's", () => {
+    // Google returns an inlineData part on the first candidate. OpenAI's
+    // data[0].b64_json does not exist here, and reading for it would find
+    // nothing on every successful call.
+    expect(CODE).toMatch(/firstInlinePart\(data, "image\/"\)/);
+    expect(CODE).not.toMatch(/b64_json/);
+    // usageMetadata is Google's field; `usage` was the gateway's.
+    expect(CODE).toMatch(/googleUsage/);
+  });
+
+  it("puts an attached reference BEFORE the text, which is what was measured", () => {
+    // Measured 2026-09-04: inlineData first, then the instruction, returned an
+    // edited image (200, 2,405,500 bytes). The model reads parts in order.
+    const parts = CODE.slice(CODE.indexOf("const parts: GooglePart[]"));
+    const inlineAt = parts.indexOf("inlineData");
+    const textAt = parts.indexOf("{ text: prompt }");
+    expect(inlineAt).toBeGreaterThan(-1);
+    expect(inlineAt, "the reference must precede the instruction").toBeLessThan(textAt);
+  });
+
+  it("validates an attached reference before the billable call", () => {
+    const check = CODE.indexOf("validateReferenceImage");
+    const call = CODE.indexOf("googleGenerateContent(");
+    expect(check).toBeGreaterThan(-1);
+    expect(check, "a bad attachment must cost nothing").toBeLessThan(call);
   });
 });
 
 describe("the cost guards are in the order that keeps them honest", () => {
   it("checks the kill switch, the admin gate and BOTH caps before the call", () => {
-    const call = CODE.indexOf("await fetch(IMAGE_URL");
+    const call = CODE.indexOf("googleGenerateContent(");
     expect(call).toBeGreaterThan(-1);
     for (const gate of [
       "image_enabled",
@@ -109,19 +132,23 @@ describe("the cost guards are in the order that keeps them honest", () => {
     // loop is how a month of credits disappears in an hour. Checked against
     // CODE: the header comment says the word "retry" to explain its absence.
     expect(CODE).not.toMatch(/\bretry\b|\.retries|maxRetries/i);
-    expect(CODE.match(/await fetch\(/g) ?? []).toHaveLength(1);
+    // The fetch itself now lives in _shared/googleDirect.ts (which has its own
+    // no-retry test); what this file must contain is exactly ONE call to it.
+    expect(CODE.match(/googleGenerateContent\(/g) ?? []).toHaveLength(1);
   });
 
   it("never puts the key's VALUE in a log or a reply", () => {
     // The NAME of a missing variable is operator information; no value ever
     // is — which is why the "not set" log below is allowed to name it.
     const key = CODE.match(/const key = ([A-Za-z.()"'_ ]+);/)?.[1];
-    expect(key).toContain("LOVABLE_API_KEY");
+    expect(key).toContain("GOOGLE_AI_API_KEY");
     for (const call of CODE.matchAll(/(console\.[a-z]+|json)\(([^;]*)\)/g)) {
       expect(call[2], `${call[1]} must not carry the key`).not.toMatch(/\bkey\b(?!Env)/);
     }
-    // It may only ever reach the provider, in the Authorization header.
-    expect(CODE.match(/Bearer \$\{key\}/g) ?? []).toHaveLength(1);
+    // It may only ever reach the provider, handed to the shared caller once.
+    // googleDirect puts it in the query string (Google rejects a bearer
+    // header) and its own test pins that it never reaches a log.
+    expect(CODE.match(/^\s*key,$/gm) ?? []).toHaveLength(1);
   });
 
   it("records a failed attempt rather than discarding it", () => {

@@ -21,9 +21,10 @@ import {
 import { useHiddenTiles } from "@/components/customize/CustomizeSheet";
 import { isAvailable } from "@/data/countryRegistry";
 import { WORLD_GROUPS, type WorldEntry } from "@/data/worlds";
+import { WORLD_ICON } from "@/data/worldIcons";
 import { useCountry } from "@/lib/country";
 import { useT } from "@/lib/i18n/LanguageProvider";
-import { tileName } from "@/lib/i18n/tileLabel";
+import { tileName, tileNamePlain } from "@/lib/i18n/tileLabel";
 import { recordSignal } from "@/lib/personalisation";
 import { useIsAdult18 } from "@/lib/useIsAdult18";
 
@@ -118,20 +119,29 @@ function ExploreScreen() {
           <section key={g.id} className={`mt-7 rise rise-${Math.min(gi + 1, 5)}`}>
             <OniqSectionHeader eyebrow={g.eyebrow} title={g.title} />
             <div className="mt-3 grid gap-2 px-5">
-              {g.worlds.map((w) => (
-                <OniqWorldCard
-                  key={w.key}
-                  layout="row"
-                  world={w.world}
-                  emoji={w.emoji}
-                  label={tileName(lang, w.key, home)}
-                  sublabel={w.hint}
-                  to={w.to}
-                  search={w.search}
-                  onClick={() => void recordSignal("hub_open", w.key)}
-                  testId={`explore-${w.key}`}
-                />
-              ))}
+              {g.worlds.map((w) => {
+                // The same drawn glyph and hue Home's tiles use. A world has
+                // ONE identity; it cannot be a green car here and a teal
+                // gradient there, which is what it was when each screen chose
+                // its own treatment.
+                const art = WORLD_ICON[w.key];
+                return (
+                  <OniqWorldCard
+                    key={w.key}
+                    layout="row"
+                    world={w.world}
+                    emoji={w.emoji}
+                    icon={art ? <art.Icon /> : undefined}
+                    tint={art?.tint}
+                    label={tileNamePlain(lang, w.key, home)}
+                    sublabel={w.hint}
+                    to={w.to}
+                    search={w.search}
+                    onClick={() => void recordSignal("hub_open", w.key)}
+                    testId={`explore-${w.key}`}
+                  />
+                );
+              })}
             </div>
           </section>
         ))

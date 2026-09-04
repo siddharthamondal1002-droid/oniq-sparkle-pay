@@ -15,21 +15,14 @@
  */
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import type { Tint } from "@/design/tints";
 
-/** The hues the reference uses. Keyed names, never raw colour, at call sites. */
-export type Tint =
-  | "rose"
-  | "red"
-  | "orange"
-  | "amber"
-  | "green"
-  | "teal"
-  | "sky"
-  | "blue"
-  | "indigo"
-  | "violet"
-  | "pink"
-  | "slate";
+/**
+ * Re-exported so components can take the hue straight from the badge, while
+ * the data files that NAME a hue (create capabilities, world icons) import it
+ * from @/design/tints and stay free of React.
+ */
+export type { Tint };
 
 /**
  * Three sizes, measured off the reference rather than picked:

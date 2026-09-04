@@ -24,6 +24,7 @@ import {
 } from "@/lib/create/capabilities";
 import { cn } from "@/lib/utils";
 import { OniqAIOrb } from "./OniqAIOrb";
+import { OniqIconBadge } from "./OniqIconBadge";
 import { OniqSheet } from "./OniqSheet";
 
 /**
@@ -70,20 +71,17 @@ export function OniqCreateLauncher({ open, onClose }: { open: boolean; onClose: 
                   live ? "press" : "cursor-default opacity-70",
                 )}
               >
-                <span
-                  className={cn(
-                    "grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white",
-                    !live && "bg-surface-2",
-                  )}
-                  style={live ? { backgroundColor: c.accent } : undefined}
-                  aria-hidden="true"
-                >
-                  {Icon ? (
-                    <Icon className={cn("h-5 w-5", !live && "text-muted-foreground")} />
-                  ) : (
-                    c.emoji
-                  )}
-                </span>
+                {/*
+                  The SAME badge the world tiles and Explore rows draw — one
+                  component, so the four surfaces cannot drift in radius, size
+                  or tint again. A card that is not live drops to the neutral
+                  hue rather than keeping its colour at reduced opacity: a
+                  faded pink still reads as "the pink one", which is exactly
+                  the affordance a dead card should not have.
+                */}
+                <OniqIconBadge tint={live ? (c.tint ?? "slate") : "slate"} size="md">
+                  {Icon ? <Icon /> : <span aria-hidden="true">{c.emoji}</span>}
+                </OniqIconBadge>
                 <span className="min-w-0">
                   <span className="flex flex-wrap items-center gap-1.5 font-display text-[14px] normal-case tracking-normal text-foreground">
                     {c.label}

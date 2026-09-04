@@ -1,4 +1,4 @@
-// voice-generate — a spoken line from typed text, on Lovable credits.
+// voice-generate — a spoken line from typed text, direct on Google.
 //
 // Owner reference, 2026-09-04: Voice is a live Create card. The ENGINE is not
 // new — ONIQ has read story narration through this gateway since 2026-08-14,
@@ -6,9 +6,12 @@
 // missing was a screen and the guards a user-facing, money-spending button
 // needs.
 //
-// WHOSE MONEY. Lovable credits, not the metered Google key — the same pool
-// story-voice and story-still already spend, and the route the 2026-09-04
-// directive put every model on except music.
+// WHOSE MONEY. The METERED GOOGLE ACCOUNT, per owner directive 2026-09-04b —
+// the same key music and Veo clips already spend. It was Lovable credits until
+// that directive; story NARRATION still is, so ONIQ now runs two TTS routes on
+// two different bills. That split is deliberate (the directive named the four
+// Create features, not story narration) and voiceCore.test.ts pins both sides
+// so it cannot drift into being an accident.
 //
 // The guards are the order every ONIQ generation tool enforces:
 //
@@ -26,7 +29,19 @@
 // purpose. Until someone does that deliberately, a money guard that reads top
 // to bottom in one file is worth more than the duplication it costs.
 //
-// LOVABLE_API_KEY is read here and nowhere else in this file's reach. Never
+// OWNER DIRECTIVE 2026-09-04b: "make images, Voice, music, documents direct
+// Gemini not via lovable". Create — Voice spends the METERED GOOGLE ACCOUNT
+// now, not Lovable credits. Story NARRATION was not in that list and stays on
+// the gateway, so ONIQ runs two TTS routes on two bills — deliberate, and
+// pinned by voiceCore.test.ts so it cannot become an accident.
+//
+// MEASURED before it was written, direct: gemini-3.1-flash-tts-preview with
+// generationConfig {responseModalities:['AUDIO'], speechConfig:{...voiceName}}
+// answers 200, 144,129 bytes, inlineData 'audio/l16; rate=24000; channels=1'.
+// WITHOUT speechConfig the same id returns 400 INVALID_ARGUMENT — a 400 that
+// looks like a dead id and is not.
+//
+// GOOGLE_AI_API_KEY is read here and nowhere else in this file's reach. Never
 // returned, never logged, never in an error message.
 //
 // MEASURED before it was written: all eight voices in VOICE_CHOICES answered
@@ -40,7 +55,7 @@ import {
   serviceRoleRpc,
   withProviderSpendGuard,
 } from "../_shared/financialLedger.ts";
-import { firstInlineAudio, GATEWAY_VOICE_URL, voiceRequestBody } from "../_shared/gatewayVoice.ts";
+import { firstInlinePart, googleGenerateContent, googleUsage } from "../_shared/googleDirect.ts";
 import {
   needsWavHeader,
   rateOf,
@@ -78,7 +93,6 @@ export const VOICE_BUDGET: SearchBudget = {
   maxEstimatedUsd: 0.16,
 };
 
-const VOICE_URL = GATEWAY_VOICE_URL;
 const BUCKET = "video-gen";
 
 /** One generation's ceiling, kept well inside the function timeout. */
@@ -221,9 +235,10 @@ Deno.serve(async (req) => {
   // An unrecognised name falls back rather than reaching the provider.
   const voice = resolveVoice(body.voice);
 
-  const key = Deno.env.get("LOVABLE_API_KEY");
+  // OWNER DIRECTIVE 2026-09-04b: direct Google, not the Lovable gateway.
+  const key = Deno.env.get("GOOGLE_AI_API_KEY");
   if (!key) {
-    console.error("voice-generate: LOVABLE_API_KEY is not set");
+    console.error("voice-generate: GOOGLE_AI_API_KEY is not set");
     return json(503, { error: "Voice generation is not configured." });
   }
 
@@ -249,7 +264,10 @@ Deno.serve(async (req) => {
     {
       requestId: requestIdFrom(typeof body.requestId === "string" ? body.requestId : undefined),
       capability: "TTS",
-      provider: "lovable-gateway",
+      // OWNER DIRECTIVE 2026-09-04b — the metered Google account now, not
+      // Lovable credits. The reservation is unchanged; whose money it reserves
+      // against is what moved.
+      provider: "google",
       model: VOICE_MODEL,
       unit: "provider_unit",
       units: 1,
@@ -260,32 +278,39 @@ Deno.serve(async (req) => {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), CALL_TIMEOUT_MS);
       try {
-        const res = await fetch(VOICE_URL, {
-          method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-          body: voiceRequestBody(text, voice),
+        // speechConfig IS REQUIRED, and its absence is not a dead id.
+        // Measured 2026-09-04: this exact id answered 400 INVALID_ARGUMENT to
+        // a bare responseModalities:["AUDIO"] body and 200 to the same body
+        // with a prebuilt voice attached. The reflex on that 400 is to strike
+        // the id off the list, and it would have been wrong.
+        const res = await googleGenerateContent({
+          model: VOICE_MODEL,
+          key,
+          parts: [{ text }],
+          responseModalities: ["AUDIO"],
+          generationConfig: {
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+          },
           signal: ctrl.signal,
         });
-        // TWO REPLY DIALECTS, and story-voice learned both the hard way. A
-        // pass-through gateway answers Google's generateContent JSON, with
-        // headerless PCM inline and the sample rate in its mime; a normalizing
-        // one answers container bytes with the mime in the header. Measured
-        // 2026-09-04, this id took the second road — but reading only that one
-        // would make a gateway-side change look like a refusal.
-        let audio: { mime: string; data: string } | null = null;
-        if (res.ok) {
-          const replyType = res.headers.get("content-type") ?? "";
-          if (/json/i.test(replyType)) {
-            audio = firstInlineAudio(await res.json().catch(() => null));
-          } else {
-            const heard = new Uint8Array(await res.arrayBuffer());
-            if (heard.length > 0) audio = { mime: replyType || "audio/wav", data: b64(heard) };
-          }
-        }
+        // ONE DIALECT NOW. The gateway had two — pass-through JSON, or
+        // container bytes with the mime in the header — and this file read
+        // both. Google's own endpoint always answers generateContent JSON
+        // with headerless PCM inline, measured at 143,360 base64 characters
+        // of 'audio/l16; rate=24000; channels=1', so the second branch is
+        // gone rather than kept as dead code that nothing can reach.
+        const audio = res.ok ? firstInlinePart(res.data, "audio/") : null;
+        const usage = googleUsage(res.data);
         return {
-          value: { ok: res.ok, status: res.status, audio } as const,
+          value: {
+            ok: res.ok,
+            status: res.status,
+            audio,
+            errorMessage: res.errorMessage,
+          } as const,
           neverCalled: false,
           outcome: res.ok ? ("ACCEPTED" as const) : ("FAILED" as const),
+          detail: usage ?? undefined,
         };
       } catch (e) {
         const reason = (e as Error)?.name === "AbortError" ? "timeout" : "network";
@@ -321,9 +346,15 @@ Deno.serve(async (req) => {
   };
 
   if (!outcome.ok) {
-    console.error("voice-generate upstream", outcome.status);
+    // GOOGLE'S OWN MESSAGE, kept. A bare status cannot tell a dead id from a
+    // refused prompt from exhausted quota, and all three arrive as a 4xx.
+    const detail = "errorMessage" in outcome ? (outcome.errorMessage ?? null) : null;
+    console.error("voice-generate upstream", outcome.status, detail ?? "");
     return await fail(
-      outcome.status ? `http ${outcome.status}` : "network",
+      [outcome.status ? `http ${outcome.status}` : "network", detail]
+        .filter(Boolean)
+        .join(": ")
+        .slice(0, 500),
       "The voice engine refused that one. Try different words.",
       502,
     );
