@@ -17,7 +17,6 @@ import {
   User,
 } from "lucide-react";
 import { OniqBottomNav, type NavTab } from "@/components/oniq/OniqBottomNav";
-import { OniqCreateLauncher } from "@/components/oniq/OniqCreateLauncher";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { GlobalIncomingCall } from "@/components/chat/GlobalIncomingCall";
@@ -30,7 +29,7 @@ import { SafeMount } from "@/components/SafeMount";
 import { MiniAppReturnWatcher } from "@/components/miniapps/MiniAppReturnWatcher";
 import { MessageNotifier } from "@/components/chat/MessageNotifier";
 import { usePresenceTracker } from "@/hooks/usePresence";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, type CSSProperties } from "react";
 import { initPush } from "@/lib/push";
 import { syncSystemBarsOnBoot } from "@/lib/theme";
 import { PermissionsOnboarding } from "@/components/onboarding/PermissionsOnboarding";
@@ -178,14 +177,15 @@ function AppShell() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { data: theme } = useUserTheme();
-  const [createOpen, setCreateOpen] = useState(false);
-  // Home's "Create" experience card cannot reach this state directly, so it
-  // asks through a window event, the same way native push taps do below.
+  // CREATE IS A SCREEN, NOT A SHEET — owner directive 2026-09-04f, matching
+  // the reference. The nav's centre button navigates; the window event stays
+  // because Home's "Create" experience card still asks through it and has no
+  // other way to reach the router from where it sits.
   useEffect(() => {
-    const onOpen = () => setCreateOpen(true);
+    const onOpen = () => void navigate({ to: "/app/create" });
     window.addEventListener("oniq:open-create", onOpen);
     return () => window.removeEventListener("oniq:open-create", onOpen);
-  }, []);
+  }, [navigate]);
   const { data: me } = useQuery({
     queryKey: ["me"],
     queryFn: async () => (await supabase.auth.getUser()).data.user,
@@ -457,11 +457,10 @@ function AppShell() {
                 isActive={(to) =>
                   to === "/app" ? normalized === "/app" : normalized.startsWith(to)
                 }
-                onCreate={() => setCreateOpen(true)}
+                onCreate={() => void navigate({ to: "/app/create" })}
               />
             </>
           )}
-          <OniqCreateLauncher open={createOpen} onClose={() => setCreateOpen(false)} />
         </div>
       </div>
     </LanguageProvider>
