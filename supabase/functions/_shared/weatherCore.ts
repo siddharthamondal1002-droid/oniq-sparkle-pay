@@ -45,6 +45,25 @@
  * GET, not POST — also measured. The probes above were GETs carrying the
  * coordinates as query parameters and were answered on the credential rather
  * than refused as the wrong method.
+ *
+ * ------------------------------------------------------------------------
+ * AIR QUALITY, owner directive 2026-09-04i: "also add aqi in weather and home
+ * strip". A SECOND Google API — airquality.googleapis.com — on the same
+ * credential and the same cache row, probed the same way on the same day and
+ * answering identically on all three:
+ *
+ *   no credential   -> 403 PERMISSION_DENIED, same "or other form of API
+ *                      consumer identity" wording.
+ *   nonsense Bearer -> 401 UNAUTHENTICATED, "Expected OAuth 2 access token".
+ *   nonsense key    -> 400 INVALID_ARGUMENT, API_KEY_INVALID,
+ *                      `"service": "airquality.googleapis.com"`.
+ *
+ * IT IS A POST, AND WEATHER IS A GET. Measured, not assumed: the same
+ * coordinates sent to the air endpoint as GET query parameters came back as
+ * Google's HTML 404 page — no JSON error, no credential check, just "not
+ * found", which is what a wrong method looks like here. So the two calls in
+ * this file are deliberately shaped differently, and that difference is a
+ * measurement rather than a style choice.
  */
 
 /** Google's weather host. One place, so a typo cannot hide in a template. */
@@ -180,5 +199,86 @@ export function mapCurrentConditions(raw: unknown): WeatherNow | null {
         ? null
         : Math.round(num(windSpeed.value)!)
       : null,
+  };
+}
+
+/* ------------------------------------------------------------------- air --
+ * AIR QUALITY. A second endpoint, a second reading, one cache row.
+ * -------------------------------------------------------------------------- */
+
+export const AIR_HOST = "https://airquality.googleapis.com";
+
+/** The air lookup is a POST with a JSON body — measured; see the header. */
+export const AIR_URL = `${AIR_HOST}/v1/currentConditions:lookup`;
+
+/**
+ * The body. `LOCAL_AQI` asks for the index the country actually uses — CPCB in
+ * India, EPA in the US — alongside Google's own Universal AQI, because the
+ * local number is the one a person recognises from every other app and news
+ * bulletin they have ever seen.
+ */
+export function airBody(lat: number, lon: number, languageCode = "en") {
+  return {
+    location: { latitude: lat, longitude: lon },
+    extraComputations: ["LOCAL_AQI", "DOMINANT_POLLUTANT_CONCENTRATION"],
+    languageCode,
+  };
+}
+
+export type AirNow = {
+  /** The number as Google printed it — never re-derived here. */
+  aqi: number;
+  /** Which index that number belongs to, e.g. "ind_cpcb" or "uaqi". */
+  code: string;
+  /** Google's name for the index, for the screen's small print. */
+  indexName: string | null;
+  /** GOOGLE'S OWN VERDICT, e.g. "Good air quality". See below — load-bearing. */
+  category: string | null;
+  /** e.g. "pm25". Null when Google did not name one. */
+  dominantPollutant: string | null;
+};
+
+/**
+ * The air reading, or null.
+ *
+ * THE POLARITY TRAP, and why this file never judges the number itself.
+ * Google returns two kinds of index and they run in OPPOSITE directions:
+ *
+ *   uaqi      Google's Universal AQI, 0-100, where 100 is the BEST air.
+ *   local     CPCB, EPA and the rest, typically 0-500, where 500 is the WORST.
+ *
+ * A single "green under 50, red over 150" rule applied to both would colour
+ * clean air as hazardous for half the world. So nothing here reads the number:
+ * the NUMBER is shown as Google printed it, and the good-or-bad judgement
+ * comes from Google's own `category` string, which is correct for whichever
+ * index produced it. That is the same discipline the temperature follows —
+ * report what was measured, never infer what was not.
+ *
+ * THE LOCAL INDEX WINS when both are present, because it is the number a
+ * person already recognises. `code` travels with it so the screen can say
+ * which index it is rather than implying there is only one.
+ */
+export function mapAirQuality(raw: unknown): AirNow | null {
+  if (!raw || typeof raw !== "object") return null;
+  const list = (raw as Record<string, unknown>).indexes;
+  if (!Array.isArray(list) || list.length === 0) return null;
+
+  const rows = list.filter(
+    (r): r is Record<string, unknown> => Boolean(r) && typeof r === "object",
+  );
+  // A local index is anything that is not Google's universal one.
+  const chosen = rows.find((r) => typeof r.code === "string" && r.code !== "uaqi") ?? rows[0];
+  if (!chosen) return null;
+
+  const aqi = chosen.aqi;
+  if (typeof aqi !== "number" || !Number.isFinite(aqi)) return null;
+
+  return {
+    aqi: Math.round(aqi),
+    code: typeof chosen.code === "string" ? chosen.code : "uaqi",
+    indexName: typeof chosen.displayName === "string" ? chosen.displayName : null,
+    category: typeof chosen.category === "string" ? chosen.category : null,
+    dominantPollutant:
+      typeof chosen.dominantPollutant === "string" ? chosen.dominantPollutant : null,
   };
 }

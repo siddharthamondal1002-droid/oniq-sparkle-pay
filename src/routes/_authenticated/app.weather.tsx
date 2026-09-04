@@ -1,8 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Droplets, MapPin, Thermometer, Wind } from "lucide-react";
-import { OniqCanvas, OniqCard, OniqEmpty, OniqHeader, OniqSkeletonRows } from "@/components/oniq";
-import { degrees, skyLabel, useWeather, weatherIcon } from "@/lib/weather";
+import {
+  OniqCanvas,
+  OniqCard,
+  OniqEmpty,
+  OniqHeader,
+  OniqIconBadge,
+  OniqSkeletonRows,
+} from "@/components/oniq";
+import {
+  airLabel,
+  airTint,
+  aqiValue,
+  degrees,
+  isRecent,
+  skyLabel,
+  useWeather,
+  weatherIcon,
+} from "@/lib/weather";
 import {
   askForPlace,
   clearPlace,
@@ -67,6 +83,10 @@ function WeatherScreen() {
 
   const reply = weather.data;
   const now = reply?.state === "ok" ? reply.now : null;
+  const air = reply?.state === "ok" ? reply.air : null;
+  // Shown, but never as "right now" once it stops being that. Same three-hour
+  // line the Home chip uses — see READING_MAX_AGE_MS.
+  const stale = reply?.state === "ok" && !isRecent(reply.fetchedAt);
   const Icon = now ? weatherIcon(now.conditionType, now.isDay) : Thermometer;
 
   return (
@@ -115,6 +135,37 @@ function WeatherScreen() {
               ) : null}
             </OniqCard>
 
+            {/* AIR QUALITY — owner directive 2026-09-04i. Its own card because
+                it is a different measurement on its own scale, and because it
+                may be absent while the temperature is fine: airquality is a
+                separate Google API and the function settles it separately.
+
+                THE NUMBER IS GOOGLE'S AND SO IS THE VERDICT. Nothing here
+                decides whether an AQI is good — the two index families run in
+                opposite directions (Universal AQI 0-100 best-high, CPCB and
+                EPA 0-500 worst-high), so the colour comes from Google's own
+                category and the index is named underneath rather than implied
+                to be the only one. */}
+            {air ? (
+              <OniqCard variant="surface" className="mt-3 p-4" testId="weather-aqi">
+                <div className="flex items-center gap-3">
+                  <OniqIconBadge tint={airTint(air.category)} size="sm">
+                    <Wind />
+                  </OniqIconBadge>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display text-[18px] normal-case tracking-normal text-foreground">
+                      {aqiValue(air)}
+                    </p>
+                    <p className="text-[12px] text-muted-foreground">{airLabel(air)}</p>
+                  </div>
+                </div>
+                <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+                  {air.indexName ?? air.code}
+                  {air.dominantPollutant ? ` · mostly ${air.dominantPollutant}` : ""}
+                </p>
+              </OniqCard>
+            ) : null}
+
             {/* Only the readings that came back. A humidity of "—" is a row
                 that exists to be empty, which is worse than a shorter list. */}
             {now.humidity !== null || now.windKmh !== null ? (
@@ -141,8 +192,8 @@ function WeatherScreen() {
             ) : null}
 
             <p className="mt-4 text-center text-[11px] leading-snug text-muted-foreground">
-              For the area around you, to about 11 km. ONIQ never stores where you are — the place
-              is kept on this device only.
+              {stale ? "This reading is a few hours old. " : ""}For the area around you, to about 11
+              km. ONIQ never stores where you are — the place is kept on this device only.
             </p>
             <div className="mt-2 flex justify-center">
               <button

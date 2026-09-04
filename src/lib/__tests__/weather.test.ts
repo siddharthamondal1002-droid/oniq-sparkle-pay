@@ -31,16 +31,28 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  AIR_URL,
   CACHE_GRID_DEGREES,
   CACHE_TTL_SECONDS,
+  airBody,
   cacheKey,
   currentConditionsUrl,
+  mapAirQuality,
   mapCurrentConditions,
   snapCoord,
   validCoords,
 } from "../../../supabase/functions/_shared/weatherCore.ts";
 import { isPlace } from "../weatherPlace";
-import { degrees, skyLabel, weatherIcon } from "../weather";
+import {
+  READING_MAX_AGE_MS,
+  airLabel,
+  airTint,
+  aqiValue,
+  degrees,
+  isRecent,
+  skyLabel,
+  weatherIcon,
+} from "../weather";
 import { THIRD_PARTY_REQUESTS } from "../../config/playCompliance";
 
 const ROOT = process.cwd();
@@ -282,7 +294,8 @@ describe("nothing is invented", () => {
   });
 
   it("shows no chip at all unless the reading came back", () => {
-    expect(HOME).toContain('weather.data?.state === "ok"');
+    // A number appears only when the lookup came back AND is still current.
+    expect(HOME).toContain('reply?.state === "ok" && fresh');
   });
 
   it("says so on the screen instead of guessing", () => {
@@ -382,5 +395,210 @@ describe("it never asks for location at launch", () => {
     expect(isPlace({ lat: 91, lon: 0 })).toBe(false);
     expect(isPlace(null)).toBe(false);
     expect(isPlace("22,88")).toBe(false);
+  });
+});
+
+/**
+ * AIR QUALITY — owner directive 2026-09-04i, "also add aqi in weather and home
+ * strip". A SECOND Google API on the same credential and the same cache row.
+ *
+ * The one thing that could genuinely put a wrong reading on somebody's screen
+ * here is not a missing field, it is the POLARITY TRAP: Google's Universal AQI
+ * runs 0-100 with 100 the best air, while CPCB, EPA and every other local
+ * index run roughly 0-500 with the high end the worst. A single colour rule
+ * over both would paint clean air as hazardous for half the world, so nothing
+ * in this code judges the number — Google's own category does.
+ */
+describe("air quality is a second API, measured the same way", () => {
+  it("keeps the probe, including the finding that it is a POST", () => {
+    // Weather is a GET; the same coordinates sent to the air endpoint as GET
+    // query parameters came back as Google's HTML 404 page. That difference is
+    // measured, not a style choice, so it is recorded next to the code.
+    expect(CORE).toContain("airquality.googleapis.com");
+    expect(CORE).toMatch(/IT IS A POST, AND WEATHER IS A GET/);
+  });
+
+  it("posts to the air endpoint and gets the weather one", () => {
+    expect(AIR_URL).toBe("https://airquality.googleapis.com/v1/currentConditions:lookup");
+    expect(FN).toMatch(/method: "POST"/);
+    expect(FN).toContain("AIR_URL");
+    // The weather half stays a GET with query parameters.
+    expect(currentConditionsUrl(22.6, 88.4)).toContain("?");
+  });
+
+  it("asks for the index the country actually uses", () => {
+    // The local number is the one a person recognises from every other app.
+    const body = airBody(22.6, 88.4);
+    expect(body.location).toEqual({ latitude: 22.6, longitude: 88.4 });
+    expect(body.extraComputations).toContain("LOCAL_AQI");
+  });
+
+  it("prefers the local index over Google's universal one", () => {
+    const air = mapAirQuality({
+      indexes: [
+        { code: "uaqi", displayName: "Universal AQI", aqi: 71, category: "Good air quality" },
+        {
+          code: "ind_cpcb",
+          displayName: "AQI (IN)",
+          aqi: 148,
+          category: "Moderate air quality",
+          dominantPollutant: "pm25",
+        },
+      ],
+    });
+    expect(air).toEqual({
+      aqi: 148,
+      code: "ind_cpcb",
+      indexName: "AQI (IN)",
+      category: "Moderate air quality",
+      dominantPollutant: "pm25",
+    });
+  });
+
+  it("falls back to the universal index when it is the only one", () => {
+    const air = mapAirQuality({
+      indexes: [
+        { code: "uaqi", displayName: "Universal AQI", aqi: 71, category: "Good air quality" },
+      ],
+    });
+    expect(air?.code).toBe("uaqi");
+    expect(air?.aqi).toBe(71);
+  });
+
+  it.each([
+    ["no indexes", { indexes: [] }],
+    ["no aqi number", { indexes: [{ code: "uaqi", category: "Good air quality" }] }],
+    ["an error body", { error: { code: 403, message: "denied" } }],
+    ["null", null],
+  ])("returns null for %s", (_what, raw) => {
+    expect(mapAirQuality(raw)).toBeNull();
+  });
+
+  it("never lets a failed air lookup take the weather down with it", () => {
+    // Air quality is the newer and likelier-unenabled of the two APIs; losing
+    // the temperature with it would trade a working feature for a missing one.
+    expect(FN).toMatch(/\.catch\(\(\) => null\)/);
+    expect(FN).toContain("let air: AirNow | null = null");
+    // And the column that holds it is nullable for the same reason.
+    expect(read("supabase/migrations/20260904180000_weather_cache.sql")).toMatch(/air\s+jsonb,/);
+  });
+
+  it("shares one cache row, so air does not double the per-hit cost", () => {
+    // Two upstream calls per MISS, still one round per cell per quarter hour.
+    expect(FN).toContain("await Promise.all([");
+    expect(FN).toMatch(/\{ cell: key, reading: now, air, fetched_at:/);
+  });
+});
+
+describe("the polarity trap, which is the way this could lie", () => {
+  it("colours from Google's WORDS, never from the number", () => {
+    // 148 is moderate on CPCB and would be excellent on a 0-100 scale where
+    // high is good. The number alone cannot be judged, so it is not.
+    expect(airTint("Moderate air quality")).toBe("amber");
+    expect(airTint("Good air quality")).toBe("green");
+    expect(airTint("Excellent air quality")).toBe("green");
+  });
+
+  it.each([
+    ["Severe", "rose"],
+    ["Hazardous", "rose"],
+    ["Very poor air quality", "red"],
+    ["Very Unhealthy", "red"],
+    ["Unhealthy for Sensitive Groups", "orange"],
+    ["Poor air quality", "red"],
+    ["Satisfactory", "amber"],
+  ])("reads %s as %s", (category, tint) => {
+    expect(airTint(category)).toBe(tint);
+  });
+
+  it("tests the compound categories before the words they contain", () => {
+    // THE ORDER THAT ACTUALLY MATTERS. "Unhealthy for Sensitive Groups" is a
+    // milder EPA band than "Unhealthy" and contains it as a substring, so
+    // matching the shorter word first would overstate it; and "Severe"
+    // contains none of the others but sits above them, so a "poor" match
+    // reached first would understate the worst air there is.
+    expect(airTint("Unhealthy for Sensitive Groups")).toBe("orange");
+    expect(airTint("Unhealthy")).toBe("red");
+    expect(airTint("Severe")).toBe("rose");
+    // Poor and Very Poor deliberately SHARE a tint — five colours for six
+    // bands, and the number beside them carries the difference. What matters
+    // is that neither is ever milder than moderate.
+    expect(airTint("Very poor")).toBe("red");
+    expect(airTint("Poor")).toBe("red");
+  });
+
+  it("says nothing about air it has no category for", () => {
+    // Grey claims it is a reading and nothing more.
+    expect(airTint(null)).toBe("slate");
+    expect(airTint("A category Google adds in 2027")).toBe("slate");
+  });
+
+  it("records the trap next to the code that avoids it", () => {
+    expect(CORE).toMatch(/THE POLARITY TRAP/);
+    expect(read("src/lib/weather.ts")).toMatch(/opposite directions/i);
+  });
+
+  it("writes the number as Google printed it", () => {
+    const air = {
+      aqi: 148,
+      code: "ind_cpcb",
+      indexName: "AQI (IN)",
+      category: "Moderate air quality",
+      dominantPollutant: "pm25",
+    };
+    expect(aqiValue(air)).toBe("AQI 148");
+    // And trims the words the heading already carries.
+    expect(airLabel(air)).toBe("Moderate");
+    expect(airLabel({ ...air, category: null })).toBe("AQI (IN)");
+  });
+
+  it("names which index the number belongs to", () => {
+    // Implying there is only one AQI is how a CPCB number gets read as an EPA
+    // one. The screen prints the index beside it.
+    expect(SCREEN).toContain("air.indexName ?? air.code");
+  });
+});
+
+describe("the chip stays on once weather is selected", () => {
+  it("shows a chip for anyone with a place, reading or not", () => {
+    // OWNER DIRECTIVE 2026-09-04i. A chip that vanished on a failed lookup
+    // would blink out on a train — exactly when somebody is looking at it.
+    expect(HOME).toContain("} else if (place) {");
+    expect(HOME).toContain('title: "Weather"');
+    expect(HOME).toContain('"tap to refresh"');
+  });
+
+  it("keeps the last good reading on the device", () => {
+    const src = read("src/lib/weather.ts");
+    expect(src).toContain("oniq.weather.last.");
+    expect(src).toContain("initialData:");
+    // Dated with the READING'S own timestamp, so react-query treats an old one
+    // as stale and refetches rather than trusting it for another fifteen.
+    expect(src).toContain("initialDataUpdatedAt:");
+  });
+
+  it("keeps a failure from erasing what was already there", () => {
+    expect(read("src/lib/weather.ts")).toMatch(/if \(reply\.state !== "ok"\) throw/);
+  });
+
+  it("stops calling a reading 'right now' after three hours", () => {
+    // A temperature from this morning shown as now is the same lie as an
+    // invented one, just better disguised.
+    expect(READING_MAX_AGE_MS).toBe(3 * 60 * 60 * 1000);
+    const now = Date.parse("2026-09-04T12:00:00Z");
+    expect(isRecent("2026-09-04T11:59:00Z", now)).toBe(true);
+    expect(isRecent("2026-09-04T09:30:00Z", now)).toBe(true);
+    expect(isRecent("2026-09-04T08:00:00Z", now)).toBe(false);
+    expect(isRecent(null, now)).toBe(false);
+    expect(isRecent("not a date", now)).toBe(false);
+  });
+
+  it("will not let a skewed clock make a reading immortal", () => {
+    const now = Date.parse("2026-09-04T12:00:00Z");
+    expect(isRecent("2026-09-04T18:00:00Z", now)).toBe(false);
+  });
+
+  it("says so on the screen when what it shows is old", () => {
+    expect(SCREEN).toContain("This reading is a few hours old.");
   });
 });

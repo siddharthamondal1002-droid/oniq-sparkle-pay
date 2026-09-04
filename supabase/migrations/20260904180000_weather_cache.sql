@@ -23,11 +23,19 @@ create table if not exists public.weather_cache (
   -- served verbatim to the client, so it holds exactly the fields ONIQ shows
   -- and nothing it does not need to keep.
   reading     jsonb       not null,
+  -- The air-quality reading, added with owner directive 2026-09-04i. NULLABLE
+  -- on purpose: airquality.googleapis.com is a second API and may be
+  -- unavailable or unenabled while weather works, and losing a temperature
+  -- because an air index was missing would trade a working feature for one
+  -- that is not.
+  air         jsonb,
   fetched_at  timestamptz not null default now()
 );
 
 comment on table public.weather_cache is
   'Shared, place-keyed weather readings. Not user data: a cell is a ~11 km grid square, never a person, and no user id is stored. Exists so a metered Google lookup is made once per place per quarter hour rather than once per app open.';
+comment on column public.weather_cache.air is
+  'Google Air Quality currentConditions, mapped. Null when the air lookup failed or the Air Quality API is not enabled on the project — the weather half still stands.';
 comment on column public.weather_cache.cell is
   'Latitude,longitude snapped to a 0.1 degree grid (about 11 km). Built only by cacheKey() in supabase/functions/_shared/weatherCore.ts.';
 comment on column public.weather_cache.fetched_at is

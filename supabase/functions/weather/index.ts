@@ -35,12 +35,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { googleAccessToken } from "../_shared/googleAuth.ts";
 import {
+  AIR_URL,
   CACHE_TTL_SECONDS,
+  airBody,
   cacheKey,
   currentConditionsUrl,
+  mapAirQuality,
   mapCurrentConditions,
   snapCoord,
   validCoords,
+  type AirNow,
   type WeatherNow,
 } from "../_shared/weatherCore.ts";
 
@@ -63,7 +67,7 @@ function enabled(): boolean {
   return raw === "" || raw === "true" || raw === "yes" || raw === "1" || raw === "on";
 }
 
-type CacheRow = { reading: WeatherNow; fetched_at: string };
+type CacheRow = { reading: WeatherNow; air: AirNow | null; fetched_at: string };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -111,7 +115,7 @@ Deno.serve(async (req) => {
   const freshAfter = new Date(Date.now() - CACHE_TTL_SECONDS * 1000).toISOString();
   const { data: hit } = await admin
     .from("weather_cache")
-    .select("reading, fetched_at")
+    .select("reading, air, fetched_at")
     .eq("cell", key)
     .gte("fetched_at", freshAfter)
     .maybeSingle();
@@ -121,6 +125,7 @@ Deno.serve(async (req) => {
       configured: true,
       cached: true,
       now: row.reading,
+      air: row.air ?? null,
       fetchedAt: row.fetched_at,
     });
   }
@@ -139,18 +144,53 @@ Deno.serve(async (req) => {
   // and both matter: the answer has to be the one that gets stored under this
   // key, and a person's precise coordinates then never leave ONIQ for Google.
   const cell = { lat: snapCoord(at.lat), lon: snapCoord(at.lon) };
+  const auth = {
+    authorization: `Bearer ${token.token}`,
+    // The same project header Vertex needs; it is what tells Google which
+    // project's quota and bill this call belongs to.
+    "x-goog-user-project": token.projectId,
+  };
+
+  // BOTH LOOKUPS AT ONCE, and the air one is allowed to fail on its own.
+  //
+  // Owner directive 2026-09-04i added air quality; it is a SECOND metered API
+  // (airquality.googleapis.com), so it doubles the per-miss cost and changes
+  // nothing about the per-hit cost — the cache row holds both readings, so a
+  // cell still costs one round of calls per quarter hour however many people
+  // open the app.
+  //
+  // In parallel because they are independent and a person waiting on the Home
+  // screen should wait for the slower of the two, not for their sum. And the
+  // air result is settled SEPARATELY: air quality is the newer, more likely to
+  // be unenabled of the two APIs, and losing the temperature because the air
+  // index was unavailable would be trading a working feature for a missing one.
   let res: Response;
+  let airRes: Response | null = null;
   try {
-    res = await fetch(currentConditionsUrl(cell.lat, cell.lon, language), {
-      headers: {
-        authorization: `Bearer ${token.token}`,
-        // The same project header Vertex needs; it is what tells Google which
-        // project's quota and bill this call belongs to.
-        "x-goog-user-project": token.projectId,
-      },
-    });
+    [res, airRes] = await Promise.all([
+      fetch(currentConditionsUrl(cell.lat, cell.lon, language), { headers: auth }),
+      // A POST with a JSON body — measured; weather is a GET. See weatherCore.
+      fetch(AIR_URL, {
+        method: "POST",
+        headers: { ...auth, "content-type": "application/json" },
+        body: JSON.stringify(airBody(cell.lat, cell.lon, language)),
+      }).catch(() => null),
+    ]);
   } catch {
     return json(200, { configured: true, unavailable: true, reason: "could not reach Google" });
+  }
+
+  // Read, but never let it take the weather down with it.
+  let air: AirNow | null = null;
+  if (airRes) {
+    const airRaw = await airRes.json().catch(() => null);
+    if (airRes.ok) {
+      air = mapAirQuality(airRaw);
+      if (!air) console.error("[weather] unreadable air response shape");
+    } else {
+      const m = (airRaw as { error?: { message?: unknown } } | null)?.error?.message;
+      console.error("[weather] air lookup failed:", airRes.status, m ?? `http ${airRes.status}`);
+    }
   }
 
   const raw = await res.json().catch(() => null);
@@ -179,7 +219,7 @@ Deno.serve(async (req) => {
   const { error: upsertError } = await admin
     .from("weather_cache")
     .upsert(
-      { cell: key, reading: now, fetched_at: new Date().toISOString() },
+      { cell: key, reading: now, air, fetched_at: new Date().toISOString() },
       { onConflict: "cell" },
     );
   // A cache that cannot be written is a cost problem, not a correctness one —
@@ -190,6 +230,7 @@ Deno.serve(async (req) => {
     configured: true,
     cached: false,
     now,
+    air,
     fetchedAt: new Date().toISOString(),
   });
 });

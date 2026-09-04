@@ -15,7 +15,16 @@ import {
 import { GREETING, dayPartOf, groupsFor, type WorldEntry } from "@/data/worlds";
 import type { CountryCode } from "@/lib/miniapps";
 import { useContinue } from "@/lib/watch/hooks";
-import { degrees, skyLabel, useWeather, weatherIcon } from "@/lib/weather";
+import {
+  airLabel,
+  airTint,
+  aqiValue,
+  degrees,
+  isRecent,
+  skyLabel,
+  useWeather,
+  weatherIcon,
+} from "@/lib/weather";
 import { readPlace, weatherDeclined, type WeatherPlace } from "@/lib/weatherPlace";
 import { WeatherInvite } from "@/components/home/WeatherInvite";
 import { formatClock, formatMinutes } from "@/lib/watch/format";
@@ -38,7 +47,9 @@ import {
   Plus,
   SkipBack,
   SkipForward,
+  Thermometer,
   Tv,
+  Wind,
 } from "lucide-react";
 import { useVitalsTileColor } from "@/components/vitals/useVitalsTileColor";
 
@@ -422,7 +433,7 @@ function HomeScreen() {
 }
 
 type PulseItem = {
-  id: "weather" | "continue" | "unread" | "study";
+  id: "weather" | "aqi" | "continue" | "unread" | "study";
   world: WorldId;
   /** A drawn glyph and its hue, the same treatment the world tiles use. */
   Icon: React.ComponentType<{ className?: string }>;
@@ -485,10 +496,19 @@ function useHomePulse(
   const unread = useUnreadChats(userId, !hidden.has("moments"));
   const weather = useWeather(place);
   const items: PulseItem[] = [];
-  // FIRST, because the reference puts it first and because it is the one fact
-  // here that is true of the world rather than of the app.
-  if (weather.data?.state === "ok") {
-    const now = weather.data.now;
+  // FIRST, because the reference puts it first and because these are the facts
+  // here that are true of the WORLD rather than of the app.
+  //
+  // ALWAYS ON ONCE SELECTED — owner directive 2026-09-04i. The chip is present
+  // for anyone who has given a place, and `useWeather` keeps the last good
+  // reading so a slow or failed lookup leaves the previous answer standing
+  // rather than blinking the chip out of existence. Past three hours the
+  // reading stops being "right now": the chip stays, and offers a refresh
+  // instead of a number that is no longer true.
+  const reply = weather.data;
+  const fresh = reply?.state === "ok" && isRecent(reply.fetchedAt);
+  if (place && reply?.state === "ok" && fresh) {
+    const now = reply.now;
     items.push({
       id: "weather",
       world: "home",
@@ -500,6 +520,37 @@ function useHomePulse(
       // Google's own word for the sky is true, costs no second lookup against
       // a geocoder, and is the more useful half of "28° Kolkata" anyway.
       sub: skyLabel(now),
+      to: "/app/weather",
+    });
+    // AIR QUALITY — owner directive 2026-09-04i, "also add aqi in weather and
+    // home strip". Its own chip rather than a line under the temperature: it
+    // is a different measurement with its own scale, and on the days it
+    // matters it is the one people are actually looking for.
+    //
+    // THE TINT COMES FROM GOOGLE'S CATEGORY, never from the number — the two
+    // index families run in opposite directions and one colour rule for both
+    // would paint clean air as hazardous for half the world. See airTint.
+    if (reply.air) {
+      items.push({
+        id: "aqi",
+        world: "home",
+        Icon: Wind,
+        tint: airTint(reply.air.category),
+        title: aqiValue(reply.air),
+        sub: airLabel(reply.air),
+        to: "/app/weather",
+      });
+    }
+  } else if (place) {
+    // Selected, but nothing current to show. The chip stays — always on — and
+    // says what it is rather than a stale or invented number.
+    items.push({
+      id: "weather",
+      world: "home",
+      Icon: Thermometer,
+      tint: "slate",
+      title: "Weather",
+      sub: weather.isFetching ? "checking…" : "tap to refresh",
       to: "/app/weather",
     });
   }
