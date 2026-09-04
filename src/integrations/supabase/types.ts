@@ -3231,6 +3231,7 @@ export type Database = {
       }
       music_jobs: {
         Row: {
+          brief: string | null
           bytes: number | null
           created_at: string
           error: string | null
@@ -3238,11 +3239,13 @@ export type Database = {
           mime: string | null
           model: string
           prompt: string
+          reference: string | null
           status: string
           stored_path: string | null
           user_id: string
         }
         Insert: {
+          brief?: string | null
           bytes?: number | null
           created_at?: string
           error?: string | null
@@ -3250,11 +3253,13 @@ export type Database = {
           mime?: string | null
           model: string
           prompt: string
+          reference?: string | null
           status?: string
           stored_path?: string | null
           user_id: string
         }
         Update: {
+          brief?: string | null
           bytes?: number | null
           created_at?: string
           error?: string | null
@@ -3262,6 +3267,7 @@ export type Database = {
           mime?: string | null
           model?: string
           prompt?: string
+          reference?: string | null
           status?: string
           stored_path?: string | null
           user_id?: string
