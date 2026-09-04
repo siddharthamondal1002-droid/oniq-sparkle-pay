@@ -160,7 +160,7 @@ function UpdatesTab() {
           onClick={() => (myStatuses.length > 0 ? openViewer(me!.id) : setShowCompose(true))}
         >
           <div className="relative shrink-0">
-            <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-full bg-world font-display text-lg text-white world-glow">
+            <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-full bg-world font-display text-lg text-on-world world-glow">
               {me?.user_metadata?.avatar_url ? (
                 <img
                   src={me.user_metadata.avatar_url}
@@ -179,7 +179,7 @@ function UpdatesTab() {
               }}
               onKeyDown={(e) => e.stopPropagation()}
               aria-label="Add status"
-              className="tap absolute -bottom-0.5 -end-0.5 grid h-6 w-6 place-items-center rounded-full bg-world text-white ring-2 ring-card"
+              className="tap absolute -bottom-0.5 -end-0.5 grid h-6 w-6 place-items-center rounded-full bg-world text-on-world ring-2 ring-card"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
@@ -379,13 +379,13 @@ function ComposeStatusSheet({ onClose, onDone }: { onClose: () => void; onDone: 
         <div className="mb-4 grid grid-cols-2 gap-1 rounded-full oniq-surface p-1">
           <button
             onClick={() => setTab("text")}
-            className={`rounded-full py-2 text-sm font-medium transition-colors ${tab === "text" ? "bg-world text-white" : "text-muted-foreground"}`}
+            className={`rounded-full py-2 text-sm font-medium transition-colors ${tab === "text" ? "bg-world text-on-world" : "text-muted-foreground"}`}
           >
             Text
           </button>
           <button
             onClick={() => setTab("image")}
-            className={`rounded-full py-2 text-sm font-medium transition-colors ${tab === "image" ? "bg-world text-white" : "text-muted-foreground"}`}
+            className={`rounded-full py-2 text-sm font-medium transition-colors ${tab === "image" ? "bg-world text-on-world" : "text-muted-foreground"}`}
           >
             Image
           </button>
@@ -447,7 +447,7 @@ function ComposeStatusSheet({ onClose, onDone }: { onClose: () => void; onDone: 
         <button
           onClick={submit}
           disabled={busy}
-          className="press mt-4 w-full rounded-2xl bg-world py-3 font-semibold text-white world-glow disabled:opacity-60"
+          className="press mt-4 w-full rounded-2xl bg-world py-3 font-semibold text-on-world world-glow disabled:opacity-60"
         >
           {busy ? "Posting…" : "Post status"}
         </button>

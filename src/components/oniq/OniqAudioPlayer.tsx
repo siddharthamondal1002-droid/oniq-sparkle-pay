@@ -135,7 +135,7 @@ export function OniqAudioPlayer({
           onClick={toggle}
           aria-label={playing ? "Pause" : "Play"}
           data-testid="audio-play"
-          className="press grid h-14 w-14 place-items-center rounded-full bg-world text-white world-glow"
+          className="press grid h-14 w-14 place-items-center rounded-full bg-world text-on-world world-glow"
         >
           {playing ? (
             <Pause className="h-6 w-6 fill-current" aria-hidden="true" />

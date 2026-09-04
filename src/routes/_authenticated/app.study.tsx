@@ -863,7 +863,7 @@ function StudyCockpit({
             <button
               type="button"
               onClick={() => api.current?.scopeTutor(recent.subject, recent.chapter ?? undefined)}
-              className="press flex-1 rounded-full bg-world py-2 text-[12px] font-semibold text-white world-glow"
+              className="press flex-1 rounded-full bg-world py-2 text-[12px] font-semibold text-on-world world-glow"
             >
               Ask the tutor
             </button>
@@ -890,7 +890,7 @@ function StudyCockpit({
               <OniqAIOrb size="md" still />
             ) : (
               <span
-                className="grid h-10 w-10 place-items-center rounded-xl bg-world text-lg text-white world-glow"
+                className="grid h-10 w-10 place-items-center rounded-xl bg-world text-lg text-on-world world-glow"
                 aria-hidden="true"
               >
                 {tile.emoji}
@@ -1703,7 +1703,7 @@ function TutorChat({
                   {(m.content || m.role === "assistant") && (
                     <div
                       className={`whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm ${
-                        m.role === "user" ? "bg-world text-white" : "oniq-surface text-foreground"
+                        m.role === "user" ? "bg-world text-on-world" : "oniq-surface text-foreground"
                       }`}
                     >
                       {m.content}
@@ -2087,7 +2087,7 @@ function TutorChat({
               type="submit"
               aria-label="Send message"
               disabled={!canSend}
-              className="press grid h-9 w-9 place-items-center rounded-full bg-world text-white world-glow disabled:opacity-50"
+              className="press grid h-9 w-9 place-items-center rounded-full bg-world text-on-world world-glow disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
             </button>

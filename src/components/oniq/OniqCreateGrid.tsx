@@ -105,7 +105,7 @@ export function OniqCreateGrid({ className }: { className?: string }) {
         type="button"
         data-testid="create-ai"
         onClick={() => go(CREATE_AI.to)}
-        className="press mt-3 flex w-full items-center gap-3 rounded-2xl bg-world p-3 text-start text-white world-glow"
+        className="press mt-3 flex w-full items-center gap-3 rounded-2xl bg-world p-3 text-start text-on-world world-glow"
       >
         <OniqAIOrb size="md" />
         <span className="min-w-0 flex-1">

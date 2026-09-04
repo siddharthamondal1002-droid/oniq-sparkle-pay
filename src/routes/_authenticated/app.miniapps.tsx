@@ -62,7 +62,8 @@ type Folder = {
 type Hit = FolderItem & { folderLabel: string };
 
 const SHORTCUT_CLASS = "press flex flex-col items-start gap-3 rounded-2xl oniq-surface p-4";
-const SHORTCUT_WELL = "grid h-10 w-10 place-items-center rounded-xl bg-world text-white world-glow";
+const SHORTCUT_WELL =
+  "grid h-10 w-10 place-items-center rounded-xl bg-world text-on-world world-glow";
 
 function MiniAppsScreen() {
   const [openKey, setOpenKey] = useState<string | null>(null);

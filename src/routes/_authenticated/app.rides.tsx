@@ -497,7 +497,7 @@ function RidesScreen() {
               className={`press grid h-9 w-9 shrink-0 place-items-center rounded-full ${
                 listening
                   ? "bg-destructive text-destructive-foreground"
-                  : "bg-world text-white world-glow"
+                  : "bg-world text-on-world world-glow"
               }`}
               aria-label="Voice command"
             >
@@ -561,7 +561,7 @@ function RidesScreen() {
                       locateMe(true);
                     }}
                     disabled={locating}
-                    className="press flex w-full items-center justify-center gap-2 rounded-2xl bg-world py-2.5 text-sm font-semibold text-white world-glow disabled:opacity-60"
+                    className="press flex w-full items-center justify-center gap-2 rounded-2xl bg-world py-2.5 text-sm font-semibold text-on-world world-glow disabled:opacity-60"
                   >
                     <Navigation className="h-4 w-4" />
                     {locating ? "Locating…" : "📍 use current location"}
@@ -584,7 +584,7 @@ function RidesScreen() {
                       onClick={searchPickup}
                       aria-label="Search pickup address"
                       disabled={pickupSearching}
-                      className="press grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-world text-white disabled:opacity-50"
+                      className="press grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-world text-on-world disabled:opacity-50"
                     >
                       <Search className="h-4 w-4" />
                     </button>
@@ -665,7 +665,7 @@ function RidesScreen() {
             {/* Stop 2 — destination */}
             <div className="flex flex-col items-center" aria-hidden="true">
               <span className="h-5 w-0.5 rounded-full bg-world opacity-60" />
-              <span className="mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-world text-white world-glow">
+              <span className="mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-world text-on-world world-glow">
                 <MapPin className="h-3.5 w-3.5" />
               </span>
             </div>
@@ -748,7 +748,7 @@ function RidesScreen() {
               onClick={search}
               aria-label="Search destination"
               disabled={searching}
-              className="press grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-world text-white world-glow disabled:opacity-50"
+              className="press grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-world text-on-world world-glow disabled:opacity-50"
             >
               <Search className="h-4 w-4" />
             </button>
@@ -813,7 +813,7 @@ function RidesScreen() {
               data-testid="ride-compare"
               onClick={() => runCompare(pickup, destination)}
               disabled={comparing}
-              className="press mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-world py-3 text-sm font-semibold text-white world-glow disabled:opacity-50"
+              className="press mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-world py-3 text-sm font-semibold text-on-world world-glow disabled:opacity-50"
             >
               <IndianRupee className="h-4 w-4" />
               {comparing ? "Crunching fares…" : "get best fare 💰"}
@@ -926,7 +926,7 @@ function FareCard({
           {moneyIn(opt.fareLow, "INR")}–{moneyIn(opt.fareHigh, "INR")}
         </div>
         {best && (
-          <span className="mt-1.5 inline-block rounded-full bg-world px-2 py-0.5 text-[11px] font-semibold text-white">
+          <span className="mt-1.5 inline-block rounded-full bg-world px-2 py-0.5 text-[11px] font-semibold text-on-world">
             Best price 💸
           </span>
         )}

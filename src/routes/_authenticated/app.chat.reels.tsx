@@ -98,7 +98,7 @@ function ReelsTab() {
       <OniqCanvas world="mast" className="grid place-items-center px-5 py-10">
         <div role="alert" className="w-full max-w-sm rounded-3xl oniq-surface p-6 text-center">
           <div
-            className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-world text-white world-glow"
+            className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-world text-on-world world-glow"
             aria-hidden="true"
           >
             <AlertCircle className="h-6 w-6" />
@@ -112,7 +112,7 @@ function ReelsTab() {
           <button
             type="button"
             onClick={() => query.refetch()}
-            className="press mt-4 inline-flex items-center gap-1.5 rounded-full bg-world px-5 py-2 text-xs font-semibold text-white world-glow"
+            className="press mt-4 inline-flex items-center gap-1.5 rounded-full bg-world px-5 py-2 text-xs font-semibold text-on-world world-glow"
           >
             <RotateCw className="h-3.5 w-3.5" /> Try again
           </button>
@@ -132,7 +132,7 @@ function ReelsTab() {
           action={
             <Link
               to="/app/clips"
-              className="press rounded-full bg-world px-5 py-2 text-xs font-semibold text-white world-glow"
+              className="press rounded-full bg-world px-5 py-2 text-xs font-semibold text-on-world world-glow"
             >
               Post a clip
             </Link>
@@ -411,7 +411,7 @@ function ReelCard({
                   className="h-9 w-9 rounded-full object-cover"
                 />
               ) : (
-                <span className="grid h-9 w-9 place-items-center rounded-full bg-world text-sm font-bold text-white">
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-world text-sm font-bold text-on-world">
                   {name.charAt(0).toUpperCase()}
                 </span>
               )}

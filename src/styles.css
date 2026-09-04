@@ -329,6 +329,8 @@
   /* Brand pair, the default world (Home, Profile, anything unlabelled). */
   --world-a: #06b6d4;
   --world-b: #8b5cf6;
+  --world-fill-a: #008096;
+  --world-fill-b: #8555ef;
   --world-ink-dark: #67e8f9;
   --world-ink-light: #0e7490;
   --world-ink: var(--world-ink-dark);
@@ -345,6 +347,8 @@
 [data-world="home"] {
   --world-a: #06b6d4;
   --world-b: #8b5cf6;
+  --world-fill-a: #008096;
+  --world-fill-b: #8555ef;
   /* 4.39:1 on its own soft fill at #0e7490 — see a11yContrast. */
   --world-ink-light: #0d6f8a;
   --world-ink-dark: #67e8f9;
@@ -352,54 +356,72 @@
 [data-world="chat"] {
   --world-a: #3b82f6;
   --world-b: #2dd4bf;
+  --world-fill-a: #2a70e3;
+  --world-fill-b: #008476;
   --world-ink-light: #1d4ed8;
   --world-ink-dark: #93c5fd;
 }
 [data-world="moments"] {
   --world-a: #fb7185;
   --world-b: #f59e0b;
+  --world-fill-a: #cb455e;
+  --world-fill-b: #a46800;
   --world-ink-light: #be123c;
   --world-ink-dark: #fda4af;
 }
 [data-world="mast"] {
   --world-a: #7c3aed;
   --world-b: #db2777;
+  --world-fill-a: #7c3aed;
+  --world-fill-b: #da2676;
   --world-ink-light: #6d28d9;
   --world-ink-dark: #d8b4fe;
 }
 [data-world="study"] {
   --world-a: #2563eb;
   --world-b: #14b8a6;
+  --world-fill-a: #2563eb;
+  --world-fill-b: #008476;
   --world-ink-light: #1d4ed8;
   --world-ink-dark: #7dd3fc;
 }
 [data-world="campus"] {
   --world-a: #4f46e5;
   --world-b: #38bdf8;
+  --world-fill-a: #4f46e5;
+  --world-fill-b: #007dab;
   --world-ink-light: #4338ca;
   --world-ink-dark: #a5b4fc;
 }
 [data-world="rides"] {
   --world-a: #10b981;
   --world-b: #06b6d4;
+  --world-fill-a: #00865c;
+  --world-fill-b: #008096;
   --world-ink-light: #047857;
   --world-ink-dark: #6ee7b7;
 }
 [data-world="wanderlust"] {
   --world-a: #0ea5e9;
   --world-b: #f97316;
+  --world-fill-a: #007cb2;
+  --world-fill-b: #c05400;
   --world-ink-light: #0369a1;
   --world-ink-dark: #7dd3fc;
 }
 [data-world="ting"] {
   --world-a: #8b5cf6;
   --world-b: #3b82f6;
+  --world-fill-a: #8555ef;
+  --world-fill-b: #2a70e3;
   --world-ink-light: #6d28d9;
   --world-ink-dark: #c4b5fd;
 }
 [data-world="scout"] {
   --world-a: #06b6d4;
   --world-b: #3b82f6;
+  --world-fill-a: #008096;
+  --world-fill-b: #2a70e3;
   /* 4.46:1 at #0e7490. */
   --world-ink-light: #0e718c;
   --world-ink-dark: #67e8f9;
@@ -407,6 +429,8 @@
 [data-world="blessed"] {
   --world-a: #d4a017;
   --world-b: #fde68a;
+  --world-fill-a: #d4a017;
+  --world-fill-b: #fde68a;  /* already clears 4.6:1 — untouched */
   --world-ink-light: #92400e;
   --world-ink-dark: #fcd34d;
   --wash: 22%;
@@ -415,24 +439,32 @@
 [data-world="vitals"] {
   --world-a: #34d399;
   --world-b: #fb7185;
+  --world-fill-a: #00855d;
+  --world-fill-b: #cb455e;
   --world-ink-light: #047857;
   --world-ink-dark: #6ee7b7;
 }
 [data-world="plug"] {
   --world-a: #22d3ee;
   --world-b: #a78bfa;
+  --world-fill-a: #008193;
+  --world-fill-b: #8062cd;
   --world-ink-light: #0e7490;
   --world-ink-dark: #67e8f9;
 }
 [data-world="pulse"] {
   --world-a: #2563eb;
   --world-b: #ef4444;
+  --world-fill-a: #2563eb;
+  --world-fill-b: #dd3135;
   --world-ink-light: #1d4ed8;
   --world-ink-dark: #93c5fd;
 }
 [data-world="official"] {
   --world-a: #1e3a8a;
   --world-b: #475569;
+  --world-fill-a: #1e3a8a;
+  --world-fill-b: #475569;  /* already clears 4.6:1 — untouched */
   --world-ink-light: #1e3a8a;
   --world-ink-dark: #93c5fd;
   --wash: 8%;
@@ -440,24 +472,32 @@
 [data-world="earn"] {
   --world-a: #f59e0b;
   --world-b: #10b981;
+  --world-fill-a: #a46800;
+  --world-fill-b: #00865c;
   --world-ink-light: #92400e;
   --world-ink-dark: #fcd34d;
 }
 [data-world="jobs"] {
   --world-a: #3b82f6;
   --world-b: #8b5cf6;
+  --world-fill-a: #2a70e3;
+  --world-fill-b: #8555ef;
   --world-ink-light: #1d4ed8;
   --world-ink-dark: #a5b4fc;
 }
 [data-world="create"] {
   --world-a: #22d3ee;
   --world-b: #ec4899;
+  --world-fill-a: #008193;
+  --world-fill-b: #d42f85;
   --world-ink-light: #6d28d9;
   --world-ink-dark: #c4b5fd;
 }
 [data-world="watch"] {
   --world-a: #00d4b8;
   --world-b: #00a8e8;
+  --world-fill-a: #008472;
+  --world-fill-b: #007dae;
   /* 4.47:1 at #007a6a. */
   --world-ink-light: #007667;
   --world-ink-dark: #5eead4;
@@ -465,18 +505,24 @@
 [data-world="lores"] {
   --world-a: #db2777;
   --world-b: #7c3aed;
+  --world-fill-a: #da2676;
+  --world-fill-b: #7c3aed;
   --world-ink-light: #9d174d;
   --world-ink-dark: #f9a8d4;
 }
 [data-world="clips"] {
   --world-a: #f97316;
   --world-b: #db2777;
+  --world-fill-a: #c05400;
+  --world-fill-b: #da2676;
   --world-ink-light: #9a3412;
   --world-ink-dark: #fdba74;
 }
 [data-world="profile"] {
   --world-a: #00d4b8;
   --world-b: #8b5cf6;
+  --world-fill-a: #008472;
+  --world-fill-b: #8555ef;
   --world-ink-light: #00695c;
   --world-ink-dark: #7ce8dc;
 }
@@ -507,17 +553,24 @@
     letter-spacing: -0.02em;
   }
 
-  /* App-wide: UI labels (tile names, headers, button text) are uppercase + bold.
-     Scoped to .font-display (display type only — Space Grotesk), h1–h4, and
-     <button> elements. Long-form body text, chat bubbles, and article paragraphs
-     use font-sans (Inter) and are intentionally excluded. */
+  /* App-wide: UI labels (tile names, headers, button text) are bold display
+     type. Scoped to .font-display (Space Grotesk), h1–h4, and <button>.
+     Long-form body text, chat bubbles and article paragraphs use font-sans
+     (Inter) and are intentionally excluded.
+
+     OWNER DIRECTIVE 2026-09-04: no app-wide uppercase. This rule read
+     `text-transform: uppercase` until today, and 65 call sites across the app
+     had already been given a `normal-case` escape hatch to get out from under
+     it — a rule that has to be cancelled 65 times is not a rule. Those
+     hatches are left in place: they are no-ops now and correct again if
+     anyone ever restores the caps. */
   .font-display,
   h1,
   h2,
   h3,
   h4,
   button {
-    text-transform: uppercase;
+    text-transform: none;
     font-weight: 700;
     letter-spacing: 0.02em;
   }
@@ -747,7 +800,27 @@
   background-repeat: no-repeat;
 }
 
+/* THE FILLED WORLD, AND WHY IT IS NOT THE VIVID ONE.
+   Measured 2026-09-04: white on the vivid pair failed WCAG AA in 17 of the
+   23 worlds. `create` — the Make a picture button — was the worst at 1.81:1
+   on #22d3ee, which is not "a bit low", it is a label you read by guessing.
+   `--world-fill-*` is each stop moved in OKLCH LIGHTNESS ONLY until it clears
+   4.6:1 against that world's own `--world-on`; hue is held exactly and chroma
+   is yielded only where sRGB cannot carry it, so a rose stays a rose instead
+   of snapping to fire-engine red the way an HSL darkening does. Six worlds
+   already cleared it and were left alone.
+
+   `bg-world` — the name anyone reaching for a filled control will type — is
+   the READABLE one, deliberately. `bg-world-vivid` is the opt-in for fills
+   that carry no text at all. Getting it backwards is how this bug happened. */
 @utility bg-world {
+  background-image: linear-gradient(
+    135deg,
+    var(--world-fill-a) 0%,
+    var(--world-fill-b) 100%
+  );
+}
+@utility bg-world-vivid {
   background-image: linear-gradient(135deg, var(--world-a) 0%, var(--world-b) 100%);
 }
 @utility bg-world-soft {

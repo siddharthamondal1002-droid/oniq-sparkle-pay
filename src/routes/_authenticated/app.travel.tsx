@@ -273,7 +273,7 @@ function StayScout() {
           onClick={scout}
           disabled={loading}
           data-testid="stay-scout-go"
-          className="press mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-world py-3 text-sm font-semibold text-white world-glow disabled:opacity-60"
+          className="press mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-world py-3 text-sm font-semibold text-on-world world-glow disabled:opacity-60"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
           {loading
@@ -498,7 +498,7 @@ function TravelScreen() {
           />
           <button
             type="submit"
-            className="press rounded-full bg-world px-4 py-2 text-xs font-semibold text-white world-glow"
+            className="press rounded-full bg-world px-4 py-2 text-xs font-semibold text-on-world world-glow"
           >
             Go
           </button>

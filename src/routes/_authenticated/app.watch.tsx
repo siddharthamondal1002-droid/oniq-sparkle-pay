@@ -785,7 +785,7 @@ function WatchPage() {
                       destination's own thumbnail host must never appear here. */}
                   <div
                     className={`grid aspect-video place-items-center rounded-2xl text-3xl ${
-                      active ? "bg-world text-white world-glow" : "oniq-surface"
+                      active ? "bg-world text-on-world world-glow" : "oniq-surface"
                     }`}
                   >
                     {c.emoji}
@@ -932,7 +932,7 @@ function Header() {
       <Link
         to="/app/watch/library"
         data-testid="watch-library-link"
-        className="press flex min-h-10 items-center gap-3 rounded-3xl bg-world p-4 text-white world-glow"
+        className="press flex min-h-10 items-center gap-3 rounded-3xl bg-world p-4 text-on-world world-glow"
       >
         <span
           className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/20 text-xl"

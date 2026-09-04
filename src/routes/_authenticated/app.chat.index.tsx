@@ -564,7 +564,7 @@ function ChatList() {
             >
               <UserPlus className="h-5 w-5" />
               {incomingRequests.length > 0 && (
-                <span className="absolute -end-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-world px-1 text-[11px] font-bold text-white">
+                <span className="absolute -end-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-world px-1 text-[11px] font-bold text-on-world">
                   {incomingRequests.length}
                 </span>
               )}
@@ -757,7 +757,7 @@ function ChatList() {
                             </span>
                           </div>
                           {unread && (
-                            <span className="ms-2 grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-world px-1.5 text-[11px] font-bold text-white">
+                            <span className="ms-2 grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-world px-1.5 text-[11px] font-bold text-on-world">
                               {c.unread}
                             </span>
                           )}
@@ -923,7 +923,7 @@ function ChannelsStrip({ convs }: { convs: EnrichedConv[] }) {
           >
             📢 <span className="max-w-[9rem] truncate">{c.title}</span>
             {c.unread > 0 && (
-              <span className="ms-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-world px-1 text-[11px] text-white">
+              <span className="ms-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-world px-1 text-[11px] text-on-world">
                 {c.unread}
               </span>
             )}
@@ -1035,7 +1035,7 @@ function DiscoverChannelsSheet({ onClose }: { onClose: () => void }) {
                 <button
                   onClick={() => join(ch.id)}
                   disabled={joining === ch.id}
-                  className="shrink-0 rounded-full bg-world px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                  className="shrink-0 rounded-full bg-world px-3 py-1.5 text-xs font-semibold text-on-world disabled:opacity-50"
                 >
                   {joining === ch.id ? "Joining…" : "Join"}
                 </button>
@@ -1059,7 +1059,7 @@ function EmptyChats({ onNew }: { onNew: () => void }) {
         <button
           type="button"
           onClick={onNew}
-          className="press rounded-full bg-world px-4 py-2 text-sm font-medium text-white world-glow"
+          className="press rounded-full bg-world px-4 py-2 text-sm font-medium text-on-world world-glow"
         >
           New chat
         </button>
@@ -1252,14 +1252,14 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
           <button
             type="button"
             onClick={() => setMode("chat")}
-            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "chat" ? "bg-world text-white" : "text-muted-foreground"}`}
+            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "chat" ? "bg-world text-on-world" : "text-muted-foreground"}`}
           >
             Chat
           </button>
           <button
             type="button"
             onClick={() => setMode("group")}
-            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "group" ? "bg-world text-white" : "text-muted-foreground"}`}
+            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "group" ? "bg-world text-on-world" : "text-muted-foreground"}`}
           >
             Group 👥
           </button>
@@ -1267,7 +1267,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
             type="button"
             onClick={() => setMode("channel")}
             data-testid="mode-channel"
-            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "channel" ? "bg-world text-white" : "text-muted-foreground"}`}
+            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "channel" ? "bg-world text-on-world" : "text-muted-foreground"}`}
           >
             Channel 📢
           </button>
@@ -1333,7 +1333,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
               data-testid="channel-create"
               onClick={createChannel}
               disabled={starting || !channelName.trim()}
-              className="w-full rounded-2xl bg-world py-3 text-sm font-semibold text-white disabled:opacity-50"
+              className="w-full rounded-2xl bg-world py-3 text-sm font-semibold text-on-world disabled:opacity-50"
             >
               Create channel 📢
             </button>
@@ -1405,7 +1405,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                               addFriend(u.id);
                             }}
                             disabled={addingId === u.id}
-                            className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                            className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-on-world disabled:opacity-50"
                           >
                             {addingId === u.id ? "…" : "add moot ➕"}
                           </button>
@@ -1422,7 +1422,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                 data-testid="group-create"
                 onClick={createGroup}
                 disabled={starting || !groupName.trim() || picked.length < 1}
-                className="mt-4 w-full rounded-2xl bg-world py-3 text-sm font-semibold text-white disabled:opacity-50"
+                className="mt-4 w-full rounded-2xl bg-world py-3 text-sm font-semibold text-on-world disabled:opacity-50"
               >
                 Create group ({picked.length})
               </button>
@@ -1830,7 +1830,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                         <button
                           disabled={busy === u.id}
                           onClick={() => respond(u.id, true)}
-                          className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                          className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-on-world disabled:opacity-50"
                         >
                           accept ✅
                         </button>
@@ -1838,7 +1838,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                         <button
                           disabled={addingId === u.id}
                           onClick={() => addMoot(u.id)}
-                          className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                          className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-on-world disabled:opacity-50"
                         >
                           {addingId === u.id ? "…" : "add moot ➕"}
                         </button>
@@ -1879,7 +1879,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                     <button
                       disabled={busy === r.id}
                       onClick={() => respond(r.id, true)}
-                      className="rounded-full bg-world px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                      className="rounded-full bg-world px-3 py-1 text-xs font-semibold text-on-world disabled:opacity-50"
                     >
                       bet ✅
                     </button>
@@ -1900,7 +1900,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                 type="button"
                 onClick={pickContacts}
                 disabled={picking}
-                className="mt-2 w-full rounded-2xl bg-world py-3 text-sm font-semibold text-white disabled:opacity-50"
+                className="mt-2 w-full rounded-2xl bg-world py-3 text-sm font-semibold text-on-world disabled:opacity-50"
               >
                 {picking ? "checking your contacts…" : "find ur ppl 📇"}
               </button>
@@ -1918,7 +1918,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                 type="button"
                 onClick={pickNativeContacts}
                 disabled={nativePicking}
-                className="mt-2 w-full rounded-2xl bg-world py-3 text-sm font-semibold text-white disabled:opacity-50"
+                className="mt-2 w-full rounded-2xl bg-world py-3 text-sm font-semibold text-on-world disabled:opacity-50"
               >
                 {nativePicking ? "reading ur contacts…" : "Find friends from contacts 📇"}
               </button>
@@ -1977,7 +1977,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                     </span>
                     <button
                       onClick={invite}
-                      className="rounded-full bg-world px-3 py-1 text-xs font-semibold text-white"
+                      className="rounded-full bg-world px-3 py-1 text-xs font-semibold text-on-world"
                     >
                       Invite 📤
                     </button>
@@ -2029,7 +2029,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                             <button
                               disabled={busy === f.user_id}
                               onClick={() => respond(f.user_id, true)}
-                              className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                              className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-on-world disabled:opacity-50"
                             >
                               accept ✅
                             </button>
@@ -2037,7 +2037,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                             <button
                               onClick={() => addMoot(f.user_id)}
                               disabled={addingId === f.user_id}
-                              className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                              className="shrink-0 rounded-full bg-world px-2.5 py-1 text-xs font-semibold text-on-world disabled:opacity-50"
                             >
                               {addingId === f.user_id ? "…" : "add moot ➕"}
                             </button>

@@ -149,14 +149,14 @@ function ClipsScreen() {
           <button
             type="button"
             onClick={() => query.refetch()}
-            className="press mt-6 inline-flex items-center gap-1.5 rounded-full bg-world px-5 py-2 text-sm font-semibold text-white world-glow"
+            className="press mt-6 inline-flex items-center gap-1.5 rounded-full bg-world px-5 py-2 text-sm font-semibold text-on-world world-glow"
           >
             <RotateCw className="h-4 w-4" /> Try again
           </button>
         </div>
       ) : clips.length === 0 && !query.isLoading ? (
         <div className="flex h-full flex-col items-center justify-center px-8 text-center">
-          <div className="mb-4 grid h-16 w-16 place-items-center rounded-3xl bg-world text-white world-glow">
+          <div className="mb-4 grid h-16 w-16 place-items-center rounded-3xl bg-world text-on-world world-glow">
             <Plus className="h-7 w-7" />
           </div>
           <p className="max-w-xs text-sm text-white/80">
@@ -164,7 +164,7 @@ function ClipsScreen() {
           </p>
           <button
             onClick={() => setOpenUpload(true)}
-            className="press mt-6 rounded-full bg-world px-5 py-2 text-sm font-semibold text-white world-glow"
+            className="press mt-6 rounded-full bg-world px-5 py-2 text-sm font-semibold text-on-world world-glow"
           >
             Post a clip
           </button>
@@ -487,7 +487,7 @@ function ClipCard({
                   className="h-9 w-9 rounded-full object-cover"
                 />
               ) : (
-                <span className="grid h-9 w-9 place-items-center rounded-full bg-world text-sm font-bold text-white">
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-world text-sm font-bold text-on-world">
                   {name.charAt(0).toUpperCase()}
                 </span>
               )}
@@ -500,7 +500,7 @@ function ClipCard({
               className={`press ms-2 flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
                 following
                   ? "bg-white/15 text-white ring-1 ring-white/30"
-                  : "bg-world text-white world-glow"
+                  : "bg-world text-on-world world-glow"
               }`}
             >
               {following ? (
@@ -608,7 +608,7 @@ function CommentsSheet({
           {comments?.length ? (
             comments.map((c: any) => (
               <div key={c.id} className="flex gap-3">
-                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-world text-xs font-bold text-white">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-world text-xs font-bold text-on-world">
                   {(c.profiles?.display_name ?? c.profiles?.username ?? "U")
                     .charAt(0)
                     .toUpperCase()}
@@ -641,7 +641,7 @@ function CommentsSheet({
             onClick={send}
             aria-label="Post comment"
             disabled={sending || !text.trim()}
-            className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-world text-white disabled:opacity-50"
+            className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-world text-on-world disabled:opacity-50"
           >
             <Send className="h-4 w-4" />
           </button>
@@ -942,7 +942,7 @@ function UploadSheet({
           data-testid="publish-clip"
           onClick={publish}
           disabled={!file || busy}
-          className="press mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-world py-3 text-sm font-semibold text-white world-glow disabled:opacity-50"
+          className="press mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-world py-3 text-sm font-semibold text-on-world world-glow disabled:opacity-50"
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {busy ? "Posting…" : "Publish"}

@@ -28,7 +28,6 @@ import {
 import { readPlace, weatherDeclined, type WeatherPlace } from "@/lib/weatherPlace";
 import { WeatherInvite } from "@/components/home/WeatherInvite";
 import { isLive } from "@/data/capabilities";
-import { useIsAdmin } from "@/lib/useIsAdmin";
 import { formatClock, formatMinutes } from "@/lib/watch/format";
 import { providerName } from "@/lib/watch/providers";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -146,9 +145,6 @@ function HomeScreen() {
   // location looks like it did nothing until the next visit.
   const [place, setPlace] = useState(readPlace);
   const [declined] = useState(weatherDeclined);
-  // Shows the operator an EXPERIMENTAL capability so it can be exercised and
-  // promoted. Presentation only — see useIsAdmin.
-  const isAdmin = useIsAdmin();
   const pulse = useHomePulse(userId, home, hidden, place);
   // Same hook, same cache key as the chips below — see useUnreadChats.
   const unread = useUnreadChats(userId, !hidden.has("moments")).data ?? 0;
@@ -202,7 +198,7 @@ function HomeScreen() {
                 <Link
                   to="/app/profile"
                   aria-label="Open profile"
-                  className="press grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-world font-bold text-white world-glow"
+                  className="press grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-world font-bold text-on-world world-glow"
                 >
                   {profile?.avatar_url ? (
                     <img
@@ -243,7 +239,7 @@ function HomeScreen() {
                 <div className="flex items-center gap-1">
                   <button
                     onClick={installPrompt.prompt}
-                    className="press rounded-full bg-world px-3 py-1 text-xs font-semibold text-white"
+                    className="press rounded-full bg-world px-3 py-1 text-xs font-semibold text-on-world"
                   >
                     Install
                   </button>
@@ -325,14 +321,13 @@ function HomeScreen() {
                 call comes back 200, the registry flips and the invite
                 appears; nothing else has to change.
 
-                UNTIL THEN AN ADMIN SEES IT, which is what makes the flip
-                possible at all. Gating on isLive alone produced a deadlock:
-                the capability needed a real call to be promoted, and the only
-                way to make one was through the screen the EXPERIMENTAL state
-                was hiding. Same resolution ONIQ already uses for movie grade
-                and the GPU tool — visible to an operator, invisible to
-                everyone else. See useIsAdmin. */}
-            {(isLive("weather.current") || isAdmin) && !place && !declined ? (
+                THAT CALL CAME BACK. weather.current went LIVE on 2026-09-04
+                21:02 UTC on a stored reading, so the invite now reaches every
+                user and the `|| isAdmin` bypass that broke the promotion
+                deadlock has been removed — along with the is_admin round trip
+                it cost on every load of Home. The isLive check stays: it is
+                the switch that darkens this again without a deploy. */}
+            {isLive("weather.current") && !place && !declined ? (
               <WeatherInvite onAdded={setPlace} />
             ) : null}
           </div>
@@ -641,7 +636,7 @@ function ContinueWatchingCard({ userId, home }: { userId: string | null; home: C
     >
       <div className="flex items-center gap-3">
         <span
-          className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-world text-xl text-white world-glow"
+          className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-world text-xl text-on-world world-glow"
           aria-hidden="true"
         >
           ▶
@@ -947,7 +942,7 @@ function HomeMediaBanner() {
               role="tab"
               aria-selected={active}
               onClick={() => setMode(t.id)}
-              className={`press whitespace-nowrap rounded-full px-3 py-1.5 transition-colors ${active ? "bg-world text-white" : "text-muted-foreground hover:text-foreground"}`}
+              className={`press whitespace-nowrap rounded-full px-3 py-1.5 transition-colors ${active ? "bg-world text-on-world" : "text-muted-foreground hover:text-foreground"}`}
             >
               {t.label}
             </button>

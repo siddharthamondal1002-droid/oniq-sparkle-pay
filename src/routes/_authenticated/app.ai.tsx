@@ -378,7 +378,7 @@ function TingScreen() {
                           data-testid="ting-message"
                           className={`whitespace-pre-wrap px-4 py-2.5 text-sm leading-relaxed ${
                             mine
-                              ? "rounded-3xl rounded-ee-md bg-world text-white"
+                              ? "rounded-3xl rounded-ee-md bg-world text-on-world"
                               : "rounded-3xl rounded-ss-md oniq-surface text-foreground"
                           }`}
                         >
@@ -563,7 +563,7 @@ function TingScreen() {
                 type="submit"
                 aria-label="Send message"
                 disabled={!canSend}
-                className="press grid h-9 w-9 shrink-0 place-items-center rounded-full bg-world text-white world-glow disabled:opacity-50"
+                className="press grid h-9 w-9 shrink-0 place-items-center rounded-full bg-world text-on-world world-glow disabled:opacity-50"
               >
                 <Send className="h-4 w-4 rtl:-scale-x-100" />
               </button>

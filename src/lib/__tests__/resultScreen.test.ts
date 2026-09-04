@@ -246,8 +246,10 @@ describe("the four doors into it", () => {
       ["voice", VOICE],
     ] as const) {
       // The card keeps its own preview control, sitting beside the link
-      // rather than inside it.
-      expect(src, name).toContain("<audio controls");
+      // rather than inside it. Matched on the TAG, not the one-line form —
+      // Prettier reflows `<audio controls src=...>` onto several lines the
+      // moment another attribute is added, and it did on Music.
+      expect(src, name).toMatch(/<audio[\s\n]+controls/);
     }
   });
 });

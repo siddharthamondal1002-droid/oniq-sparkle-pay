@@ -112,7 +112,7 @@ function LoreCard({ v }: { v: LoreVideo }) {
           <button
             type="button"
             onClick={() => startFull(true)}
-            className="press grid h-12 w-12 place-items-center rounded-full bg-world text-white world-glow"
+            className="press grid h-12 w-12 place-items-center rounded-full bg-world text-on-world world-glow"
             aria-label={`Play ${v.title}`}
           >
             <Play className="h-5 w-5" />
@@ -141,7 +141,7 @@ function LoreCard({ v }: { v: LoreVideo }) {
             <button
               type="button"
               onClick={() => startFull(true)}
-              className="press rounded-full bg-world px-4 py-2 text-xs font-semibold text-white world-glow"
+              className="press rounded-full bg-world px-4 py-2 text-xs font-semibold text-on-world world-glow"
             >
               Watch the full episode
             </button>
@@ -268,7 +268,7 @@ function LoresPage() {
             onClick={() => setTab(t.id)}
             className={
               "press flex-1 rounded-full px-3 py-2 text-xs font-semibold transition-colors " +
-              (tab === t.id ? "bg-world text-white world-glow" : "text-muted-foreground")
+              (tab === t.id ? "bg-world text-on-world world-glow" : "text-muted-foreground")
             }
           >
             {t.label}

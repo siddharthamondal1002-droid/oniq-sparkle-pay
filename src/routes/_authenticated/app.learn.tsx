@@ -321,7 +321,7 @@ function TranslatePanel() {
           data-testid="do-translate"
           onClick={doTranslate}
           disabled={loading}
-          className="press mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-world py-3 text-sm font-semibold text-white world-glow disabled:opacity-60"
+          className="press mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-world py-3 text-sm font-semibold text-on-world world-glow disabled:opacity-60"
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -481,7 +481,7 @@ function LessonsPanel() {
       <div className="grid grid-cols-2 gap-3 rise rise-1">
         <OniqCard padding="md" className="flex items-center gap-3">
           <span
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-world text-white world-glow"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-world text-on-world world-glow"
             aria-hidden="true"
           >
             <Zap className="h-5 w-5" />
@@ -563,7 +563,7 @@ function LessonsPanel() {
                         <span
                           className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold ${
                             done
-                              ? "bg-world text-white world-glow"
+                              ? "bg-world text-on-world world-glow"
                               : "bg-surface-2 text-muted-foreground"
                           }`}
                         >
@@ -702,7 +702,7 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
         <button
           data-testid="lesson-done"
           onClick={onExit}
-          className="press w-full rounded-full bg-world py-3 text-sm font-semibold text-white world-glow"
+          className="press w-full rounded-full bg-world py-3 text-sm font-semibold text-on-world world-glow"
         >
           Done
         </button>
@@ -1140,7 +1140,7 @@ function ScoutPanel() {
         <button
           onClick={scout}
           disabled={loading}
-          className="press mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-world py-3 text-sm font-semibold text-white world-glow disabled:opacity-60"
+          className="press mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-world py-3 text-sm font-semibold text-on-world world-glow disabled:opacity-60"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
           {loading
