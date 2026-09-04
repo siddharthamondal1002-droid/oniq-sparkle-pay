@@ -27,6 +27,7 @@ import {
 } from "@/lib/weather";
 import { readPlace, weatherDeclined, type WeatherPlace } from "@/lib/weatherPlace";
 import { WeatherInvite } from "@/components/home/WeatherInvite";
+import { isLive } from "@/data/capabilities";
 import { formatClock, formatMinutes } from "@/lib/watch/format";
 import { providerName } from "@/lib/watch/providers";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -307,8 +308,21 @@ function HomeScreen() {
             {/* The invite, and only where there is nothing to invite around:
                 no place kept on this device, and not already waved away. It
                 sits OUTSIDE the rail above because it is not one of that
-                row's facts — see WeatherInvite. */}
-            {!place && !declined ? <WeatherInvite onAdded={setPlace} /> : null}
+                row's facts — see WeatherInvite.
+
+                AND ONLY WHILE THE CAPABILITY IS LIVE. This is the same rule
+                that keeps a reference control off Music while Lyria refuses
+                audio, and a clone button off Voice while Google has not
+                admitted this account: a button that cannot work is worse than
+                no button. weather.current is EXPERIMENTAL until one call from
+                the DEPLOYED function proves this service account may reach
+                Google — so asking somebody for their location today would be
+                asking for a permission in exchange for nothing. The day that
+                call comes back 200, the registry flips and the invite
+                appears; nothing else has to change. */}
+            {isLive("weather.current") && !place && !declined ? (
+              <WeatherInvite onAdded={setPlace} />
+            ) : null}
           </div>
 
           {/* ---- CONTINUE WATCHING: the real unfinished item, or nothing --- */}

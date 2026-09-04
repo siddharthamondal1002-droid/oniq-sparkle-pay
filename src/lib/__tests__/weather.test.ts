@@ -54,7 +54,7 @@ import {
   weatherIcon,
 } from "../weather";
 import { THIRD_PARTY_REQUESTS } from "../../config/playCompliance";
-import { CAPABILITIES } from "../../data/capabilities";
+import { CAPABILITIES, isLive } from "../../data/capabilities";
 
 const ROOT = process.cwd();
 const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
@@ -414,7 +414,8 @@ describe("it never asks for location at launch", () => {
 
   it("offers the invite once and never pads the pulse row with it", () => {
     // The row shows facts; an invitation is not one.
-    expect(HOME).toContain("{!place && !declined ? <WeatherInvite");
+    expect(HOME).toContain("!place && !declined ? (");
+    expect(HOME).toContain("<WeatherInvite onAdded={setPlace} />");
   });
 
   it("validates a remembered place before trusting it", () => {
@@ -663,5 +664,32 @@ describe("what the registry claims about both APIs", () => {
       expect(msg, id).toBeTruthy();
       expect(msg.toLowerCase(), id).not.toMatch(/google|vertex|googleapis|firebase/);
     }
+  });
+});
+
+describe("nothing user-facing is offered before it can work", () => {
+  it("asks for nobody's location while the capability is EXPERIMENTAL", () => {
+    // THE RULE THIS REPO KEEPS: a button that cannot work is worse than no
+    // button — the same one that kept a reference control off Music while
+    // Lyria refused audio, and a clone button off Voice while Google had not
+    // admitted this account. Asking for a location in exchange for nothing is
+    // the worst version of it, because the price is a permission.
+    expect(HOME).toContain('isLive("weather.current") && !place && !declined');
+    expect(SCREEN).toContain('!isLive("weather.current") && !place');
+  });
+
+  it("says the registry's own sentence rather than a retyped one", () => {
+    // A retyped string drifts the day the registry changes, and then the
+    // screen is confidently telling somebody something that is no longer so.
+    expect(SCREEN).toContain('unavailableMessage("weather.current")');
+    expect(SCREEN).not.toContain("Weather isn't switched on yet");
+  });
+
+  it("is dark today, by that rule, and flips with one line", () => {
+    // Today this means no invite reaches anybody. The day one call from the
+    // DEPLOYED function comes back 200, the registry row flips to LIVE and the
+    // invite appears — nothing else has to change.
+    expect(isLive("weather.current")).toBe(false);
+    expect(isLive("air.current")).toBe(false);
   });
 });

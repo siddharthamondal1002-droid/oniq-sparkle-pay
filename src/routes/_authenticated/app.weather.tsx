@@ -9,6 +9,7 @@ import {
   OniqIconBadge,
   OniqSkeletonRows,
 } from "@/components/oniq";
+import { isLive, unavailableMessage } from "@/data/capabilities";
 import {
   airLabel,
   airTint,
@@ -94,7 +95,19 @@ function WeatherScreen() {
       <OniqHeader eyebrow="Right now" title="Weather" back="/app" />
 
       <div className="mt-4 px-5">
-        {!place ? (
+        {!isLive("weather.current") && !place ? (
+          // NOT YET, AND SAY SO RATHER THAN ASK. The capability is
+          // EXPERIMENTAL until one call from the deployed function proves this
+          // account may reach Google; until then, asking somebody to hand over
+          // their location would be trading a permission for nothing. The
+          // sentence is the registry's own, so it cannot drift from the state
+          // it describes.
+          <OniqEmpty
+            emoji="🌥️"
+            title={unavailableMessage("weather.current") ?? "Not available yet"}
+            body="ONIQ's weather source isn't switched on yet. Nothing to do — it will appear here when it is."
+          />
+        ) : !place ? (
           <OniqEmpty
             emoji="📍"
             title="Add your location"
