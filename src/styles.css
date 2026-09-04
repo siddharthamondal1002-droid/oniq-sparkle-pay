@@ -773,6 +773,111 @@
   box-shadow: 0 12px 32px -14px color-mix(in oklab, var(--world-a) 55%, transparent);
 }
 
+/* ---------------------------------------------------------------------------
+ * THE TINT CONTRACT — one hue per icon badge.
+ *
+ * Owner reference, 2026-09-04: every icon in it is a rounded-square badge in
+ * its OWN colour — a pale wash of one hue with that hue's saturated glyph on
+ * top. Ten world tiles, seven Create cards, five Explore rows and six
+ * attachment rows, each a different colour, and the colour is how you find
+ * the one you want without reading.
+ *
+ * Why this is not the world contract: [data-world] carries a two-colour
+ * GRADIENT pair chosen so a whole screen can be washed in it. Tinting a 44px
+ * badge with a gradient of two hues gives a muddy square that reads as the
+ * average of both — which is how eighteen distinct worlds ended up looking
+ * like eighteen of the same teal. A badge needs ONE hue, so it gets its own
+ * one-value contract and the two live side by side.
+ *
+ * Same shape as [data-world]: an attribute sets the properties, per-theme inks
+ * resolve below, and components only ever read the utilities.
+ * ------------------------------------------------------------------------- */
+[data-tint] {
+  --tint: #6b7280;
+  --tint-ink-light: #4b5563;
+  --tint-ink-dark: #d1d5db;
+  --tint-ink: var(--tint-ink-dark);
+}
+[data-tint="rose"] {
+  --tint: #f43f5e;
+  --tint-ink-light: #be123c;
+  --tint-ink-dark: #fda4af;
+}
+[data-tint="red"] {
+  --tint: #ef4444;
+  --tint-ink-light: #b91c1c;
+  --tint-ink-dark: #fca5a5;
+}
+[data-tint="orange"] {
+  --tint: #f97316;
+  --tint-ink-light: #c2410c;
+  --tint-ink-dark: #fdba74;
+}
+[data-tint="amber"] {
+  --tint: #f59e0b;
+  --tint-ink-light: #b45309;
+  --tint-ink-dark: #fcd34d;
+}
+[data-tint="green"] {
+  --tint: #10b981;
+  --tint-ink-light: #047857;
+  --tint-ink-dark: #6ee7b7;
+}
+[data-tint="teal"] {
+  --tint: #14b8a6;
+  --tint-ink-light: #0f766e;
+  --tint-ink-dark: #5eead4;
+}
+[data-tint="sky"] {
+  --tint: #0ea5e9;
+  --tint-ink-light: #0369a1;
+  --tint-ink-dark: #7dd3fc;
+}
+[data-tint="blue"] {
+  --tint: #3b82f6;
+  --tint-ink-light: #1d4ed8;
+  --tint-ink-dark: #93c5fd;
+}
+[data-tint="indigo"] {
+  --tint: #6366f1;
+  --tint-ink-light: #4338ca;
+  --tint-ink-dark: #a5b4fc;
+}
+[data-tint="violet"] {
+  --tint: #8b5cf6;
+  --tint-ink-light: #6d28d9;
+  --tint-ink-dark: #c4b5fd;
+}
+[data-tint="pink"] {
+  --tint: #ec4899;
+  --tint-ink-light: #be185d;
+  --tint-ink-dark: #f9a8d4;
+}
+[data-tint="slate"] {
+  --tint: #64748b;
+  --tint-ink-light: #334155;
+  --tint-ink-dark: #cbd5e1;
+}
+.light [data-tint] {
+  --tint-ink: var(--tint-ink-light);
+}
+
+/* The badge itself: a pale wash of the hue, and the hue's ink on top. The
+   wash is mixed with --card rather than being an alpha, so it stays opaque
+   over the person's wallpaper instead of letting it show through a tile. */
+@utility bg-tint-soft {
+  background-color: color-mix(in oklab, var(--tint) 15%, var(--card));
+}
+@utility bg-tint {
+  background-color: var(--tint);
+}
+@utility text-tint {
+  color: var(--tint-ink);
+}
+@utility border-tint {
+  border-color: color-mix(in oklab, var(--tint) 32%, var(--border));
+}
+
 /* Surfaces. A card is white (or the dark card) with a soft two-part shadow;
    glass is reserved for chrome that floats over scrolling content — the nav,
    a sticky header, a sheet — never for every card on a screen. */

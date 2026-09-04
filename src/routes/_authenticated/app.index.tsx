@@ -49,6 +49,9 @@ import { HomeCountryPrompt } from "@/components/home/HomeCountryPrompt";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { tileName, tileNamePlain, type TileKey } from "@/lib/i18n/tileLabel";
 import { WORLD_ICON } from "@/data/worldIcons";
+
+/** Two rows of five, as the reference draws them. The rest live on Explore. */
+const HOME_WORLD_COUNT = 10;
 import { AnticipatoryCard } from "@/components/home/AnticipatoryCard";
 import { recordSignal } from "@/lib/personalisation";
 import { LORE_COLLECTIONS } from "@/data/lores";
@@ -278,21 +281,31 @@ function HomeScreen() {
             <section className="mt-7 rise rise-4">
               <OniqSectionHeader
                 title="Your worlds"
-                action={{ label: "All", to: "/app/explore", testId: "home-explore" }}
+                action={{ label: "See all", to: "/app/explore", testId: "home-explore" }}
               />
+              {/*
+                TEN TILES, TWO ROWS — the reference draws exactly this and puts
+                the rest behind "See all". Home's job is the person's own
+                content; the full directory is Explore's, and it already
+                renders every world grouped and searchable. Four rows of tiles
+                here pushed everything below them off the screen.
+              */}
               <div className="mt-2 grid grid-cols-5 gap-x-1 gap-y-3 px-3">
-                {worlds.map((w) => {
-                  const Icon = WORLD_ICON[w.key];
+                {worlds.slice(0, HOME_WORLD_COUNT).map((w) => {
+                  const art = WORLD_ICON[w.key];
                   return (
                     <OniqWorldCard
                       key={w.key}
                       world={w.world}
                       emoji={w.emoji}
-                      // A drawn icon where we have one; the emoji only backs it
-                      // up. And the PLAIN name — the label's own trailing emoji
-                      // would otherwise be the second copy of the glyph in the
-                      // well, which is what used to wrap onto its own line.
-                      icon={Icon ? <Icon className="h-5 w-5" /> : undefined}
+                      // The drawn glyph AND its hue — colour is how the
+                      // reference lets you find a world before reading it.
+                      // The emoji only backs the glyph up. And the PLAIN
+                      // name: the label's own trailing emoji would otherwise
+                      // be a second copy of the glyph in the badge, which is
+                      // what used to wrap onto its own line.
+                      icon={art ? <art.Icon /> : undefined}
+                      tint={art?.tint}
                       label={tileNamePlain(lang, w.key, home)}
                       to={w.to}
                       search={w.search}

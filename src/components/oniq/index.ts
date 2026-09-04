@@ -3,6 +3,7 @@ export { OniqHeader } from "./OniqHeader";
 export { OniqSectionHeader } from "./OniqSectionHeader";
 export { OniqCard } from "./OniqCard";
 export { OniqWorldCard } from "./OniqWorldCard";
+export { OniqIconBadge, badgeGlyphClass, type Tint } from "./OniqIconBadge";
 export { OniqMediaCard } from "./OniqMediaCard";
 export { OniqAIOrb } from "./OniqAIOrb";
 export { OniqAskBar } from "./OniqAskBar";
