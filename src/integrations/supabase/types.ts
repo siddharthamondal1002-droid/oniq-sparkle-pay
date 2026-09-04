@@ -5339,6 +5339,7 @@ export type Database = {
           music_admin_only: boolean
           music_daily_cap: number
           music_enabled: boolean
+          music_per_user_daily_cap: number
           updated_at: string
         }
         Insert: {
@@ -5351,6 +5352,7 @@ export type Database = {
           music_admin_only?: boolean
           music_daily_cap?: number
           music_enabled?: boolean
+          music_per_user_daily_cap?: number
           updated_at?: string
         }
         Update: {
@@ -5363,6 +5365,7 @@ export type Database = {
           music_admin_only?: boolean
           music_daily_cap?: number
           music_enabled?: boolean
+          music_per_user_daily_cap?: number
           updated_at?: string
         }
         Relationships: []
