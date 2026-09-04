@@ -3190,6 +3190,45 @@ export type Database = {
           },
         ]
       }
+      music_jobs: {
+        Row: {
+          bytes: number | null
+          created_at: string
+          error: string | null
+          id: string
+          mime: string | null
+          model: string
+          prompt: string
+          status: string
+          stored_path: string | null
+          user_id: string
+        }
+        Insert: {
+          bytes?: number | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          mime?: string | null
+          model: string
+          prompt: string
+          status?: string
+          stored_path?: string | null
+          user_id: string
+        }
+        Update: {
+          bytes?: number | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          mime?: string | null
+          model?: string
+          prompt?: string
+          status?: string
+          stored_path?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           created_at: string | null
@@ -5297,6 +5336,9 @@ export type Database = {
           episode_daily_cap: number
           episodes_enabled: boolean
           id: boolean
+          music_admin_only: boolean
+          music_daily_cap: number
+          music_enabled: boolean
           updated_at: string
         }
         Insert: {
@@ -5306,6 +5348,9 @@ export type Database = {
           episode_daily_cap?: number
           episodes_enabled?: boolean
           id?: boolean
+          music_admin_only?: boolean
+          music_daily_cap?: number
+          music_enabled?: boolean
           updated_at?: string
         }
         Update: {
@@ -5315,6 +5360,9 @@ export type Database = {
           episode_daily_cap?: number
           episodes_enabled?: boolean
           id?: boolean
+          music_admin_only?: boolean
+          music_daily_cap?: number
+          music_enabled?: boolean
           updated_at?: string
         }
         Relationships: []
