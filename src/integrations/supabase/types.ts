@@ -5384,6 +5384,10 @@ export type Database = {
           music_enabled: boolean
           music_per_user_daily_cap: number
           updated_at: string
+          voice_admin_only: boolean
+          voice_daily_cap: number
+          voice_enabled: boolean
+          voice_per_user_daily_cap: number
         }
         Insert: {
           audio_enabled?: boolean
@@ -5401,6 +5405,10 @@ export type Database = {
           music_enabled?: boolean
           music_per_user_daily_cap?: number
           updated_at?: string
+          voice_admin_only?: boolean
+          voice_daily_cap?: number
+          voice_enabled?: boolean
+          voice_per_user_daily_cap?: number
         }
         Update: {
           audio_enabled?: boolean
@@ -5418,6 +5426,10 @@ export type Database = {
           music_enabled?: boolean
           music_per_user_daily_cap?: number
           updated_at?: string
+          voice_admin_only?: boolean
+          voice_daily_cap?: number
+          voice_enabled?: boolean
+          voice_per_user_daily_cap?: number
         }
         Relationships: []
       }
@@ -5645,6 +5657,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      voice_jobs: {
+        Row: {
+          bytes: number | null
+          created_at: string
+          error: string | null
+          id: string
+          mime: string | null
+          model: string
+          prompt: string
+          status: string
+          stored_path: string | null
+          user_id: string
+          voice: string
+        }
+        Insert: {
+          bytes?: number | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          mime?: string | null
+          model: string
+          prompt: string
+          status?: string
+          stored_path?: string | null
+          user_id: string
+          voice: string
+        }
+        Update: {
+          bytes?: number | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          mime?: string | null
+          model?: string
+          prompt?: string
+          status?: string
+          stored_path?: string | null
+          user_id?: string
+          voice?: string
+        }
+        Relationships: []
       }
       watch_collection_items: {
         Row: {
