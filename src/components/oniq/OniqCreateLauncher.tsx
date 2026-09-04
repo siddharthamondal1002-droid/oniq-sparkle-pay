@@ -6,11 +6,39 @@
  * goes nowhere. No provider, no model and no price appears here.
  */
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
-import { CREATE_AI, CREATE_CLIP, CREATE_GRID } from "@/lib/create/capabilities";
+import {
+  ArrowRight,
+  Clapperboard,
+  FileText,
+  ImageIcon,
+  Mic,
+  Music4,
+  UserRound,
+  type LucideIcon,
+} from "lucide-react";
+import {
+  CREATE_AI,
+  CREATE_CLIP,
+  CREATE_GRID,
+  type CreateCapabilityId,
+} from "@/lib/create/capabilities";
 import { cn } from "@/lib/utils";
 import { OniqAIOrb } from "./OniqAIOrb";
 import { OniqSheet } from "./OniqSheet";
+
+/**
+ * One glyph per grid card, owner reference 2026-09-04: a plain vector icon
+ * on its own colour, not the emoji-in-a-square the sheet drew before. Kept
+ * here rather than in capabilities.ts, which stays framework-agnostic data.
+ */
+const GRID_ICON: Partial<Record<CreateCapabilityId, LucideIcon>> = {
+  image: ImageIcon,
+  video: Clapperboard,
+  character: UserRound,
+  voice: Mic,
+  music: Music4,
+  document: FileText,
+};
 
 export function OniqCreateLauncher({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
@@ -29,6 +57,7 @@ export function OniqCreateLauncher({ open, onClose }: { open: boolean; onClose: 
         <div className="mt-4 grid grid-cols-2 gap-2">
           {CREATE_GRID.map((c) => {
             const live = c.status === "live";
+            const Icon = GRID_ICON[c.id];
             return (
               <button
                 key={c.id}
@@ -37,21 +66,26 @@ export function OniqCreateLauncher({ open, onClose }: { open: boolean; onClose: 
                 aria-disabled={!live}
                 onClick={() => (live ? go(c.to, c.search) : undefined)}
                 className={cn(
-                  "flex min-h-[88px] items-start gap-3 rounded-2xl oniq-surface p-3 text-start",
+                  "flex min-h-[104px] flex-col items-start gap-2.5 rounded-2xl oniq-surface p-3.5 text-start",
                   live ? "press" : "cursor-default opacity-70",
                 )}
               >
                 <span
                   className={cn(
-                    "grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg text-white",
-                    live ? "bg-world world-glow" : "bg-surface-2 text-muted-foreground",
+                    "grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white",
+                    !live && "bg-surface-2",
                   )}
+                  style={live ? { backgroundColor: c.accent } : undefined}
                   aria-hidden="true"
                 >
-                  {c.emoji}
+                  {Icon ? (
+                    <Icon className={cn("h-5 w-5", !live && "text-muted-foreground")} />
+                  ) : (
+                    c.emoji
+                  )}
                 </span>
                 <span className="min-w-0">
-                  <span className="flex flex-wrap items-center gap-1.5 font-display text-[13px] text-foreground">
+                  <span className="flex flex-wrap items-center gap-1.5 font-display text-[14px] normal-case tracking-normal text-foreground">
                     {c.label}
                     {!live ? (
                       <span className="whitespace-nowrap rounded-full border border-border px-1.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-muted-foreground">

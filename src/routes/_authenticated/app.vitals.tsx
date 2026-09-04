@@ -282,6 +282,20 @@ const ENERGY_EMOJIS = ["🥱", "😴", "😌", "⚡", "🔥"];
  * score, no estimate. Descriptive, never a grade: the reflections further
  * down are the only reading of the week, and they are not marks either.
  */
+/**
+ * One identity colour per metric, owner reference 2026-09-04: a bare emoji
+ * floating on the card reads as unstyled next to the reference's colour-coded
+ * circles. The colours themselves carry no meaning beyond telling the tiles
+ * apart at a glance — same reasoning as Create's per-card accents.
+ */
+const TILE_ACCENT: Record<string, string> = {
+  mood: "#f59e0b",
+  energy: "#f97316",
+  sleep: "#6366f1",
+  water: "#06b6d4",
+  moved: "#10b981",
+};
+
 function TodayTiles({ row }: { row: Checkin | null }) {
   if (!row) return null;
   const tiles: { key: string; glyph: string; value: string; label: string }[] = [];
@@ -323,10 +337,14 @@ function TodayTiles({ row }: { row: Checkin | null }) {
     >
       {tiles.map((t) => (
         <div key={t.key} className="min-w-[6.25rem] shrink-0 rounded-2xl oniq-surface p-3">
-          <div className="text-xl" aria-hidden="true">
+          <div
+            className="grid h-8 w-8 place-items-center rounded-full text-base"
+            style={{ backgroundColor: TILE_ACCENT[t.key] }}
+            aria-hidden="true"
+          >
             {t.glyph}
           </div>
-          <div className="mt-1 font-display text-[18px] leading-none text-foreground">
+          <div className="mt-2 font-display text-[18px] leading-none text-foreground">
             {t.value}
           </div>
           <div className="mt-1 text-[11px] text-muted-foreground">{t.label}</div>
