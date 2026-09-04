@@ -39,11 +39,14 @@ import { Route as AuthenticatedAppAiRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAppAttributionsRouteImport } from './routes/_authenticated/app.attributions'
 import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/app.chat'
 import { Route as AuthenticatedAppClipsRouteImport } from './routes/_authenticated/app.clips'
+import { Route as AuthenticatedAppCreationsRouteImport } from './routes/_authenticated/app.creations'
 import { Route as AuthenticatedAppCreatorRouteImport } from './routes/_authenticated/app.creator'
 import { Route as AuthenticatedAppDiagRouteImport } from './routes/_authenticated/app.diag'
 import { Route as AuthenticatedAppEarnRouteImport } from './routes/_authenticated/app.earn'
 import { Route as AuthenticatedAppExploreRouteImport } from './routes/_authenticated/app.explore'
 import { Route as AuthenticatedAppFaithRouteImport } from './routes/_authenticated/app.faith'
+import { Route as AuthenticatedAppImageRouteImport } from './routes/_authenticated/app.image'
+import { Route as AuthenticatedAppInsightsRouteImport } from './routes/_authenticated/app.insights'
 import { Route as AuthenticatedAppJobsRouteImport } from './routes/_authenticated/app.jobs'
 import { Route as AuthenticatedAppJobsAppsRouteImport } from './routes/_authenticated/app.jobs-apps'
 import { Route as AuthenticatedAppLearnRouteImport } from './routes/_authenticated/app.learn'
@@ -61,6 +64,7 @@ import { Route as AuthenticatedAppTravelRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAppUniversityRouteImport } from './routes/_authenticated/app.university'
 import { Route as AuthenticatedAppUpiRouteImport } from './routes/_authenticated/app.upi'
 import { Route as AuthenticatedAppVitalsRouteImport } from './routes/_authenticated/app.vitals'
+import { Route as AuthenticatedAppVoiceRouteImport } from './routes/_authenticated/app.voice'
 import { Route as AuthenticatedAppWatchRouteImport } from './routes/_authenticated/app.watch'
 import { Route as AuthenticatedAppWeatherRouteImport } from './routes/_authenticated/app.weather'
 import { Route as ApiPublicMediaSweepRouteImport } from './routes/api/public/media-sweep'
@@ -236,6 +240,12 @@ const AuthenticatedAppClipsRoute = AuthenticatedAppClipsRouteImport.update({
   path: '/clips',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppCreationsRoute =
+  AuthenticatedAppCreationsRouteImport.update({
+    id: '/creations',
+    path: '/creations',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppCreatorRoute = AuthenticatedAppCreatorRouteImport.update({
   id: '/creator',
   path: '/creator',
@@ -261,6 +271,17 @@ const AuthenticatedAppFaithRoute = AuthenticatedAppFaithRouteImport.update({
   path: '/faith',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppImageRoute = AuthenticatedAppImageRouteImport.update({
+  id: '/image',
+  path: '/image',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppInsightsRoute =
+  AuthenticatedAppInsightsRouteImport.update({
+    id: '/insights',
+    path: '/insights',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppJobsRoute = AuthenticatedAppJobsRouteImport.update({
   id: '/jobs',
   path: '/jobs',
@@ -349,6 +370,11 @@ const AuthenticatedAppUpiRoute = AuthenticatedAppUpiRouteImport.update({
 const AuthenticatedAppVitalsRoute = AuthenticatedAppVitalsRouteImport.update({
   id: '/vitals',
   path: '/vitals',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppVoiceRoute = AuthenticatedAppVoiceRouteImport.update({
+  id: '/voice',
+  path: '/voice',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
 const AuthenticatedAppWatchRoute = AuthenticatedAppWatchRouteImport.update({
@@ -501,11 +527,14 @@ export interface FileRoutesByFullPath {
   '/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/app/clips': typeof AuthenticatedAppClipsRoute
+  '/app/creations': typeof AuthenticatedAppCreationsRoute
   '/app/creator': typeof AuthenticatedAppCreatorRoute
   '/app/diag': typeof AuthenticatedAppDiagRoute
   '/app/earn': typeof AuthenticatedAppEarnRoute
   '/app/explore': typeof AuthenticatedAppExploreRoute
   '/app/faith': typeof AuthenticatedAppFaithRoute
+  '/app/image': typeof AuthenticatedAppImageRoute
+  '/app/insights': typeof AuthenticatedAppInsightsRoute
   '/app/jobs': typeof AuthenticatedAppJobsRoute
   '/app/jobs-apps': typeof AuthenticatedAppJobsAppsRoute
   '/app/learn': typeof AuthenticatedAppLearnRoute
@@ -523,6 +552,7 @@ export interface FileRoutesByFullPath {
   '/app/university': typeof AuthenticatedAppUniversityRoute
   '/app/upi': typeof AuthenticatedAppUpiRoute
   '/app/vitals': typeof AuthenticatedAppVitalsRoute
+  '/app/voice': typeof AuthenticatedAppVoiceRoute
   '/app/watch': typeof AuthenticatedAppWatchRoute
   '/app/weather': typeof AuthenticatedAppWeatherRoute
   '/api/public/media-sweep': typeof ApiPublicMediaSweepRoute
@@ -573,11 +603,14 @@ export interface FileRoutesByTo {
   '/app/ai': typeof AuthenticatedAppAiRoute
   '/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/app/clips': typeof AuthenticatedAppClipsRoute
+  '/app/creations': typeof AuthenticatedAppCreationsRoute
   '/app/creator': typeof AuthenticatedAppCreatorRoute
   '/app/diag': typeof AuthenticatedAppDiagRoute
   '/app/earn': typeof AuthenticatedAppEarnRoute
   '/app/explore': typeof AuthenticatedAppExploreRoute
   '/app/faith': typeof AuthenticatedAppFaithRoute
+  '/app/image': typeof AuthenticatedAppImageRoute
+  '/app/insights': typeof AuthenticatedAppInsightsRoute
   '/app/jobs': typeof AuthenticatedAppJobsRoute
   '/app/jobs-apps': typeof AuthenticatedAppJobsAppsRoute
   '/app/learn': typeof AuthenticatedAppLearnRoute
@@ -595,6 +628,7 @@ export interface FileRoutesByTo {
   '/app/university': typeof AuthenticatedAppUniversityRoute
   '/app/upi': typeof AuthenticatedAppUpiRoute
   '/app/vitals': typeof AuthenticatedAppVitalsRoute
+  '/app/voice': typeof AuthenticatedAppVoiceRoute
   '/app/watch': typeof AuthenticatedAppWatchRoute
   '/app/weather': typeof AuthenticatedAppWeatherRoute
   '/api/public/media-sweep': typeof ApiPublicMediaSweepRoute
@@ -649,11 +683,14 @@ export interface FileRoutesById {
   '/_authenticated/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/_authenticated/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/_authenticated/app/clips': typeof AuthenticatedAppClipsRoute
+  '/_authenticated/app/creations': typeof AuthenticatedAppCreationsRoute
   '/_authenticated/app/creator': typeof AuthenticatedAppCreatorRoute
   '/_authenticated/app/diag': typeof AuthenticatedAppDiagRoute
   '/_authenticated/app/earn': typeof AuthenticatedAppEarnRoute
   '/_authenticated/app/explore': typeof AuthenticatedAppExploreRoute
   '/_authenticated/app/faith': typeof AuthenticatedAppFaithRoute
+  '/_authenticated/app/image': typeof AuthenticatedAppImageRoute
+  '/_authenticated/app/insights': typeof AuthenticatedAppInsightsRoute
   '/_authenticated/app/jobs': typeof AuthenticatedAppJobsRoute
   '/_authenticated/app/jobs-apps': typeof AuthenticatedAppJobsAppsRoute
   '/_authenticated/app/learn': typeof AuthenticatedAppLearnRoute
@@ -671,6 +708,7 @@ export interface FileRoutesById {
   '/_authenticated/app/university': typeof AuthenticatedAppUniversityRoute
   '/_authenticated/app/upi': typeof AuthenticatedAppUpiRoute
   '/_authenticated/app/vitals': typeof AuthenticatedAppVitalsRoute
+  '/_authenticated/app/voice': typeof AuthenticatedAppVoiceRoute
   '/_authenticated/app/watch': typeof AuthenticatedAppWatchRoute
   '/_authenticated/app/weather': typeof AuthenticatedAppWeatherRoute
   '/api/public/media-sweep': typeof ApiPublicMediaSweepRoute
@@ -725,11 +763,14 @@ export interface FileRouteTypes {
     | '/app/attributions'
     | '/app/chat'
     | '/app/clips'
+    | '/app/creations'
     | '/app/creator'
     | '/app/diag'
     | '/app/earn'
     | '/app/explore'
     | '/app/faith'
+    | '/app/image'
+    | '/app/insights'
     | '/app/jobs'
     | '/app/jobs-apps'
     | '/app/learn'
@@ -747,6 +788,7 @@ export interface FileRouteTypes {
     | '/app/university'
     | '/app/upi'
     | '/app/vitals'
+    | '/app/voice'
     | '/app/watch'
     | '/app/weather'
     | '/api/public/media-sweep'
@@ -797,11 +839,14 @@ export interface FileRouteTypes {
     | '/app/ai'
     | '/app/attributions'
     | '/app/clips'
+    | '/app/creations'
     | '/app/creator'
     | '/app/diag'
     | '/app/earn'
     | '/app/explore'
     | '/app/faith'
+    | '/app/image'
+    | '/app/insights'
     | '/app/jobs'
     | '/app/jobs-apps'
     | '/app/learn'
@@ -819,6 +864,7 @@ export interface FileRouteTypes {
     | '/app/university'
     | '/app/upi'
     | '/app/vitals'
+    | '/app/voice'
     | '/app/watch'
     | '/app/weather'
     | '/api/public/media-sweep'
@@ -872,11 +918,14 @@ export interface FileRouteTypes {
     | '/_authenticated/app/attributions'
     | '/_authenticated/app/chat'
     | '/_authenticated/app/clips'
+    | '/_authenticated/app/creations'
     | '/_authenticated/app/creator'
     | '/_authenticated/app/diag'
     | '/_authenticated/app/earn'
     | '/_authenticated/app/explore'
     | '/_authenticated/app/faith'
+    | '/_authenticated/app/image'
+    | '/_authenticated/app/insights'
     | '/_authenticated/app/jobs'
     | '/_authenticated/app/jobs-apps'
     | '/_authenticated/app/learn'
@@ -894,6 +943,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/university'
     | '/_authenticated/app/upi'
     | '/_authenticated/app/vitals'
+    | '/_authenticated/app/voice'
     | '/_authenticated/app/watch'
     | '/_authenticated/app/weather'
     | '/api/public/media-sweep'
@@ -1158,6 +1208,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppClipsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/creations': {
+      id: '/_authenticated/app/creations'
+      path: '/creations'
+      fullPath: '/app/creations'
+      preLoaderRoute: typeof AuthenticatedAppCreationsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/creator': {
       id: '/_authenticated/app/creator'
       path: '/creator'
@@ -1191,6 +1248,20 @@ declare module '@tanstack/react-router' {
       path: '/faith'
       fullPath: '/app/faith'
       preLoaderRoute: typeof AuthenticatedAppFaithRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/image': {
+      id: '/_authenticated/app/image'
+      path: '/image'
+      fullPath: '/app/image'
+      preLoaderRoute: typeof AuthenticatedAppImageRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/insights': {
+      id: '/_authenticated/app/insights'
+      path: '/insights'
+      fullPath: '/app/insights'
+      preLoaderRoute: typeof AuthenticatedAppInsightsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/jobs': {
@@ -1310,6 +1381,13 @@ declare module '@tanstack/react-router' {
       path: '/vitals'
       fullPath: '/app/vitals'
       preLoaderRoute: typeof AuthenticatedAppVitalsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/voice': {
+      id: '/_authenticated/app/voice'
+      path: '/voice'
+      fullPath: '/app/voice'
+      preLoaderRoute: typeof AuthenticatedAppVoiceRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/watch': {
@@ -1507,11 +1585,14 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppAttributionsRoute: typeof AuthenticatedAppAttributionsRoute
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRouteWithChildren
   AuthenticatedAppClipsRoute: typeof AuthenticatedAppClipsRoute
+  AuthenticatedAppCreationsRoute: typeof AuthenticatedAppCreationsRoute
   AuthenticatedAppCreatorRoute: typeof AuthenticatedAppCreatorRoute
   AuthenticatedAppDiagRoute: typeof AuthenticatedAppDiagRoute
   AuthenticatedAppEarnRoute: typeof AuthenticatedAppEarnRoute
   AuthenticatedAppExploreRoute: typeof AuthenticatedAppExploreRoute
   AuthenticatedAppFaithRoute: typeof AuthenticatedAppFaithRoute
+  AuthenticatedAppImageRoute: typeof AuthenticatedAppImageRoute
+  AuthenticatedAppInsightsRoute: typeof AuthenticatedAppInsightsRoute
   AuthenticatedAppJobsRoute: typeof AuthenticatedAppJobsRoute
   AuthenticatedAppJobsAppsRoute: typeof AuthenticatedAppJobsAppsRoute
   AuthenticatedAppLearnRoute: typeof AuthenticatedAppLearnRoute
@@ -1529,6 +1610,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppUniversityRoute: typeof AuthenticatedAppUniversityRoute
   AuthenticatedAppUpiRoute: typeof AuthenticatedAppUpiRoute
   AuthenticatedAppVitalsRoute: typeof AuthenticatedAppVitalsRoute
+  AuthenticatedAppVoiceRoute: typeof AuthenticatedAppVoiceRoute
   AuthenticatedAppWatchRoute: typeof AuthenticatedAppWatchRoute
   AuthenticatedAppWeatherRoute: typeof AuthenticatedAppWeatherRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
@@ -1548,11 +1630,14 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppAttributionsRoute: AuthenticatedAppAttributionsRoute,
   AuthenticatedAppChatRoute: AuthenticatedAppChatRouteWithChildren,
   AuthenticatedAppClipsRoute: AuthenticatedAppClipsRoute,
+  AuthenticatedAppCreationsRoute: AuthenticatedAppCreationsRoute,
   AuthenticatedAppCreatorRoute: AuthenticatedAppCreatorRoute,
   AuthenticatedAppDiagRoute: AuthenticatedAppDiagRoute,
   AuthenticatedAppEarnRoute: AuthenticatedAppEarnRoute,
   AuthenticatedAppExploreRoute: AuthenticatedAppExploreRoute,
   AuthenticatedAppFaithRoute: AuthenticatedAppFaithRoute,
+  AuthenticatedAppImageRoute: AuthenticatedAppImageRoute,
+  AuthenticatedAppInsightsRoute: AuthenticatedAppInsightsRoute,
   AuthenticatedAppJobsRoute: AuthenticatedAppJobsRoute,
   AuthenticatedAppJobsAppsRoute: AuthenticatedAppJobsAppsRoute,
   AuthenticatedAppLearnRoute: AuthenticatedAppLearnRoute,
@@ -1570,6 +1655,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppUniversityRoute: AuthenticatedAppUniversityRoute,
   AuthenticatedAppUpiRoute: AuthenticatedAppUpiRoute,
   AuthenticatedAppVitalsRoute: AuthenticatedAppVitalsRoute,
+  AuthenticatedAppVoiceRoute: AuthenticatedAppVoiceRoute,
   AuthenticatedAppWatchRoute: AuthenticatedAppWatchRoute,
   AuthenticatedAppWeatherRoute: AuthenticatedAppWeatherRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,

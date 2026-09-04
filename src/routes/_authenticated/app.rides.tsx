@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { placesAutocomplete, placeDetails, type PlaceSuggestion } from "@/lib/places.functions";
+import { staticRouteMap } from "@/lib/mapImage.functions";
 import {
   MapPin,
   Navigation,
@@ -95,6 +96,13 @@ function RidesScreen() {
   const [options, setOptions] = useState<ServerRideOption[]>([]);
   const [comparing, setComparing] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
+
+  // Map-first: a picture of the route appears the moment both points are
+  // known, before anyone presses "compare fares" — the map IS the first
+  // confirmation that the two points make sense together.
+  const mapFn = useServerFn(staticRouteMap);
+  const [mapUrl, setMapUrl] = useState<string | null>(null);
+  const [mapFailed, setMapFailed] = useState(false);
 
   // Detect mic support (browser-only)
   useEffect(() => {
@@ -201,6 +209,39 @@ function RidesScreen() {
     }, 12000);
     return () => clearTimeout(t);
   }, [geoState, pickup]);
+
+  // Fetch the map picture only when the two POINTS actually change, not on
+  // every keystroke or re-render — pickup/destination change rarely, so this
+  // costs one Static Maps call per route a person actually forms.
+  useEffect(() => {
+    if (!pickup || !destination) {
+      setMapUrl(null);
+      setMapFailed(false);
+      return;
+    }
+    let alive = true;
+    setMapFailed(false);
+    mapFn({
+      data: {
+        pickup: { lat: pickup.lat, lon: pickup.lon },
+        destination: { lat: destination.lat, lon: destination.lon },
+      },
+    })
+      .then((res) => {
+        if (alive) setMapUrl(res.dataUrl);
+      })
+      .catch(() => {
+        // A map is a nice-to-have next to actually booking a ride — never
+        // block the flow on it, just show nothing where it would have been.
+        if (alive) {
+          setMapUrl(null);
+          setMapFailed(true);
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [pickup?.lat, pickup?.lon, destination?.lat, destination?.lon, mapFn]);
 
   async function search() {
     if (query.trim().length < 3) {
@@ -653,6 +694,22 @@ function RidesScreen() {
               )}
             </div>
           </div>
+
+          {/* Map-first: the route as a picture, the moment both points exist —
+              this appears before anyone presses compare, not after. */}
+          {pickup && destination && (
+            <div className="border-t border-border px-4 py-3" data-testid="ride-map">
+              {mapUrl ? (
+                <img
+                  src={mapUrl}
+                  alt={`Route from ${pickup.label} to ${destination.label}`}
+                  className="w-full rounded-2xl"
+                />
+              ) : mapFailed ? null : (
+                <OniqSkeleton className="h-40 w-full rounded-2xl" />
+              )}
+            </div>
+          )}
 
           {/* Route summary — distance and time once the server has crunched it */}
           {!comparing && route && (

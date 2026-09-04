@@ -83,8 +83,16 @@ const GUARDED = ["smart-scout", "hotel-scout", "ting", "health-scan"];
  * dollars marked unknown: Lyria is not priced per token, and Google's response
  * carries neither a cost nor a duration to settle against — so it is
  * deliberately absent from MODEL_RATES rather than given an invented rate.
+ * image-generate (owner directive, 2026-09-04) turns a sentence into a picture
+ * on the Lovable gateway. It settles the same way and for the same reason: an
+ * image is billed per picture, not per token, and the gateway returns no price
+ * — so the reservation covers one call and the dollars stay unknown.
+ * voice-generate (same directive) reads a typed line aloud. Its unit is the
+ * output AUDIO token, which MODEL_RATES does not carry, and the endpoint
+ * answers bytes with no usage envelope at all — so it reports no usage rather
+ * than inventing zeros, and settles with the dollars unknown.
  */
-const GUARDED_TOKEN_ONLY = ["watch-ask", "music-generate"];
+const GUARDED_TOKEN_ONLY = ["watch-ask", "music-generate", "image-generate", "voice-generate"];
 
 describe("every SEARCH in the repository is reserved for", () => {
   const fns = edgeFunctions();

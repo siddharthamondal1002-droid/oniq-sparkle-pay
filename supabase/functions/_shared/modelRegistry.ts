@@ -486,7 +486,7 @@ export const VOICE_TTS: ModelEntry = {
   id: "google/gemini-3.1-flash-tts-preview",
   provider: "lovable-gateway",
   keyEnv: "LOVABLE_API_KEY",
-  usedBy: "story-voice",
+  usedBy: "story-voice, voice-generate (Create — Voice)",
   status: "current",
   shutdownOn: null,
   note:

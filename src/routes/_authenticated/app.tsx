@@ -1,6 +1,21 @@
 import { createFileRoute, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Compass, Home, MessageCircle, User } from "lucide-react";
+import {
+  Bookmark,
+  Car,
+  Clapperboard,
+  Compass,
+  GraduationCap,
+  HeartPulse,
+  Home,
+  MessageCircle,
+  Music4,
+  Newspaper,
+  PlusSquare,
+  Sparkle,
+  Tv,
+  User,
+} from "lucide-react";
 import { OniqBottomNav, type NavTab } from "@/components/oniq/OniqBottomNav";
 import { OniqCreateLauncher } from "@/components/oniq/OniqCreateLauncher";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,16 +45,115 @@ export const Route = createFileRoute("/_authenticated/app")({
 });
 
 /**
- * Home · Chat · ✦ Create · Explore · Profile — owner mission, 2026-09-03.
- * Create is not a route: it opens a sheet of the things ONIQ can really
- * make (src/lib/create/capabilities.ts). The four tabs flank it.
+ * Home · <this world> · ✦ Create · <this world's next step> · Profile.
+ *
+ * Owner mission 2026-09-03 fixed the five slots and put Create in the centre;
+ * the 2026-09-04 reference then showed the bar ADAPTING — standing in Pulse
+ * it reads Pulse, standing in Vitals it reads Vitals, and the fourth slot
+ * becomes whatever that world's next step is. So slots 2 and 4 are computed
+ * from where you are, and slots 1, 3 and 5 never move.
+ *
+ * EVERY SLOT GOES SOMEWHERE REAL. The reference also drew a Tools slot on
+ * Ting, an Insights slot on Vitals and a My Creations slot on Create, and
+ * ONIQ has no such screens — Vitals' reports live inside the Vitals page, and
+ * a person's generated media is spread across Lores and Music with no one
+ * place that gathers it. A nav slot that opens nothing is worse than a nav
+ * slot that isn't there, so those three are not drawn. Where a world genuinely
+ * has a next step, it is wired; everywhere else the fourth slot stays Explore.
  */
-const tabs: NavTab[] = [
-  { to: "/app", labelKey: "nav.home", fallback: "Home", icon: Home },
-  { to: "/app/chat", labelKey: "nav.chat", fallback: "Chat", icon: MessageCircle },
-  { to: "/app/explore", labelKey: "nav.explore", fallback: "Explore", icon: Compass },
-  { to: "/app/profile", labelKey: "nav.profile", fallback: "Profile", icon: User },
+const HOME_TAB: NavTab = { to: "/app", labelKey: "nav.home", fallback: "Home", icon: Home };
+const CHAT_TAB: NavTab = {
+  to: "/app/chat",
+  labelKey: "nav.chat",
+  fallback: "Chat",
+  icon: MessageCircle,
+};
+const EXPLORE_TAB: NavTab = {
+  to: "/app/explore",
+  labelKey: "nav.explore",
+  fallback: "Explore",
+  icon: Compass,
+};
+const PROFILE_TAB: NavTab = {
+  to: "/app/profile",
+  labelKey: "nav.profile",
+  fallback: "Profile",
+  icon: User,
+};
+
+/** Where a person's generated films and songs are gathered. */
+const MINE_TAB: NavTab = {
+  to: "/app/creations",
+  labelKey: "nav.mine",
+  fallback: "Mine",
+  icon: Sparkle,
+};
+
+/**
+ * The worlds the bar can stand in, longest prefix first so /app/chat/reels
+ * is read as Mast rather than as Chat.
+ *
+ * `next` is that world's real next step, and it is omitted rather than
+ * invented. Mast's is posting a clip of your own; Watch's is the library of
+ * what you saved. No other world has one yet.
+ */
+const NAV_WORLDS: Array<{ prefix: string; tab: NavTab; next?: NavTab }> = [
+  {
+    prefix: "/app/chat/reels",
+    tab: { to: "/app/chat/reels", labelKey: "nav.mast", fallback: "Mast", icon: Clapperboard },
+    next: { to: "/app/clips", labelKey: "nav.post", fallback: "Post", icon: PlusSquare },
+  },
+  {
+    prefix: "/app/watch",
+    tab: { to: "/app/watch", labelKey: "nav.watch", fallback: "Watch", icon: Tv },
+    next: {
+      to: "/app/watch/library",
+      labelKey: "nav.saved",
+      fallback: "Saved",
+      icon: Bookmark,
+    },
+  },
+  { prefix: "/app/chat", tab: CHAT_TAB },
+  {
+    prefix: "/app/study",
+    tab: { to: "/app/study", labelKey: "nav.study", fallback: "Study", icon: GraduationCap },
+  },
+  {
+    prefix: "/app/rides",
+    tab: { to: "/app/rides", labelKey: "nav.rides", fallback: "Rides", icon: Car },
+  },
+  {
+    prefix: "/app/ai",
+    tab: { to: "/app/ai", labelKey: "nav.ting", fallback: "Ting", icon: Sparkle },
+  },
+  {
+    prefix: "/app/news",
+    tab: { to: "/app/news", labelKey: "nav.pulse", fallback: "Pulse", icon: Newspaper },
+  },
+  {
+    prefix: "/app/vitals",
+    tab: { to: "/app/vitals", labelKey: "nav.vitals", fallback: "Vitals", icon: HeartPulse },
+  },
+  {
+    prefix: "/app/music",
+    tab: { to: "/app/music", labelKey: "nav.music", fallback: "Music", icon: Music4 },
+    next: MINE_TAB,
+  },
+  {
+    prefix: "/app/lores",
+    tab: { to: "/app/lores", labelKey: "nav.lores", fallback: "Lores", icon: Clapperboard },
+    next: MINE_TAB,
+  },
+  { prefix: "/app/creations", tab: MINE_TAB },
 ];
+
+/** The four flanking tabs for a path: Home, this world, its next step, Profile. */
+export function navTabsFor(pathname: string): NavTab[] {
+  const world = NAV_WORLDS.find(
+    (w) => pathname === w.prefix || pathname.startsWith(`${w.prefix}/`),
+  );
+  return [HOME_TAB, world?.tab ?? CHAT_TAB, world?.next ?? EXPLORE_TAB, PROFILE_TAB];
+}
 
 const TOP_LEVEL = new Set(["/app", "/app/explore", "/app/profile"]);
 
@@ -333,7 +447,7 @@ function AppShell() {
             <>
               <div className="pointer-events-none fixed bottom-0 left-1/2 z-30 h-28 w-full max-w-md md:max-w-lg lg:max-w-xl -translate-x-1/2 bg-gradient-to-t from-background via-background/85 to-transparent" />
               <OniqBottomNav
-                tabs={tabs}
+                tabs={navTabsFor(pathname)}
                 isActive={(to) =>
                   to === "/app" ? normalized === "/app" : normalized.startsWith(to)
                 }

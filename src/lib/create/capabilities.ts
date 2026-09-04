@@ -26,7 +26,14 @@ export type CreateCapability = {
 
 /** The six grid cards, in the reference's order. */
 export const CREATE_GRID: CreateCapability[] = [
-  { id: "image", label: "Image", hint: "Generate / Edit", emoji: "🖼️", status: "soon" },
+  {
+    id: "image",
+    label: "Image",
+    hint: "Describe a picture, get it",
+    emoji: "🖼️",
+    status: "live",
+    to: "/app/image",
+  },
   {
     id: "video",
     label: "Video",
@@ -45,7 +52,17 @@ export const CREATE_GRID: CreateCapability[] = [
     to: "/app/lores",
     search: { tab: "stories" },
   },
-  { id: "voice", label: "Voice", hint: "Speak / Clone / Translate", emoji: "🎙️", status: "soon" },
+  {
+    id: "voice",
+    // The reference's hint named three things; only Speak ships, so the card
+    // says Speak. Cloning is a consent question before it is an engineering
+    // one, and translating is the text path's job.
+    label: "Voice",
+    hint: "Type a line, hear it spoken",
+    emoji: "🎙️",
+    status: "live",
+    to: "/app/voice",
+  },
   {
     id: "music",
     label: "Music",
