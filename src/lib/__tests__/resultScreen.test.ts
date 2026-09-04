@@ -355,9 +355,16 @@ describe("no Oniq component is handed a data-* attribute it will drop", () => {
     const offenders: string[] = [];
     for (const file of walk(join(ROOT, "src"))) {
       const src = readFileSync(file, "utf8");
-      // Opening tags of <OniqSomething ...>, including multi-line ones.
-      for (const m of src.matchAll(/<(Oniq[A-Za-z]+)\b[^>]*?>/gs)) {
-        if (!/\bdata-[a-z-]+=/.test(m[0])) continue;
+      // Opening tags of <OniqSomething ...>, including multi-line ones —
+      // reading ONLY that tag's own attribute region.
+      //
+      // `[^<>]*` is doing real work: an Oniq component can be handed JSX in a
+      // prop (`<OniqEmpty action={<button data-testid="x" />} />`), and a
+      // pattern that ran to the first `>` would swallow the nested element and
+      // blame the wrapper for an attribute that is not its. That false
+      // positive fired the day this guard was written, on app.weather.tsx.
+      for (const m of src.matchAll(/<(Oniq[A-Za-z]+)\b([^<>]*)[<>]/gs)) {
+        if (!/\bdata-[a-z-]+=/.test(m[2])) continue;
         offenders.push(
           `${file.slice(ROOT.length + 1)}:${src.slice(0, m.index).split("\n").length} <${m[1]}>`,
         );

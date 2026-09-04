@@ -1,160 +1,180 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { ArrowLeft, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Wind, Droplets, MapPin, Search } from "lucide-react";
-import { getWeather, type WeatherNow, type WeatherDay } from "@/lib/weather.functions";
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { Droplets, MapPin, Thermometer, Wind } from "lucide-react";
+import { OniqCanvas, OniqCard, OniqEmpty, OniqHeader, OniqSkeletonRows } from "@/components/oniq";
+import { degrees, skyLabel, useWeather, weatherIcon } from "@/lib/weather";
+import {
+  askForPlace,
+  clearPlace,
+  readPlace,
+  savePlace,
+  type WeatherPlace,
+} from "@/lib/weatherPlace";
 
 export const Route = createFileRoute("/_authenticated/app/weather")({
   component: WeatherScreen,
 });
 
-function iconFor(condition: string) {
-  const c = condition.toLowerCase();
-  if (c.includes("rain") || c.includes("drizzle")) return CloudRain;
-  if (c.includes("snow")) return CloudSnow;
-  if (c.includes("thunder")) return CloudLightning;
-  if (c.includes("cloud")) return Cloud;
-  return Sun;
-}
-
+/**
+ * WEATHER — current conditions, from Google, for a place the person gave us.
+ *
+ * OWNER DIRECTIVE 2026-09-04h: "also use Vertex ai through google firebase
+ * credentials for google weather". This screen and the Home chip are the two
+ * places that reading appears.
+ *
+ * WHAT THIS REPLACED. An OpenWeatherMap screen that had been DEAD since the
+ * licence review: OPENWEATHER_API_KEY was never set, so it rendered "Weather
+ * isn't configured yet" and made no request, forever. It carried a five-day
+ * forecast and a city search that had also never run. Rather than keep that
+ * shape and quietly fill a third of it, this ships the part that is real —
+ * one live reading — and the server function behind the old screen is deleted
+ * so nothing points at a provider ONIQ no longer uses.
+ *
+ * NO FORECAST YET, and it is absent rather than empty. Google's forecast is a
+ * second, separately metered endpoint; adding it is a call about spending that
+ * has not been made. An empty "Next 5 days" heading would imply it is coming
+ * back in a moment.
+ *
+ * IT ASKS FOR LOCATION ON A TAP, NEVER ON A MOUNT. playCompliance declares
+ * precise location as "Requested at the moment of use, not at launch", and
+ * that is a promise to Play rather than a preference. The button below IS the
+ * moment of use.
+ */
 function WeatherScreen() {
-  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
-  const [city, setCity] = useState("");
-  const [searchedCity, setSearchedCity] = useState("");
-  const [geoDenied, setGeoDenied] = useState(false);
+  const [place, setPlace] = useState<WeatherPlace | null>(readPlace);
+  const [asking, setAsking] = useState(false);
+  const [refused, setRefused] = useState(false);
+  const weather = useWeather(place);
 
-  // Ask for location once (effect, never during render/SSR)
-  useEffect(() => {
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (p) => setCoords({ lat: p.coords.latitude, lon: p.coords.longitude }),
-        () => setGeoDenied(true),
-        { timeout: 8000 },
-      );
-    } else {
-      setGeoDenied(true);
+  const add = async () => {
+    setAsking(true);
+    setRefused(false);
+    const got = await askForPlace();
+    setAsking(false);
+    if (!got) {
+      setRefused(true);
+      return;
     }
-  }, []);
+    savePlace(got);
+    setPlace(got);
+  };
 
-  const enabled = !!coords || !!searchedCity;
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["weather", coords?.lat, coords?.lon, searchedCity],
-    enabled,
-    staleTime: 10 * 60 * 1000,
-    queryFn: () =>
-      getWeather({
-        data: searchedCity ? { city: searchedCity } : { lat: coords!.lat, lon: coords!.lon },
-      }),
-  });
+  const forget = () => {
+    clearPlace();
+    setPlace(null);
+    setRefused(false);
+  };
+
+  const reply = weather.data;
+  const now = reply?.state === "ok" ? reply.now : null;
+  const Icon = now ? weatherIcon(now.conditionType, now.isDay) : Thermometer;
 
   return (
-    <div className="px-5 pt-12 pb-6">
-      <div className="flex items-center gap-3">
-        <Link to="/app" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <h1 className="font-display text-2xl font-bold">Weather</h1>
-      </div>
+    <OniqCanvas world="home" className="pb-28">
+      <OniqHeader eyebrow="Right now" title="Weather" back="/app" />
 
-      {/* City search — shown if geolocation denied or user wants another city */}
-      {(geoDenied || searchedCity) && (
-        <div className="mt-4 flex gap-2">
-          <div className="relative flex-1">
-            <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && city.trim() && setSearchedCity(city.trim())}
-              placeholder="Enter your city"
-              className="w-full rounded-2xl border border-border bg-card py-3 pl-10 pr-3 text-sm focus:border-primary focus:outline-none"
-            />
-          </div>
-          <button
-            onClick={() => city.trim() && setSearchedCity(city.trim())}
-            className="grid h-11 w-11 place-items-center rounded-2xl bg-primary text-primary-foreground"
-          >
-            <Search className="h-4 w-4" />
-          </button>
-        </div>
-      )}
+      <div className="mt-4 px-5">
+        {!place ? (
+          <OniqEmpty
+            emoji="📍"
+            title="Add your location"
+            body={
+              refused
+                ? "Your device didn't share a location. You can allow it in your browser or system settings and try again."
+                : "ONIQ knows your country, which isn't somewhere it rains. Share your location once and the weather appears here and on Home."
+            }
+            action={
+              <button
+                type="button"
+                data-testid="weather-add"
+                onClick={() => void add()}
+                disabled={asking}
+                className="press inline-flex items-center gap-2 rounded-full border border-border-strong px-4 py-2 text-[13px] font-semibold normal-case tracking-normal text-foreground disabled:opacity-50"
+              >
+                <MapPin className="h-4 w-4 text-world" aria-hidden="true" />
+                {asking ? "Asking…" : "Use my location"}
+              </button>
+            }
+          />
+        ) : weather.isPending ? (
+          <OniqSkeletonRows rows={2} />
+        ) : now ? (
+          <>
+            <OniqCard variant="surface" className="p-6 text-center" testId="weather-now">
+              <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-world-soft">
+                <Icon className="h-9 w-9 text-world" aria-hidden="true" />
+              </span>
+              <p className="mt-4 font-display text-[44px] leading-none normal-case tracking-normal text-foreground">
+                {degrees(now.tempC)}
+              </p>
+              <p className="mt-2 text-[14px] text-foreground">{skyLabel(now)}</p>
+              {now.feelsLikeC !== null && now.feelsLikeC !== now.tempC ? (
+                <p className="mt-0.5 text-[12px] text-muted-foreground">
+                  Feels like {degrees(now.feelsLikeC)}
+                </p>
+              ) : null}
+            </OniqCard>
 
-      {!enabled && !geoDenied && (
-        <div className="mt-8 rounded-3xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          Waiting for your location…
-        </div>
-      )}
-
-      {isLoading && enabled && (
-        <div className="mt-5 h-56 animate-pulse rounded-3xl border border-border bg-card" />
-      )}
-
-      {error && (
-        <div className="mt-5 rounded-3xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-          Couldn't load weather. {String((error as Error).message)}
-        </div>
-      )}
-
-      {data && !data.configured && (
-        <div className="mt-5 rounded-3xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-          Weather isn't configured yet. Add an <span className="font-mono text-foreground">OPENWEATHER_API_KEY</span> secret to enable live forecasts.
-        </div>
-      )}
-
-      {data?.configured && <LiveWeather now={data.now} forecast={data.forecast} />}
-    </div>
-  );
-}
-
-function LiveWeather({ now, forecast }: { now: WeatherNow; forecast: WeatherDay[] }) {
-  const NowIcon = iconFor(now.condition);
-  return (
-    <>
-      <div className="mt-5 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-primary to-blue-500 p-6 text-primary-foreground shadow-card">
-        <div className="text-sm opacity-90">Your location</div>
-        <div className="font-display text-xl font-semibold">{now.city}</div>
-        <div className="mt-4 flex items-end gap-4">
-          <NowIcon className="h-16 w-16" />
-          <div>
-            <div className="font-display text-6xl font-bold">{now.temp}°</div>
-            <div className="text-sm opacity-90">
-              {now.condition} · Feels like {now.feelsLike}°
-            </div>
-          </div>
-        </div>
-        <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs">
-          <Stat icon={Wind} label="Wind" value={`${now.windKmh} km/h`} />
-          <Stat icon={Droplets} label="Humidity" value={`${now.humidity}%`} />
-          <Stat icon={CloudRain} label="Condition" value={now.condition} />
-        </div>
-      </div>
-
-      <h2 className="mt-6 px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">
-        Next days
-      </h2>
-      <div className="mt-3 space-y-2">
-        {forecast.map((d) => {
-          const DayIcon = iconFor(d.condition);
-          return (
-            <div key={d.day} className="flex items-center justify-between rounded-2xl border border-border bg-card p-3">
-              <div className="w-12 text-sm font-medium">{d.day}</div>
-              <DayIcon className="h-5 w-5 text-amber" />
-              <div className="text-sm text-muted-foreground">
-                {d.max}° / {d.min}°
+            {/* Only the readings that came back. A humidity of "—" is a row
+                that exists to be empty, which is worse than a shorter list. */}
+            {now.humidity !== null || now.windKmh !== null ? (
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {now.humidity !== null ? (
+                  <OniqCard variant="surface" className="p-4" testId="weather-humidity">
+                    <Droplets className="h-4 w-4 text-world" aria-hidden="true" />
+                    <p className="mt-2 font-display text-[20px] normal-case tracking-normal text-foreground">
+                      {now.humidity}%
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">Humidity</p>
+                  </OniqCard>
+                ) : null}
+                {now.windKmh !== null ? (
+                  <OniqCard variant="surface" className="p-4" testId="weather-wind">
+                    <Wind className="h-4 w-4 text-world" aria-hidden="true" />
+                    <p className="mt-2 font-display text-[20px] normal-case tracking-normal text-foreground">
+                      {now.windKmh} km/h
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">Wind</p>
+                  </OniqCard>
+                ) : null}
               </div>
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-}
+            ) : null}
 
-function Stat({ icon: Icon, label, value }: { icon: typeof Sun; label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-background/15 py-2.5 backdrop-blur">
-      <Icon className="mx-auto h-4 w-4" />
-      <div className="mt-1 truncate font-semibold">{value}</div>
-      <div className="text-[10px] opacity-80">{label}</div>
-    </div>
+            <p className="mt-4 text-center text-[11px] leading-snug text-muted-foreground">
+              For the area around you, to about 11 km. ONIQ never stores where you are — the place
+              is kept on this device only.
+            </p>
+            <div className="mt-2 flex justify-center">
+              <button
+                type="button"
+                data-testid="weather-forget"
+                onClick={forget}
+                className="press text-[12px] font-semibold normal-case tracking-normal text-world"
+              >
+                Forget this location
+              </button>
+            </div>
+          </>
+        ) : (
+          // Switched off, no credential, or Google could not be read. All three
+          // say the same thing to a person and none of them invents a number.
+          <OniqEmpty
+            emoji="🌥️"
+            title="No reading right now"
+            body="ONIQ couldn't get the weather for your area. Nothing is wrong with your device — try again in a little while."
+            action={
+              <button
+                type="button"
+                data-testid="weather-retry"
+                onClick={() => void weather.refetch()}
+                className="press inline-flex items-center gap-2 rounded-full border border-border-strong px-4 py-2 text-[13px] font-semibold normal-case tracking-normal text-foreground"
+              >
+                Try again
+              </button>
+            }
+          />
+        )}
+      </div>
+    </OniqCanvas>
   );
 }

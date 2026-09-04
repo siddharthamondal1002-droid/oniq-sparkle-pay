@@ -47,7 +47,8 @@ export type CapabilityId =
   | "music.referenceAudio"
   | "music.referenceImage"
   | "text.generate"
-  | "document.read";
+  | "document.read"
+  | "weather.current";
 
 export type CapabilityEntry = {
   id: CapabilityId;
@@ -244,6 +245,40 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
       "is many real requests rather than one. It COUNTS the blocks it could " +
       "not inline and warns, so a silent drop would show up rather than " +
       "quietly answering without the document.",
+  },
+  "weather.current": {
+    id: "weather.current",
+    provider: "google",
+    // EXPERIMENTAL, not LIVE, and the distinction is the whole point of this
+    // file. What is MEASURED is that the endpoint accepts an OAuth 2 token at
+    // all; what is NOT is that ONIQ's service account in particular may call
+    // it, because that needs the real key and the key exists only as a
+    // Supabase secret. music.referenceAudio sat exactly here until one POST
+    // to the deployed function came back 200, and this moves on the same
+    // evidence and not before.
+    state: "EXPERIMENTAL",
+    userMessage: "Weather isn't switched on yet",
+    evidence:
+      "2026-09-04, three requests to weather.googleapis.com/v1/currentConditions:lookup " +
+      "from the dev container, which is a control set rather than a single probe. " +
+      "NO CREDENTIAL: 403 PERMISSION_DENIED, \"Method doesn't allow unregistered callers " +
+      "(callers without established identity). Please use API Key or other form of API " +
+      'consumer identity to call this API." A NONSENSE BEARER: 401 UNAUTHENTICATED, ' +
+      '"Request had invalid authentication credentials. Expected OAuth 2 access token, ' +
+      'login cookie or other valid authentication credential." A NONSENSE API KEY: 400 ' +
+      "INVALID_ARGUMENT, reason API_KEY_INVALID, service weather.googleapis.com. " +
+      "The middle answer is the finding and the outer two are what let it be read: the " +
+      "Authorization header was PARSED and judged as an OAuth credential rather than " +
+      "waved away, and the API-key path is a visibly different error route. That is the " +
+      'OPPOSITE of what Vertex said to an API key ("API keys are not supported by this ' +
+      'API"), and it is what makes owner directive 2026-09-04h buildable. ' +
+      "STILL UNPROVEN, hence EXPERIMENTAL: that the Firebase service account may call it " +
+      "— the project may not have the Weather API enabled, and neither the service " +
+      "account's permission nor the project's billing has been exercised. Only a POST " +
+      "from the DEPLOYED weather function can say, because the key is a Supabase secret " +
+      "and reaches nowhere else. GET, not POST, is also measured: the probes carried the " +
+      "coordinates as query parameters and were answered on the credential rather than " +
+      "refused as the wrong method.",
   },
 };
 

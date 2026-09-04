@@ -15,6 +15,9 @@ import {
 import { GREETING, dayPartOf, groupsFor, type WorldEntry } from "@/data/worlds";
 import type { CountryCode } from "@/lib/miniapps";
 import { useContinue } from "@/lib/watch/hooks";
+import { degrees, skyLabel, useWeather, weatherIcon } from "@/lib/weather";
+import { readPlace, weatherDeclined, type WeatherPlace } from "@/lib/weatherPlace";
+import { WeatherInvite } from "@/components/home/WeatherInvite";
 import { formatClock, formatMinutes } from "@/lib/watch/format";
 import { providerName } from "@/lib/watch/providers";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -125,7 +128,12 @@ function HomeScreen() {
   // read once per visit; nothing is hidden by it (src/data/worlds.ts).
   const dayPart = useMemo(() => dayPartOf(new Date().getHours()), []);
   const groups = useMemo(() => groupsFor(dayPart), [dayPart]);
-  const pulse = useHomePulse(userId, home, hidden);
+  // The place lives HERE rather than in the hook so the invite below can hand
+  // one over and have the chip appear in the same render — otherwise adding a
+  // location looks like it did nothing until the next visit.
+  const [place, setPlace] = useState(readPlace);
+  const [declined] = useState(weatherDeclined);
+  const pulse = useHomePulse(userId, home, hidden, place);
   // Same hook, same cache key as the chips below — see useUnreadChats.
   const unread = useUnreadChats(userId, !hidden.has("moments")).data ?? 0;
 
@@ -243,12 +251,13 @@ function HomeScreen() {
               This is that shape, filled with what ONIQ ACTUALLY KNOWS.
 
               The reference's own three were weather, messages and a ride ETA.
-              Messages is real and is here. Weather is NOT: ONIQ has no
-              weather source wired (the Google one needs service-account
-              OAuth2, which is an owner decision that has not been made), and a
-              temperature is exactly the kind of number that looks harmless
-              invented and is a lie on someone's screen. A ride ETA is the same
-              — it needs a live quote for a route nobody has entered. So the
+              Messages is real and is here. Weather became real on 2026-09-04
+              (owner directive 2026-09-04h — Google Weather on the Firebase
+              service account), and appears once the person has given a place;
+              until then the invite below offers to ask for one, ONCE. A ride
+              ETA is still NOT: it needs a live quote for a route nobody has
+              entered, and a made-up one is exactly the kind of number that
+              looks harmless invented and is a lie on someone's screen. So the
               row shows the facts that exist and is simply shorter when there
               are fewer of them, rather than being padded to three.
             */}
@@ -283,6 +292,12 @@ function HomeScreen() {
                 ))}
               </OniqStoryRail>
             )}
+
+            {/* The invite, and only where there is nothing to invite around:
+                no place kept on this device, and not already waved away. It
+                sits OUTSIDE the rail above because it is not one of that
+                row's facts — see WeatherInvite. */}
+            {!place && !declined ? <WeatherInvite onAdded={setPlace} /> : null}
           </div>
 
           {/* ---- CONTINUE WATCHING: the real unfinished item, or nothing --- */}
@@ -407,7 +422,7 @@ function HomeScreen() {
 }
 
 type PulseItem = {
-  id: "continue" | "unread" | "study";
+  id: "weather" | "continue" | "unread" | "study";
   world: WorldId;
   /** A drawn glyph and its hue, the same treatment the world tiles use. */
   Icon: React.ComponentType<{ className?: string }>;
@@ -443,17 +458,51 @@ function useUnreadChats(userId: string | null, enabled: boolean) {
 
 /**
  * THE PULSE — what is true for this person right now, from data ONIQ
- * already holds. A chip exists only when its fact does: an unfinished
- * video (Watch library, India), unread chats, a learner profile. No
- * weather, no ride status, no fabricated values. Everything here is a
- * hook, and every hook runs on every render.
+ * already holds. A chip exists only when its fact does: the weather where
+ * they told us they are, an unfinished video (Watch library, India), unread
+ * chats, a learner profile. No ride status, no fabricated values. Everything
+ * here is a hook, and every hook runs on every render.
+ *
+ * WEATHER ARRIVED 2026-09-04, on owner directive 2026-09-04h — Google Weather
+ * on the Firebase service account. The note that used to sit here said the
+ * chip was absent because the Google source needed service-account OAuth2 and
+ * nobody had chosen whose bill it lands on. That choice has now been made.
+ *
+ * What has NOT changed is the rule underneath it: the chip appears only when
+ * there is a real reading for a place the person themselves gave us. No
+ * remembered place, no prompt and no chip; a lookup that fails, no chip. A
+ * temperature is exactly the kind of number that looks harmless invented.
  */
-function useHomePulse(userId: string | null, home: CountryCode, hidden: Set<TileKey>): PulseItem[] {
+function useHomePulse(
+  userId: string | null,
+  home: CountryCode,
+  hidden: Set<TileKey>,
+  place: WeatherPlace | null,
+): PulseItem[] {
   const watchOk = isAvailable("watch", home) && !hidden.has("watch");
   const cont = useContinue(watchOk ? userId : null);
   const study = useStudyHeroData(isAvailable("study", home) && !hidden.has("study"));
   const unread = useUnreadChats(userId, !hidden.has("moments"));
+  const weather = useWeather(place);
   const items: PulseItem[] = [];
+  // FIRST, because the reference puts it first and because it is the one fact
+  // here that is true of the world rather than of the app.
+  if (weather.data?.state === "ok") {
+    const now = weather.data.now;
+    items.push({
+      id: "weather",
+      world: "home",
+      Icon: weatherIcon(now.conditionType, now.isDay),
+      tint: now.isDay ? "amber" : "indigo",
+      title: degrees(now.tempC),
+      // The reference shows a city here. ONIQ does not know one: it holds a
+      // home country and a current region, and neither is somewhere it rains.
+      // Google's own word for the sky is true, costs no second lookup against
+      // a geocoder, and is the more useful half of "28° Kolkata" anyway.
+      sub: skyLabel(now),
+      to: "/app/weather",
+    });
+  }
   const next = cont.data?.[0];
   if (next) {
     items.push({

@@ -531,12 +531,19 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
     avoidable: false,
   },
   {
-    host: "api.openweathermap.org",
+    // REPLACED api.openweathermap.org, 2026-09-04. That entry described a
+    // screen that had been dead since the licence review — the key was never
+    // set, so nothing was ever sent. Owner directive 2026-09-04h chose Google
+    // Weather on the Firebase service account, so there is now a live weather
+    // source and this is it. The OpenWeather path and its server function are
+    // deleted rather than left dormant: a declared host that sends nothing is
+    // a declaration that goes stale silently.
+    host: "weather.googleapis.com",
     triggeredBy:
-      'Legacy weather screen (src/lib/weather.functions.ts). Currently DEAD — OPENWEATHER_API_KEY is unset, so the screen renders "Weather isn\'t configured yet" and no request is ever made.',
+      "The Home weather chip and the Weather screen, and only for a person who has explicitly tapped to add their location. Never at launch, never without that tap.",
     sends:
-      "Would send latitude and longitude, or a city name, from the server. Sends nothing today.",
-    purpose: "Was the weather forecast. No weather source survived the licence review.",
+      "A latitude and longitude SNAPPED TO A ~11 KM GRID, from the SERVER (the `weather` edge function) — the credential never reaches the device, and Google receives ONIQ's server IP rather than the user's. The exact position is never sent: the grid cell is both the cache key and the coordinate in the request. Nothing identifies the person, and no user id is involved.",
+    purpose: "Current conditions for the place the user chose.",
     avoidable: true,
   },
 ];
