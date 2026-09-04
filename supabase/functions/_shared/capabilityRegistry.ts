@@ -144,12 +144,16 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
       "side of this door is built; what is missing is which credential to " +
       "point it at. FIREBASE_SERVICE_ACCOUNT is already provisioned and is a " +
       "Google Cloud service-account key — a Firebase project IS a Cloud " +
-      "project — but using it puts Vertex spend on that project's billing " +
-      "account, so it is opt-in behind GOOGLE_VERTEX_USE_FIREBASE_SA and " +
-      "waits on the owner. (2) THE ALLOWLIST: replication is a preview " +
-      "requested through a Google form. Both are owner decisions. The flow " +
-      "itself is built and unit-tested in _shared/voiceReplication.ts, so " +
-      "admission is the only thing between here and a working feature.",
+      "project. Using it puts Vertex spend on that project's billing " +
+      "account, so it was put to the owner rather than assumed, and OWNER " +
+      "DIRECTIVE 2026-09-04e chose it: googleAuth.ts now authenticates as " +
+      "that service account by default, with GOOGLE_VERTEX_USE_FIREBASE_SA " +
+      "left as a kill switch that turns it off again without a deploy. So " +
+      "door one is open. (2) THE ALLOWLIST is still shut: replication is a " +
+      "preview requested through a Google form, and only the owner can " +
+      "submit it. The flow itself is built and unit-tested in " +
+      "_shared/voiceReplication.ts, so admission is now the ONLY thing " +
+      "between here and a working feature.",
   },
   "voice.realtime": {
     id: "voice.realtime",

@@ -26,6 +26,10 @@
  * an identity, not a credential — nothing can authenticate as somebody from
  * their address alone.
  *
+ * IN PRACTICE ONIQ TAKES (1). Owner directive 2026-09-04e chose the Firebase
+ * project's service account; see serviceAccountJson below for what that
+ * means for the bill and how to undo it.
+ *
  * EITHER WAY A PROJECT ID IS STILL NEEDED — it is in the URL path and in the
  * `x-goog-user-project` header. A Gmail address does not imply a Cloud
  * project, and measured 2026-09-04, the API key does not echo one: the
@@ -72,23 +76,36 @@ export type GoogleAuthStatus = {
 /**
  * The service-account JSON, from whichever secret holds one.
  *
- * ONIQ ALREADY HAS ONE. `FIREBASE_SERVICE_ACCOUNT` is a Google Cloud service
- * account key — a Firebase project IS a Cloud project — so the credential
- * this whole module needs may already be provisioned, with nothing new to
- * create.
+ * OWNER DIRECTIVE, 2026-09-04e. Asked which credential Vertex should
+ * authenticate as, and told plainly that the choice decides whose bill Vertex
+ * charges, the owner chose the FIREBASE PROJECT. `FIREBASE_SERVICE_ACCOUNT`
+ * is already provisioned and is a Google Cloud service-account key — a
+ * Firebase project IS a Cloud project — so there is nothing new to create,
+ * and Vertex spend lands on that project's billing account alongside
+ * Firebase's own. That is the owner's call, made with the consequence stated,
+ * which is why this file reaches for it by default now instead of waiting to
+ * be opted in.
  *
- * IT IS NOT USED WITHOUT BEING ASKED FOR. Pointing Vertex at that project
- * means Vertex spend lands on that project's billing account, and which
- * account's money a feature spends is the owner's decision, not an
- * inference from a secret happening to exist. So it is opt-in behind
- * GOOGLE_VERTEX_USE_FIREBASE_SA, and a dedicated
- * GOOGLE_SERVICE_ACCOUNT_JSON always wins over it.
+ * THE OFF SWITCH SURVIVES THE DECISION. `GOOGLE_VERTEX_USE_FIREBASE_SA=false`
+ * turns it off again without a deploy — the same discipline every spend
+ * control here follows, because a decision about money should be reversible
+ * by the person who made it rather than by whoever can ship code that day.
+ *
+ * A dedicated GOOGLE_SERVICE_ACCOUNT_JSON still wins over both, so moving
+ * Vertex onto its own project later is one secret and no code change.
  */
 function serviceAccountJson(env: (k: string) => string | undefined): string | undefined {
   const dedicated = env("GOOGLE_SERVICE_ACCOUNT_JSON");
   if (dedicated) return dedicated;
-  const optedIn = (env("GOOGLE_VERTEX_USE_FIREBASE_SA") ?? "").toLowerCase() === "true";
-  return optedIn ? env("FIREBASE_SERVICE_ACCOUNT") : undefined;
+  // A KILL SWITCH, AND KILL SWITCHES MUST BE EASY TO TRIP. Unset or empty
+  // means the owner's directive stands and the key is used. Any of the
+  // ordinary ways of writing "yes" also mean on. ANYTHING ELSE — "false",
+  // "no", "0", "off", or a typo made at speed by somebody trying to stop the
+  // spending — means OFF. The asymmetry is deliberate: a mistake in the "on"
+  // direction costs a feature, a mistake in the "off" direction costs money.
+  const raw = (env("GOOGLE_VERTEX_USE_FIREBASE_SA") ?? "").trim().toLowerCase();
+  const on = raw === "" || raw === "true" || raw === "yes" || raw === "1" || raw === "on";
+  return on ? env("FIREBASE_SERVICE_ACCOUNT") : undefined;
 }
 
 /** `project_id` out of a service-account JSON, without throwing on rubbish. */

@@ -51,7 +51,7 @@ describe("googleAuthStatus — which credential the environment holds", () => {
     expect(s.ready).toBe(false);
   });
 
-  it("names all three routes when none of them is configured", () => {
+  it("names the routes when none of them is configured", () => {
     // An operator reading this in a log should know the next step, not merely
     // that authentication failed.
     const reason = googleAuthStatus(envOf({})).reason ?? "";
@@ -69,36 +69,39 @@ describe("googleAuthStatus — which credential the environment holds", () => {
     expect(s.reason).toBeNull();
   });
 
-  // ------------------------------------------------- the owner's-money guard
-  it("does NOT use FIREBASE_SERVICE_ACCOUNT merely because it exists", () => {
-    // THE POINT OF THIS FILE. That secret is already provisioned. Reaching for
-    // it unasked would route Vertex charges onto the Firebase project's
-    // billing account — a payment decision made by inference, which is the
-    // exact failure CLAUDE.md's first rule was written after.
+  // ------------------------------------------ the owner's decision, and its
+  //                                             off switch
+  it("uses FIREBASE_SERVICE_ACCOUNT, because the owner chose that project", () => {
+    // OWNER DIRECTIVE 2026-09-04e. Asked which credential Vertex should
+    // authenticate as, told plainly that the answer decides whose bill Vertex
+    // charges, the owner chose the Firebase project. Before that answer this
+    // key was deliberately ignored; reaching for it unasked would have been a
+    // payment decision made by inference, which is the failure CLAUDE.md's
+    // first rule was written after. It is not an inference now.
     const s = googleAuthStatus(envOf({ FIREBASE_SERVICE_ACCOUNT: saJson("oniq-firebase") }));
-    expect(s.mode).toBe("none");
-    expect(s.projectId).toBeNull();
-    expect(s.ready).toBe(false);
+    expect(s.mode).toBe("service-account");
+    expect(s.projectId).toBe("oniq-firebase");
+    expect(s.ready).toBe(true);
   });
 
-  it("uses it once the owner sets the flag, whatever the casing", () => {
-    for (const flag of ["true", "TRUE", "True"]) {
+  it("stays on for every ordinary way of writing yes", () => {
+    for (const flag of ["", "true", "TRUE", "True", "yes", "1", "on", "  true  "]) {
       const s = googleAuthStatus(
         envOf({
           FIREBASE_SERVICE_ACCOUNT: saJson("oniq-firebase"),
           GOOGLE_VERTEX_USE_FIREBASE_SA: flag,
         }),
       );
-      expect(s.mode, flag).toBe("service-account");
-      expect(s.projectId, flag).toBe("oniq-firebase");
+      expect(s.mode, JSON.stringify(flag)).toBe("service-account");
     }
   });
 
-  it("treats anything that is not true as not opted in", () => {
-    // "1" and "yes" look like consent and are not the documented value. A
-    // near-miss must fail CLOSED, because the thing being consented to is
-    // spending money.
-    for (const flag of ["1", "yes", "on", "false", "", " true"]) {
+  it("turns off for anything else at all, typos included", () => {
+    // A KILL SWITCH MUST BE EASY TO TRIP. Somebody stopping the spending in a
+    // hurry may type "no", "0", "off" or fumble it entirely, and every one of
+    // those has to work. The asymmetry is the point: a mistake in the "on"
+    // direction costs a feature, a mistake in the "off" direction costs money.
+    for (const flag of ["false", "FALSE", "no", "0", "off", "disabled", "flase", "n"]) {
       const s = googleAuthStatus(
         envOf({
           FIREBASE_SERVICE_ACCOUNT: saJson("oniq-firebase"),
@@ -106,15 +109,28 @@ describe("googleAuthStatus — which credential the environment holds", () => {
         }),
       );
       expect(s.mode, JSON.stringify(flag)).toBe("none");
+      expect(s.ready, JSON.stringify(flag)).toBe(false);
     }
   });
 
-  it("prefers a dedicated key over the Firebase one even when opted in", () => {
+  it("leaves the off switch usable without a deploy", () => {
+    // It is an environment variable rather than a constant precisely so the
+    // person who made the spending decision can undo it themselves.
+    const off = googleAuthStatus(
+      envOf({
+        FIREBASE_SERVICE_ACCOUNT: saJson("oniq-firebase"),
+        GOOGLE_VERTEX_USE_FIREBASE_SA: "false",
+      }),
+    );
+    expect(off.reason).toContain("GOOGLE_SERVICE_ACCOUNT_JSON");
+  });
+
+  it("prefers a dedicated key over the Firebase one, even with the switch off", () => {
     const s = googleAuthStatus(
       envOf({
         GOOGLE_SERVICE_ACCOUNT_JSON: saJson("oniq-vertex"),
         FIREBASE_SERVICE_ACCOUNT: saJson("oniq-firebase"),
-        GOOGLE_VERTEX_USE_FIREBASE_SA: "true",
+        GOOGLE_VERTEX_USE_FIREBASE_SA: "false",
       }),
     );
     expect(s.projectId).toBe("oniq-vertex");
