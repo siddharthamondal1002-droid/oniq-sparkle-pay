@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ import {
   RotateCw,
   Trash2,
   ExternalLink,
+  TrendingUp,
 } from "lucide-react";
 import {
   OniqCanvas,
@@ -213,6 +214,20 @@ function VitalsPage() {
         ) : (
           <>
             <TodayTiles row={todayRow} />
+            {/* The way into Insights. It sits under today's tiles because
+                that is where a person has just seen one day and may want the
+                shape of the last sixty. */}
+            <Link
+              to="/app/insights"
+              className="press mt-4 flex items-center justify-between gap-3 rounded-3xl oniq-surface p-4"
+              data-testid="vitals-insights-link"
+            >
+              <span className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 shrink-0 text-world" aria-hidden="true" />
+                <span className="text-[13px] font-semibold text-foreground">Insights</span>
+              </span>
+              <span className="text-[12px] text-muted-foreground">Your trends →</span>
+            </Link>
             <OniqSectionHeader className="mt-6 px-0" title="Today" />
             <div className="mt-3 space-y-5">
               <DailyCheckin todayRow={todayRow} />
