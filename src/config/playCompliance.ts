@@ -497,6 +497,15 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
     avoidable: false,
   },
   {
+    host: "maps.googleapis.com",
+    triggeredBy:
+      "The route picture on Rides, once both pickup and destination are set (src/lib/mapImage.functions.ts). Same Maps Platform key as places.googleapis.com above — not a new provider, a second endpoint on the one already declared.",
+    sends:
+      "The pickup and destination coordinates, from the SERVER — the key never reaches the device. Google receives ONIQ's server IP, not the user's. The finished picture comes back to the server and is handed to the client as bytes, so the client never talks to Google directly.",
+    purpose: "Drawing the two points and the road between them as a small map image.",
+    avoidable: false,
+  },
+  {
     host: "api.openweathermap.org",
     triggeredBy:
       'Legacy weather screen (src/lib/weather.functions.ts). Currently DEAD — OPENWEATHER_API_KEY is unset, so the screen renders "Weather isn\'t configured yet" and no request is ever made.',
