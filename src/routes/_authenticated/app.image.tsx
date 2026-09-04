@@ -14,6 +14,7 @@ import {
   OniqSectionHeader,
   OniqSkeletonRows,
 } from "@/components/oniq";
+import { OniqAttachImage, type AttachedImage } from "@/components/oniq/OniqAttachImage";
 
 export const Route = createFileRoute("/_authenticated/app/image")({
   component: ImageScreen,
@@ -44,6 +45,7 @@ type Picture = { id: string; createdAt: string; prompt: string; url: string | nu
 
 function ImageScreen() {
   const [prompt, setPrompt] = useState("");
+  const [reference, setReference] = useState<AttachedImage | null>(null);
   const [busy, setBusy] = useState(false);
   const [pictures, setPictures] = useState<Picture[] | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -72,7 +74,14 @@ function ImageScreen() {
     if (!text || busy) return;
     setBusy(true);
     const { data, error } = await supabase.functions.invoke("image-generate", {
-      body: { prompt: text },
+      body: {
+        prompt: text,
+        // The preview URL stays on this side — it is a data: URL for an <img>
+        // and the server has no use for it. Only the bytes and the mime go.
+        ...(reference
+          ? { referenceImage: { mimeType: reference.mimeType, data: reference.data } }
+          : {}),
+      },
     });
     setBusy(false);
     // The server's own sentence is the one worth showing — it is the only
@@ -90,6 +99,10 @@ function ImageScreen() {
     }
     setPictures((prev) => [data as Picture, ...(prev ?? [])]);
     setPrompt("");
+    // The attachment clears with the prompt. Keeping it would silently apply
+    // the same reference to the NEXT picture too, which is not what "make a
+    // picture" reads as after a result has already come back.
+    setReference(null);
   };
 
   return (
@@ -112,10 +125,27 @@ function ImageScreen() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value.slice(0, PROMPT_MAX))}
             rows={3}
-            placeholder="a red bicycle against a blue wall"
+            placeholder={reference ? "make the wall green" : "a red bicycle against a blue wall"}
             className="w-full resize-none bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
-          <div className="mt-2 flex items-center justify-between gap-3">
+          {/*
+            ATTACH A PICTURE TO CHANGE. Only offered because it was measured
+            working on the direct Google route (an inlineData part before the
+            text returns an edited picture); the gateway had no field for it.
+          */}
+          <OniqAttachImage
+            value={reference}
+            onChange={setReference}
+            disabled={busy}
+            className="mt-3"
+          />
+          {reference ? (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Your picture is attached — describe the change you want.
+            </p>
+          ) : null}
+
+          <div className="mt-3 flex items-center justify-between gap-3">
             <span className="text-[11px] text-muted-foreground">
               {prompt.length}/{PROMPT_MAX}
             </span>
@@ -127,7 +157,7 @@ function ImageScreen() {
               className="press inline-flex items-center gap-2 rounded-full bg-world px-4 py-2 text-[13px] font-semibold text-white world-glow disabled:opacity-50"
             >
               <Sparkles className="h-4 w-4" aria-hidden="true" />
-              {busy ? "Drawing…" : "Make a picture"}
+              {busy ? "Drawing…" : reference ? "Change this picture" : "Make a picture"}
             </button>
           </div>
         </OniqCard>

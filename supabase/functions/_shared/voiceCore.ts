@@ -26,6 +26,24 @@ import { VOICE_TTS_DIRECT } from "./modelRegistry.ts";
 export const VOICE_MODEL = VOICE_TTS_DIRECT.id;
 
 /**
+ * NO AUDIO INPUT AT ALL. Measured 2026-09-04, not assumed.
+ *
+ * The owner's reference draws "+ Attach audio (optional)" on Create — Voice.
+ * Two shapes were tried against this exact id:
+ *
+ *   inlineData audio part + text, WITH speechConfig     -> 400
+ *   inlineData audio part + text, WITHOUT speechConfig  -> 400
+ *   both: "Audio input modality is not enabled for this model"
+ *
+ * Dropping speechConfig does not turn an attachment into a voice sample. So
+ * the control cannot be built, and separately: cloning a voice from a sample
+ * is a consent and likeness question before it is an engineering one, which
+ * is the note already standing at the top of this file. Both would have to be
+ * answered, and today neither can be.
+ */
+export const VOICE_ACCEPTS_AUDIO_INPUT = false;
+
+/**
  * The voices, and every one of them POST-verified.
  *
  * MEASURED 2026-09-04 on google/gemini-3.1-flash-tts-preview through the

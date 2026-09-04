@@ -24,6 +24,30 @@
  */
 export const MUSIC_MODEL = "lyria-3-pro-preview";
 
+/**
+ * NO AUDIO REFERENCE. Measured 2026-09-04, not assumed.
+ *
+ * The owner's reference draws an "+ Add reference (optional)" row on Create —
+ * Music. It cannot be built today, and the reason is worth keeping so nobody
+ * spends an afternoon rediscovering it:
+ *
+ *   POST lyria-3-pro-preview:generateContent with an inlineData audio part
+ *   before the text  ->  400 "Unsupported input mime type for this model:
+ *                        audio/s16le"
+ *   the same prompt with NO attachment (control)
+ *                    ->  200, 5,578,562 bytes, a real audio/mpeg track
+ *
+ * Sent as audio/wav and again as audio/mpeg: the error names `audio/s16le`
+ * BOTH times, so Lyria is decoding the attachment and then refusing audio as
+ * an input modality — it is not a container or codec problem that a different
+ * export would fix. The control proves the failure is the reference, not the
+ * call.
+ *
+ * So a reference button here would 400 every generation it was used on. When
+ * Google enables audio input on this model, re-probe and delete this note.
+ */
+export const MUSIC_ACCEPTS_AUDIO_REFERENCE = false;
+
 /** A sentence, not an essay. Long prompts do not buy longer songs here. */
 export const MUSIC_PROMPT_MAX = 300;
 
