@@ -17,14 +17,39 @@
  * every provider below is carried over EXACTLY as it was found. Changing one
  * changes a bill, and that is a question, not a refactor.
  *
+ * OWNER DIRECTIVE, 2026-09-04b — DIRECT GOOGLE, NOT THE GATEWAY. Given as
+ * "make images, Voice, music, documents direct Gemini not via lovable", and it
+ * REVERSES point (1) below. Image, text-to-speech and the text/AI models move
+ * off ai.gateway.lovable.dev and onto generativelanguage.googleapis.com on
+ * GOOGLE_AI_API_KEY — the same route Veo clips and Lyria music already take.
+ * Music needs no change; it was already the exception.
+ *
+ * WHAT THIS CHANGES ABOUT THE BILL, stated plainly because the whole point of
+ * the 2026-08-14 rule is that a provider swap is a money decision. These
+ * features stop drawing Lovable credits and start drawing the metered Google
+ * account, per call, at Google's own rates. The prices in the mapping below
+ * were recorded as GOOGLE LIST PRICES and were never what the reseller
+ * charged — so on this route they become the relevant numbers rather than a
+ * rough sizing. The spend guards, the per-capability ceilings in
+ * provider_budget_config and the flat reservations are untouched by this and
+ * still apply; what changes is whose account the reservation is spending.
+ *
+ * Every id used on this route is POST-verified against the direct endpoint
+ * before it is written down. A gateway id is NOT a direct id — the gateway
+ * prefixes with `google/` and resells a catalogue of its own — so none of the
+ * verifications recorded below carry over, and each had to be redone.
+ *
+ * ---- superseded, kept for the record ----------------------------------
+ *
  * OWNER DIRECTIVE, 2026-09-04 — the Google model mapping, and it supersedes
  * the text half of the 2026-08-14 split. The owner named the models and the
  * prices, and answered three questions directly:
  *
- *   1. EVERY model below runs through the Lovable gateway on LOVABLE_API_KEY.
- *      Lovable credits, not the metered Google key. Veo clips are untouched
- *      and stay on the Google key; stills and voice stay where 2026-08-14 put
- *      them, on the gateway, and only their ids move.
+ *   1. SUPERSEDED BY 2026-09-04b ABOVE. Read as: every model below ran
+ *      through the Lovable gateway on LOVABLE_API_KEY — Lovable credits, not
+ *      the metered Google key. Veo clips were untouched and stayed on the
+ *      Google key; stills and voice stayed where 2026-08-14 put them, on the
+ *      gateway, and only their ids moved.
  *   2. GEMINI BECOMES THE PRIMARY TEXT ENGINE — Flash-Lite for ordinary work,
  *      the Pro tier for the heavier tier. This is a reversal of "text runs
  *      Claude-first" above, and it is the owner's. Asked whether Claude was
@@ -579,6 +604,159 @@ export const VIDEO_CLIP_FALLBACK: ModelEntry = {
   },
 };
 
+/* ===========================================================================
+ * DIRECT GOOGLE — owner directive 2026-09-04b, "make images, Voice, music,
+ * documents direct Gemini not via lovable".
+ *
+ * These four are the route the owner asked for. Every id below was
+ * POST-VERIFIED against generativelanguage.googleapis.com on
+ * GOOGLE_AI_API_KEY before it was written here, because a gateway id is NOT a
+ * direct id: the gateway prefixes with `google/` and resells a catalogue of
+ * its own, so none of the gateway verifications above carry over. The measured
+ * status, byte count and part types are in each note — a listing was not
+ * accepted as evidence for any of them, per CLAUDE.md.
+ * ======================================================================== */
+
+/**
+ * IMAGE, DIRECT. What Create — Image calls, and the reference-image path.
+ *
+ * The reference answer is the one worth noting: the SAME id accepts an
+ * inlineData jpeg part placed BEFORE the text part and returns an edited
+ * image. That is measured, not inferred from a doc, and it is what makes
+ * "attach a reference image" offerable at all — the gateway's OpenAI-shaped
+ * /images/generations endpoint had no field for it.
+ */
+export const IMAGE_DIRECT: ModelEntry = {
+  id: "gemini-3.1-flash-image",
+  provider: "google-direct",
+  keyEnv: "GOOGLE_AI_API_KEY",
+  usedBy: "image-generate (Create — Image)",
+  status: "current",
+  shutdownOn: null,
+  note:
+    "The owner's 'Nano Banana 2' on the DIRECT API, owner directive " +
+    "2026-09-04b. POST-verified 2026-09-04 on " +
+    "generativelanguage.googleapis.com/v1beta with Google's native contents " +
+    "envelope and generationConfig.responseModalities:['IMAGE']: 200, " +
+    "3,329,851 bytes, one inlineData part of mimeType image/jpeg. Two " +
+    "siblings also answered 200 and are NOT wired — " +
+    "gemini-3.1-flash-image-preview (3,339,779 bytes) and " +
+    "gemini-3-pro-image-preview (4,842,458 bytes, a heavier tier). No " +
+    "published shutdown date found, so shutdownOn stays null — unknown, not " +
+    "safe.",
+  capabilities: {
+    modality: "text-to-image",
+    durationsSec: null,
+    aspectRatios: [],
+    referenceSupport: true,
+    audioSupport: false,
+    commercialUse: null,
+    note:
+      "REFERENCE IMAGE MEASURED, 2026-09-04: an inlineData image/jpeg part " +
+      "placed before the text part, prompt 'make the wall green', returned " +
+      "200 with 2,405,500 bytes and one image/jpeg part back. So a person " +
+      "can attach a picture and ask for a change to it. No seed and no " +
+      "negative-prompt tensor on this surface either — same limits as the " +
+      "gateway entry, and the same rule about not letting a caller assume " +
+      "conditioning it did not get.",
+  },
+};
+
+/**
+ * VOICE, DIRECT. What Create — Voice calls.
+ *
+ * THE 400 THAT WAS NOT A DEAD ID. This id first answered 400
+ * INVALID_ARGUMENT and looked like the usual "listed but not callable" trap.
+ * It was not: the bare `responseModalities:['AUDIO']` body is simply not its
+ * accepted shape, and adding `speechConfig` with a prebuilt voice turned the
+ * same id into a 200. Worth recording because the reflex on a 400 here is to
+ * strike the id off, and that would have been wrong.
+ */
+export const VOICE_TTS_DIRECT: ModelEntry = {
+  id: "gemini-3.1-flash-tts-preview",
+  provider: "google-direct",
+  keyEnv: "GOOGLE_AI_API_KEY",
+  usedBy: "voice-generate (Create — Voice)",
+  status: "current",
+  shutdownOn: null,
+  note:
+    "Owner directive 2026-09-04b. POST-verified 2026-09-04 direct with " +
+    "generationConfig {responseModalities:['AUDIO'], speechConfig: " +
+    "{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Charon'}}}}: 200, " +
+    "144,129 bytes, inlineData 'audio/l16; rate=24000; channels=1', base64 " +
+    "length 143,360. WITHOUT speechConfig the same id returns 400 " +
+    "INVALID_ARGUMENT. gemini-2.5-flash-preview-tts also answers 200 " +
+    "(165,311 bytes) and is recorded as the fallback; gemini-3.1-flash-tts " +
+    "and gemini-3.1-pro-tts-preview are both 404 and do not exist.",
+  capabilities: {
+    modality: "text-to-speech",
+    durationsSec: null,
+    aspectRatios: [],
+    referenceSupport: false,
+    audioSupport: true,
+    commercialUse: null,
+    note:
+      "Returns RAW 24 kHz mono L16 PCM with NO WAV HEADER — a header has to " +
+      "be prepended before anything will play it. The mime spelling differs " +
+      "between ids ('audio/l16; rate=24000; channels=1' here, " +
+      "'audio/L16;codec=pcm;rate=24000' on the 2.5 fallback), so the rate " +
+      "must be parsed case-insensitively rather than string-matched.",
+  },
+};
+
+/**
+ * TEXT, DIRECT — the ordinary tier. What Document/AI and callText run on.
+ */
+export const TEXT_DIRECT_STANDARD: ModelEntry = {
+  id: "gemini-3.1-flash-lite",
+  provider: "google-direct",
+  keyEnv: "GOOGLE_AI_API_KEY",
+  usedBy: "_shared/llm.ts callText primary (Document, AI, all text)",
+  status: "current",
+  shutdownOn: null,
+  note:
+    "Owner directive 2026-09-04b, moving the owner's 'Gemini 3.1 Flash-Lite' " +
+    "off the gateway. POST-verified 2026-09-04 direct: 200, 738 bytes, one " +
+    "text part. Same marketing name as TEXT_GATEWAY_STANDARD above; the id " +
+    "differs only by the gateway's `google/` prefix, which is exactly why " +
+    "each route has to be verified separately.",
+  capabilities: {
+    modality: "text",
+    durationsSec: null,
+    aspectRatios: [],
+    referenceSupport: false,
+    audioSupport: false,
+    commercialUse: null,
+    note:
+      "NO SEARCH TOOL on this route, the same limit the gateway chat " +
+      "endpoint has. A caller that needs real sources still goes to Claude " +
+      "(TEXT_TOOLS) — a search-less engine invents its citations, which is " +
+      "the finding the 2026-09-04 directive already records.",
+  },
+};
+
+/** TEXT, DIRECT — the heavier tier, for work the lite tier handles badly. */
+export const TEXT_DIRECT_HEAVY: ModelEntry = {
+  id: "gemini-3.1-pro-preview",
+  provider: "google-direct",
+  keyEnv: "GOOGLE_AI_API_KEY",
+  usedBy: "_shared/llm.ts callText, heavy tier",
+  status: "current",
+  shutdownOn: null,
+  note:
+    "Owner directive 2026-09-04b. The owner's 'Gemini 3.1 Pro'. " +
+    "POST-verified 2026-09-04 direct: 200, 1,388 bytes, one text part.",
+  capabilities: {
+    modality: "text",
+    durationsSec: null,
+    aspectRatios: [],
+    referenceSupport: false,
+    audioSupport: false,
+    commercialUse: null,
+    note: "As TEXT_DIRECT_STANDARD: no search tool on this route.",
+  },
+};
+
 /** Everything, for the registry test and for anything that wants to report. */
 export const MODEL_REGISTRY: ModelEntry[] = [
   TEXT_GATEWAY_STANDARD,
@@ -592,6 +770,10 @@ export const MODEL_REGISTRY: ModelEntry[] = [
   VOICE_TTS,
   VIDEO_CLIP,
   VIDEO_CLIP_FALLBACK,
+  IMAGE_DIRECT,
+  VOICE_TTS_DIRECT,
+  TEXT_DIRECT_STANDARD,
+  TEXT_DIRECT_HEAVY,
 ];
 
 /**

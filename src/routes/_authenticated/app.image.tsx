@@ -14,8 +14,23 @@ import {
   OniqSectionHeader,
   OniqSkeletonRows,
 } from "@/components/oniq";
+import { OniqAttachImage, type AttachedImage } from "@/components/oniq/OniqAttachImage";
+import {
+  ASPECT_RATIOS,
+  IMAGE_STYLES,
+  STYLE_LABEL,
+  type AspectRatio,
+  type ImageStyle,
+} from "@/data/createStyles";
+
+type ImageSearch = { mode?: "edit" };
 
 export const Route = createFileRoute("/_authenticated/app/image")({
+  // ?mode=edit from Create's "Transform" chip (owner directive 2026-09-04g).
+  // Anything else is dropped, never thrown on — the same shape app.lores uses.
+  validateSearch: (s: Record<string, unknown>): ImageSearch => ({
+    mode: s.mode === "edit" ? "edit" : undefined,
+  }),
   component: ImageScreen,
 });
 
@@ -43,7 +58,19 @@ const IDEAS = [
 type Picture = { id: string; createdAt: string; prompt: string; url: string | null };
 
 function ImageScreen() {
+  // "Transform" is the SAME SCREEN in a different frame of mind: a picture
+  // plus what to change about it. Owner directive 2026-09-04g mapped the
+  // hero's Transform chip here rather than to a screen of its own, and the
+  // engine agrees — an edit is one inlineData part before the text, measured
+  // 2026-09-04. All this flag does is say so up front, so somebody arriving
+  // from that chip is not left looking at a blank box that says "describe a
+  // picture" when they came to change one.
+  const { mode } = Route.useSearch();
+  const editing = mode === "edit";
   const [prompt, setPrompt] = useState("");
+  const [style, setStyle] = useState<ImageStyle>("auto");
+  const [ratio, setRatio] = useState<AspectRatio | null>(null);
+  const [reference, setReference] = useState<AttachedImage | null>(null);
   const [busy, setBusy] = useState(false);
   const [pictures, setPictures] = useState<Picture[] | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -72,7 +99,21 @@ function ImageScreen() {
     if (!text || busy) return;
     setBusy(true);
     const { data, error } = await supabase.functions.invoke("image-generate", {
-      body: { prompt: text },
+      body: {
+        prompt: text,
+        // A SHORT TOKEN, not a sentence. The clause it stands for is built
+        // server-side from a closed list, so this can never become a second
+        // prompt slot the client writes.
+        style,
+        // The ratio, unlike the style, IS a request field — it reaches Google
+        // verbatim, and the server checks it against the same allowlist.
+        aspectRatio: ratio,
+        // The preview URL stays on this side — it is a data: URL for an <img>
+        // and the server has no use for it. Only the bytes and the mime go.
+        ...(reference
+          ? { referenceImage: { mimeType: reference.mimeType, data: reference.data } }
+          : {}),
+      },
     });
     setBusy(false);
     // The server's own sentence is the one worth showing — it is the only
@@ -90,6 +131,10 @@ function ImageScreen() {
     }
     setPictures((prev) => [data as Picture, ...(prev ?? [])]);
     setPrompt("");
+    // The attachment clears with the prompt. Keeping it would silently apply
+    // the same reference to the NEXT picture too, which is not what "make a
+    // picture" reads as after a result has already come back.
+    setReference(null);
   };
 
   return (
@@ -97,7 +142,11 @@ function ImageScreen() {
       <OniqHeader
         eyebrow="Create"
         title="Image 🖼️"
-        subtitle="Describe a picture and ONIQ draws it."
+        subtitle={
+          editing
+            ? "Add a picture and say what to change."
+            : "Describe a picture and ONIQ draws it."
+        }
         back="/app"
       />
 
@@ -112,10 +161,73 @@ function ImageScreen() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value.slice(0, PROMPT_MAX))}
             rows={3}
-            placeholder="a red bicycle against a blue wall"
+            placeholder={
+              reference || editing ? "make the wall green" : "a red bicycle against a blue wall"
+            }
             className="w-full resize-none bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
-          <div className="mt-2 flex items-center justify-between gap-3">
+          {/*
+            ATTACH A PICTURE TO CHANGE. Only offered because it was measured
+            working on the direct Google route (an inlineData part before the
+            text returns an edited picture); the gateway had no field for it.
+          */}
+          <OniqAttachImage
+            value={reference}
+            onChange={setReference}
+            disabled={busy}
+            className="mt-3"
+          />
+
+          {/* STYLE, as the reference draws it. These are PROMPT TEXT, not an
+              API parameter: neither this endpoint nor Lyria has a verified
+              `style` field, and this repo does not write an unverified request
+              field into code. A chip appends a clause the server builds, which
+              is how a person would have written it themselves and which cannot
+              400. "Auto" is the absence of a style, so it adds nothing. */}
+          <p className="mt-4 text-[11px] font-semibold text-muted-foreground">Style (optional)</p>
+          <div className="mt-1.5 flex flex-wrap gap-2" role="radiogroup" aria-label="Style">
+            {IMAGE_STYLES.map((s) => (
+              <OniqChip
+                key={s}
+                role="radio"
+                tone="soft"
+                active={style === s}
+                onClick={() => setStyle(s)}
+                testId={`image-style-${s}`}
+              >
+                {STYLE_LABEL[s] ?? s}
+              </OniqChip>
+            ))}
+          </div>
+
+          {/* ASPECT RATIO — a REAL request field, unlike Style, and measured
+              before it was built: generationConfig.imageConfig.aspectRatio
+              returns 200 and the pixels actually change (1:1 -> 1024x1024,
+              9:16 -> 768x1376), with a nonsense sibling rejected as proof the
+              200 means something. Tapping the active chip again clears it,
+              which sends no imageConfig at all — the shape the control used. */}
+          <p className="mt-4 text-[11px] font-semibold text-muted-foreground">Aspect Ratio</p>
+          <div className="mt-1.5 flex flex-wrap gap-2" role="radiogroup" aria-label="Aspect ratio">
+            {ASPECT_RATIOS.map((r) => (
+              <OniqChip
+                key={r}
+                role="radio"
+                tone="soft"
+                active={ratio === r}
+                onClick={() => setRatio((cur) => (cur === r ? null : r))}
+                testId={`image-ratio-${r.replace(":", "x")}`}
+              >
+                {r}
+              </OniqChip>
+            ))}
+          </div>
+          {reference ? (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Your picture is attached — describe the change you want.
+            </p>
+          ) : null}
+
+          <div className="mt-3 flex items-center justify-between gap-3">
             <span className="text-[11px] text-muted-foreground">
               {prompt.length}/{PROMPT_MAX}
             </span>
@@ -127,7 +239,7 @@ function ImageScreen() {
               className="press inline-flex items-center gap-2 rounded-full bg-world px-4 py-2 text-[13px] font-semibold text-white world-glow disabled:opacity-50"
             >
               <Sparkles className="h-4 w-4" aria-hidden="true" />
-              {busy ? "Drawing…" : "Make a picture"}
+              {busy ? "Drawing…" : reference ? "Change this picture" : "Make a picture"}
             </button>
           </div>
         </OniqCard>

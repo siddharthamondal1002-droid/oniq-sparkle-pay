@@ -11,6 +11,8 @@
  *
  * Nothing here names a model, a GPU, or a vendor. The backend decides.
  */
+import type { Tint } from "@/design/tints";
+
 export type CreateCapabilityId =
   "image" | "video" | "character" | "voice" | "music" | "document" | "ai" | "clip";
 
@@ -22,11 +24,15 @@ export type CreateCapability = {
   /**
    * The card's own identity colour, owner reference 2026-09-04: each of the
    * six grid cards reads as its own thing, not as six instances of Create's
-   * single world gradient. A hex, not a Tailwind class, because these are
-   * runtime data driving an inline style — a dynamic `bg-[${x}]` class
-   * string is never compiled by Tailwind's JIT scan.
+   * single world gradient.
+   *
+   * A NAME from the tint contract, not a hex. It was a hex, and a hex here
+   * meant this file owned a colour that the world tiles and Explore rows
+   * owned separately — three copies of "what colour is Music", already
+   * disagreeing with each other and with the reference. The values live once,
+   * in the [data-tint] blocks in styles.css.
    */
-  accent?: string;
+  tint?: Tint;
   status: "live" | "soon";
   to?: string;
   search?: Record<string, string>;
@@ -39,7 +45,7 @@ export const CREATE_GRID: CreateCapability[] = [
     label: "Image",
     hint: "Describe a picture, get it",
     emoji: "🖼️",
-    accent: "#ec4899",
+    tint: "rose",
     status: "live",
     to: "/app/image",
   },
@@ -48,7 +54,7 @@ export const CREATE_GRID: CreateCapability[] = [
     label: "Video",
     hint: "Animate a scene, or a short story film",
     emoji: "🎥",
-    accent: "#8b5cf6",
+    tint: "indigo",
     status: "live",
     to: "/app/lores",
     search: { tab: "stories" },
@@ -58,7 +64,7 @@ export const CREATE_GRID: CreateCapability[] = [
     label: "Character",
     hint: "Describe a character, get their stills",
     emoji: "🧑‍🎤",
-    accent: "#f59e0b",
+    tint: "orange",
     status: "live",
     to: "/app/lores",
     search: { tab: "stories" },
@@ -71,7 +77,7 @@ export const CREATE_GRID: CreateCapability[] = [
     label: "Voice",
     hint: "Type a line, hear it spoken",
     emoji: "🎙️",
-    accent: "#14b8a6",
+    tint: "blue",
     status: "live",
     to: "/app/voice",
   },
@@ -80,7 +86,7 @@ export const CREATE_GRID: CreateCapability[] = [
     label: "Music",
     hint: "Generate soundtrack",
     emoji: "🎵",
-    accent: "#10b981",
+    tint: "pink",
     status: "live",
     to: "/app/music",
   },
@@ -89,7 +95,7 @@ export const CREATE_GRID: CreateCapability[] = [
     label: "Document",
     hint: "Read / Summarise / Understand",
     emoji: "📄",
-    accent: "#3b82f6",
+    tint: "green",
     status: "live",
     to: "/app/ai",
   },

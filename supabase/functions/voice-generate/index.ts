@@ -1,4 +1,4 @@
-// voice-generate — a spoken line from typed text, on Lovable credits.
+// voice-generate — a spoken line from typed text, direct on Google.
 //
 // Owner reference, 2026-09-04: Voice is a live Create card. The ENGINE is not
 // new — ONIQ has read story narration through this gateway since 2026-08-14,
@@ -6,9 +6,12 @@
 // missing was a screen and the guards a user-facing, money-spending button
 // needs.
 //
-// WHOSE MONEY. Lovable credits, not the metered Google key — the same pool
-// story-voice and story-still already spend, and the route the 2026-09-04
-// directive put every model on except music.
+// WHOSE MONEY. The METERED GOOGLE ACCOUNT, per owner directive 2026-09-04b —
+// the same key music and Veo clips already spend. It was Lovable credits until
+// that directive; story NARRATION still is, so ONIQ now runs two TTS routes on
+// two different bills. That split is deliberate (the directive named the four
+// Create features, not story narration) and voiceCore.test.ts pins both sides
+// so it cannot drift into being an accident.
 //
 // The guards are the order every ONIQ generation tool enforces:
 //
@@ -26,7 +29,19 @@
 // purpose. Until someone does that deliberately, a money guard that reads top
 // to bottom in one file is worth more than the duplication it costs.
 //
-// LOVABLE_API_KEY is read here and nowhere else in this file's reach. Never
+// OWNER DIRECTIVE 2026-09-04b: "make images, Voice, music, documents direct
+// Gemini not via lovable". Create — Voice spends the METERED GOOGLE ACCOUNT
+// now, not Lovable credits. Story NARRATION was not in that list and stays on
+// the gateway, so ONIQ runs two TTS routes on two bills — deliberate, and
+// pinned by voiceCore.test.ts so it cannot become an accident.
+//
+// MEASURED before it was written, direct: gemini-3.1-flash-tts-preview with
+// generationConfig {responseModalities:['AUDIO'], speechConfig:{...voiceName}}
+// answers 200, 144,129 bytes, inlineData 'audio/l16; rate=24000; channels=1'.
+// WITHOUT speechConfig the same id returns 400 INVALID_ARGUMENT — a 400 that
+// looks like a dead id and is not.
+//
+// GOOGLE_AI_API_KEY is read here and nowhere else in this file's reach. Never
 // returned, never logged, never in an error message.
 //
 // MEASURED before it was written: all eight voices in VOICE_CHOICES answered
@@ -40,12 +55,19 @@ import {
   serviceRoleRpc,
   withProviderSpendGuard,
 } from "../_shared/financialLedger.ts";
-import { firstInlineAudio, GATEWAY_VOICE_URL, voiceRequestBody } from "../_shared/gatewayVoice.ts";
+import {
+  firstInlinePart,
+  googleGenerateContent,
+  googleUsage,
+  joinedText,
+} from "../_shared/googleDirect.ts";
 import {
   needsWavHeader,
   rateOf,
   resolveVoice,
   validateVoiceText,
+  AUDIO_UNDERSTANDING_MODEL,
+  validateAudioAttachment,
   VOICE_MODEL,
   VOICE_TEXT_MAX,
   wrapPcmAsWav,
@@ -78,7 +100,6 @@ export const VOICE_BUDGET: SearchBudget = {
   maxEstimatedUsd: 0.16,
 };
 
-const VOICE_URL = GATEWAY_VOICE_URL;
 const BUCKET = "video-gen";
 
 /** One generation's ceiling, kept well inside the function timeout. */
@@ -117,7 +138,16 @@ Deno.serve(async (req) => {
   const user = userRes?.user;
   if (!user) return json(401, { error: "Sign in to make voice clips" });
 
-  let body: { action?: string; text?: string; voice?: string; requestId?: string };
+  let body: {
+    action?: string;
+    text?: string;
+    voice?: string;
+    requestId?: string;
+    /** A recording to transcribe, base64 with no data: prefix. */
+    audio?: { mimeType: string; data: string };
+    /** A language name; present means translate rather than transcribe. */
+    translateTo?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -149,6 +179,126 @@ Deno.serve(async (req) => {
       });
     }
     return json(200, { clips });
+  }
+
+  // ---- TRANSCRIBE: an attached recording, turned into text -----------------
+  //
+  // The reference's "Voice Input" and "Translate" tabs. This is NOT the TTS
+  // model — that one speaks and does not listen, which is the confusion
+  // recorded at length in voiceCore.ts. It goes to an ordinary text model,
+  // which was measured accepting inlineData audio/wav at 200 on 2026-09-04.
+  //
+  // It gets the SAME gates as speaking, in the same order, because it is the
+  // same kind of thing: a user-facing button that spends money on a provider
+  // call. Cheaper per call than TTS, not free.
+  if (body.action === "transcribe") {
+    const badAudio = validateAudioAttachment(body.audio);
+    if (badAudio) return json(400, { error: badAudio });
+    if (!body.audio) return json(400, { error: "Attach a recording first." });
+
+    const { data: tcfg } = await admin
+      .from("video_gen_config")
+      .select("voice_enabled, voice_admin_only, voice_per_user_daily_cap")
+      .maybeSingle();
+    if (!tcfg || tcfg.voice_enabled !== true) {
+      return json(503, { error: "Voice is switched off right now." });
+    }
+    const { data: tprof } = await admin
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (tcfg.voice_admin_only === true && tprof?.is_admin !== true) {
+      return json(403, { error: "Voice isn't open to everyone yet." });
+    }
+    // One rolling 24h window, counted against THIS user, sharing the voice
+    // per-user cap rather than inventing a second uncapped surface.
+    const tSince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count: tMine } = await admin
+      .from("voice_jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .gte("created_at", tSince);
+    const tCap =
+      typeof tcfg.voice_per_user_daily_cap === "number" ? tcfg.voice_per_user_daily_cap : 0;
+    if ((tMine ?? 0) >= tCap) {
+      return json(429, { error: `You've used voice ${tMine} times today (limit ${tCap}).` });
+    }
+
+    const tKey = Deno.env.get("GOOGLE_AI_API_KEY");
+    if (!tKey) return json(503, { error: "Voice is not configured." });
+
+    const translateTo = typeof body.translateTo === "string" ? body.translateTo.trim() : "";
+    // The instruction is built HERE, not taken from the client: a caller that
+    // could send arbitrary instructions alongside their audio would be an open
+    // prompt surface on a paid model.
+    const ask = translateTo
+      ? `Transcribe this audio and translate it into ${translateTo}. Reply with the translation only, no commentary.`
+      : "Transcribe this audio exactly. Reply with the transcript only, no commentary.";
+
+    const tGuarded = await withProviderSpendGuard(
+      serviceRoleRpc(),
+      {
+        requestId: requestIdFrom(typeof body.requestId === "string" ? body.requestId : undefined),
+        capability: "TTS",
+        provider: "google",
+        model: AUDIO_UNDERSTANDING_MODEL,
+        unit: "provider_unit",
+        units: 1,
+        // Reserved at the SPEAKING rate even though listening is cheaper.
+        // Over-reserving refuses too early; under-reserving lets a charge
+        // through a ceiling that was supposed to stop it, and only one of
+        // those two failures costs money.
+        estimatedUsd: VOICE_BUDGET.maxEstimatedUsd,
+        userId: user.id,
+      },
+      async () => {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), CALL_TIMEOUT_MS);
+        try {
+          const res = await googleGenerateContent({
+            model: AUDIO_UNDERSTANDING_MODEL,
+            key: tKey,
+            // The recording FIRST, then the instruction about it — the same
+            // ordering the image reference needed.
+            parts: [
+              { inlineData: { mimeType: body.audio!.mimeType, data: body.audio!.data } },
+              { text: ask },
+            ],
+            signal: ctrl.signal,
+          });
+          return {
+            value: {
+              ok: res.ok,
+              status: res.status,
+              text: res.ok ? joinedText(res.data).trim() : "",
+              errorMessage: res.errorMessage,
+            } as const,
+            neverCalled: false,
+            outcome: res.ok ? ("ACCEPTED" as const) : ("FAILED" as const),
+            detail: googleUsage(res.data) ?? undefined,
+          };
+        } finally {
+          clearTimeout(timer);
+        }
+      },
+    );
+
+    if (!tGuarded.admitted) {
+      console.warn(`voice-generate: transcribe refused (${tGuarded.reason})`);
+      return json(429, { error: refusalMessage(tGuarded.reason) });
+    }
+    const t = tGuarded.value;
+    if (!t.ok) {
+      console.error("voice-generate transcribe upstream", t.status, t.errorMessage ?? "");
+      return json(502, { error: "Couldn't read that recording. Try another one." });
+    }
+    if (!t.text) {
+      // A 200 with no text is a refusal wearing a success status — the same
+      // silent-failure shape the speaking path guards against.
+      return json(502, { error: "Nothing could be heard in that recording." });
+    }
+    return json(200, { text: t.text, translated: Boolean(translateTo) });
   }
 
   // ---- kill switch ---------------------------------------------------------
@@ -221,9 +371,10 @@ Deno.serve(async (req) => {
   // An unrecognised name falls back rather than reaching the provider.
   const voice = resolveVoice(body.voice);
 
-  const key = Deno.env.get("LOVABLE_API_KEY");
+  // OWNER DIRECTIVE 2026-09-04b: direct Google, not the Lovable gateway.
+  const key = Deno.env.get("GOOGLE_AI_API_KEY");
   if (!key) {
-    console.error("voice-generate: LOVABLE_API_KEY is not set");
+    console.error("voice-generate: GOOGLE_AI_API_KEY is not set");
     return json(503, { error: "Voice generation is not configured." });
   }
 
@@ -249,7 +400,10 @@ Deno.serve(async (req) => {
     {
       requestId: requestIdFrom(typeof body.requestId === "string" ? body.requestId : undefined),
       capability: "TTS",
-      provider: "lovable-gateway",
+      // OWNER DIRECTIVE 2026-09-04b — the metered Google account now, not
+      // Lovable credits. The reservation is unchanged; whose money it reserves
+      // against is what moved.
+      provider: "google",
       model: VOICE_MODEL,
       unit: "provider_unit",
       units: 1,
@@ -259,40 +413,43 @@ Deno.serve(async (req) => {
     async () => {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), CALL_TIMEOUT_MS);
+      // NO CATCH, DELIBERATELY. googleGenerateContent does not throw — a
+      // timeout or a dropped connection comes back as `transport`, with ok
+      // false and status 0. The catch that used to sit here was unreachable.
       try {
-        const res = await fetch(VOICE_URL, {
-          method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-          body: voiceRequestBody(text, voice),
+        // speechConfig IS REQUIRED, and its absence is not a dead id.
+        // Measured 2026-09-04: this exact id answered 400 INVALID_ARGUMENT to
+        // a bare responseModalities:["AUDIO"] body and 200 to the same body
+        // with a prebuilt voice attached. The reflex on that 400 is to strike
+        // the id off the list, and it would have been wrong.
+        const res = await googleGenerateContent({
+          model: VOICE_MODEL,
+          key,
+          parts: [{ text }],
+          responseModalities: ["AUDIO"],
+          generationConfig: {
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+          },
           signal: ctrl.signal,
         });
-        // TWO REPLY DIALECTS, and story-voice learned both the hard way. A
-        // pass-through gateway answers Google's generateContent JSON, with
-        // headerless PCM inline and the sample rate in its mime; a normalizing
-        // one answers container bytes with the mime in the header. Measured
-        // 2026-09-04, this id took the second road — but reading only that one
-        // would make a gateway-side change look like a refusal.
-        let audio: { mime: string; data: string } | null = null;
-        if (res.ok) {
-          const replyType = res.headers.get("content-type") ?? "";
-          if (/json/i.test(replyType)) {
-            audio = firstInlineAudio(await res.json().catch(() => null));
-          } else {
-            const heard = new Uint8Array(await res.arrayBuffer());
-            if (heard.length > 0) audio = { mime: replyType || "audio/wav", data: b64(heard) };
-          }
-        }
+        // ONE DIALECT NOW. The gateway had two — pass-through JSON, or
+        // container bytes with the mime in the header — and this file read
+        // both. Google's own endpoint always answers generateContent JSON
+        // with headerless PCM inline, measured at 143,360 base64 characters
+        // of 'audio/l16; rate=24000; channels=1', so the second branch is
+        // gone rather than kept as dead code that nothing can reach.
+        const audio = res.ok ? firstInlinePart(res.data, "audio/") : null;
+        const usage = googleUsage(res.data);
         return {
-          value: { ok: res.ok, status: res.status, audio } as const,
+          value: {
+            ok: res.ok,
+            status: res.status,
+            audio,
+            errorMessage: res.errorMessage,
+          } as const,
           neverCalled: false,
           outcome: res.ok ? ("ACCEPTED" as const) : ("FAILED" as const),
-        };
-      } catch (e) {
-        const reason = (e as Error)?.name === "AbortError" ? "timeout" : "network";
-        return {
-          value: { ok: false, status: 0, audio: null, reason } as const,
-          neverCalled: false,
-          outcome: "FAILED" as const,
+          detail: usage ?? undefined,
         };
       } finally {
         clearTimeout(timer);
@@ -321,9 +478,15 @@ Deno.serve(async (req) => {
   };
 
   if (!outcome.ok) {
-    console.error("voice-generate upstream", outcome.status);
+    // GOOGLE'S OWN MESSAGE, kept. A bare status cannot tell a dead id from a
+    // refused prompt from exhausted quota, and all three arrive as a 4xx.
+    const detail = "errorMessage" in outcome ? (outcome.errorMessage ?? null) : null;
+    console.error("voice-generate upstream", outcome.status, detail ?? "");
     return await fail(
-      outcome.status ? `http ${outcome.status}` : "network",
+      [outcome.status ? `http ${outcome.status}` : "network", detail]
+        .filter(Boolean)
+        .join(": ")
+        .slice(0, 500),
       "The voice engine refused that one. Try different words.",
       502,
     );

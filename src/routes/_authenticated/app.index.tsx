@@ -6,8 +6,10 @@ import {
   OniqProgressBar,
   OniqSectionHeader,
   OniqSkeleton,
+  OniqIconBadge,
   OniqStoryRail,
   OniqWorldCard,
+  type Tint,
   type WorldId,
 } from "@/components/oniq";
 import { GREETING, dayPartOf, groupsFor, type WorldEntry } from "@/data/worlds";
@@ -19,6 +21,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  Bell,
+  MessageCircle,
   Sparkles,
   Film,
   Play,
@@ -47,7 +51,8 @@ import { useIsAdult18 } from "@/lib/useIsAdult18";
 import { RegionBanner } from "@/components/home/RegionBanner";
 import { HomeCountryPrompt } from "@/components/home/HomeCountryPrompt";
 import { useT } from "@/lib/i18n/LanguageProvider";
-import { tileName, type TileKey } from "@/lib/i18n/tileLabel";
+import { tileName, tileNamePlain, type TileKey } from "@/lib/i18n/tileLabel";
+import { WORLD_ICON } from "@/data/worldIcons";
 import { AnticipatoryCard } from "@/components/home/AnticipatoryCard";
 import { recordSignal } from "@/lib/personalisation";
 import { LORE_COLLECTIONS } from "@/data/lores";
@@ -89,6 +94,9 @@ export const Route = createFileRoute("/_authenticated/app/")({
   component: HomeScreen,
 });
 
+/** Two rows of five, as the reference draws them. The rest live on Explore. */
+const HOME_WORLD_COUNT = 10;
+
 function HomeScreen() {
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["profile"],
@@ -118,6 +126,8 @@ function HomeScreen() {
   const dayPart = useMemo(() => dayPartOf(new Date().getHours()), []);
   const groups = useMemo(() => groupsFor(dayPart), [dayPart]);
   const pulse = useHomePulse(userId, home, hidden);
+  // Same hook, same cache key as the chips below — see useUnreadChats.
+  const unread = useUnreadChats(userId, !hidden.has("moments")).data ?? 0;
 
   const first = profile?.display_name?.split(" ")[0] ?? profile?.username ?? "there";
   const greeting = GREETING[dayPart];
@@ -141,21 +151,46 @@ function HomeScreen() {
               <span className="font-display text-[26px] leading-none tracking-tight text-gradient-world">
                 ONIQ
               </span>
-              <Link
-                to="/app/profile"
-                aria-label="Open profile"
-                className="press grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-world font-bold text-white world-glow"
-              >
-                {profile?.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt="Your profile picture"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  (profile?.display_name ?? profile?.username ?? "O").charAt(0).toUpperCase()
-                )}
-              </Link>
+              <div className="flex items-center gap-2">
+                {/*
+                  THE BELL, WITH A REAL COUNT. The reference draws a badge on
+                  it; the number is the person's actual unread chats, from the
+                  same hook the chip below reads, and the badge is ABSENT at
+                  zero rather than showing a 0. A dot that is always there
+                  stops meaning anything.
+                */}
+                <Link
+                  to="/app/chat"
+                  data-testid="home-bell"
+                  aria-label={unread > 0 ? `Chats, ${unread} unread` : "Chats"}
+                  className="press relative grid h-10 w-10 shrink-0 place-items-center rounded-full oniq-surface text-foreground"
+                >
+                  <Bell className="h-[18px] w-[18px]" aria-hidden="true" />
+                  {unread > 0 ? (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -end-0.5 -top-0.5 grid min-w-[19px] place-items-center rounded-full bg-destructive px-1 text-[11px] font-bold leading-[19px] text-white ring-2 ring-background"
+                    >
+                      {unread > 9 ? "9+" : unread}
+                    </span>
+                  ) : null}
+                </Link>
+                <Link
+                  to="/app/profile"
+                  aria-label="Open profile"
+                  className="press grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-world font-bold text-white world-glow"
+                >
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt="Your profile picture"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    (profile?.display_name ?? profile?.username ?? "O").charAt(0).toUpperCase()
+                  )}
+                </Link>
+              </div>
             </div>
 
             <div className="mt-5 rise rise-1">
@@ -202,6 +237,21 @@ function HomeScreen() {
             <AnticipatoryCard />
 
             {/* ---- THE PULSE: only what is true right now ---------------- */}
+            {/*
+              THE STAT CHIPS. The reference draws three compact pills under the
+              ask bar — a coloured mark, a bold value, a small label under it.
+              This is that shape, filled with what ONIQ ACTUALLY KNOWS.
+
+              The reference's own three were weather, messages and a ride ETA.
+              Messages is real and is here. Weather is NOT: ONIQ has no
+              weather source wired (the Google one needs service-account
+              OAuth2, which is an owner decision that has not been made), and a
+              temperature is exactly the kind of number that looks harmless
+              invented and is a lie on someone's screen. A ride ETA is the same
+              — it needs a live quote for a route nobody has entered. So the
+              row shows the facts that exist and is simply shorter when there
+              are fewer of them, rather than being padded to three.
+            */}
             {pulse.length > 0 && (
               <OniqStoryRail className="mt-4 rise rise-2" ariaLabel="Right now">
                 {pulse.map((p) => (
@@ -213,19 +263,19 @@ function HomeScreen() {
                     search={p.search as any}
                     data-world={p.world}
                     data-testid={`home-pulse-${p.id}`}
-                    className="press flex min-w-[8.5rem] items-center gap-2.5 rounded-2xl oniq-surface px-3 py-2.5"
+                    className="press flex shrink-0 items-center gap-2 rounded-full oniq-surface py-1.5 pe-3.5 ps-1.5"
                   >
-                    <span
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-world-soft text-base"
-                      aria-hidden="true"
-                    >
-                      {p.emoji}
-                    </span>
+                    <OniqIconBadge tint={p.tint} size="sm">
+                      <p.Icon />
+                    </OniqIconBadge>
                     <span className="min-w-0">
-                      <span className="block truncate font-display text-[13px] leading-tight text-foreground">
+                      {/* The VALUE reads first and the label second — the
+                          reference's hierarchy, and the reason a chip can be
+                          understood without being read word by word. */}
+                      <span className="block max-w-[9rem] truncate font-display text-[13px] normal-case leading-tight tracking-normal text-foreground">
                         {p.title}
                       </span>
-                      <span className="block truncate text-[11px] leading-tight text-muted-foreground">
+                      <span className="block max-w-[9rem] truncate text-[11px] leading-tight text-muted-foreground">
                         {p.sub}
                       </span>
                     </span>
@@ -277,23 +327,41 @@ function HomeScreen() {
             <section className="mt-7 rise rise-4">
               <OniqSectionHeader
                 title="Your worlds"
-                action={{ label: "All", to: "/app/explore", testId: "home-explore" }}
+                action={{ label: "See all", to: "/app/explore", testId: "home-explore" }}
               />
-              <div className="mt-2 grid grid-cols-5 gap-x-1 gap-y-2 px-3">
-                {worlds.map((w) => (
-                  <OniqWorldCard
-                    key={w.key}
-                    world={w.world}
-                    emoji={w.emoji}
-                    label={tileName(lang, w.key, home)}
-                    to={w.to}
-                    search={w.search}
-                    skin={skins[w.key] ?? null}
-                    dot={w.key === "vitals" ? vitalsColor : null}
-                    onClick={() => void recordSignal("hub_open", w.key)}
-                    testId={`home-world-${w.key}`}
-                  />
-                ))}
+              {/*
+                TEN TILES, TWO ROWS — the reference draws exactly this and puts
+                the rest behind "See all". Home's job is the person's own
+                content; the full directory is Explore's, and it already
+                renders every world grouped and searchable. Four rows of tiles
+                here pushed everything below them off the screen.
+              */}
+              <div className="mt-2 grid grid-cols-5 gap-x-1 gap-y-3 px-3">
+                {worlds.slice(0, HOME_WORLD_COUNT).map((w) => {
+                  const art = WORLD_ICON[w.key];
+                  return (
+                    <OniqWorldCard
+                      key={w.key}
+                      world={w.world}
+                      emoji={w.emoji}
+                      // The drawn glyph AND its hue — colour is how the
+                      // reference lets you find a world before reading it.
+                      // The emoji only backs the glyph up. And the PLAIN
+                      // name: the label's own trailing emoji would otherwise
+                      // be a second copy of the glyph in the badge, which is
+                      // what used to wrap onto its own line.
+                      icon={art ? <art.Icon /> : undefined}
+                      tint={art?.tint}
+                      label={tileNamePlain(lang, w.key, home)}
+                      to={w.to}
+                      search={w.search}
+                      skin={skins[w.key] ?? null}
+                      dot={w.key === "vitals" ? vitalsColor : null}
+                      onClick={() => void recordSignal("hub_open", w.key)}
+                      testId={`home-world-${w.key}`}
+                    />
+                  );
+                })}
               </div>
             </section>
           )}
@@ -319,72 +387,59 @@ function HomeScreen() {
             </Link>
           </section>
 
-          {/* ---- FIVE EXPERIENCES: the groups, one tap each ----------------- */}
-          <section className="mt-7 rise rise-5">
-            <OniqSectionHeader title="Five experiences" />
-            <OniqStoryRail className="mt-3" ariaLabel="Experiences">
-              {EXPERIENCES.map((x) =>
-                x.id === "create" ? (
-                  <button
-                    key={x.id}
-                    type="button"
-                    data-world="create"
-                    data-testid="home-experience-create"
-                    onClick={() => window.dispatchEvent(new CustomEvent("oniq:open-create"))}
-                    className="press flex w-[7.25rem] flex-col rounded-2xl oniq-surface p-3 text-start"
-                  >
-                    <span className="font-display text-[12px] text-world">{x.title}</span>
-                    <span className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                      {x.line}
-                    </span>
-                  </button>
-                ) : (
-                  <Link
-                    key={x.id}
-                    to="/app/explore"
-                    search={{ group: x.id }}
-                    data-world={x.world}
-                    data-testid={`home-experience-${x.id}`}
-                    className="press flex w-[7.25rem] flex-col rounded-2xl oniq-surface p-3 text-start"
-                  >
-                    <span className="font-display text-[12px] text-world">{x.title}</span>
-                    <span className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                      {x.line}
-                    </span>
-                  </Link>
-                ),
-              )}
-            </OniqStoryRail>
-          </section>
+          {/*
+            FIVE EXPERIENCES USED TO SIT HERE, and it was the last thing on the
+            page — which is how it ended up underneath the bottom bar.
+
+            Removing it is not just a layout fix. Home carried TWO navigations:
+            "Your worlds" (18 tiles) and "Five experiences" (the same worlds,
+            grouped five ways). A person who wants a world has two places to
+            look and no reason to prefer either, and the grouped one is a worse
+            version of Explore — which already renders these exact groups from
+            WORLD_GROUPS, with a chip row and search over them. So the concept
+            moves to where it was already implemented, and Home spends its last
+            screenful on the person's own content instead of a second menu.
+          */}
         </div>
       </OniqCanvas>
     </MediaProvider>
   );
 }
 
-/** The reference's five experience cards. The first four open Explore on that group. */
-const EXPERIENCES: {
-  id: "connect" | "learn" | "live" | "discover" | "create";
-  world: WorldId;
-  title: string;
-  line: string;
-}[] = [
-  { id: "connect", world: "chat", title: "Connect", line: "Chat · Moments · Mast" },
-  { id: "learn", world: "study", title: "Learn", line: "Study · Campus · Scout" },
-  { id: "live", world: "rides", title: "Live", line: "Rides · Wanderlust · Pulse · Official" },
-  { id: "discover", world: "ting", title: "Discover", line: "Ting · Blessed · Vitals · Plug" },
-  { id: "create", world: "create", title: "Create", line: "Image · Video · Voice · Document · AI" },
-];
-
 type PulseItem = {
   id: "continue" | "unread" | "study";
   world: WorldId;
-  emoji: string;
+  /** A drawn glyph and its hue, the same treatment the world tiles use. */
+  Icon: React.ComponentType<{ className?: string }>;
+  tint: Tint;
   title: string;
   sub: string;
   to: string;
   search?: Record<string, string | boolean>;
 };
+
+/**
+ * UNREAD CHATS, counted once.
+ *
+ * The header bell and the stat chips both want this number. Two copies of the
+ * query would be two cache keys, two fetches and — the part that actually
+ * shows — two answers that can disagree by a few seconds, so the bell says 3
+ * while the chip beside it says 2. One hook, one key.
+ */
+function useUnreadChats(userId: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ["home-unread", userId],
+    enabled: !!userId && enabled,
+    staleTime: 30_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("get_chat_list");
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data ?? []) as any[]).reduce((n, r) => n + (Number(r.unread) || 0), 0) as number;
+    },
+  });
+}
 
 /**
  * THE PULSE — what is true for this person right now, from data ONIQ
@@ -397,25 +452,15 @@ function useHomePulse(userId: string | null, home: CountryCode, hidden: Set<Tile
   const watchOk = isAvailable("watch", home) && !hidden.has("watch");
   const cont = useContinue(watchOk ? userId : null);
   const study = useStudyHeroData(isAvailable("study", home) && !hidden.has("study"));
-  const unread = useQuery({
-    queryKey: ["home-unread", userId],
-    enabled: !!userId && !hidden.has("moments"),
-    staleTime: 30_000,
-    queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc("get_chat_list");
-      if (error) throw error;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return ((data ?? []) as any[]).reduce((n, r) => n + (Number(r.unread) || 0), 0) as number;
-    },
-  });
+  const unread = useUnreadChats(userId, !hidden.has("moments"));
   const items: PulseItem[] = [];
   const next = cont.data?.[0];
   if (next) {
     items.push({
       id: "continue",
       world: "watch",
-      emoji: "▶️",
+      Icon: Play,
+      tint: "teal",
       title: next.title,
       sub: next.duration_seconds
         ? `${formatMinutes(Math.max(0, next.duration_seconds - next.position_seconds))} left`
@@ -429,7 +474,8 @@ function useHomePulse(userId: string | null, home: CountryCode, hidden: Set<Tile
     items.push({
       id: "unread",
       world: "chat",
-      emoji: "💬",
+      Icon: MessageCircle,
+      tint: "blue",
       title: `${n} unread`,
       sub: n === 1 ? "one chat is waiting" : "chats are waiting",
       to: "/app/chat",
@@ -440,7 +486,8 @@ function useHomePulse(userId: string | null, home: CountryCode, hidden: Set<Tile
     items.push({
       id: "study",
       world: "study",
-      emoji: "📚",
+      Icon: BookOpen,
+      tint: "indigo",
       title: study.recent?.subject ?? active.name,
       sub: study.recent
         ? "pick up where you stopped"

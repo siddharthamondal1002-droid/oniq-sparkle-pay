@@ -183,3 +183,71 @@ describe("the accessibility mechanisms are actually wired up", () => {
     expect(main).toMatch(/configuration\.fontScale|getConfiguration\(\)\.fontScale/);
   });
 });
+
+/* ------------------------------------------------------- the world accents
+ * MEASURED IN A BROWSER 2026-09-04, and it is why this block exists. An
+ * active OniqChip in the `create` world drew white on a cyan-to-pink gradient
+ * and was barely readable — 1.7:1 at the cyan end. `--world-on` is #ffffff for
+ * almost every world, and the one exception had already been overridden to a
+ * dark ink, so somebody had hit this before and fixed it one world at a time.
+ *
+ * The chip's "soft" tone (a pale wash of the world, with the world's own ink
+ * on top) is what the owner's reference draws for OPTION chips, and it is the
+ * legible one. This block holds BOTH treatments to the standard so neither
+ * can drift, and it names each world in the failure message — a bare "world
+ * contrast failed" would send the next person hunting through twelve blocks.
+ * -------------------------------------------------------------------------- */
+
+/** Every `[data-world="x"]` block, with the tokens it sets. */
+function worldBlocks(): { name: string; a: RGB; b: RGB; inkLight: RGB; inkDark: RGB }[] {
+  const out: { name: string; a: RGB; b: RGB; inkLight: RGB; inkDark: RGB }[] = [];
+  for (const m of CSS.matchAll(/\[data-world="([a-z-]+)"\]\s*\{([^}]*)\}/g)) {
+    const body = m[2];
+    const pick = (n: string) => body.match(new RegExp(`--${n}:\\s*([^;]+);`))?.[1]?.trim();
+    const a = pick("world-a");
+    const b = pick("world-b");
+    const inkLight = pick("world-ink-light");
+    const inkDark = pick("world-ink-dark");
+    if (!a || !b || !inkLight || !inkDark) continue;
+    out.push({
+      name: m[1],
+      a: parse(a),
+      b: parse(b),
+      inkLight: parse(inkLight),
+      inkDark: parse(inkDark),
+    });
+  }
+  return out;
+}
+
+const WORLDS = worldBlocks();
+
+/** `bg-world-soft`: 16% of the accent mixed into the card. */
+function softFill(accent: RGB, card: RGB): RGB {
+  return accent.map((c, i) => Math.round(c * 0.16 + card[i] * 0.84)) as RGB;
+}
+
+describe("world accents", () => {
+  it("finds every world block, so a broken parser cannot pass vacuously", () => {
+    expect(WORLDS.length).toBeGreaterThanOrEqual(8);
+    expect(WORLDS.map((w) => w.name)).toContain("create");
+  });
+
+  describe.each([
+    ["light", LIGHT, "inkLight" as const],
+    ["dark", DARK, "inkDark" as const],
+  ])("%s mode — the soft chip a person actually reads", (mode, scope, inkKey) => {
+    const card = parse(token(scope, "card"));
+    it.each(WORLDS.map((w) => [w.name, w] as const))("%s", (name, w) => {
+      // The worst case is the END OF THE GRADIENT THE INK LIKES LEAST, so both
+      // stops are checked rather than an average that hides one of them.
+      for (const stop of [w.a, w.b]) {
+        const r = contrast(w[inkKey], softFill(stop, card));
+        expect(
+          r,
+          `${mode}: ${name} ink on its soft fill scored ${r.toFixed(2)}:1`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  });
+});

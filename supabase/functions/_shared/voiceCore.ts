@@ -13,10 +13,98 @@
  * to the text path. A card that offers three things and does one is worse than
  * a card that does one.
  */
-import { GATEWAY_VOICE_MODEL } from "./gatewayVoice.ts";
+import { TEXT_DIRECT_STANDARD, VOICE_TTS_DIRECT } from "./modelRegistry.ts";
 
-/** One id, defined next to the endpoint that answers it. */
-export const VOICE_MODEL = GATEWAY_VOICE_MODEL;
+/**
+ * The id Create — Voice calls, DIRECT on Google.
+ *
+ * Owner directive 2026-09-04b. Unprefixed: the gateway's id for the same
+ * model is `google/gemini-3.1-flash-tts-preview` and 404s on the direct
+ * endpoint. Taken from the registry so the id and the measurement that
+ * justifies it stay in one place.
+ */
+export const VOICE_MODEL = VOICE_TTS_DIRECT.id;
+
+/**
+ * AUDIO IN AND OUT ARE DIFFERENT MODELS, and conflating them was a mistake
+ * this comment exists to stop being repeated.
+ *
+ * A first probe attached audio to the TTS model, got
+ * 400 "Audio input modality is not enabled for this model", and concluded
+ * — wrongly — that ONIQ could not offer
+ * "attach audio" at all. That was wrong, and the owner said so. The TTS model
+ * speaks; it does not listen. ORDINARY GEMINI LISTENS. Re-probed 2026-09-04,
+ * inlineData audio/wav plus "Transcribe this audio exactly":
+ *
+ *   gemini-3.1-flash-lite   200,   818 bytes, text back
+ *   gemini-3.6-flash        200, 3,619 bytes, text back
+ *   gemini-3.1-pro-preview  200, 2,117 bytes, text back
+ *
+ * So attaching a recording IS offerable — for transcription and translation,
+ * which is what the reference's "Voice Input" and "Translate" tabs are. It
+ * routes to a text model, not to this one.
+ *
+ * WHAT IS STILL NOT AVAILABLE, measured rather than assumed:
+ *
+ * - Speaking in a voice from a sample (cloning). `customVoiceConfig` and its
+ *   `customVoiceSample` subfield ARE REAL — they parse, where a made-up name
+ *   is rejected as `Unknown name "…": Cannot find field` — but a real wav in
+ *   them returns a generic 400 "Request contains an invalid argument". The
+ *   field exists and this key is not admitted to it. So it is gated, not
+ *   missing, and re-probing later is worth it. Separately, cloning is a
+ *   consent and likeness question before it is an engineering one.
+ * - Live, streaming voice. gemini-3.5-transcribe-live,
+ *   gemini-3.5-live-translate-preview and the gemini-2.5-flash-native-audio
+ *   family exist and support ONLY `bidiGenerateContent` — a WebSocket, not
+ *   REST. Reachable, but a different transport than anything ONIQ speaks
+ *   today.
+ */
+export const VOICE_TTS_ACCEPTS_AUDIO_INPUT = false;
+
+/** Attaching a recording works — through a TEXT model. See above. */
+export const AUDIO_UNDERSTANDING_MODEL = TEXT_DIRECT_STANDARD.id;
+
+/** What a person can attach to be transcribed, and the ceiling on it. */
+export const TRANSCRIBE_MIMES = [
+  "audio/wav",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/webm",
+  "audio/ogg",
+] as const;
+
+/**
+ * 8 MB decoded. Gemini bills audio input per second, so the real limiter is
+ * length rather than bytes; this is the crude guard that stops a crafted body,
+ * and the per-user cap is what bounds cost. Checked on DECODED length, for the
+ * same reason the image reference is: base64 is 4/3 of what it carries.
+ */
+export const TRANSCRIBE_MAX_BYTES = 8 * 1024 * 1024;
+
+const B64 = /^[A-Za-z0-9+/]+={0,2}$/;
+
+/** Returns why an attached recording cannot be sent, or null when it can. */
+export function validateAudioAttachment(att: unknown): string | null {
+  if (att === undefined || att === null) return null;
+  if (typeof att !== "object") return "That recording could not be read.";
+  const { mimeType, data } = att as { mimeType?: unknown; data?: unknown };
+  if (typeof mimeType !== "string" || typeof data !== "string") {
+    return "That recording could not be read.";
+  }
+  // The browser tags a MediaRecorder blob with codecs, e.g.
+  // "audio/webm;codecs=opus". Compare the type only.
+  const base = mimeType.split(";")[0].trim().toLowerCase();
+  if (!(TRANSCRIBE_MIMES as readonly string[]).includes(base)) {
+    return "Attach an audio recording — WAV, MP3, M4A, WebM or Ogg.";
+  }
+  if (data.length === 0) return "That recording was empty.";
+  if (data.startsWith("data:")) return "That recording could not be read.";
+  if (!B64.test(data)) return "That recording could not be read.";
+  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+  const decoded = Math.floor((data.length * 3) / 4) - padding;
+  if (decoded > TRANSCRIBE_MAX_BYTES) return "That recording is too long. Under 8MB, please.";
+  return null;
+}
 
 /**
  * The voices, and every one of them POST-verified.
@@ -118,7 +206,11 @@ export function needsWavHeader(mime: string): boolean {
  * is off by under a millisecond, and the only symptom is a click at the top of
  * every clip. Hence `needsWavHeader` gating this rather than always wrapping.
  */
-export function wrapPcmAsWav(pcm: Uint8Array, sampleRate: number): Uint8Array {
+// The return type is pinned to `Uint8Array<ArrayBuffer>` rather than left
+// bare: a bare `Uint8Array` widens to `ArrayBufferLike`, which includes
+// SharedArrayBuffer, and the caller assigns the result alongside a value that
+// is not one. Caught by `deno check`; tsc never sees these files.
+export function wrapPcmAsWav(pcm: Uint8Array, sampleRate: number): Uint8Array<ArrayBuffer> {
   const header = new Uint8Array(44);
   const view = new DataView(header.buffer);
   const ascii = (offset: number, s: string) => {

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Mic, Sparkles } from "lucide-react";
+import { Lock, Mic, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeError";
@@ -14,6 +14,8 @@ import {
   OniqSectionHeader,
   OniqSkeletonRows,
 } from "@/components/oniq";
+import { OniqAttachAudio, type AttachedAudio } from "@/components/oniq/OniqAttachAudio";
+import { unavailableMessage } from "@/data/capabilities";
 
 export const Route = createFileRoute("/_authenticated/app/voice")({
   component: VoiceScreen,
@@ -26,10 +28,19 @@ export const Route = createFileRoute("/_authenticated/app/voice")({
  * AI_OUTPUT_LABEL and an <AiOutputReport /> and is declared in
  * src/config/playCompliance.ts before this file existed.
  *
- * ONLY SPEAK SHIPS. The card's hint reads "Speak / Clone / Translate";
- * cloning a voice from a sample is a consent and likeness question before it
- * is an engineering one, and translation belongs to the text path. The screen
- * says what it does rather than implying the other two.
+ * THREE TABS, as the reference draws them, and each one is real.
+ *
+ * Speak types a line and hears it. VOICE INPUT and TRANSLATE attach a
+ * recording and turn it into text — which very nearly did not get built: a
+ * first probe attached audio to the TTS model, got 400 "Audio input modality
+ * is not enabled", and concluded ONIQ could not do this. Wrong. The TTS model
+ * speaks and does not listen; an ordinary Gemini text model transcribes fine,
+ * measured on three models. The server routes the recording accordingly.
+ *
+ * CLONING STILL DOES NOT SHIP, and now for a measured reason rather than an
+ * assumed one: `customVoiceConfig` is a real field this key is refused on
+ * (see voiceCore.ts). It is also a consent and likeness question before it is
+ * an engineering one, so both gates would have to open.
  *
  * WHAT THIS SCREEN DOES NOT DO. It shows no price and names no provider —
  * both are the backend's business and neither is the user's. It also does not
@@ -60,7 +71,32 @@ type Clip = {
   url: string | null;
 };
 
+/** The reference's three tabs. `speak` is the default and the old behaviour. */
+type Mode = "speak" | "listen" | "translate";
+
+/**
+ * Languages offered for Translate.
+ *
+ * A SHORT LIST ON PURPOSE. The instruction sent to the model is built
+ * server-side from this name, so an open text box here would be an open
+ * prompt surface on a paid model. These are ONIQ's own supported languages,
+ * which is the set the rest of the app already speaks.
+ */
+const TRANSLATE_TO = [
+  "English",
+  "Hindi",
+  "Bengali",
+  "Tamil",
+  "Telugu",
+  "Marathi",
+  "Spanish",
+  "French",
+];
+
 function VoiceScreen() {
+  const [mode, setMode] = useState<Mode>("speak");
+  const [audio, setAudio] = useState<AttachedAudio | null>(null);
+  const [target, setTarget] = useState(TRANSLATE_TO[0]);
   const [text, setText] = useState("");
   const [voice, setVoice] = useState(VOICES[0]);
   const [busy, setBusy] = useState(false);
@@ -85,6 +121,40 @@ function VoiceScreen() {
       alive = false;
     };
   }, []);
+
+  /**
+   * Turn the attached recording into text, and put it in the box.
+   *
+   * The transcript lands in the SAME textarea the Speak tab uses, so the
+   * obvious next step — hear it back, in a chosen voice — is one tap away
+   * rather than a copy and paste. That is the whole reason the tabs share one
+   * text field instead of each having their own.
+   */
+  const transcribe = async () => {
+    if (!audio || busy) return;
+    setBusy(true);
+    const { data, error } = await supabase.functions.invoke("voice-generate", {
+      body: {
+        action: "transcribe",
+        audio: { mimeType: audio.mimeType, data: audio.data },
+        ...(mode === "translate" ? { translateTo: target } : {}),
+      },
+    });
+    setBusy(false);
+    const message = error
+      ? await edgeErrorMessage(error)
+      : typeof data?.error === "string"
+        ? data.error
+        : "";
+    if (error || message || typeof data?.text !== "string" || !data.text) {
+      toast.error(message || "Couldn't read that recording. Try another one.");
+      return;
+    }
+    setText(String(data.text).slice(0, TEXT_MAX));
+    setAudio(null);
+    setMode("speak");
+    toast.success(mode === "translate" ? "Translated" : "Transcribed");
+  };
 
   const generate = async () => {
     const line = text.trim();
@@ -120,8 +190,72 @@ function VoiceScreen() {
         back="/app"
       />
 
+      {/* THE THREE TABS the reference draws. Each is real — see the header. */}
       <div className="mt-4 px-5">
+        <div className="flex gap-1.5" role="tablist" aria-label="What to do with voice">
+          {(
+            [
+              ["speak", "Text to Voice"],
+              ["listen", "Voice Input"],
+              ["translate", "Translate"],
+            ] as [Mode, string][]
+          ).map(([id, label]) => (
+            <OniqChip
+              key={id}
+              role="tab"
+              active={mode === id}
+              onClick={() => setMode(id)}
+              testId={`voice-tab-${id}`}
+            >
+              {label}
+            </OniqChip>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 px-5">
         <OniqCard variant="surface" className="p-4">
+          {mode !== "speak" ? (
+            <div className="mb-3">
+              <p className="text-[12px] text-muted-foreground">
+                {mode === "translate"
+                  ? "Attach or record something, and hear it back in another language."
+                  : "Attach or record something, and ONIQ writes down what was said."}
+              </p>
+              <OniqAttachAudio value={audio} onChange={setAudio} disabled={busy} className="mt-2" />
+              {mode === "translate" ? (
+                <div className="mt-3">
+                  <label htmlFor="voice-translate-to" className="text-[11px] text-muted-foreground">
+                    Into
+                  </label>
+                  <select
+                    id="voice-translate-to"
+                    data-testid="voice-translate-to"
+                    value={target}
+                    onChange={(e) => setTarget(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-border-strong bg-transparent px-3 py-2 text-sm text-foreground"
+                  >
+                    {TRANSLATE_TO.map((l) => (
+                      <option key={l} value={l}>
+                        {l}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+              <button
+                type="button"
+                data-testid="voice-transcribe"
+                onClick={() => void transcribe()}
+                disabled={!audio || busy}
+                className="press mt-3 inline-flex items-center gap-2 rounded-full bg-world px-4 py-2 text-[13px] font-semibold text-white world-glow disabled:opacity-50"
+              >
+                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                {busy ? "Listening…" : mode === "translate" ? "Translate" : "Write it down"}
+              </button>
+              <hr className="mt-4 border-border" />
+            </div>
+          ) : null}
           <label htmlFor="voice-text" className="sr-only">
             What should it say?
           </label>
@@ -180,6 +314,30 @@ function VoiceScreen() {
               {idea}
             </OniqChip>
           ))}
+        </div>
+
+        {/* THE DOOR THAT IS SHUT, NAMED. Owner directive 2026-09-04c: voice
+            replication is something GOOGLE HAS and this account is not admitted
+            to — an allow-listed preview behind a form. Saying "unavailable"
+            would be false and would make a person stop asking; the registry
+            carries the exact sentence and the measured evidence behind it. It
+            is a note, not a button: a control that cannot work is worse than
+            no control. */}
+        <div
+          data-testid="voice-clone-gate"
+          className="mt-3 flex items-start gap-2 rounded-2xl bg-tint-soft p-3"
+          data-tint="amber"
+        >
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-tint" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="text-[12px] font-semibold text-tint">
+              {unavailableMessage("voice.clone")}
+            </p>
+            <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+              Speaking in your own voice is a preview ONIQ has asked to join. Until it is granted,
+              every voice here is one of the built-in ones.
+            </p>
+          </div>
         </div>
 
         <p className="mt-3 text-[11px] text-muted-foreground">🤖 {AI_OUTPUT_LABEL}</p>
