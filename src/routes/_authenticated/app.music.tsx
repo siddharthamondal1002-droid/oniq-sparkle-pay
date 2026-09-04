@@ -11,6 +11,7 @@ import {
   OniqChip,
   OniqEmpty,
   OniqHeader,
+  OniqMadeLink,
   OniqSectionHeader,
   OniqSkeletonRows,
 } from "@/components/oniq";
@@ -263,7 +264,7 @@ function MusicScreen() {
         ) : (
           <div className="mt-3 grid gap-2">
             {songs.map((s) => (
-              <OniqCard key={s.id} variant="surface" className="p-3" data-testid="music-song">
+              <OniqCard key={s.id} variant="surface" className="p-3" testId="music-song">
                 <div className="flex items-center gap-2">
                   <Music4 className="h-4 w-4 shrink-0 text-world" aria-hidden="true" />
                   <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
@@ -293,6 +294,7 @@ function MusicScreen() {
                     This one could not be loaded.
                   </p>
                 )}
+                <OniqMadeLink kind="music" id={s.id} testId="music-open" />
               </OniqCard>
             ))}
           </div>

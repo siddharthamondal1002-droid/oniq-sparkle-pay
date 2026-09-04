@@ -96,6 +96,31 @@ export const AI_SURFACES = [
     file: "src/routes/_authenticated/app.voice.tsx",
   },
   {
+    // THE RESULT SCREENS. One route serves all three, so all three ids are
+    // declared against the same file — the mirror of the GPU tool below,
+    // where one id is declared against three files.
+    //
+    // A RESULT SCREEN IS ITS OWN SURFACE, not a continuation of the screen
+    // that made the thing. It survives a reload and a shared link, so it can
+    // be the FIRST place a person meets a generated picture or song, with no
+    // memory of a prompt having been typed. That is precisely the screen
+    // somebody could pass off as filmed or recorded, which is what the label
+    // is for.
+    id: "image_ai_output",
+    screen: "Create — Your Image (result)",
+    file: "src/routes/_authenticated/app.made.$kind.$id.tsx",
+  },
+  {
+    id: "music_ai_output",
+    screen: "Create — Your Music (result)",
+    file: "src/routes/_authenticated/app.made.$kind.$id.tsx",
+  },
+  {
+    id: "voice_ai_output",
+    screen: "Create — Your Voice (result)",
+    file: "src/routes/_authenticated/app.made.$kind.$id.tsx",
+  },
+  {
     id: "cv_ai_output",
     screen: "Jobs — CV builder",
     file: "src/routes/_authenticated/app.jobs.tsx",
@@ -506,12 +531,35 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
     avoidable: false,
   },
   {
-    host: "api.openweathermap.org",
+    // REPLACED api.openweathermap.org, 2026-09-04. That entry described a
+    // screen that had been dead since the licence review — the key was never
+    // set, so nothing was ever sent. Owner directive 2026-09-04h chose Google
+    // Weather on the Firebase service account, so there is now a live weather
+    // source and this is it. The OpenWeather path and its server function are
+    // deleted rather than left dormant: a declared host that sends nothing is
+    // a declaration that goes stale silently.
+    host: "weather.googleapis.com",
     triggeredBy:
-      'Legacy weather screen (src/lib/weather.functions.ts). Currently DEAD — OPENWEATHER_API_KEY is unset, so the screen renders "Weather isn\'t configured yet" and no request is ever made.',
+      "The Home weather chip and the Weather screen, and only for a person who has explicitly tapped to add their location. Never at launch, never without that tap.",
     sends:
-      "Would send latitude and longitude, or a city name, from the server. Sends nothing today.",
-    purpose: "Was the weather forecast. No weather source survived the licence review.",
+      "A latitude and longitude SNAPPED TO A ~11 KM GRID, from the SERVER (the `weather` edge function) — the credential never reaches the device, and Google receives ONIQ's server IP rather than the user's. The exact position is never sent: the grid cell is both the cache key and the coordinate in the request. Nothing identifies the person, and no user id is involved.",
+    purpose: "Current conditions for the place the user chose.",
+    avoidable: true,
+  },
+  {
+    // A SEPARATE HOST AND A SEPARATE ENTRY, added with owner directive
+    // 2026-09-04i. It travels with the weather lookup and is enabled
+    // separately on the project, so one can be reachable while the other is
+    // not — the same reason capabilityRegistry gives them a row each. Folding
+    // it into the weather line would make this list say "one Google host" when
+    // there are two, and a Data safety declaration that is approximately true
+    // is the failure this file exists to prevent.
+    host: "airquality.googleapis.com",
+    triggeredBy:
+      "The same tap as the weather lookup: the Home chip and the Weather screen, only for a person who has explicitly added their location. Never at launch.",
+    sends:
+      "The same latitude and longitude SNAPPED TO A ~11 KM GRID, from the SERVER (the `weather` edge function), in the same round as the weather call. The credential never reaches the device, the exact position is never sent, and nothing identifies the person.",
+    purpose: "The air quality index for the place the user chose.",
     avoidable: true,
   },
 ];

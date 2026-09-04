@@ -776,6 +776,63 @@
   box-shadow: 0 12px 32px -14px color-mix(in oklab, var(--world-a) 55%, transparent);
 }
 
+/* The scrubber on the result screens' audio transport.
+
+   A REAL <input type="range">, restyled — not a div with a drag handler — so
+   it arrives with keyboard support, focus, and screen-reader semantics that
+   would otherwise all have to be rebuilt by hand and would end up worse.
+   `--pct` is set inline by the component from the element's own currentTime,
+   so the fill follows the audio rather than the other way round. */
+.oniq-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+.oniq-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--world-a) 0%,
+    var(--world-a) var(--pct, 0%),
+    color-mix(in oklab, var(--foreground) 18%, transparent) var(--pct, 0%),
+    color-mix(in oklab, var(--foreground) 18%, transparent) 100%
+  );
+}
+.oniq-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--foreground) 18%, transparent);
+}
+.oniq-range::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--world-a);
+}
+.oniq-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 999px;
+  background: var(--world-a);
+  border: 2px solid var(--card);
+}
+.oniq-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--card);
+  border-radius: 999px;
+  background: var(--world-a);
+}
+.oniq-range:focus-visible {
+  outline: 2px solid var(--world-a);
+  outline-offset: 4px;
+}
+
 /* ---------------------------------------------------------------------------
  * THE TINT CONTRACT — one hue per icon badge.
  *

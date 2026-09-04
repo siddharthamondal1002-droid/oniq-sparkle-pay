@@ -131,13 +131,30 @@ describe("the sentence reaches a person", () => {
 });
 
 describe("what the music reference claims about itself", () => {
-  it("is EXPERIMENTAL until it has run through a DEPLOYED function", () => {
-    // A green suite is not a deploy. The owner asked for an end-to-end test
-    // before this is called LIVE, and it has not had one.
-    expect(CAPABILITIES["music.referenceAudio"].state).toBe("EXPERIMENTAL");
-    expect(CAPABILITIES["music.referenceAudio"].evidence).toMatch(
-      /a green test suite is not a deploy/i,
-    );
+  it("is LIVE only because it ran through the DEPLOYED function", () => {
+    // A green suite is not a deploy, and this entry sat at EXPERIMENTAL
+    // saying exactly that until 2026-09-04, when one POST to the deployed
+    // music-generate on production came back 200 with a real brief. The
+    // evidence has to carry that run, not a reference to the test suite.
+    const e = CAPABILITIES["music.referenceAudio"];
+    expect(e.state).toBe("LIVE");
+    expect(e.evidence).toMatch(/PROVEN END TO END ON PRODUCTION/);
+    expect(e.evidence).toContain("HTTP 200");
+    expect(e.evidence).toContain("384,044 bytes");
+  });
+
+  it("keeps the brief that proved it, not just the status code", () => {
+    // A 200 alone would not separate "the chain ran" from "Lyria wrote
+    // something and the reference was quietly dropped". The brief is the
+    // discriminator, so it is quoted verbatim and pinned here.
+    const e = CAPABILITIES["music.referenceAudio"].evidence;
+    expect(e).toContain("Ambient, Electronic");
+    expect(e).toContain("synthesizer, pad");
+    // Its SHAPE is describeBrief's, which is what proves the parse ran.
+    expect(e).toMatch(/describeBrief's exactly/);
+    // And the words came from the AUDIO, not from the prompt or the mood
+    // chip — the thing that separates listening from paraphrasing.
+    expect(e).toMatch(/could only have come from the audio/i);
   });
 
   it("still records that the audio door itself is shut", () => {

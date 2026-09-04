@@ -157,7 +157,7 @@ function InsightsScreen() {
         )}
 
         {!loading && streak > 0 ? (
-          <OniqCard variant="surface" className="mt-2 p-4" data-testid="insight-streak">
+          <OniqCard variant="surface" className="mt-2 p-4" testId="insight-streak">
             <div className="flex items-center gap-2">
               <Flame className="h-4 w-4 shrink-0 text-world" aria-hidden="true" />
               <span className="text-[13px] text-foreground">
@@ -172,7 +172,7 @@ function InsightsScreen() {
         {!loading && cycle.lastStart ? (
           <div className="mt-6">
             <OniqSectionHeader eyebrow="Cycle" title="What you've logged" />
-            <OniqCard variant="surface" className="mt-3 p-4" data-testid="insight-cycle">
+            <OniqCard variant="surface" className="mt-3 p-4" testId="insight-cycle">
               <p className="text-[13px] text-foreground">Last period began {cycle.lastStart}.</p>
               <p className="mt-1 text-[12px] text-muted-foreground">
                 {/* An average over one gap is that gap. It says how many it had. */}
@@ -205,7 +205,7 @@ function MetricCard({ metric, readings }: { metric: Metric; readings: Reading[] 
   const latest = summary.latest;
 
   return (
-    <OniqCard variant="surface" className="p-4" data-testid={`insight-${metric.id}`}>
+    <OniqCard variant="surface" className="p-4" testId={`insight-${metric.id}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[12px] text-muted-foreground">{metric.label}</p>

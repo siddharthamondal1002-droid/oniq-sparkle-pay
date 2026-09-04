@@ -118,10 +118,14 @@ describe("the hero", () => {
     // The route must ACCEPT the param, or TanStack drops it and the chip is
     // indistinguishable from Imagine.
     expect(image).toContain("validateSearch");
-    expect(image).toMatch(/mode: s\.mode === "edit" \? "edit" : undefined/);
-    // And it must CHANGE something, or accepting it is theatre.
-    expect(image).toContain('const editing = mode === "edit"');
+    expect(image).toMatch(/s\.mode === "edit" \|\| s\.mode === "transform"/);
+    // And it must CHANGE something, or accepting it is theatre. Since
+    // 2026-09-04 it changes more than the copy: the param IS the tab, so the
+    // chip lands on Edit with the attachment control up and the aspect-ratio
+    // row down.
+    expect(image).toContain('const tab: Tab = mode ?? "generate"');
     expect(image).toContain("Add a picture and say what to change.");
+    expect(image).toMatch(/\{needsPicture \? \(\s*<OniqAttachImage/);
   });
 });
 

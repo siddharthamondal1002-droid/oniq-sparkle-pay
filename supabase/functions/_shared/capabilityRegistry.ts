@@ -47,7 +47,9 @@ export type CapabilityId =
   | "music.referenceAudio"
   | "music.referenceImage"
   | "text.generate"
-  | "document.read";
+  | "document.read"
+  | "weather.current"
+  | "air.current";
 
 export type CapabilityEntry = {
   id: CapabilityId;
@@ -179,23 +181,32 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
   "music.referenceAudio": {
     id: "music.referenceAudio",
     provider: "google",
-    state: "EXPERIMENTAL",
+    state: "LIVE",
     evidence:
       "TWO-STAGE, owner directive 2026-09-04c: the reference NEVER reaches " +
       "Lyria. Gemini listens to it and writes a structured music brief; Lyria " +
       "generates from that brief. Sending audio to Lyria directly is CLOSED " +
       "and stays closed — measured 2026-09-04 as 400 'Unsupported input mime " +
       "type for this model: audio/s16le', identically for wav and mp3, on " +
-      "every lyria id, with a text-only control returning 200. The Gemini " +
-      "half is measured (see voice.transcribe); the joined pipeline is not " +
-      "yet proven end to end, which is why this is not LIVE. BUILT AND WIRED " +
-      "2026-09-04: musicBrief.ts holds the ask, the parser and the compiled " +
-      "prompt; music-generate runs the listening call under its own spend " +
-      "reservation before the Lyria call, refuses rather than generating " +
-      "from an empty brief, and records a music_jobs row when the brief " +
-      "fails so the daily caps count it. What remains for LIVE is a real " +
-      "run through the DEPLOYED function — the function is not deployed at " +
-      "the time of writing, and a green test suite is not a deploy.",
+      "every lyria id, with a text-only control returning 200. " +
+      "PROVEN END TO END ON PRODUCTION, 2026-09-04, which is what moved this " +
+      "from EXPERIMENTAL: one POST to the DEPLOYED music-generate carrying an " +
+      "8.0s 24kHz mono 16-bit WAV of a C/Am/F/G progression (384,044 bytes) " +
+      "returned HTTP 200 with reference 'audio' and brief " +
+      "'Ambient, Electronic · Slow, sustained · " +
+      "ethereal/dreamy/introspective/tranquil · synthesizer, pad'. " +
+      "TWO THINGS THAT SENTENCE PROVES, beyond the 200. First, its SHAPE is " +
+      "describeBrief's exactly — genre, then tempo, then mood joined by '/', " +
+      "then instruments joined by ', ' — so parseMusicBrief read real JSON " +
+      "off the listening model and compileMusicPrompt fed it forward; a " +
+      "failure anywhere in that chain returns 502, never a formatted brief. " +
+      "Second, the WORDS could only have come from the audio: the person's " +
+      "prompt was 'something for a long drive at night' and the mood chip " +
+      "was 'chill', and neither yields 'sustained' or 'synthesizer, pad' — " +
+      "which is what slow sine chords under an exponential decay actually " +
+      "sound like. The model listened rather than paraphrasing the prompt " +
+      "back, and that is the difference between this feature working and " +
+      "merely appearing to.",
   },
   "music.referenceImage": {
     id: "music.referenceImage",
@@ -235,6 +246,69 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
       "is many real requests rather than one. It COUNTS the blocks it could " +
       "not inline and warns, so a silent drop would show up rather than " +
       "quietly answering without the document.",
+  },
+  "weather.current": {
+    id: "weather.current",
+    provider: "google",
+    // EXPERIMENTAL, not LIVE, and the distinction is the whole point of this
+    // file. What is MEASURED is that the endpoint accepts an OAuth 2 token at
+    // all; what is NOT is that ONIQ's service account in particular may call
+    // it, because that needs the real key and the key exists only as a
+    // Supabase secret. music.referenceAudio sat exactly here until one POST
+    // to the deployed function came back 200, and this moves on the same
+    // evidence and not before.
+    state: "EXPERIMENTAL",
+    userMessage: "Weather isn't switched on yet",
+    evidence:
+      "2026-09-04, three requests to weather.googleapis.com/v1/currentConditions:lookup " +
+      "from the dev container, which is a control set rather than a single probe. " +
+      "NO CREDENTIAL: 403 PERMISSION_DENIED, \"Method doesn't allow unregistered callers " +
+      "(callers without established identity). Please use API Key or other form of API " +
+      'consumer identity to call this API." A NONSENSE BEARER: 401 UNAUTHENTICATED, ' +
+      '"Request had invalid authentication credentials. Expected OAuth 2 access token, ' +
+      'login cookie or other valid authentication credential." A NONSENSE API KEY: 400 ' +
+      "INVALID_ARGUMENT, reason API_KEY_INVALID, service weather.googleapis.com. " +
+      "The middle answer is the finding and the outer two are what let it be read: the " +
+      "Authorization header was PARSED and judged as an OAuth credential rather than " +
+      "waved away, and the API-key path is a visibly different error route. That is the " +
+      'OPPOSITE of what Vertex said to an API key ("API keys are not supported by this ' +
+      'API"), and it is what makes owner directive 2026-09-04h buildable. ' +
+      "STILL UNPROVEN, hence EXPERIMENTAL: that the Firebase service account may call it " +
+      "— the project may not have the Weather API enabled, and neither the service " +
+      "account's permission nor the project's billing has been exercised. Only a POST " +
+      "from the DEPLOYED weather function can say, because the key is a Supabase secret " +
+      "and reaches nowhere else. GET, not POST, is also measured: the probes carried the " +
+      "coordinates as query parameters and were answered on the credential rather than " +
+      "refused as the wrong method.",
+  },
+  "air.current": {
+    id: "air.current",
+    provider: "google",
+    // A SEPARATE ENTRY FROM weather.current, because it is a separate API with
+    // a separate enablement state on the project. One of the two can be live
+    // while the other is not, and a single row would have to lie about which.
+    state: "EXPERIMENTAL",
+    userMessage: "Air quality isn't switched on yet",
+    evidence:
+      "2026-09-04, the same three-request control set fired at " +
+      "airquality.googleapis.com/v1/currentConditions:lookup as at the weather host, and " +
+      "answered identically. NO CREDENTIAL: 403 PERMISSION_DENIED, \"Method doesn't allow " +
+      "unregistered callers (callers without established identity). Please use API Key or " +
+      'other form of API consumer identity to call this API." A NONSENSE BEARER: 401 ' +
+      'UNAUTHENTICATED, "Request had invalid authentication credentials. Expected OAuth 2 ' +
+      'access token, login cookie or other valid authentication credential." A NONSENSE ' +
+      "API KEY: 400 INVALID_ARGUMENT, reason API_KEY_INVALID, " +
+      '"service": "airquality.googleapis.com". So it takes the same Firebase service ' +
+      "account as Vertex and weather, on the same switch. " +
+      "ONE MEASURED DIFFERENCE FROM WEATHER, and it shapes the code: THIS ONE IS A POST " +
+      "with a JSON body. The same coordinates sent here as GET query parameters returned " +
+      "Google's HTML 404 page — no JSON error and no credential check, which is what a " +
+      "wrong method looks like on this host, where weather answered the identical GET on " +
+      "its credential. " +
+      "STILL UNPROVEN, hence EXPERIMENTAL: that the service account may call it, and that " +
+      "the Air Quality API is enabled on the project. Weather and air are enabled " +
+      "separately, so one may work while the other does not — which is why the function " +
+      "settles them separately and this row is separate too.",
   },
 };
 

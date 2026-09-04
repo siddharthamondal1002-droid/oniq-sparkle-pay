@@ -112,11 +112,6 @@
       "count": 8
     }
   },
-  "src/routes/_authenticated/app.weather.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 1
-    }
-  },
   "src/routes/auth.tsx": {
     "oniq/a11y-type-scale": {
       "count": 4
