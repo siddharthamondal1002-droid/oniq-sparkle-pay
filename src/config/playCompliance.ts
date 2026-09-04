@@ -96,6 +96,31 @@ export const AI_SURFACES = [
     file: "src/routes/_authenticated/app.voice.tsx",
   },
   {
+    // THE RESULT SCREENS. One route serves all three, so all three ids are
+    // declared against the same file — the mirror of the GPU tool below,
+    // where one id is declared against three files.
+    //
+    // A RESULT SCREEN IS ITS OWN SURFACE, not a continuation of the screen
+    // that made the thing. It survives a reload and a shared link, so it can
+    // be the FIRST place a person meets a generated picture or song, with no
+    // memory of a prompt having been typed. That is precisely the screen
+    // somebody could pass off as filmed or recorded, which is what the label
+    // is for.
+    id: "image_ai_output",
+    screen: "Create — Your Image (result)",
+    file: "src/routes/_authenticated/app.made.$kind.$id.tsx",
+  },
+  {
+    id: "music_ai_output",
+    screen: "Create — Your Music (result)",
+    file: "src/routes/_authenticated/app.made.$kind.$id.tsx",
+  },
+  {
+    id: "voice_ai_output",
+    screen: "Create — Your Voice (result)",
+    file: "src/routes/_authenticated/app.made.$kind.$id.tsx",
+  },
+  {
     id: "cv_ai_output",
     screen: "Jobs — CV builder",
     file: "src/routes/_authenticated/app.jobs.tsx",

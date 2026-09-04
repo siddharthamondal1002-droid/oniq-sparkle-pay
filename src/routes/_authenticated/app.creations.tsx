@@ -10,6 +10,7 @@ import {
   OniqChip,
   OniqEmpty,
   OniqHeader,
+  OniqMadeLink,
   OniqSkeletonRows,
 } from "@/components/oniq";
 
@@ -215,12 +216,7 @@ function CreationsScreen() {
           <div className="grid gap-2">
             {shown.map((item) =>
               item.kind === "picture" ? (
-                <OniqCard
-                  key={item.id}
-                  variant="surface"
-                  className="p-3"
-                  data-testid="creation-picture"
-                >
+                <OniqCard key={item.id} variant="surface" className="p-3" testId="creation-picture">
                   <div className="flex items-center gap-2">
                     <ImageIcon className="h-4 w-4 shrink-0 text-world" aria-hidden="true" />
                     <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
@@ -239,13 +235,14 @@ function CreationsScreen() {
                       This one could not be loaded.
                     </p>
                   )}
+                  <OniqMadeLink kind="image" id={item.id} testId="creation-picture-open" />
                 </OniqCard>
               ) : item.kind === "song" || item.kind === "clip" ? (
                 <OniqCard
                   key={item.id}
                   variant="surface"
                   className="p-3"
-                  data-testid={item.kind === "song" ? "creation-song" : "creation-clip"}
+                  testId={item.kind === "song" ? "creation-song" : "creation-clip"}
                 >
                   <div className="flex items-center gap-2">
                     {item.kind === "song" ? (
@@ -266,14 +263,14 @@ function CreationsScreen() {
                       This one could not be loaded.
                     </p>
                   )}
+                  <OniqMadeLink
+                    kind={item.kind === "song" ? "music" : "voice"}
+                    id={item.id}
+                    testId={item.kind === "song" ? "creation-song-open" : "creation-clip-open"}
+                  />
                 </OniqCard>
               ) : (
-                <OniqCard
-                  key={item.id}
-                  variant="surface"
-                  className="p-3"
-                  data-testid="creation-film"
-                >
+                <OniqCard key={item.id} variant="surface" className="p-3" testId="creation-film">
                   <div className="flex items-center gap-2">
                     <Clapperboard className="h-4 w-4 shrink-0 text-world" aria-hidden="true" />
                     <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">

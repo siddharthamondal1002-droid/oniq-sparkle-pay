@@ -87,6 +87,7 @@ import { Route as AuthenticatedAppPrivacyParentalConsentRouteImport } from './ro
 import { Route as AuthenticatedAppUUserIdRouteImport } from './routes/_authenticated/app.u.$userId'
 import { Route as AuthenticatedAppWatchLibraryRouteImport } from './routes/_authenticated/app.watch_.library'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
+import { Route as AuthenticatedAppMadeKindIdRouteImport } from './routes/_authenticated/app.made.$kind.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -503,6 +504,12 @@ const LovableEmailQueueProcessRoute =
     path: '/lovable/email/queue/process',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AuthenticatedAppMadeKindIdRoute =
+  AuthenticatedAppMadeKindIdRouteImport.update({
+    id: '/made/$kind/$id',
+    path: '/made/$kind/$id',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -582,6 +589,7 @@ export interface FileRoutesByFullPath {
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/app/chat/': typeof AuthenticatedAppChatIndexRoute
   '/app/food/': typeof AuthenticatedAppFoodIndexRoute
+  '/app/made/$kind/$id': typeof AuthenticatedAppMadeKindIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -659,6 +667,7 @@ export interface FileRoutesByTo {
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/app/chat': typeof AuthenticatedAppChatIndexRoute
   '/app/food': typeof AuthenticatedAppFoodIndexRoute
+  '/app/made/$kind/$id': typeof AuthenticatedAppMadeKindIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -740,6 +749,7 @@ export interface FileRoutesById {
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/_authenticated/app/chat/': typeof AuthenticatedAppChatIndexRoute
   '/_authenticated/app/food/': typeof AuthenticatedAppFoodIndexRoute
+  '/_authenticated/app/made/$kind/$id': typeof AuthenticatedAppMadeKindIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -821,6 +831,7 @@ export interface FileRouteTypes {
     | '/lovable/email/queue/process'
     | '/app/chat/'
     | '/app/food/'
+    | '/app/made/$kind/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -898,6 +909,7 @@ export interface FileRouteTypes {
     | '/lovable/email/queue/process'
     | '/app/chat'
     | '/app/food'
+    | '/app/made/$kind/$id'
   id:
     | '__root__'
     | '/'
@@ -978,6 +990,7 @@ export interface FileRouteTypes {
     | '/lovable/email/queue/process'
     | '/_authenticated/app/chat/'
     | '/_authenticated/app/food/'
+    | '/_authenticated/app/made/$kind/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1556,6 +1569,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/app/made/$kind/$id': {
+      id: '/_authenticated/app/made/$kind/$id'
+      path: '/made/$kind/$id'
+      fullPath: '/app/made/$kind/$id'
+      preLoaderRoute: typeof AuthenticatedAppMadeKindIdRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
   }
 }
 
@@ -1642,6 +1662,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppUUserIdRoute: typeof AuthenticatedAppUUserIdRoute
   AuthenticatedAppWatchLibraryRoute: typeof AuthenticatedAppWatchLibraryRoute
   AuthenticatedAppFoodIndexRoute: typeof AuthenticatedAppFoodIndexRoute
+  AuthenticatedAppMadeKindIdRoute: typeof AuthenticatedAppMadeKindIdRoute
 }
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
@@ -1690,6 +1711,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppUUserIdRoute: AuthenticatedAppUUserIdRoute,
   AuthenticatedAppWatchLibraryRoute: AuthenticatedAppWatchLibraryRoute,
   AuthenticatedAppFoodIndexRoute: AuthenticatedAppFoodIndexRoute,
+  AuthenticatedAppMadeKindIdRoute: AuthenticatedAppMadeKindIdRoute,
 }
 
 const AuthenticatedAppRouteWithChildren =

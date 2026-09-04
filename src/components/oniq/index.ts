@@ -14,3 +14,6 @@ export { OniqChip } from "./OniqChip";
 export { OniqStoryRail } from "./OniqStoryRail";
 export { OniqSkeleton, OniqSkeletonRows, OniqEmpty, OniqError } from "./OniqStates";
 export { OniqSheet } from "./OniqSheet";
+export { OniqAudioPlayer, clockTime } from "./OniqAudioPlayer";
+export { OniqResultActions, RESULT_TILE } from "./OniqResultActions";
+export { OniqMadeLink, type MadeKind } from "./OniqMadeLink";

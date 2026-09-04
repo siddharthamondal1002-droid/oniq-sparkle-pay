@@ -223,7 +223,12 @@ describe("aspect ratio", () => {
 
   it("is passed through by the screen and resolved by the server", () => {
     const screen = read("src/routes/_authenticated/app.image.tsx");
-    expect(screen).toContain("aspectRatio: ratio");
+    // Sent on the GENERATE tab, which is the only path it was measured on.
+    // Whether an aspectRatio survives an inlineData part going first is not
+    // measured, so the Edit and Transform tabs neither show the control nor
+    // send the field — an accepted-and-ignored parameter is indistinguishable
+    // from a working one by status code alone.
+    expect(screen).toContain("aspectRatio: needsPicture ? null : ratio");
     const fn = read("supabase/functions/image-generate/index.ts");
     expect(fn).toContain("imageConfigFor(body.aspectRatio)");
     // It reaches Google nested, and only when there is one.

@@ -11,6 +11,7 @@ import {
   OniqChip,
   OniqEmpty,
   OniqHeader,
+  OniqMadeLink,
   OniqSectionHeader,
   OniqSkeletonRows,
 } from "@/components/oniq";
@@ -203,6 +204,12 @@ function VoiceScreen() {
             <OniqChip
               key={id}
               role="tab"
+              // `soft`, matching Create — Image and the owner's reference,
+              // which draws the active tab as a pale wash with the world's own
+              // ink rather than white on the gradient. It is also the legible
+              // one: white on the `create` gradient measured 1.7:1 at the cyan
+              // end in a browser, 2026-09-04.
+              tone="soft"
               active={mode === id}
               onClick={() => setMode(id)}
               testId={`voice-tab-${id}`}
@@ -363,7 +370,7 @@ function VoiceScreen() {
         ) : (
           <div className="mt-3 grid gap-2">
             {clips.map((c) => (
-              <OniqCard key={c.id} variant="surface" className="p-3" data-testid="voice-clip">
+              <OniqCard key={c.id} variant="surface" className="p-3" testId="voice-clip">
                 <div className="flex items-center gap-2">
                   <Mic className="h-4 w-4 shrink-0 text-world" aria-hidden="true" />
                   <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
@@ -380,6 +387,7 @@ function VoiceScreen() {
                     This one could not be loaded.
                   </p>
                 )}
+                <OniqMadeLink kind="voice" id={c.id} testId="voice-open" />
               </OniqCard>
             ))}
           </div>
