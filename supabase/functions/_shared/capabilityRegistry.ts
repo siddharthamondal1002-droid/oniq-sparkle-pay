@@ -106,7 +106,13 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
     provider: "google",
     state: "EXPERIMENTAL",
     evidence:
-      "Same path and same measurement as voice.transcribe, with a target language in the ask.",
+      "2026-09-04: the same call as voice.transcribe — gemini-3.1-flash-lite " +
+      "with an inlineData audio/wav part, 200 — differing only in the " +
+      "instruction, which names a target language. The instruction is built " +
+      "server-side, never taken from the client: a caller who could send " +
+      "their own text alongside audio would have an open prompt surface on a " +
+      "paid model. EXPERIMENTAL for the same reason voice.transcribe is — " +
+      "not yet run end to end through a deployed function.",
   },
   "voice.clone": {
     id: "voice.clone",
@@ -126,14 +132,24 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
       "exist, and looked for `customVoiceConfig` when the field is a plain " +
       "string called `voice`. The earlier 'no such surface' finding was " +
       "wrong, and is corrected here rather than quietly dropped. " +
-      "TWO DOORS, BOTH SHUT: (1) auth is OAuth2 — measured, " +
-      "texttospeech.googleapis.com answers 401 'API keys are not supported " +
-      "by this API. Expected OAuth2 access token' — so it needs a SERVICE " +
-      "ACCOUNT and a GOOGLE_CLOUD_PROJECT, which ONIQ does not hold; (2) it " +
-      "is an allow-listed preview, requested through a Google form. Both are " +
-      "owner decisions. The flow itself is built and unit-tested in " +
-      "_shared/voiceReplication.ts, so admission is the only thing between " +
-      "here and a working feature.",
+      "TWO DOORS. (1) THE CREDENTIAL, and this is settled rather than " +
+      "suspected: three attempts against aiplatform — ?key=, an " +
+      "x-goog-api-key header, and a plain GET — all returned 401 " +
+      "UNAUTHENTICATED / CREDENTIALS_MISSING, 'API keys are not supported by " +
+      "this API. Expected OAuth2 access token or other authentication " +
+      "credentials that assert a principal.' It fires BEFORE any project or " +
+      "allowlist check, so no arrangement of the key ONIQ holds will ever " +
+      "work there. _shared/googleAuth.ts now mints a real OAuth2 token from " +
+      "either a service-account JSON or an OAuth refresh token, so the code " +
+      "side of this door is built; what is missing is which credential to " +
+      "point it at. FIREBASE_SERVICE_ACCOUNT is already provisioned and is a " +
+      "Google Cloud service-account key — a Firebase project IS a Cloud " +
+      "project — but using it puts Vertex spend on that project's billing " +
+      "account, so it is opt-in behind GOOGLE_VERTEX_USE_FIREBASE_SA and " +
+      "waits on the owner. (2) THE ALLOWLIST: replication is a preview " +
+      "requested through a Google form. Both are owner decisions. The flow " +
+      "itself is built and unit-tested in _shared/voiceReplication.ts, so " +
+      "admission is the only thing between here and a working feature.",
   },
   "voice.realtime": {
     id: "voice.realtime",
@@ -168,7 +184,14 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
       "type for this model: audio/s16le', identically for wav and mp3, on " +
       "every lyria id, with a text-only control returning 200. The Gemini " +
       "half is measured (see voice.transcribe); the joined pipeline is not " +
-      "yet proven end to end, which is why this is not LIVE.",
+      "yet proven end to end, which is why this is not LIVE. BUILT AND WIRED " +
+      "2026-09-04: musicBrief.ts holds the ask, the parser and the compiled " +
+      "prompt; music-generate runs the listening call under its own spend " +
+      "reservation before the Lyria call, refuses rather than generating " +
+      "from an empty brief, and records a music_jobs row when the brief " +
+      "fails so the daily caps count it. What remains for LIVE is a real " +
+      "run through the DEPLOYED function — the function is not deployed at " +
+      "the time of writing, and a green test suite is not a deploy.",
   },
   "music.referenceImage": {
     id: "music.referenceImage",
@@ -199,7 +222,15 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
     id: "document.read",
     provider: "google",
     state: "LIVE",
-    evidence: "Images, PDFs and text files already reach the AI path from app.ai.tsx.",
+    evidence:
+      "app.ai.tsx attaches an image, a PDF or a text file; `ting` inlines it " +
+      "as a base64 part (text is spliced as plain text, capped at 20,000 " +
+      "chars) and llm.ts's translateMessagesToGemini carries it into the " +
+      "generateContent body. The path is shipped and in daily use, which is " +
+      "the strongest evidence there is — stronger than a probe, because it " +
+      "is many real requests rather than one. It COUNTS the blocks it could " +
+      "not inline and warns, so a silent drop would show up rather than " +
+      "quietly answering without the document.",
   },
 };
 

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Mic, Sparkles } from "lucide-react";
+import { Lock, Mic, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeError";
@@ -15,6 +15,7 @@ import {
   OniqSkeletonRows,
 } from "@/components/oniq";
 import { OniqAttachAudio, type AttachedAudio } from "@/components/oniq/OniqAttachAudio";
+import { unavailableMessage } from "@/data/capabilities";
 
 export const Route = createFileRoute("/_authenticated/app/voice")({
   component: VoiceScreen,
@@ -313,6 +314,30 @@ function VoiceScreen() {
               {idea}
             </OniqChip>
           ))}
+        </div>
+
+        {/* THE DOOR THAT IS SHUT, NAMED. Owner directive 2026-09-04c: voice
+            replication is something GOOGLE HAS and this account is not admitted
+            to — an allow-listed preview behind a form. Saying "unavailable"
+            would be false and would make a person stop asking; the registry
+            carries the exact sentence and the measured evidence behind it. It
+            is a note, not a button: a control that cannot work is worse than
+            no control. */}
+        <div
+          data-testid="voice-clone-gate"
+          className="mt-3 flex items-start gap-2 rounded-2xl bg-tint-soft p-3"
+          data-tint="amber"
+        >
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-tint" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="text-[12px] font-semibold text-tint">
+              {unavailableMessage("voice.clone")}
+            </p>
+            <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+              Speaking in your own voice is a preview ONIQ has asked to join. Until it is granted,
+              every voice here is one of the built-in ones.
+            </p>
+          </div>
         </div>
 
         <p className="mt-3 text-[11px] text-muted-foreground">🤖 {AI_OUTPUT_LABEL}</p>
