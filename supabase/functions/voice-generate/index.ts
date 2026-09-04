@@ -55,7 +55,12 @@ import {
   serviceRoleRpc,
   withProviderSpendGuard,
 } from "../_shared/financialLedger.ts";
-import { firstInlinePart, googleGenerateContent, googleUsage } from "../_shared/googleDirect.ts";
+import {
+  firstInlinePart,
+  googleGenerateContent,
+  googleUsage,
+  joinedText,
+} from "../_shared/googleDirect.ts";
 import {
   needsWavHeader,
   rateOf,
@@ -408,6 +413,9 @@ Deno.serve(async (req) => {
     async () => {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), CALL_TIMEOUT_MS);
+      // NO CATCH, DELIBERATELY. googleGenerateContent does not throw — a
+      // timeout or a dropped connection comes back as `transport`, with ok
+      // false and status 0. The catch that used to sit here was unreachable.
       try {
         // speechConfig IS REQUIRED, and its absence is not a dead id.
         // Measured 2026-09-04: this exact id answered 400 INVALID_ARGUMENT to
@@ -442,13 +450,6 @@ Deno.serve(async (req) => {
           neverCalled: false,
           outcome: res.ok ? ("ACCEPTED" as const) : ("FAILED" as const),
           detail: usage ?? undefined,
-        };
-      } catch (e) {
-        const reason = (e as Error)?.name === "AbortError" ? "timeout" : "network";
-        return {
-          value: { ok: false, status: 0, audio: null, reason } as const,
-          neverCalled: false,
-          outcome: "FAILED" as const,
         };
       } finally {
         clearTimeout(timer);

@@ -63,6 +63,7 @@ import {
   validateReferenceImage,
   type ReferenceImage,
 } from "../_shared/imageCore.ts";
+import { withImageStyle } from "../_shared/createStyles.ts";
 
 /**
  * The spend reservation for one image.
@@ -136,6 +137,8 @@ Deno.serve(async (req) => {
     requestId?: string;
     /** An optional picture to change, base64 with no data: prefix. */
     referenceImage?: ReferenceImage;
+    /** One of IMAGE_STYLES — a chip, never free text. See createStyles.ts. */
+    style?: string;
   };
   try {
     body = await req.json();
@@ -244,6 +247,15 @@ Deno.serve(async (req) => {
   if (badRef) return json(400, { error: badRef });
   const reference = body.referenceImage ?? null;
 
+  // THE STYLE CHIP, RESOLVED HERE AND NOWHERE ELSE. The client sends a short
+  // token; the CLAUSE it stands for is built server-side from a closed list.
+  // Accepting a free-text style would be a second prompt slot on a paid model
+  // that the caller writes, which is the surface every other path here refuses
+  // to open. An unknown token is dropped rather than refused: that is a client
+  // ahead of its server, not an attack, and the person should still get their
+  // picture. The person's own words lead; the clause follows.
+  const styled = withImageStyle(prompt, body.style);
+
   // OWNER DIRECTIVE 2026-09-04b: direct Google, not the Lovable gateway. This
   // is the same key music-generate and Veo already spend.
   const key = Deno.env.get("GOOGLE_AI_API_KEY");
@@ -289,6 +301,11 @@ Deno.serve(async (req) => {
     async () => {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), CALL_TIMEOUT_MS);
+      // NO CATCH, DELIBERATELY. googleGenerateContent does not throw — a
+      // timeout or a dropped connection comes back as `transport`, with ok
+      // false and status 0. The catch that used to sit here was unreachable,
+      // and its differently shaped return is what made this whole callback
+      // fail `deno check` under the runtime that actually runs it.
       try {
         // THE REFERENCE GOES FIRST. Measured 2026-09-04: an inlineData part
         // BEFORE the text part is what returned an edited picture; the model
@@ -297,9 +314,9 @@ Deno.serve(async (req) => {
         const parts: GooglePart[] = reference
           ? [
               { inlineData: { mimeType: reference.mimeType, data: reference.data } },
-              { text: prompt },
+              { text: styled },
             ]
-          : [{ text: prompt }];
+          : [{ text: styled }];
         const res = await googleGenerateContent({
           model: IMAGE_MODEL,
           key,
@@ -318,13 +335,6 @@ Deno.serve(async (req) => {
           neverCalled: false,
           outcome: res.ok ? ("ACCEPTED" as const) : ("FAILED" as const),
           detail: usage ?? undefined,
-        };
-      } catch (e) {
-        const reason = (e as Error)?.name === "AbortError" ? "timeout" : "network";
-        return {
-          value: { ok: false, status: 0, data: null, reason } as const,
-          neverCalled: false,
-          outcome: "FAILED" as const,
         };
       } finally {
         clearTimeout(timer);
@@ -409,7 +419,12 @@ Deno.serve(async (req) => {
   // The id that ANSWERED. Google names it in `modelVersion`, which is how a
   // silent substitution (an alias resolving to something else) becomes
   // visible in the row rather than being assumed away.
-  const served = typeof data?.modelVersion === "string" ? data.modelVersion : IMAGE_MODEL;
+  // The cast is load-bearing: `data` is `unknown` off the guard, so without it
+  // `data?.modelVersion` was always undefined and this ALWAYS fell back to the
+  // id we asked for — the exact silent substitution the comment above says it
+  // exists to catch. Caught by `deno check`; tsc never sees this file.
+  const version = (data as { modelVersion?: unknown } | null)?.modelVersion;
+  const served = typeof version === "string" ? version : IMAGE_MODEL;
   const { data: row } = await admin
     .from("image_jobs")
     .insert({

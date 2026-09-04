@@ -83,7 +83,9 @@ describe("the model id is the one that was measured", () => {
     // edited image (200, 2,405,500 bytes). The model reads parts in order.
     const parts = CODE.slice(CODE.indexOf("const parts: GooglePart[]"));
     const inlineAt = parts.indexOf("inlineData");
-    const textAt = parts.indexOf("{ text: prompt }");
+    // `styled` since the Style chip landed — the person's prompt with the
+    // chip's clause appended, still built server-side and still one text part.
+    const textAt = parts.indexOf("{ text: styled }");
     expect(inlineAt).toBeGreaterThan(-1);
     expect(inlineAt, "the reference must precede the instruction").toBeLessThan(textAt);
   });

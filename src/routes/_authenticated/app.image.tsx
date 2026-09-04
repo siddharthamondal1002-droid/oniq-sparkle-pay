@@ -15,6 +15,7 @@ import {
   OniqSkeletonRows,
 } from "@/components/oniq";
 import { OniqAttachImage, type AttachedImage } from "@/components/oniq/OniqAttachImage";
+import { IMAGE_STYLES, STYLE_LABEL, type ImageStyle } from "@/data/createStyles";
 
 export const Route = createFileRoute("/_authenticated/app/image")({
   component: ImageScreen,
@@ -45,6 +46,7 @@ type Picture = { id: string; createdAt: string; prompt: string; url: string | nu
 
 function ImageScreen() {
   const [prompt, setPrompt] = useState("");
+  const [style, setStyle] = useState<ImageStyle>("auto");
   const [reference, setReference] = useState<AttachedImage | null>(null);
   const [busy, setBusy] = useState(false);
   const [pictures, setPictures] = useState<Picture[] | null>(null);
@@ -76,6 +78,10 @@ function ImageScreen() {
     const { data, error } = await supabase.functions.invoke("image-generate", {
       body: {
         prompt: text,
+        // A SHORT TOKEN, not a sentence. The clause it stands for is built
+        // server-side from a closed list, so this can never become a second
+        // prompt slot the client writes.
+        style,
         // The preview URL stays on this side — it is a data: URL for an <img>
         // and the server has no use for it. Only the bytes and the mime go.
         ...(reference
@@ -139,6 +145,28 @@ function ImageScreen() {
             disabled={busy}
             className="mt-3"
           />
+
+          {/* STYLE, as the reference draws it. These are PROMPT TEXT, not an
+              API parameter: neither this endpoint nor Lyria has a verified
+              `style` field, and this repo does not write an unverified request
+              field into code. A chip appends a clause the server builds, which
+              is how a person would have written it themselves and which cannot
+              400. "Auto" is the absence of a style, so it adds nothing. */}
+          <p className="mt-4 text-[11px] font-semibold text-muted-foreground">Style (optional)</p>
+          <div className="mt-1.5 flex flex-wrap gap-2" role="radiogroup" aria-label="Style">
+            {IMAGE_STYLES.map((s) => (
+              <OniqChip
+                key={s}
+                role="radio"
+                tone="soft"
+                active={style === s}
+                onClick={() => setStyle(s)}
+                testId={`image-style-${s}`}
+              >
+                {STYLE_LABEL[s] ?? s}
+              </OniqChip>
+            ))}
+          </div>
           {reference ? (
             <p className="mt-2 text-[11px] text-muted-foreground">
               Your picture is attached — describe the change you want.

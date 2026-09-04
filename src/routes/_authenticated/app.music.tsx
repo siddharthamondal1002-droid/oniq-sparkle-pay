@@ -16,6 +16,7 @@ import {
 } from "@/components/oniq";
 import { OniqAttachAudio, type AttachedAudio } from "@/components/oniq/OniqAttachAudio";
 import { OniqAttachImage, type AttachedImage } from "@/components/oniq/OniqAttachImage";
+import { MUSIC_MOODS, STYLE_LABEL, type MusicMood } from "@/data/createStyles";
 
 export const Route = createFileRoute("/_authenticated/app/music")({
   component: MusicScreen,
@@ -76,6 +77,7 @@ function MusicScreen() {
   const [loadError, setLoadError] = useState(false);
   const [picture, setPicture] = useState<AttachedImage | null>(null);
   const [track, setTrack] = useState<AttachedAudio | null>(null);
+  const [mood, setMood] = useState<MusicMood | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -103,6 +105,10 @@ function MusicScreen() {
     const { data, error } = await supabase.functions.invoke("music-generate", {
       body: {
         prompt: text,
+        // A SHORT TOKEN, not a sentence. The clause it stands for is built
+        // server-side from a closed list, so this can never become a second
+        // prompt slot the client writes.
+        mood,
         // previewUrl and label are for this screen, never for the wire — one
         // is a data: URL the size of the picture and the other is a filename.
         referenceImage: picture ? { mimeType: picture.mimeType, data: picture.data } : null,
@@ -130,6 +136,7 @@ function MusicScreen() {
     // second listening call nobody asked for.
     setPicture(null);
     setTrack(null);
+    setMood(null);
   };
 
   return (
@@ -169,6 +176,27 @@ function MusicScreen() {
               disabled={busy}
               label="Reference track"
             />
+          </div>
+
+          {/* MOOD, as the reference draws it. Prompt text, not an API
+              parameter — Lyria has no verified `mood` field, and this repo
+              does not write an unverified request field into code. Tapping the
+              active chip again clears it: a mood nobody can turn off is a
+              setting, and this is a suggestion. */}
+          <p className="mt-4 text-[11px] font-semibold text-muted-foreground">Mood</p>
+          <div className="mt-1.5 flex flex-wrap gap-2" role="radiogroup" aria-label="Mood">
+            {MUSIC_MOODS.map((m) => (
+              <OniqChip
+                key={m}
+                role="radio"
+                tone="soft"
+                active={mood === m}
+                onClick={() => setMood((cur) => (cur === m ? null : m))}
+                testId={`music-mood-${m}`}
+              >
+                {STYLE_LABEL[m] ?? m}
+              </OniqChip>
+            ))}
           </div>
 
           {/* Shown only when a track is attached, because that is the only

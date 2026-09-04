@@ -345,7 +345,8 @@
 [data-world="home"] {
   --world-a: #06b6d4;
   --world-b: #8b5cf6;
-  --world-ink-light: #0e7490;
+  /* 4.39:1 on its own soft fill at #0e7490 — see a11yContrast. */
+  --world-ink-light: #0d6f8a;
   --world-ink-dark: #67e8f9;
 }
 [data-world="chat"] {
@@ -399,7 +400,8 @@
 [data-world="scout"] {
   --world-a: #06b6d4;
   --world-b: #3b82f6;
-  --world-ink-light: #0e7490;
+  /* 4.46:1 at #0e7490. */
+  --world-ink-light: #0e718c;
   --world-ink-dark: #67e8f9;
 }
 [data-world="blessed"] {
@@ -456,7 +458,8 @@
 [data-world="watch"] {
   --world-a: #00d4b8;
   --world-b: #00a8e8;
-  --world-ink-light: #007a6a;
+  /* 4.47:1 at #007a6a. */
+  --world-ink-light: #007667;
   --world-ink-dark: #5eead4;
 }
 [data-world="lores"] {

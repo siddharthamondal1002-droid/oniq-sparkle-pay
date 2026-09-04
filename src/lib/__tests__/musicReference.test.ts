@@ -63,7 +63,11 @@ describe("the recording never reaches the music model", () => {
   });
 
   it("gives Lyria the compiled prompt, not the raw one, when a track came", () => {
-    expect(CODE).toContain("compileMusicPrompt(brief, prompt)");
+    // `asked` since the Mood chip landed: the person's words with the mood
+    // clause already appended, so a mood and a reference track both reach
+    // Lyria rather than one silently replacing the other.
+    expect(CODE).toContain("compileMusicPrompt(brief, asked)");
+    expect(CODE).toContain("withMusicMood(prompt, body.mood)");
     expect(CODE).toMatch(/parts\.push\(\{ text: lyriaPrompt \}\)/);
   });
 

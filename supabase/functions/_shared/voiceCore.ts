@@ -206,7 +206,11 @@ export function needsWavHeader(mime: string): boolean {
  * is off by under a millisecond, and the only symptom is a click at the top of
  * every clip. Hence `needsWavHeader` gating this rather than always wrapping.
  */
-export function wrapPcmAsWav(pcm: Uint8Array, sampleRate: number): Uint8Array {
+// The return type is pinned to `Uint8Array<ArrayBuffer>` rather than left
+// bare: a bare `Uint8Array` widens to `ArrayBufferLike`, which includes
+// SharedArrayBuffer, and the caller assigns the result alongside a value that
+// is not one. Caught by `deno check`; tsc never sees these files.
+export function wrapPcmAsWav(pcm: Uint8Array, sampleRate: number): Uint8Array<ArrayBuffer> {
   const header = new Uint8Array(44);
   const view = new DataView(header.buffer);
   const ascii = (offset: number, s: string) => {

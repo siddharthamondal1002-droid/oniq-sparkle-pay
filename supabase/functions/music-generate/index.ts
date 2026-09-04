@@ -75,6 +75,7 @@ import {
   type GooglePart,
 } from "../_shared/googleDirect.ts";
 import { AUDIO_UNDERSTANDING_MODEL } from "../_shared/voiceCore.ts";
+import { withMusicMood } from "../_shared/createStyles.ts";
 
 /**
  * The spend reservation for one song.
@@ -180,6 +181,8 @@ Deno.serve(async (req) => {
     referenceImage?: { mimeType: string; data: string } | null;
     /** Goes to GEMINI, never to Lyria. See the two-stage block below. */
     referenceAudio?: { mimeType: string; data: string } | null;
+    /** One of MUSIC_MOODS — a chip, never free text. See createStyles.ts. */
+    mood?: string;
   };
   try {
     body = await req.json();
@@ -320,7 +323,15 @@ Deno.serve(async (req) => {
   // caps count, and without it a caller could burn listening calls all day
   // without ever consuming a song. The row is also simply true: the money was
   // spent.
-  let lyriaPrompt = prompt;
+  // THE MOOD CHIP, RESOLVED HERE AND NOWHERE ELSE — a short token from a
+  // closed list, expanded server-side into the clause it stands for. Accepting
+  // free text would be a second prompt slot on a paid model that the caller
+  // writes. Applied to the person's own words BEFORE the brief compiles them,
+  // so a mood and a reference track both reach Lyria rather than one silently
+  // replacing the other.
+  const asked = withMusicMood(prompt, body.mood);
+
+  let lyriaPrompt = asked;
   let briefLine: string | null = null;
   const refAudio = body.referenceAudio ?? null;
 
@@ -401,7 +412,7 @@ Deno.serve(async (req) => {
     }
 
     // The person's own words LEAD; the reference is the adjective.
-    lyriaPrompt = compileMusicPrompt(brief, prompt);
+    lyriaPrompt = compileMusicPrompt(brief, asked);
     briefLine = describeBrief(brief);
   }
 
