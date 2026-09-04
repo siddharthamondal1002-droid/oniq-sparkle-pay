@@ -81,6 +81,14 @@ const PROFILE_TAB: NavTab = {
   icon: User,
 };
 
+/** Where a person's generated films and songs are gathered. */
+const MINE_TAB: NavTab = {
+  to: "/app/creations",
+  labelKey: "nav.mine",
+  fallback: "Mine",
+  icon: Sparkle,
+};
+
 /**
  * The worlds the bar can stand in, longest prefix first so /app/chat/reels
  * is read as Mast rather than as Chat.
@@ -129,11 +137,14 @@ const NAV_WORLDS: Array<{ prefix: string; tab: NavTab; next?: NavTab }> = [
   {
     prefix: "/app/music",
     tab: { to: "/app/music", labelKey: "nav.music", fallback: "Music", icon: Music4 },
+    next: MINE_TAB,
   },
   {
     prefix: "/app/lores",
     tab: { to: "/app/lores", labelKey: "nav.lores", fallback: "Lores", icon: Clapperboard },
+    next: MINE_TAB,
   },
+  { prefix: "/app/creations", tab: MINE_TAB },
 ];
 
 /** The four flanking tabs for a path: Home, this world, its next step, Profile. */

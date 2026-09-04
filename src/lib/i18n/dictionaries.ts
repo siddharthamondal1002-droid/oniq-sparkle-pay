@@ -34,6 +34,7 @@ const en: Dict = {
   "nav.lores": "Lores",
   "nav.post": "Post",
   "nav.saved": "Saved",
+  "nav.mine": "Mine",
   "home.transparency": "words from across India, not just English slang 🇮🇳",
   // Stage-2 additions
   "nav.home": "Home",
@@ -84,6 +85,7 @@ const hi: Dict = {
   "nav.lores": "लोर्स",
   "nav.post": "पोस्ट",
   "nav.saved": "सहेजे",
+  "nav.mine": "मेरी",
   "nav.home": "होम",
   "nav.chat": "चैट",
   "nav.profile": "प्रोफ़ाइल",

@@ -39,6 +39,7 @@ import { Route as AuthenticatedAppAiRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAppAttributionsRouteImport } from './routes/_authenticated/app.attributions'
 import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/app.chat'
 import { Route as AuthenticatedAppClipsRouteImport } from './routes/_authenticated/app.clips'
+import { Route as AuthenticatedAppCreationsRouteImport } from './routes/_authenticated/app.creations'
 import { Route as AuthenticatedAppCreatorRouteImport } from './routes/_authenticated/app.creator'
 import { Route as AuthenticatedAppDiagRouteImport } from './routes/_authenticated/app.diag'
 import { Route as AuthenticatedAppEarnRouteImport } from './routes/_authenticated/app.earn'
@@ -236,6 +237,12 @@ const AuthenticatedAppClipsRoute = AuthenticatedAppClipsRouteImport.update({
   path: '/clips',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppCreationsRoute =
+  AuthenticatedAppCreationsRouteImport.update({
+    id: '/creations',
+    path: '/creations',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppCreatorRoute = AuthenticatedAppCreatorRouteImport.update({
   id: '/creator',
   path: '/creator',
@@ -501,6 +508,7 @@ export interface FileRoutesByFullPath {
   '/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/app/clips': typeof AuthenticatedAppClipsRoute
+  '/app/creations': typeof AuthenticatedAppCreationsRoute
   '/app/creator': typeof AuthenticatedAppCreatorRoute
   '/app/diag': typeof AuthenticatedAppDiagRoute
   '/app/earn': typeof AuthenticatedAppEarnRoute
@@ -573,6 +581,7 @@ export interface FileRoutesByTo {
   '/app/ai': typeof AuthenticatedAppAiRoute
   '/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/app/clips': typeof AuthenticatedAppClipsRoute
+  '/app/creations': typeof AuthenticatedAppCreationsRoute
   '/app/creator': typeof AuthenticatedAppCreatorRoute
   '/app/diag': typeof AuthenticatedAppDiagRoute
   '/app/earn': typeof AuthenticatedAppEarnRoute
@@ -649,6 +658,7 @@ export interface FileRoutesById {
   '/_authenticated/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/_authenticated/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/_authenticated/app/clips': typeof AuthenticatedAppClipsRoute
+  '/_authenticated/app/creations': typeof AuthenticatedAppCreationsRoute
   '/_authenticated/app/creator': typeof AuthenticatedAppCreatorRoute
   '/_authenticated/app/diag': typeof AuthenticatedAppDiagRoute
   '/_authenticated/app/earn': typeof AuthenticatedAppEarnRoute
@@ -725,6 +735,7 @@ export interface FileRouteTypes {
     | '/app/attributions'
     | '/app/chat'
     | '/app/clips'
+    | '/app/creations'
     | '/app/creator'
     | '/app/diag'
     | '/app/earn'
@@ -797,6 +808,7 @@ export interface FileRouteTypes {
     | '/app/ai'
     | '/app/attributions'
     | '/app/clips'
+    | '/app/creations'
     | '/app/creator'
     | '/app/diag'
     | '/app/earn'
@@ -872,6 +884,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/attributions'
     | '/_authenticated/app/chat'
     | '/_authenticated/app/clips'
+    | '/_authenticated/app/creations'
     | '/_authenticated/app/creator'
     | '/_authenticated/app/diag'
     | '/_authenticated/app/earn'
@@ -1156,6 +1169,13 @@ declare module '@tanstack/react-router' {
       path: '/clips'
       fullPath: '/app/clips'
       preLoaderRoute: typeof AuthenticatedAppClipsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/creations': {
+      id: '/_authenticated/app/creations'
+      path: '/creations'
+      fullPath: '/app/creations'
+      preLoaderRoute: typeof AuthenticatedAppCreationsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/creator': {
@@ -1507,6 +1527,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppAttributionsRoute: typeof AuthenticatedAppAttributionsRoute
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRouteWithChildren
   AuthenticatedAppClipsRoute: typeof AuthenticatedAppClipsRoute
+  AuthenticatedAppCreationsRoute: typeof AuthenticatedAppCreationsRoute
   AuthenticatedAppCreatorRoute: typeof AuthenticatedAppCreatorRoute
   AuthenticatedAppDiagRoute: typeof AuthenticatedAppDiagRoute
   AuthenticatedAppEarnRoute: typeof AuthenticatedAppEarnRoute
@@ -1548,6 +1569,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppAttributionsRoute: AuthenticatedAppAttributionsRoute,
   AuthenticatedAppChatRoute: AuthenticatedAppChatRouteWithChildren,
   AuthenticatedAppClipsRoute: AuthenticatedAppClipsRoute,
+  AuthenticatedAppCreationsRoute: AuthenticatedAppCreationsRoute,
   AuthenticatedAppCreatorRoute: AuthenticatedAppCreatorRoute,
   AuthenticatedAppDiagRoute: AuthenticatedAppDiagRoute,
   AuthenticatedAppEarnRoute: AuthenticatedAppEarnRoute,
