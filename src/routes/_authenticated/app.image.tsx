@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ImageIcon, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeError";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 import {
   OniqCanvas,
@@ -76,9 +77,15 @@ function ImageScreen() {
     setBusy(false);
     // The server's own sentence is the one worth showing — it is the only
     // thing that knows whether this was a switch, a cap or a refusal.
-    const message = typeof data?.error === "string" ? data.error : null;
+    // `functions.invoke` throws every non-2xx into `error` (a FunctionsHttpError)
+    // and leaves `data` null, so the real body only reaches `edgeErrorMessage`.
+    const message = error
+      ? await edgeErrorMessage(error)
+      : typeof data?.error === "string"
+        ? data.error
+        : "";
     if (error || message || !data?.url) {
-      toast.error(message ?? "Couldn't draw that one. Try different words.");
+      toast.error(message || "Couldn't draw that one. Try different words.");
       return;
     }
     setPictures((prev) => [data as Picture, ...(prev ?? [])]);
