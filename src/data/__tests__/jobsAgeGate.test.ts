@@ -99,6 +99,10 @@ function createdTables(): string[] {
  * bytes, error. It holds no employer, no salary, no education, no CV. Same RLS
  * shape too: select is own-row and authenticated holds no write at all,
  * because every write goes through the edge function on the service role.
+ *
+ * public.voice_jobs is the seventh and takes the same argument again: the
+ * speech-generation ledger, one row per attempt, holding the line that was
+ * read and the voice that read it. No employer, no salary, no CV. Same RLS.
  */
 const NOT_CAREER = new Set([
   "video_jobs",
@@ -107,6 +111,7 @@ const NOT_CAREER = new Set([
   "gpu_video_jobs",
   "music_jobs",
   "image_jobs",
+  "voice_jobs",
 ]);
 
 const careerTables = createdTables().filter((t) => CAREER_TABLE.test(t) && !NOT_CAREER.has(t));

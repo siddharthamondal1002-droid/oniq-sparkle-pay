@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Clapperboard, ImageIcon, Music4 } from "lucide-react";
+import { Clapperboard, ImageIcon, Mic, Music4 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { isWatchable, listStories, type StoryJobRow } from "@/components/stories/storyJobsClient";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
@@ -26,29 +26,31 @@ export const Route = createFileRoute("/_authenticated/app/creations")({
  * "what have I made?". This is that answer.
  *
  * IT INVENTS NOTHING. Every part comes from the same source its own screen
- * reads — listStories() for films, music-generate's list action for songs,
- * image-generate's for pictures — so a row here is a row there. When one
- * source fails and the others do not, the screen shows what loaded and says
- * plainly what did not, rather than presenting a short list as if it were the
- * whole shelf.
+ * reads — listStories() for films, and the list action of music-generate,
+ * image-generate and voice-generate for the rest — so a row here is a row
+ * there. When one source fails and the others do not, the screen shows what
+ * loaded and says plainly what did not, rather than presenting a short list as
+ * if it were the whole shelf.
  *
  * It is an AI surface: every item on it was generated, so it carries the
  * label and the report control, and it is declared in playCompliance.
  */
-/** The list shape both the music and the image function answer with. */
+/** The list shape the music, image and voice functions all answer with. */
 type Made = { id: string; createdAt: string; prompt: string; url: string | null };
 type Item =
   | { kind: "film"; id: string; at: string; title: string; row: StoryJobRow }
   | { kind: "song"; id: string; at: string; title: string; url: string | null }
-  | { kind: "picture"; id: string; at: string; title: string; url: string | null };
+  | { kind: "picture"; id: string; at: string; title: string; url: string | null }
+  | { kind: "clip"; id: string; at: string; title: string; url: string | null };
 
-type Filter = "all" | "film" | "song" | "picture";
+type Filter = "all" | "film" | "song" | "picture" | "clip";
 
 const FILTERS: Array<{ id: Filter; label: string }> = [
   { id: "all", label: "All" },
   { id: "film", label: "Films" },
   { id: "song", label: "Songs" },
   { id: "picture", label: "Pictures" },
+  { id: "clip", label: "Voice" },
 ];
 
 function CreationsScreen() {
@@ -58,6 +60,8 @@ function CreationsScreen() {
   const [filmsFailed, setFilmsFailed] = useState(false);
   const [songsFailed, setSongsFailed] = useState(false);
   const [picturesFailed, setPicturesFailed] = useState(false);
+  const [voices, setVoices] = useState<Made[] | null>(null);
+  const [voicesFailed, setVoicesFailed] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
 
   useEffect(() => {
@@ -97,12 +101,24 @@ function CreationsScreen() {
       }
       setPictures(data.images as Made[]);
     })();
+    void (async () => {
+      const { data, error } = await supabase.functions.invoke("voice-generate", {
+        body: { action: "list" },
+      });
+      if (!alive) return;
+      if (error || !Array.isArray(data?.clips)) {
+        setVoices([]);
+        setVoicesFailed(true);
+        return;
+      }
+      setVoices(data.clips as Made[]);
+    })();
     return () => {
       alive = false;
     };
   }, []);
 
-  const loading = films === null || songs === null || pictures === null;
+  const loading = films === null || songs === null || pictures === null || voices === null;
   const items: Item[] = [
     ...(films ?? []).map((row) => ({
       kind: "film" as const,
@@ -125,6 +141,13 @@ function CreationsScreen() {
       title: p.prompt?.trim() || "Untitled picture",
       url: p.url,
     })),
+    ...(voices ?? []).map((v) => ({
+      kind: "clip" as const,
+      id: v.id,
+      at: v.createdAt,
+      title: v.prompt?.trim() || "Untitled clip",
+      url: v.url,
+    })),
   ].sort((a, b) => (a.at < b.at ? 1 : -1));
 
   const shown = filter === "all" ? items : items.filter((i) => i.kind === filter);
@@ -136,6 +159,7 @@ function CreationsScreen() {
     filmsFailed ? "films" : null,
     songsFailed ? "songs" : null,
     picturesFailed ? "pictures" : null,
+    voicesFailed ? "voice clips" : null,
   ].filter((x): x is string => x !== null);
   const missing =
     failed.length === 0
@@ -185,7 +209,7 @@ function CreationsScreen() {
           <OniqEmpty
             emoji="✨"
             title="Nothing here yet"
-            body="Make a film, a song or a picture and it lands here."
+            body="Make a film, a song, a picture or a voice clip and it lands here."
           />
         ) : (
           <div className="grid gap-2">
@@ -216,15 +240,19 @@ function CreationsScreen() {
                     </p>
                   )}
                 </OniqCard>
-              ) : item.kind === "song" ? (
+              ) : item.kind === "song" || item.kind === "clip" ? (
                 <OniqCard
                   key={item.id}
                   variant="surface"
                   className="p-3"
-                  data-testid="creation-song"
+                  data-testid={item.kind === "song" ? "creation-song" : "creation-clip"}
                 >
                   <div className="flex items-center gap-2">
-                    <Music4 className="h-4 w-4 shrink-0 text-world" aria-hidden="true" />
+                    {item.kind === "song" ? (
+                      <Music4 className="h-4 w-4 shrink-0 text-world" aria-hidden="true" />
+                    ) : (
+                      <Mic className="h-4 w-4 shrink-0 text-world" aria-hidden="true" />
+                    )}
                     <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
                       {item.title}
                     </span>

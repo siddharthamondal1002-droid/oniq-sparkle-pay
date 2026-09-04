@@ -63,6 +63,7 @@ import { Route as AuthenticatedAppTravelRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAppUniversityRouteImport } from './routes/_authenticated/app.university'
 import { Route as AuthenticatedAppUpiRouteImport } from './routes/_authenticated/app.upi'
 import { Route as AuthenticatedAppVitalsRouteImport } from './routes/_authenticated/app.vitals'
+import { Route as AuthenticatedAppVoiceRouteImport } from './routes/_authenticated/app.voice'
 import { Route as AuthenticatedAppWatchRouteImport } from './routes/_authenticated/app.watch'
 import { Route as AuthenticatedAppWeatherRouteImport } from './routes/_authenticated/app.weather'
 import { Route as ApiPublicMediaSweepRouteImport } from './routes/api/public/media-sweep'
@@ -364,6 +365,11 @@ const AuthenticatedAppVitalsRoute = AuthenticatedAppVitalsRouteImport.update({
   path: '/vitals',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppVoiceRoute = AuthenticatedAppVoiceRouteImport.update({
+  id: '/voice',
+  path: '/voice',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppWatchRoute = AuthenticatedAppWatchRouteImport.update({
   id: '/watch',
   path: '/watch',
@@ -538,6 +544,7 @@ export interface FileRoutesByFullPath {
   '/app/university': typeof AuthenticatedAppUniversityRoute
   '/app/upi': typeof AuthenticatedAppUpiRoute
   '/app/vitals': typeof AuthenticatedAppVitalsRoute
+  '/app/voice': typeof AuthenticatedAppVoiceRoute
   '/app/watch': typeof AuthenticatedAppWatchRoute
   '/app/weather': typeof AuthenticatedAppWeatherRoute
   '/api/public/media-sweep': typeof ApiPublicMediaSweepRoute
@@ -612,6 +619,7 @@ export interface FileRoutesByTo {
   '/app/university': typeof AuthenticatedAppUniversityRoute
   '/app/upi': typeof AuthenticatedAppUpiRoute
   '/app/vitals': typeof AuthenticatedAppVitalsRoute
+  '/app/voice': typeof AuthenticatedAppVoiceRoute
   '/app/watch': typeof AuthenticatedAppWatchRoute
   '/app/weather': typeof AuthenticatedAppWeatherRoute
   '/api/public/media-sweep': typeof ApiPublicMediaSweepRoute
@@ -690,6 +698,7 @@ export interface FileRoutesById {
   '/_authenticated/app/university': typeof AuthenticatedAppUniversityRoute
   '/_authenticated/app/upi': typeof AuthenticatedAppUpiRoute
   '/_authenticated/app/vitals': typeof AuthenticatedAppVitalsRoute
+  '/_authenticated/app/voice': typeof AuthenticatedAppVoiceRoute
   '/_authenticated/app/watch': typeof AuthenticatedAppWatchRoute
   '/_authenticated/app/weather': typeof AuthenticatedAppWeatherRoute
   '/api/public/media-sweep': typeof ApiPublicMediaSweepRoute
@@ -768,6 +777,7 @@ export interface FileRouteTypes {
     | '/app/university'
     | '/app/upi'
     | '/app/vitals'
+    | '/app/voice'
     | '/app/watch'
     | '/app/weather'
     | '/api/public/media-sweep'
@@ -842,6 +852,7 @@ export interface FileRouteTypes {
     | '/app/university'
     | '/app/upi'
     | '/app/vitals'
+    | '/app/voice'
     | '/app/watch'
     | '/app/weather'
     | '/api/public/media-sweep'
@@ -919,6 +930,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/university'
     | '/_authenticated/app/upi'
     | '/_authenticated/app/vitals'
+    | '/_authenticated/app/voice'
     | '/_authenticated/app/watch'
     | '/_authenticated/app/weather'
     | '/api/public/media-sweep'
@@ -1351,6 +1363,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppVitalsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/voice': {
+      id: '/_authenticated/app/voice'
+      path: '/voice'
+      fullPath: '/app/voice'
+      preLoaderRoute: typeof AuthenticatedAppVoiceRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/watch': {
       id: '/_authenticated/app/watch'
       path: '/watch'
@@ -1570,6 +1589,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppUniversityRoute: typeof AuthenticatedAppUniversityRoute
   AuthenticatedAppUpiRoute: typeof AuthenticatedAppUpiRoute
   AuthenticatedAppVitalsRoute: typeof AuthenticatedAppVitalsRoute
+  AuthenticatedAppVoiceRoute: typeof AuthenticatedAppVoiceRoute
   AuthenticatedAppWatchRoute: typeof AuthenticatedAppWatchRoute
   AuthenticatedAppWeatherRoute: typeof AuthenticatedAppWeatherRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
@@ -1613,6 +1633,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppUniversityRoute: AuthenticatedAppUniversityRoute,
   AuthenticatedAppUpiRoute: AuthenticatedAppUpiRoute,
   AuthenticatedAppVitalsRoute: AuthenticatedAppVitalsRoute,
+  AuthenticatedAppVoiceRoute: AuthenticatedAppVoiceRoute,
   AuthenticatedAppWatchRoute: AuthenticatedAppWatchRoute,
   AuthenticatedAppWeatherRoute: AuthenticatedAppWeatherRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,

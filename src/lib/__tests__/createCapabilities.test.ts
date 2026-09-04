@@ -30,7 +30,11 @@ describe("Create capabilities", () => {
     for (const c of SOON_CAPABILITIES) {
       expect(c.to, `${c.id} is 'soon' but has a destination`).toBeUndefined();
     }
-    expect(SOON_CAPABILITIES.map((c) => c.id).sort()).toEqual(["voice"]);
+    // Empty since 2026-09-04, and that is the assertion: every card the owner
+    // drew now has a screen behind it. A new "soon" card has to be added here
+    // deliberately, which is the point — Create promising what it cannot do is
+    // the failure this file exists to catch.
+    expect(SOON_CAPABILITIES.map((c) => c.id).sort()).toEqual([]);
   });
 
   it("names no provider, model, GPU or price", () => {

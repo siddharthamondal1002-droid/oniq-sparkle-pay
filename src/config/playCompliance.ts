@@ -89,6 +89,13 @@ export const AI_SURFACES = [
     file: "src/routes/_authenticated/app.image.tsx",
   },
   {
+    // Create — Voice. A synthetic voice is generated content even when every
+    // word is the person's own — the label is about who SPOKE, not who wrote.
+    id: "voice_ai_output",
+    screen: "Create — Voice",
+    file: "src/routes/_authenticated/app.voice.tsx",
+  },
+  {
     id: "cv_ai_output",
     screen: "Jobs — CV builder",
     file: "src/routes/_authenticated/app.jobs.tsx",
