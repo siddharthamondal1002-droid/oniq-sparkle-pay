@@ -48,7 +48,8 @@ export type CapabilityId =
   | "music.referenceImage"
   | "text.generate"
   | "document.read"
-  | "weather.current";
+  | "weather.current"
+  | "air.current";
 
 export type CapabilityEntry = {
   id: CapabilityId;
@@ -279,6 +280,35 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
       "and reaches nowhere else. GET, not POST, is also measured: the probes carried the " +
       "coordinates as query parameters and were answered on the credential rather than " +
       "refused as the wrong method.",
+  },
+  "air.current": {
+    id: "air.current",
+    provider: "google",
+    // A SEPARATE ENTRY FROM weather.current, because it is a separate API with
+    // a separate enablement state on the project. One of the two can be live
+    // while the other is not, and a single row would have to lie about which.
+    state: "EXPERIMENTAL",
+    userMessage: "Air quality isn't switched on yet",
+    evidence:
+      "2026-09-04, the same three-request control set fired at " +
+      "airquality.googleapis.com/v1/currentConditions:lookup as at the weather host, and " +
+      "answered identically. NO CREDENTIAL: 403 PERMISSION_DENIED, \"Method doesn't allow " +
+      "unregistered callers (callers without established identity). Please use API Key or " +
+      'other form of API consumer identity to call this API." A NONSENSE BEARER: 401 ' +
+      'UNAUTHENTICATED, "Request had invalid authentication credentials. Expected OAuth 2 ' +
+      'access token, login cookie or other valid authentication credential." A NONSENSE ' +
+      "API KEY: 400 INVALID_ARGUMENT, reason API_KEY_INVALID, " +
+      '"service": "airquality.googleapis.com". So it takes the same Firebase service ' +
+      "account as Vertex and weather, on the same switch. " +
+      "ONE MEASURED DIFFERENCE FROM WEATHER, and it shapes the code: THIS ONE IS A POST " +
+      "with a JSON body. The same coordinates sent here as GET query parameters returned " +
+      "Google's HTML 404 page — no JSON error and no credential check, which is what a " +
+      "wrong method looks like on this host, where weather answered the identical GET on " +
+      "its credential. " +
+      "STILL UNPROVEN, hence EXPERIMENTAL: that the service account may call it, and that " +
+      "the Air Quality API is enabled on the project. Weather and air are enabled " +
+      "separately, so one may work while the other does not — which is why the function " +
+      "settles them separately and this row is separate too.",
   },
 };
 

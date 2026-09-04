@@ -54,6 +54,7 @@ import {
   weatherIcon,
 } from "../weather";
 import { THIRD_PARTY_REQUESTS } from "../../config/playCompliance";
+import { CAPABILITIES } from "../../data/capabilities";
 
 const ROOT = process.cwd();
 const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
@@ -600,5 +601,39 @@ describe("the chip stays on once weather is selected", () => {
 
   it("says so on the screen when what it shows is old", () => {
     expect(SCREEN).toContain("This reading is a few hours old.");
+  });
+});
+
+describe("what the registry claims about both APIs", () => {
+  it("keeps weather and air as SEPARATE rows", () => {
+    // They are enabled separately on the project, so one can work while the
+    // other does not. A single row would have to lie about which.
+    expect(CAPABILITIES["weather.current"].state).toBe("EXPERIMENTAL");
+    expect(CAPABILITIES["air.current"].state).toBe("EXPERIMENTAL");
+  });
+
+  it("neither claims to be LIVE on a probe that never reached a body", () => {
+    // music.referenceAudio sat at EXPERIMENTAL saying exactly this until one
+    // POST to the DEPLOYED function came back 200. These move on the same
+    // evidence and not before.
+    for (const id of ["weather.current", "air.current"] as const) {
+      expect(CAPABILITIES[id].evidence, id).toMatch(/STILL UNPROVEN/);
+      expect(CAPABILITIES[id].evidence, id).toContain("Expected OAuth 2 access token");
+      // The controls, without which the 401 proves nothing.
+      expect(CAPABILITIES[id].evidence, id).toContain("PERMISSION_DENIED");
+      expect(CAPABILITIES[id].evidence, id).toContain("API_KEY_INVALID");
+    }
+  });
+
+  it("records that the two use different HTTP methods, measured", () => {
+    expect(CAPABILITIES["air.current"].evidence).toMatch(/THIS ONE IS A POST/);
+  });
+
+  it("tells a person something they can act on, without naming a provider", () => {
+    for (const id of ["weather.current", "air.current"] as const) {
+      const msg = CAPABILITIES[id].userMessage!;
+      expect(msg, id).toBeTruthy();
+      expect(msg.toLowerCase(), id).not.toMatch(/google|vertex|googleapis|firebase/);
+    }
   });
 });
