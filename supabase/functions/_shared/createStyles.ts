@@ -89,3 +89,76 @@ export function withMusicMood(prompt: string, mood: unknown): string {
   if (!m || !prompt.trim()) return prompt;
   return `${prompt.trim().replace(/[.\s]+$/, "")}. ${MUSIC_MOOD_CLAUSE[m]}`;
 }
+
+/* ------------------------------------------------------------ aspect ratio
+ * THIS ONE IS A REAL REQUEST FIELD, and that is the difference.
+ *
+ * Style and Mood above are prompt text because no verified field exists for
+ * them. Aspect ratio is not like that — MEASURED 2026-09-04 against the real
+ * key, and measured properly, which means three separate things were checked:
+ *
+ *   1. THE FIELD IS ACCEPTED.
+ *        generationConfig.imageConfig.aspectRatio = "16:9"   200
+ *        generationConfig.aspectRatio             = "16:9"   400
+ *            Unknown name "aspectRatio" at 'generation_config':
+ *            Cannot find field.
+ *      So it is nested, and only nested.
+ *
+ *   2. THE ERROR SHAPE IS TRUSTWORTHY, which is what makes (1) mean anything.
+ *      A deliberate nonsense sibling was sent as a control:
+ *        imageConfig.nonsenseFieldXyz             = "16:9"   400
+ *            Unknown name "nonsenseFieldXyz" at
+ *            'generation_config.image_config': Cannot find field.
+ *      An endpoint that silently swallowed unknown fields would have returned
+ *      200 there, and the 200 in (1) would have proved nothing.
+ *
+ *   3. IT IS NOT ACCEPTED AND IGNORED. The returned PIXELS change, and every
+ *      value this file offers was POSTed rather than assumed from the three
+ *      that happened to get tested first:
+ *        control (no aspectRatio)  1408x768
+ *        1:1                       1024x1024
+ *        3:4                        896x1200
+ *        16:9                      1376x768
+ *        9:16                       768x1376
+ *      This is the check that matters most and the one easiest to skip. A
+ *      parameter accepted and ignored is a control that lies, and it looks
+ *      identical to a working one from the status code alone.
+ *
+ * DURATION, ASKED FOR IN THE SAME REFERENCE, IS NOT REAL AND IS NOT BUILT.
+ * Every shape returned 400 on lyria-3-pro-preview, identical to the nonsense
+ * control: durationSeconds, audioConfig.durationSeconds and
+ * musicConfig.durationSeconds all "Cannot find field". There is no duration
+ * parameter on Lyria via this key, so Create - Music gets no Duration row
+ * rather than four chips that change nothing.
+ * -------------------------------------------------------------------------- */
+
+/** What Create - Image offers, in the reference's order. */
+export const ASPECT_RATIOS = ["1:1", "3:4", "16:9", "9:16"] as const;
+export type AspectRatio = (typeof ASPECT_RATIOS)[number];
+
+/**
+ * A caller's value, or null when it is absent or not one of ours.
+ *
+ * The allowlist is the point: `aspectRatio` reaches Google verbatim, so an
+ * unchecked value would let a caller put arbitrary text into a request field
+ * on a paid model. Google would reject it, but the charge and the round trip
+ * would already have happened.
+ */
+export function readAspectRatio(v: unknown): AspectRatio | null {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  return (ASPECT_RATIOS as readonly string[]).includes(s) ? (s as AspectRatio) : null;
+}
+
+/**
+ * The `imageConfig` for a generation, or undefined to send none at all.
+ *
+ * Undefined rather than an empty object: the endpoint has rejected malformed
+ * config shapes before, and there is no reason to send a field that says
+ * nothing. Omitting it is also what the measured CONTROL did, so "no ratio
+ * chosen" is a request that has been proven to work rather than a new one.
+ */
+export function imageConfigFor(aspectRatio: unknown): { aspectRatio: string } | undefined {
+  const r = readAspectRatio(aspectRatio);
+  return r ? { aspectRatio: r } : undefined;
+}

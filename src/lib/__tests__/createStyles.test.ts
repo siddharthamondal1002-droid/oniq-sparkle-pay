@@ -14,8 +14,13 @@
  * the client writes — which is the surface every other path in this codebase
  * refuses to open.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  ASPECT_RATIOS,
+  imageConfigFor,
+  readAspectRatio,
   IMAGE_STYLES,
   MUSIC_MOODS,
   readImageStyle,
@@ -23,6 +28,8 @@ import {
   withImageStyle,
   withMusicMood,
 } from "../../data/createStyles";
+
+const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 
 describe("the vocabulary is what the reference draws", () => {
   it("offers the four image styles, with auto first", () => {
@@ -145,11 +152,7 @@ describe("composing the prompt", () => {
 });
 
 describe("the screens send a token, never a sentence", () => {
-  it("is what both Create screens actually do", async () => {
-    const { readFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
-
+  it("is what both Create screens actually do", () => {
     const image = read("src/routes/_authenticated/app.image.tsx");
     const music = read("src/routes/_authenticated/app.music.tsx");
     // The state they hold is the token; the clause never appears client-side.
@@ -163,5 +166,72 @@ describe("the screens send a token, never a sentence", () => {
     const musicFn = read("supabase/functions/music-generate/index.ts");
     expect(imageFn).toContain("withImageStyle(prompt, body.style)");
     expect(musicFn).toContain("withMusicMood(prompt, body.mood)");
+  });
+});
+
+/* ------------------------------------------------------------ aspect ratio
+ * The one control on these screens that is a REAL request field. Style and
+ * Mood are words appended to a prompt because no verified field exists for
+ * them; `aspectRatio` reaches Google verbatim, which changes what has to be
+ * true about it.
+ * -------------------------------------------------------------------------- */
+describe("aspect ratio", () => {
+  it("offers the four the reference draws", () => {
+    expect(ASPECT_RATIOS).toEqual(["1:1", "3:4", "16:9", "9:16"]);
+  });
+
+  it("carries the measurement for every value it offers", () => {
+    // Not three measured and one assumed. Each of these dimensions came back
+    // from a real POST, and the file records them so the next person can tell
+    // a verified value from a plausible one.
+    const src = read("supabase/functions/_shared/createStyles.ts");
+    for (const proof of ["1024x1024", "896x1200", "1376x768", "768x1376"]) {
+      expect(src, proof).toContain(proof);
+    }
+    // And the control that makes those 200s mean anything.
+    expect(src).toContain("nonsenseFieldXyz");
+  });
+
+  it("records that Lyria has no duration field, so nobody rebuilds that row", () => {
+    const src = read("supabase/functions/_shared/createStyles.ts");
+    expect(src).toContain("musicConfig.durationSeconds");
+    // Whitespace collapsed: the sentence wraps across comment lines, and
+    // asserting on where it breaks would fail the next time a word is added.
+    expect(src.replace(/\s+\*?\s*/g, " ")).toMatch(/no duration parameter on Lyria/i);
+  });
+
+  it("accepts only what it offers", () => {
+    for (const r of ASPECT_RATIOS) expect(readAspectRatio(r), r).toBe(r);
+    for (const bad of ["4:3", "1:2", "16 : 9", "", 1, null, undefined, {}]) {
+      expect(readAspectRatio(bad), JSON.stringify(bad)).toBeNull();
+    }
+  });
+
+  it("builds the nested shape Google actually takes", () => {
+    // A top-level `aspectRatio` is 400 "Cannot find field"; it has to sit
+    // inside imageConfig.
+    expect(imageConfigFor("16:9")).toEqual({ aspectRatio: "16:9" });
+  });
+
+  it("sends NO imageConfig when no ratio was chosen", () => {
+    // Undefined, not {}. The endpoint has rejected malformed config shapes
+    // before, and omitting it is exactly what the measured control did.
+    for (const none of [null, undefined, "", "4:3"]) {
+      expect(imageConfigFor(none), JSON.stringify(none)).toBeUndefined();
+    }
+  });
+
+  it("is passed through by the screen and resolved by the server", () => {
+    const screen = read("src/routes/_authenticated/app.image.tsx");
+    expect(screen).toContain("aspectRatio: ratio");
+    const fn = read("supabase/functions/image-generate/index.ts");
+    expect(fn).toContain("imageConfigFor(body.aspectRatio)");
+    // It reaches Google nested, and only when there is one.
+    expect(fn).toContain("{ generationConfig: { imageConfig } }");
+  });
+
+  it("ships no Duration row on Music, because there is no field behind it", () => {
+    const music = read("src/routes/_authenticated/app.music.tsx");
+    expect(music).not.toMatch(/Duration|durationSeconds/);
   });
 });

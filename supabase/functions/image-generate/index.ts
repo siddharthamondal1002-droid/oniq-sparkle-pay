@@ -63,7 +63,7 @@ import {
   validateReferenceImage,
   type ReferenceImage,
 } from "../_shared/imageCore.ts";
-import { withImageStyle } from "../_shared/createStyles.ts";
+import { imageConfigFor, withImageStyle } from "../_shared/createStyles.ts";
 
 /**
  * The spend reservation for one image.
@@ -139,6 +139,8 @@ Deno.serve(async (req) => {
     referenceImage?: ReferenceImage;
     /** One of IMAGE_STYLES — a chip, never free text. See createStyles.ts. */
     style?: string;
+    /** One of ASPECT_RATIOS. A REAL request field, unlike style. */
+    aspectRatio?: string;
   };
   try {
     body = await req.json();
@@ -256,6 +258,14 @@ Deno.serve(async (req) => {
   // picture. The person's own words lead; the clause follows.
   const styled = withImageStyle(prompt, body.style);
 
+  // THE ASPECT RATIO IS A REAL FIELD, so unlike the style it goes to Google as
+  // a parameter rather than as words. Resolved through the allowlist first:
+  // `aspectRatio` reaches the provider verbatim, and an unchecked value would
+  // let a caller put arbitrary text into a request field on a paid model.
+  // Undefined means send no imageConfig at all, which is exactly what the
+  // measured control did.
+  const imageConfig = imageConfigFor(body.aspectRatio);
+
   // OWNER DIRECTIVE 2026-09-04b: direct Google, not the Lovable gateway. This
   // is the same key music-generate and Veo already spend.
   const key = Deno.env.get("GOOGLE_AI_API_KEY");
@@ -322,6 +332,7 @@ Deno.serve(async (req) => {
           key,
           parts,
           responseModalities: ["IMAGE"],
+          ...(imageConfig ? { generationConfig: { imageConfig } } : {}),
           signal: ctrl.signal,
         });
         const usage = googleUsage(res.data);

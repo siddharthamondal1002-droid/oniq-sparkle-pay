@@ -7,6 +7,9 @@
  * shim shape src/data/capabilities.ts and src/lib/itemLint.ts already use.
  */
 export {
+  ASPECT_RATIOS,
+  imageConfigFor,
+  readAspectRatio,
   IMAGE_STYLES,
   MUSIC_MOODS,
   readImageStyle,
@@ -14,7 +17,11 @@ export {
   withImageStyle,
   withMusicMood,
 } from "../../supabase/functions/_shared/createStyles.ts";
-export type { ImageStyle, MusicMood } from "../../supabase/functions/_shared/createStyles.ts";
+export type {
+  AspectRatio,
+  ImageStyle,
+  MusicMood,
+} from "../../supabase/functions/_shared/createStyles.ts";
 
 /** Sentence case for a chip, so the data stays lowercase tokens. */
 export const STYLE_LABEL: Record<string, string> = {

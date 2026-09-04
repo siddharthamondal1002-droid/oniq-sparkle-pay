@@ -15,7 +15,13 @@ import {
   OniqSkeletonRows,
 } from "@/components/oniq";
 import { OniqAttachImage, type AttachedImage } from "@/components/oniq/OniqAttachImage";
-import { IMAGE_STYLES, STYLE_LABEL, type ImageStyle } from "@/data/createStyles";
+import {
+  ASPECT_RATIOS,
+  IMAGE_STYLES,
+  STYLE_LABEL,
+  type AspectRatio,
+  type ImageStyle,
+} from "@/data/createStyles";
 
 export const Route = createFileRoute("/_authenticated/app/image")({
   component: ImageScreen,
@@ -47,6 +53,7 @@ type Picture = { id: string; createdAt: string; prompt: string; url: string | nu
 function ImageScreen() {
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<ImageStyle>("auto");
+  const [ratio, setRatio] = useState<AspectRatio | null>(null);
   const [reference, setReference] = useState<AttachedImage | null>(null);
   const [busy, setBusy] = useState(false);
   const [pictures, setPictures] = useState<Picture[] | null>(null);
@@ -82,6 +89,9 @@ function ImageScreen() {
         // server-side from a closed list, so this can never become a second
         // prompt slot the client writes.
         style,
+        // The ratio, unlike the style, IS a request field — it reaches Google
+        // verbatim, and the server checks it against the same allowlist.
+        aspectRatio: ratio,
         // The preview URL stays on this side — it is a data: URL for an <img>
         // and the server has no use for it. Only the bytes and the mime go.
         ...(reference
@@ -164,6 +174,28 @@ function ImageScreen() {
                 testId={`image-style-${s}`}
               >
                 {STYLE_LABEL[s] ?? s}
+              </OniqChip>
+            ))}
+          </div>
+
+          {/* ASPECT RATIO — a REAL request field, unlike Style, and measured
+              before it was built: generationConfig.imageConfig.aspectRatio
+              returns 200 and the pixels actually change (1:1 -> 1024x1024,
+              9:16 -> 768x1376), with a nonsense sibling rejected as proof the
+              200 means something. Tapping the active chip again clears it,
+              which sends no imageConfig at all — the shape the control used. */}
+          <p className="mt-4 text-[11px] font-semibold text-muted-foreground">Aspect Ratio</p>
+          <div className="mt-1.5 flex flex-wrap gap-2" role="radiogroup" aria-label="Aspect ratio">
+            {ASPECT_RATIOS.map((r) => (
+              <OniqChip
+                key={r}
+                role="radio"
+                tone="soft"
+                active={ratio === r}
+                onClick={() => setRatio((cur) => (cur === r ? null : r))}
+                testId={`image-ratio-${r.replace(":", "x")}`}
+              >
+                {r}
               </OniqChip>
             ))}
           </div>
