@@ -115,25 +115,25 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
     // The exact wording the owner asked for. It is not "unavailable".
     userMessage: "Google Voice Replication — Access required",
     evidence:
-      "GATED ON CREDENTIALS, and now we know which. Measured 2026-09-04: " +
-      "`customVoiceConfig` PARSES on gemini-3.1-flash-tts-preview where a " +
-      'made-up sibling is rejected as `Unknown name "voiceCloningConfig": ' +
-      "Cannot find field`, so the field is real — but it carries NO " +
-      "replication-key subfield (voiceReplicationKey inside it is also " +
-      "'Cannot find field'), and all four replication RPC names " +
-      "(:generateVoiceReplicationKey, :createVoiceReplicationKey, " +
-      "/voiceReplicationKeys at both paths) return 404 with an EMPTY body — " +
-      "unrouted on generativelanguage.googleapis.com/v1beta. The model object " +
-      "itself advertises only generateContent, countTokens and " +
-      "batchGenerateContent. " +
-      "THE BLOCKER IS THE CREDENTIAL, NOT THE FEATURE: " +
-      "texttospeech.googleapis.com IS reachable and answers 401 'API keys are " +
-      "not supported by this API. Expected OAuth2 access token' " +
-      "(CREDENTIALS_MISSING). The owner's documented routes (Chirp 3 Instant " +
-      "Custom Voice; Gemini-TTS replication) live behind Cloud TTS, which " +
-      "needs a SERVICE ACCOUNT rather than the API key ONIQ holds — the same " +
-      "wall the Weather API hit. Provisioning one is an owner decision. Until " +
-      "then this is 'Access required', not 'unavailable'.",
+      "THE FEATURE IS REAL AND ON A HOST ONIQ WAS NOT PROBING. Owner supplied " +
+      "Google's documentation 2026-09-04d: replication lives on VERTEX AI, " +
+      "POST aiplatform.googleapis.com/v1beta1/projects/{P}/locations/global/" +
+      "voices to mint a key from a source sample plus a consent recording, " +
+      "then .../publishers/google/models/gemini-3.1-flash-tts-preview" +
+      ":generateContent with the key in speech_config.voice_config.voice. " +
+      "That explains every earlier negative: those probes ran against " +
+      "generativelanguage.googleapis.com, where the RPCs genuinely do not " +
+      "exist, and looked for `customVoiceConfig` when the field is a plain " +
+      "string called `voice`. The earlier 'no such surface' finding was " +
+      "wrong, and is corrected here rather than quietly dropped. " +
+      "TWO DOORS, BOTH SHUT: (1) auth is OAuth2 — measured, " +
+      "texttospeech.googleapis.com answers 401 'API keys are not supported " +
+      "by this API. Expected OAuth2 access token' — so it needs a SERVICE " +
+      "ACCOUNT and a GOOGLE_CLOUD_PROJECT, which ONIQ does not hold; (2) it " +
+      "is an allow-listed preview, requested through a Google form. Both are " +
+      "owner decisions. The flow itself is built and unit-tested in " +
+      "_shared/voiceReplication.ts, so admission is the only thing between " +
+      "here and a working feature.",
   },
   "voice.realtime": {
     id: "voice.realtime",
