@@ -646,7 +646,13 @@ describe("what the registry claims about both APIs", () => {
     // POST to the DEPLOYED function came back 200. These move on the same
     // evidence and not before.
     for (const id of ["weather.current", "air.current"] as const) {
-      expect(CAPABILITIES[id].evidence, id).toMatch(/STILL UNPROVEN/);
+      // The INTENT, not one phrase: every row must say plainly what is still
+      // not established. weather.current's wording changed the day production
+      // answered — the block moved from "can this account call it at all" to
+      // "the API-enablement question was never reached" — and the property
+      // being held is that it still names an open question, not that it uses
+      // any particular words for it.
+      expect(CAPABILITIES[id].evidence, id).toMatch(/STILL UNPROVEN|NOT YET KNOWN/);
       expect(CAPABILITIES[id].evidence, id).toContain("Expected OAuth 2 access token");
       // The controls, without which the 401 proves nothing.
       expect(CAPABILITIES[id].evidence, id).toContain("PERMISSION_DENIED");
