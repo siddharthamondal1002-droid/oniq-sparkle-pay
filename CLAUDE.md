@@ -25,6 +25,30 @@ a business decision: ask. An owner decision, once given, is recorded next
 to the code it governs as "owner directive" with the date, the way the
 2026-08-13 movie-on/classic-off flip is.
 
+## Owner directive, 2026-09-04 — the Google model mapping
+
+The owner mapped each ONIQ feature to a Google model and answered the three
+questions that mapping raised. Recorded in full, with the measured evidence,
+in the header of `supabase/functions/_shared/modelRegistry.ts`. In short:
+
+- Image, voice and text run on the **Lovable gateway** (credits). Music alone
+  runs on the **metered Google key**, because the gateway carries no music
+  model at all — measured, not assumed.
+- **Gemini serves text, Claude catches it.** The 2026-08-14 "text runs
+  Claude-first" is superseded. The failover was not deleted, it was reversed:
+  `callText` in `llm.ts` is the entry point, and callers that need real search
+  still go to Claude, because the gateway's chat endpoint carries no search
+  tools and a search-less engine invents its sources.
+- Prices in that mapping are recorded **as the owner gave them**. They are
+  Google list prices; this container cannot reach Google's pricing pages, and
+  a reseller gateway is not obliged to charge them.
+
+**Verify a model id by POST before writing it into code.** Not by ListModels —
+`llm.ts` carries the measured table where a listed model with the right method
+advertised returned 404 on every real call for months, leaving the fallback it
+served dead the whole time. A catalogue says what exists; only a POST says what
+this key may call.
+
 ## Linting
 
 A task is not complete until `npm run lint:ci` passes. Never use
