@@ -317,7 +317,7 @@ function Journey({
           />
           <span
             className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${
-              s.eyebrowTone === "solid" ? "bg-world text-white" : "bg-world-soft text-world"
+              s.eyebrowTone === "solid" ? "bg-world text-on-world" : "bg-world-soft text-world"
             }`}
           >
             {s.eyebrow}
@@ -399,7 +399,7 @@ function PracticeSetCard({
         </div>
         <span
           className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold ${
-            open ? "bg-world-soft text-world" : "bg-world text-white"
+            open ? "bg-world-soft text-world" : "bg-world text-on-world"
           }`}
         >
           {open ? "Close" : "Start"}
@@ -520,7 +520,7 @@ function TestCard({
         </div>
         <span
           className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold ${
-            open ? "bg-world-soft text-world" : "bg-world text-white"
+            open ? "bg-world-soft text-world" : "bg-world text-on-world"
           }`}
         >
           {open ? "Close" : "Open"}
@@ -746,7 +746,7 @@ function QuickCheck({ destination }: { destination: EligibilityInput["destinatio
         <button
           type="button"
           onClick={() => setShown(true)}
-          className="press mt-5 w-full rounded-full bg-world py-3 text-sm font-semibold text-white world-glow"
+          className="press mt-5 w-full rounded-full bg-world py-3 text-sm font-semibold text-on-world world-glow"
         >
           Show orientation
         </button>

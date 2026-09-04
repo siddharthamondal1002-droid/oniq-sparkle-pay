@@ -198,21 +198,46 @@ describe("the accessibility mechanisms are actually wired up", () => {
  * contrast failed" would send the next person hunting through twelve blocks.
  * -------------------------------------------------------------------------- */
 
+type World = {
+  name: string;
+  a: RGB;
+  b: RGB;
+  fillA: RGB;
+  fillB: RGB;
+  on: RGB;
+  inkLight: RGB;
+  inkDark: RGB;
+};
+
+/** `--world-on` is white unless a world overrides it; `blessed` does. The
+ *  root declaration is the one before the first `[data-world]` block. */
+const ROOT_ON = (() => {
+  const m = CSS.slice(0, CSS.indexOf('[data-world="')).match(/--world-on:\s*([^;]+);/);
+  if (!m) throw new Error("no root --world-on in styles.css");
+  return m[1].trim();
+})();
+
 /** Every `[data-world="x"]` block, with the tokens it sets. */
-function worldBlocks(): { name: string; a: RGB; b: RGB; inkLight: RGB; inkDark: RGB }[] {
-  const out: { name: string; a: RGB; b: RGB; inkLight: RGB; inkDark: RGB }[] = [];
+function worldBlocks(): World[] {
+  const out: World[] = [];
   for (const m of CSS.matchAll(/\[data-world="([a-z-]+)"\]\s*\{([^}]*)\}/g)) {
     const body = m[2];
     const pick = (n: string) => body.match(new RegExp(`--${n}:\\s*([^;]+);`))?.[1]?.trim();
     const a = pick("world-a");
     const b = pick("world-b");
+    const fillA = pick("world-fill-a");
+    const fillB = pick("world-fill-b");
     const inkLight = pick("world-ink-light");
     const inkDark = pick("world-ink-dark");
     if (!a || !b || !inkLight || !inkDark) continue;
+    if (!fillA || !fillB) throw new Error(`${m[1]} sets --world-a but no --world-fill-a`);
     out.push({
       name: m[1],
       a: parse(a),
       b: parse(b),
+      fillA: parse(fillA),
+      fillB: parse(fillB),
+      on: parse(pick("world-on") ?? ROOT_ON),
       inkLight: parse(inkLight),
       inkDark: parse(inkDark),
     });
@@ -231,6 +256,58 @@ describe("world accents", () => {
   it("finds every world block, so a broken parser cannot pass vacuously", () => {
     expect(WORLDS.length).toBeGreaterThanOrEqual(8);
     expect(WORLDS.map((w) => w.name)).toContain("create");
+  });
+
+  /* ------------------------------------------------------- the filled world
+   * MEASURED 2026-09-04. White on the VIVID pair failed AA in 17 of the 23
+   * worlds; `create` — the Make a picture button — read 1.81:1 on #22d3ee.
+   * `bg-world` now paints `--world-fill-*`, each stop moved in OKLCH
+   * lightness only until it clears the bar against that world's own
+   * `--world-on`. This is the test that stops someone "restoring the vivid
+   * gradient" on a control that carries a label.
+   * ---------------------------------------------------------------------- */
+  it("bg-world paints the readable pair, not the vivid one", () => {
+    const rule = CSS.slice(
+      CSS.indexOf("@utility bg-world {"),
+      CSS.indexOf("@utility bg-world-vivid"),
+    );
+    expect(rule).toContain("--world-fill-a");
+    expect(rule).toContain("--world-fill-b");
+    expect(rule, "bg-world went back to the vivid accent").not.toMatch(/var\(--world-a\)/);
+  });
+
+  it.each(WORLDS.map((w) => [w.name, w] as const))(
+    "%s — a label on the filled world clears 4.5:1 at both gradient stops",
+    (name, w) => {
+      // A linear-gradient in sRGB never leaves the box its endpoints draw, so
+      // holding both stops holds every pixel between them.
+      for (const [end, stop] of [
+        ["a", w.fillA],
+        ["b", w.fillB],
+      ] as const) {
+        const r = contrast(w.on, stop);
+        expect(
+          r,
+          `${name}: --world-on on --world-fill-${end} scored ${r.toFixed(2)}:1`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    },
+  );
+
+  it("the fill pair keeps each world's hue — it is a darkening, not a repaint", () => {
+    // Guards the other direction: a "fix" that made every world the same
+    // legible navy would pass the contrast test above and destroy the design.
+    const hue = ([r, g, b]: RGB) =>
+      (Math.atan2(Math.sqrt(3) * (g - b), 2 * r - g - b) * 180) / Math.PI;
+    for (const w of WORLDS) {
+      for (const [vivid, fill] of [
+        [w.a, w.fillA],
+        [w.b, w.fillB],
+      ] as const) {
+        const d = Math.abs(((hue(vivid) - hue(fill) + 540) % 360) - 180);
+        expect(d, `${w.name}: hue moved ${d.toFixed(1)}° between accent and fill`).toBeLessThan(12);
+      }
+    }
   });
 
   describe.each([

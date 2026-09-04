@@ -250,16 +250,33 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
   "weather.current": {
     id: "weather.current",
     provider: "google",
-    // EXPERIMENTAL, not LIVE, and the distinction is the whole point of this
-    // file. What is MEASURED is that the endpoint accepts an OAuth 2 token at
-    // all; what is NOT is that ONIQ's service account in particular may call
-    // it, because that needs the real key and the key exists only as a
-    // Supabase secret. music.referenceAudio sat exactly here until one POST
-    // to the deployed function came back 200, and this moves on the same
-    // evidence and not before.
-    state: "EXPERIMENTAL",
+    // LIVE as of 2026-09-04 21:02 UTC, on the evidence this file demands and
+    // not a minute earlier: a real call from the DEPLOYED function that came
+    // back with a real reading and STORED it. The three-request control set
+    // below is kept because it is what made the failures readable, but it is
+    // no longer the load-bearing evidence — the stored row is.
+    state: "LIVE",
+    // KEPT THOUGH THE ROW IS LIVE: this is what the screen says if the row
+    // is ever flipped back. A kill switch that falls through to a generic
+    // "Not available yet" is a worse kill switch.
     userMessage: "Weather isn't switched on yet",
     evidence:
+      "PROMOTED 2026-09-04 on a production round trip. weather_cache holds " +
+      "cell 22.6,88.4 fetched_at 2026-09-04 21:02:41.479+00 with reading " +
+      '{"tempC":28,"feelsLikeC":33,"humidity":90,"windKmh":6,' +
+      '"condition":"Partly cloudy","conditionType":"PARTLY_CLOUDY",' +
+      '"isDay":false}. That row could only be written by a 200 from ' +
+      "weather.googleapis.com on ONIQ's own service account, through the " +
+      "deployed function, after the roles/serviceusage.serviceUsageConsumer " +
+      "grant on oniq-309bd cleared — so it settles BOTH open questions at " +
+      "once: the account may call the API, and the API is enabled on the " +
+      "project. The second was never reached before, because the serviceusage " +
+      "check fires first. " +
+      "THE CACHE IS ALSO PROVEN BY THE SAME ROW: one row, not one per request, " +
+      "written at the 0.1-degree cell centre rather than the caller's own " +
+      "coordinates. " +
+      "WHAT THE REFUSALS LOOKED LIKE, kept because a future failure will look " +
+      "like one of them. " +
       "2026-09-04, three requests to weather.googleapis.com/v1/currentConditions:lookup " +
       "from the dev container, which is a control set rather than a single probe. " +
       "NO CREDENTIAL: 403 PERMISSION_DENIED, \"Method doesn't allow unregistered callers " +
@@ -305,9 +322,30 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
     // A SEPARATE ENTRY FROM weather.current, because it is a separate API with
     // a separate enablement state on the project. One of the two can be live
     // while the other is not, and a single row would have to lie about which.
-    state: "EXPERIMENTAL",
+    // Both happen to be live now; the split is what let them be settled
+    // independently rather than assumed together.
+    state: "LIVE",
+    // KEPT THOUGH THE ROW IS LIVE: this is what the screen says if the row
+    // is ever flipped back. A kill switch that falls through to a generic
+    // "Not available yet" is a worse kill switch.
     userMessage: "Air quality isn't switched on yet",
     evidence:
+      "PROMOTED 2026-09-04 on its own production round trip, separately from " +
+      "weather. The same weather_cache row carries air " +
+      '{"aqi":58,"code":"ind_cpcb","indexName":"NAQI (IN)",' +
+      '"category":"Satisfactory air quality","dominantPollutant":"pm10"} at ' +
+      "fetched_at 2026-09-04 21:02:41.479+00. Air is fired in the same round " +
+      "as weather but settled separately and allowed to fail alone, so a " +
+      "non-null `air` column is proof of THIS API answering 200 and not of " +
+      "the weather one. " +
+      "AND IT CONFIRMS THE POLARITY TRAP THE UI WAS BUILT AGAINST: Google " +
+      "returned the LOCAL index, ind_cpcb / NAQI (IN), which runs 0-500 " +
+      "WORST-high — not the 0-100 BEST-high universal index. 58 is " +
+      '"Satisfactory air quality" on that scale and would read as poor on the ' +
+      "other. Nothing in ONIQ judges the number; the tint and the wording come " +
+      "from Google's own `category` string, which is why this row being a " +
+      "different index from the one expected changed no code. " +
+      "WHAT THE REFUSALS LOOKED LIKE, kept for the next failure. " +
       "2026-09-04, the same three-request control set fired at " +
       "airquality.googleapis.com/v1/currentConditions:lookup as at the weather host, and " +
       "answered identically. NO CREDENTIAL: 403 PERMISSION_DENIED, \"Method doesn't allow " +

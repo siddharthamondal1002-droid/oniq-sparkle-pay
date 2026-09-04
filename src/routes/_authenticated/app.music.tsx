@@ -14,6 +14,7 @@ import {
   OniqMadeLink,
   OniqSectionHeader,
   OniqSkeletonRows,
+  clockTime,
 } from "@/components/oniq";
 import { OniqAttachAudio, type AttachedAudio } from "@/components/oniq/OniqAttachAudio";
 import { OniqAttachImage, type AttachedImage } from "@/components/oniq/OniqAttachImage";
@@ -70,6 +71,82 @@ type Song = {
   /** The one-line description heard in a reference track. */
   brief?: string | null;
 };
+
+/**
+ * ONE SONG, AND THE LENGTH IT ACTUALLY CAME OUT AT.
+ *
+ * Its own component for one reason: the length is per song and is not known
+ * until that song's own audio header loads, so the state has to live beside
+ * the element that learns it. Hoisting it into MusicScreen would mean a map
+ * of ids to durations, re-rendering every card whenever any one of them
+ * resolved.
+ *
+ * WHY THE LENGTH IS SHOWN AT ALL. The reference draws a Duration control —
+ * 30s / 1 min / 2 min / Custom — and there cannot be one: all four request
+ * shapes returned 400 when measured on 2026-09-04, and Lyria's response
+ * carries no duration field either. What IS true is how long the track turned
+ * out, and the browser can read that from the file. So the half of "duration"
+ * ONIQ can be honest about is shown, and the half it cannot is not faked.
+ */
+function SongCard({ song: s }: { song: Song }) {
+  const [length, setLength] = useState<string | null>(null);
+
+  return (
+    <OniqCard variant="surface" className="p-3" testId="music-song">
+      <div className="flex items-center gap-2">
+        <Music4 className="h-4 w-4 shrink-0 text-world" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{s.prompt}</span>
+        {/* Nothing at all until the header has actually loaded — a dash or a
+            0:00 placeholder would be ONIQ guessing at the one number this
+            card exists to state truthfully. */}
+        {length ? (
+          <span
+            data-testid="music-song-length"
+            className="shrink-0 text-[11px] tabular-nums text-muted-foreground"
+          >
+            {length}
+          </span>
+        ) : null}
+      </div>
+      {/* Provenance stays with the song, not just with the moment it was
+          made — the brief is the evidence that a reference produced a
+          DESCRIPTION and not a copy. */}
+      {s.reference === "audio" && s.brief ? (
+        <p
+          data-testid="music-song-brief"
+          className="mt-1 flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground"
+        >
+          <Ear className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="min-w-0">Heard in your track: {s.brief}</span>
+        </p>
+      ) : s.reference === "image" ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">From a picture you added</p>
+      ) : null}
+      {s.url ? (
+        // preload="metadata", not "none": the header alone is a few
+        // hundred bytes and it is what lets the length appear
+        // without anyone pressing play. With "none" the native
+        // control reads 0:00 until it is played, which is the state
+        // this screen was in when the Duration gap was raised.
+        <audio
+          controls
+          preload="metadata"
+          src={s.url}
+          className="mt-2 w-full"
+          onLoadedMetadata={(e) => {
+            const d = e.currentTarget.duration;
+            if (Number.isFinite(d) && d > 0) setLength(clockTime(d));
+          }}
+        >
+          <track kind="captions" />
+        </audio>
+      ) : (
+        <p className="mt-2 text-[11px] text-muted-foreground">This one could not be loaded.</p>
+      )}
+      <OniqMadeLink kind="music" id={s.id} testId="music-open" />
+    </OniqCard>
+  );
+}
 
 function MusicScreen() {
   const [prompt, setPrompt] = useState("");
@@ -200,6 +277,20 @@ function MusicScreen() {
             ))}
           </div>
 
+          {/* WHERE THE REFERENCE DRAWS "DURATION", AND WHY THERE IS NO ROW.
+              The reference draws 30s / 1 min / 2 min / Custom. All four
+              request shapes were measured on 2026-09-04 and all four came
+              back 400: the field is not real on this model, and the response
+              carries no duration either. Four chips that changed nothing
+              would be a lie told four ways, so the screen says the true thing
+              instead — once, quietly, next to where the control would be.
+              The length a person actually got is on the song itself below,
+              which is the half of "duration" that can be honest. */}
+          <p data-testid="music-length-note" className="mt-3 text-[11px] text-muted-foreground">
+            Length isn't something you can set — each track comes out as long as it comes out.
+            You'll see it on the song.
+          </p>
+
           {/* Shown only when a track is attached, because that is the only
               case where what happens is not what a person would assume. */}
           {track ? (
@@ -225,7 +316,7 @@ function MusicScreen() {
               data-testid="music-generate"
               onClick={() => void generate()}
               disabled={!prompt.trim() || busy}
-              className="press inline-flex items-center gap-2 rounded-full bg-world px-4 py-2 text-[13px] font-semibold text-white world-glow disabled:opacity-50"
+              className="press inline-flex items-center gap-2 rounded-full bg-world px-4 py-2 text-[13px] font-semibold text-on-world world-glow disabled:opacity-50"
             >
               <Sparkles className="h-4 w-4" aria-hidden="true" />
               {busy ? "Writing…" : "Make music"}
@@ -264,38 +355,7 @@ function MusicScreen() {
         ) : (
           <div className="mt-3 grid gap-2">
             {songs.map((s) => (
-              <OniqCard key={s.id} variant="surface" className="p-3" testId="music-song">
-                <div className="flex items-center gap-2">
-                  <Music4 className="h-4 w-4 shrink-0 text-world" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
-                    {s.prompt}
-                  </span>
-                </div>
-                {/* Provenance stays with the song, not just with the moment it
-                    was made — the brief is the evidence that a reference
-                    produced a DESCRIPTION and not a copy. */}
-                {s.reference === "audio" && s.brief ? (
-                  <p
-                    data-testid="music-song-brief"
-                    className="mt-1 flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground"
-                  >
-                    <Ear className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                    <span className="min-w-0">Heard in your track: {s.brief}</span>
-                  </p>
-                ) : s.reference === "image" ? (
-                  <p className="mt-1 text-[11px] text-muted-foreground">From a picture you added</p>
-                ) : null}
-                {s.url ? (
-                  <audio controls preload="none" src={s.url} className="mt-2 w-full">
-                    <track kind="captions" />
-                  </audio>
-                ) : (
-                  <p className="mt-2 text-[11px] text-muted-foreground">
-                    This one could not be loaded.
-                  </p>
-                )}
-                <OniqMadeLink kind="music" id={s.id} testId="music-open" />
-              </OniqCard>
+              <SongCard key={s.id} song={s} />
             ))}
           </div>
         )}

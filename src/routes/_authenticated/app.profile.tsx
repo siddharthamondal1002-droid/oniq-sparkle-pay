@@ -137,7 +137,7 @@ function ProfileScreen() {
           type="button"
           onClick={() => setEditAvatar(true)}
           aria-label="Edit profile photo"
-          className="press relative mt-4 grid h-24 w-24 place-items-center overflow-visible rounded-[28px] bg-world font-display text-4xl text-white world-glow"
+          className="press relative mt-4 grid h-24 w-24 place-items-center overflow-visible rounded-[28px] bg-world font-display text-4xl text-on-world world-glow"
         >
           <span className="grid h-full w-full place-items-center overflow-hidden rounded-[28px]">
             {form.avatar_url ? (
@@ -205,7 +205,7 @@ function ProfileScreen() {
           <button
             type="submit"
             disabled={save.isPending}
-            className="press flex w-full items-center justify-center gap-2 rounded-2xl bg-world py-3 text-sm font-semibold text-white world-glow disabled:opacity-60"
+            className="press flex w-full items-center justify-center gap-2 rounded-2xl bg-world py-3 text-sm font-semibold text-on-world world-glow disabled:opacity-60"
           >
             <Save className="h-4 w-4" /> {save.isPending ? "Saving…" : "Save changes"}
           </button>
@@ -507,7 +507,7 @@ function AppearanceSection() {
   };
   const modeClass = (on: boolean) =>
     `press flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold ${
-      on ? "bg-world text-white world-glow" : "oniq-surface text-muted-foreground"
+      on ? "bg-world text-on-world world-glow" : "oniq-surface text-muted-foreground"
     }`;
   return (
     <section className="mt-8">
@@ -1044,7 +1044,7 @@ function PayoutSection() {
               type="button"
               disabled={saving || !vpa.trim() || vpa.trim().toLowerCase() === savedVpa}
               onClick={() => void save()}
-              className="press rounded-2xl bg-world px-4 py-2.5 text-sm font-semibold text-white world-glow disabled:opacity-50"
+              className="press rounded-2xl bg-world px-4 py-2.5 text-sm font-semibold text-on-world world-glow disabled:opacity-50"
             >
               Save
             </button>

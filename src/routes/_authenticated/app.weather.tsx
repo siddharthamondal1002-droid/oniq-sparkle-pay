@@ -10,7 +10,6 @@ import {
   OniqSkeletonRows,
 } from "@/components/oniq";
 import { isLive, unavailableMessage } from "@/data/capabilities";
-import { useIsAdmin } from "@/lib/useIsAdmin";
 import {
   airLabel,
   airTint,
@@ -62,7 +61,6 @@ function WeatherScreen() {
   const [place, setPlace] = useState<WeatherPlace | null>(readPlace);
   const [asking, setAsking] = useState(false);
   const [refused, setRefused] = useState(false);
-  const isAdmin = useIsAdmin();
   const weather = useWeather(place);
 
   const add = async () => {
@@ -97,18 +95,23 @@ function WeatherScreen() {
       <OniqHeader eyebrow="Right now" title="Weather" back="/app" />
 
       <div className="mt-4 px-5">
-        {!isLive("weather.current") && !isAdmin && !place ? (
-          // NOT YET, AND SAY SO RATHER THAN ASK. The capability is
-          // EXPERIMENTAL until one call from the deployed function proves this
-          // account may reach Google; until then, asking somebody to hand over
-          // their location would be trading a permission for nothing. The
-          // sentence is the registry's own, so it cannot drift from the state
-          // it describes.
+        {!isLive("weather.current") ? (
+          // THE KILL SWITCH, and it is no longer the normal case. The
+          // capability went LIVE on 2026-09-04 21:02 UTC when a call from the
+          // deployed function stored a real reading, so this branch is dark
+          // today. It stays because the registry is where a regression is
+          // declared: flip that row back and every user — including one who
+          // already shared a location — gets this sentence instead of an
+          // error, without a deploy.
           //
-          // AN ADMIN PASSES THROUGH, because somebody has to be able to make
-          // the call that promotes it. Gating everyone out made the capability
-          // unprovable: EXPERIMENTAL hid the only screen that could produce
-          // the evidence for LIVE.
+          // IT USED TO CARRY `&& !isAdmin && !place`. The admin bypass existed
+          // to break a deadlock: EXPERIMENTAL hid the only screen that could
+          // produce the evidence for LIVE, so the capability could never be
+          // promoted. It has been promoted; the bypass is gone, and with it an
+          // is_admin round trip on every load of this screen.
+          //
+          // The sentence is the registry's own, so it cannot drift from the
+          // state it describes.
           <OniqEmpty
             emoji="🌥️"
             title={unavailableMessage("weather.current") ?? "Not available yet"}

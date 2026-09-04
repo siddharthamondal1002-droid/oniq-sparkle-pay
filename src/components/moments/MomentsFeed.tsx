@@ -537,7 +537,7 @@ export function MomentsFeed() {
             <button
               onClick={post}
               disabled={posting || (!content.trim() && !imageUrl.trim())}
-              className="press rounded-full bg-world px-5 py-2 text-xs font-semibold text-white world-glow disabled:opacity-50"
+              className="press rounded-full bg-world px-5 py-2 text-xs font-semibold text-on-world world-glow disabled:opacity-50"
             >
               {posting ? "Posting…" : "Post"}
             </button>
@@ -926,7 +926,7 @@ function EditPostSheet({
         <button
           onClick={save}
           disabled={busy}
-          className="press mt-4 w-full rounded-2xl bg-world py-3 text-sm font-semibold text-white world-glow disabled:opacity-50"
+          className="press mt-4 w-full rounded-2xl bg-world py-3 text-sm font-semibold text-on-world world-glow disabled:opacity-50"
         >
           {busy ? "saving…" : "save changes"}
         </button>
@@ -1026,7 +1026,7 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
           ) : comments?.length ? (
             comments.map((c) => (
               <div key={c.id} className="flex gap-3">
-                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-world text-xs font-bold text-white">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-world text-xs font-bold text-on-world">
                   {(c.profiles?.display_name ?? "U").charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 rounded-2xl bg-surface-2 px-3 py-2">
@@ -1058,7 +1058,7 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
             onClick={send}
             aria-label="Post comment"
             disabled={sending || !text.trim()}
-            className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-world text-white disabled:opacity-50"
+            className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-world text-on-world disabled:opacity-50"
           >
             <Send className="h-4 w-4" />
           </button>

@@ -312,7 +312,7 @@ function AgeGateCard({ hasDob, onSaved }: { hasDob: boolean; onSaved: () => void
                   setBusy(false);
                 }
               }}
-              className="press mt-3 w-full rounded-full bg-world px-4 py-2.5 text-sm font-semibold text-white world-glow disabled:opacity-40"
+              className="press mt-3 w-full rounded-full bg-world px-4 py-2.5 text-sm font-semibold text-on-world world-glow disabled:opacity-40"
             >
               {busy ? "Saving…" : "Save date of birth"}
             </button>
@@ -822,7 +822,7 @@ function CvWorkbench({
               type="button"
               onClick={() => setShowCsvImport((v) => !v)}
               className={`press flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold ${
-                showCsvImport ? "bg-world text-white" : "oniq-surface text-foreground"
+                showCsvImport ? "bg-world text-on-world" : "oniq-surface text-foreground"
               }`}
             >
               <FileUp className="size-3.5" /> Import CSV
@@ -1269,7 +1269,7 @@ function CvWorkbench({
             onClick={() => setAiEnabled((v) => !v)}
             aria-pressed={aiEnabled}
             className={`press rounded-full px-3 py-1 text-[11px] font-semibold ${
-              aiEnabled ? "bg-world text-white" : "oniq-surface text-muted-foreground"
+              aiEnabled ? "bg-world text-on-world" : "oniq-surface text-muted-foreground"
             }`}
           >
             {aiEnabled ? "On" : "Off"}
@@ -1291,7 +1291,7 @@ function CvWorkbench({
               type="button"
               disabled={busy || !hasAnything || hasErrors}
               onClick={generate}
-              className="press mt-2 w-full rounded-full bg-world px-4 py-2.5 text-sm font-semibold text-white world-glow disabled:opacity-40"
+              className="press mt-2 w-full rounded-full bg-world px-4 py-2.5 text-sm font-semibold text-on-world world-glow disabled:opacity-40"
             >
               {busy ? "Writing…" : `Generate my ${cvWord}`}
             </button>
@@ -1385,7 +1385,7 @@ function CvWorkbench({
             type="button"
             disabled={!attested}
             onClick={saveAndAttest}
-            className="press mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-world px-4 py-2.5 text-sm font-semibold text-white world-glow disabled:opacity-40"
+            className="press mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-world px-4 py-2.5 text-sm font-semibold text-on-world world-glow disabled:opacity-40"
           >
             <BadgeCheck className="size-4" /> Save and confirm accuracy
           </button>
@@ -1642,7 +1642,7 @@ function CvLivePreview({
               onClick={() => setShowBreaks((v) => !v)}
               aria-pressed={showBreaks}
               className={`press shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold ${
-                showBreaks ? "bg-world text-white" : "oniq-surface text-foreground"
+                showBreaks ? "bg-world text-on-world" : "oniq-surface text-foreground"
               }`}
             >
               Page breaks

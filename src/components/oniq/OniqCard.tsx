@@ -5,7 +5,7 @@ const VARIANT: Record<string, string> = {
   surface: "oniq-surface",
   glass: "oniq-glass",
   tinted: "bg-world-soft border border-world",
-  hero: "bg-world text-white world-glow",
+  hero: "bg-world text-on-world world-glow",
   outline: "border border-border bg-transparent",
 };
 const PADDING: Record<string, string> = { none: "", sm: "p-3", md: "p-4", lg: "p-5" };

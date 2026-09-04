@@ -64,6 +64,15 @@ const HOME = read("src/routes/_authenticated/app.index.tsx");
 const SCREEN = read("src/routes/_authenticated/app.weather.tsx");
 const PLACE = read("src/lib/weatherPlace.ts");
 const INVITE = read("src/components/home/WeatherInvite.tsx");
+const REGISTRY = read("supabase/functions/_shared/capabilityRegistry.ts");
+
+/** Strip comments. Three assertions in this repo have passed or failed on
+ *  prose rather than code; a "this must NOT appear" check is the shape most
+ *  likely to be satisfied by the very comment explaining why it is gone. */
+const codeOnly = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+const HOME_CODE = codeOnly(HOME);
+const SCREEN_CODE = codeOnly(SCREEN);
 
 describe("the credential is the owner's, and the endpoint was measured first", () => {
   it("goes through googleAccessToken, which is the Firebase service account", () => {
@@ -636,23 +645,30 @@ describe("the chip stays on once weather is selected", () => {
 describe("what the registry claims about both APIs", () => {
   it("keeps weather and air as SEPARATE rows", () => {
     // They are enabled separately on the project, so one can work while the
-    // other does not. A single row would have to lie about which.
-    expect(CAPABILITIES["weather.current"].state).toBe("EXPERIMENTAL");
-    expect(CAPABILITIES["air.current"].state).toBe("EXPERIMENTAL");
+    // other does not. A single row would have to lie about which. Both are
+    // LIVE today, which is exactly when the temptation to merge them appears
+    // — so hold the separateness, not the shared state.
+    expect(CAPABILITIES["weather.current"].state).toBe("LIVE");
+    expect(CAPABILITIES["air.current"].state).toBe("LIVE");
+    expect(CAPABILITIES["weather.current"].evidence).not.toBe(CAPABILITIES["air.current"].evidence);
+    // Each row must be promoted on ITS OWN answer. The air half is fired in
+    // the same round as weather and allowed to fail alone, so "weather worked"
+    // is not evidence for air and must not be quoted as if it were.
+    expect(CAPABILITIES["air.current"].evidence).toMatch(/ind_cpcb|NAQI/);
+    expect(CAPABILITIES["weather.current"].evidence).toMatch(/PARTLY_CLOUDY|tempC/);
   });
 
-  it("neither claims to be LIVE on a probe that never reached a body", () => {
-    // music.referenceAudio sat at EXPERIMENTAL saying exactly this until one
-    // POST to the DEPLOYED function came back 200. These move on the same
-    // evidence and not before.
+  it("was promoted on a STORED reading, and keeps the refusals that came first", () => {
+    // music.referenceAudio sat at EXPERIMENTAL until one POST to the DEPLOYED
+    // function came back 200. These moved on the same evidence: a row in
+    // weather_cache that only a 200 could have written. What this test holds
+    // is that the promotion cites that artefact rather than an intention —
+    // "the grant was applied" is not evidence, a stored reading is.
     for (const id of ["weather.current", "air.current"] as const) {
-      // The INTENT, not one phrase: every row must say plainly what is still
-      // not established. weather.current's wording changed the day production
-      // answered — the block moved from "can this account call it at all" to
-      // "the API-enablement question was never reached" — and the property
-      // being held is that it still names an open question, not that it uses
-      // any particular words for it.
-      expect(CAPABILITIES[id].evidence, id).toMatch(/STILL UNPROVEN|NOT YET KNOWN/);
+      expect(CAPABILITIES[id].evidence, id).toMatch(/PROMOTED 2026-09-04/);
+      expect(CAPABILITIES[id].evidence, id).toMatch(/fetched_at 2026-09-04 21:02:41\.479/);
+      // The control set stays. A future failure will look like one of these,
+      // and a 401 alone proves nothing without the 403 and the 400 beside it.
       expect(CAPABILITIES[id].evidence, id).toContain("Expected OAuth 2 access token");
       // The controls, without which the 401 proves nothing.
       expect(CAPABILITIES[id].evidence, id).toContain("PERMISSION_DENIED");
@@ -674,34 +690,38 @@ describe("what the registry claims about both APIs", () => {
 });
 
 describe("nothing user-facing is offered before it can work", () => {
-  it("lets an ADMIN through, or the capability could never be promoted", () => {
-    // THE DEADLOCK THIS RESOLVES: capabilityRegistry promotes a capability to
-    // LIVE only on evidence from a real call, and the screens hide anything
-    // not LIVE — so the only surface that could produce that evidence was
-    // hidden by the state it was meant to escape. A feature that cannot be
-    // exercised cannot be promoted.
-    //
-    // ONIQ already solves this the same way twice: movie grade is admin-only
-    // until purchased seconds learn grades, and the in-house GPU tool was
-    // admin-gated before it opened to users.
-    expect(HOME).toContain('(isLive("weather.current") || isAdmin)');
-    expect(SCREEN).toContain('!isLive("weather.current") && !isAdmin && !place');
-    // Presentation only — the hook says so, and no admin POWER hangs off it.
-    expect(read("src/lib/useIsAdmin.ts")).toMatch(/PRESENTATION ONLY/);
-    expect(read("src/lib/useIsAdmin.ts")).toMatch(/fails? closed/i);
+  it("reaches every user, with no admin bypass left behind", () => {
+    // THE DEADLOCK THAT USED TO BE HERE: capabilityRegistry promotes a
+    // capability to LIVE only on evidence from a real call, and the screens
+    // hide anything not LIVE — so the only surface that could produce that
+    // evidence was hidden by the state it was meant to escape. The resolution
+    // was a temporary admin bypass, ONIQ's usual one (movie grade, the GPU
+    // tool). The bypass did its job on 2026-09-04 and is GONE: a leftover
+    // `|| isAdmin` would mean the owner sees a feature nobody else does, which
+    // is the failure this test now guards, plus an is_admin round trip on
+    // every load of Home.
+    expect(HOME).toContain('isLive("weather.current") && !place && !declined');
+    expect(HOME_CODE, "Home still checks is_admin for weather").not.toMatch(/isAdmin/);
+    expect(SCREEN_CODE, "the weather screen still checks is_admin").not.toMatch(/isAdmin/);
+    expect(HOME_CODE, "useIsAdmin is still imported by Home").not.toContain("useIsAdmin");
   });
 
-  it("asks for nobody's location while the capability is EXPERIMENTAL", () => {
+  it("still refuses to ask for a location the day the capability goes dark", () => {
     // THE RULE THIS REPO KEEPS: a button that cannot work is worse than no
     // button — the same one that kept a reference control off Music while
     // Lyria refused audio, and a clone button off Voice while Google had not
     // admitted this account. Asking for a location in exchange for nothing is
     // the worst version of it, because the price is a permission.
-    // Still true for a USER: the invite needs isLive, and only an admin
-    // bypasses it. A non-admin sees nothing until the row flips.
+    //
+    // So the isLive check survives the promotion. It is now the KILL SWITCH:
+    // flip the registry row back and the screen says so instead of asking,
+    // for everyone — including somebody who already shared a location, which
+    // is why the old `&& !place` came off the condition.
     expect(HOME).toContain("!place && !declined");
-    expect(HOME).toContain('isLive("weather.current") || isAdmin');
-    expect(SCREEN).toContain('!isLive("weather.current") && !isAdmin && !place');
+    expect(SCREEN_CODE).toContain('!isLive("weather.current") ?');
+    expect(SCREEN_CODE, "a saved place still slips past the kill switch").not.toContain(
+      '!isLive("weather.current") && !place',
+    );
   });
 
   it("says the registry's own sentence rather than a retyped one", () => {
@@ -711,11 +731,18 @@ describe("nothing user-facing is offered before it can work", () => {
     expect(SCREEN).not.toContain("Weather isn't switched on yet");
   });
 
-  it("is dark today, by that rule, and flips with one line", () => {
-    // Today this means no invite reaches anybody. The day one call from the
-    // DEPLOYED function comes back 200, the registry row flips to LIVE and the
-    // invite appears — nothing else has to change.
-    expect(isLive("weather.current")).toBe(false);
-    expect(isLive("air.current")).toBe(false);
+  it("is LIVE, on a stored production reading and not on a hope", () => {
+    // PROMOTED 2026-09-04 21:02:41.479+00. weather_cache row 22.6,88.4 holds
+    // a real reading (28C, feels 33, humidity 90, Partly cloudy) AND a real
+    // air index (NAQI (IN) 58, "Satisfactory air quality", pm10). That row can
+    // only exist if the deployed function got a 200 from each host on ONIQ's
+    // own service account — which settles the two questions the earlier
+    // refusals never reached: the account may call, and the API is enabled.
+    expect(isLive("weather.current")).toBe(true);
+    expect(isLive("air.current")).toBe(true);
+    // Air is a SEPARATE row because it is a separate API on a separate
+    // enablement switch. Both being live must not collapse them into one.
+    expect(REGISTRY).toContain('"air.current"');
+    expect(REGISTRY).toMatch(/ind_cpcb/);
   });
 });

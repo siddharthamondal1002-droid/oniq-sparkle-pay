@@ -452,7 +452,7 @@ function HirePanel({ goPartner }: { goPartner: () => void }) {
                 setNoProviderFor(null);
                 goPartner();
               }}
-              className="press mt-4 w-full rounded-full bg-world py-3 font-semibold text-white world-glow"
+              className="press mt-4 w-full rounded-full bg-world py-3 font-semibold text-on-world world-glow"
             >
               become a partner
             </button>
@@ -554,7 +554,7 @@ function PriceOfferSheet({
         <button
           onClick={submit}
           disabled={busy}
-          className="press mt-4 w-full rounded-full bg-world py-3 font-semibold text-white world-glow disabled:opacity-60"
+          className="press mt-4 w-full rounded-full bg-world py-3 font-semibold text-on-world world-glow disabled:opacity-60"
         >
           {busy ? "sending…" : "send offer"}
         </button>
@@ -750,7 +750,7 @@ function OniqPartnersSection({
                 </div>
                 <button
                   onClick={() => setBookTarget(p)}
-                  className="press shrink-0 rounded-full bg-world px-4 py-1.5 text-[12px] font-semibold text-white world-glow"
+                  className="press shrink-0 rounded-full bg-world px-4 py-1.5 text-[12px] font-semibold text-on-world world-glow"
                 >
                   book free
                 </button>
@@ -816,7 +816,7 @@ function OniqPartnersSection({
                       <div className="mt-1.5 flex gap-2">
                         <button
                           onClick={() => acceptCounter(b.id)}
-                          className="press rounded-full bg-world px-3 py-1 text-[11px] font-semibold text-white"
+                          className="press rounded-full bg-world px-3 py-1 text-[11px] font-semibold text-on-world"
                         >
                           accept {moneyIn(Number(b.counter_price), "INR")}
                         </button>
@@ -1071,7 +1071,7 @@ function BookServiceSheet({
           onClick={confirm}
           disabled={busy}
           data-testid="confirm-booking"
-          className="press mt-4 w-full rounded-full bg-world py-3 font-semibold text-white world-glow disabled:opacity-60"
+          className="press mt-4 w-full rounded-full bg-world py-3 font-semibold text-on-world world-glow disabled:opacity-60"
         >
           {busy ? "booking…" : `confirm booking · ${moneyIn(0, "INR")} fee`}
         </button>
@@ -1149,7 +1149,7 @@ function RateBookingSheet({
         <button
           onClick={submit}
           disabled={busy}
-          className="press mt-4 w-full rounded-full bg-world py-3 font-semibold text-white world-glow disabled:opacity-60"
+          className="press mt-4 w-full rounded-full bg-world py-3 font-semibold text-on-world world-glow disabled:opacity-60"
         >
           {busy ? "sending…" : "submit rating"}
         </button>
@@ -1366,7 +1366,7 @@ function PartnerPanel() {
     return (
       <div className="mt-6 space-y-4">
         <OniqCard variant="tinted" padding="lg" className="rise text-center">
-          <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-world text-white world-glow">
+          <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-world text-on-world world-glow">
             <Check className="h-6 w-6" />
           </div>
           <div className="font-display text-[18px] text-foreground">you're on the list ✅</div>
@@ -1482,7 +1482,7 @@ function PartnerPanel() {
       <button
         type="submit"
         disabled={submitting}
-        className="press w-full rounded-full bg-world py-3 font-semibold text-white world-glow disabled:opacity-60"
+        className="press w-full rounded-full bg-world py-3 font-semibold text-on-world world-glow disabled:opacity-60"
       >
         {submitting ? "submitting…" : "Join the partner waitlist"}
       </button>
@@ -1798,7 +1798,7 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
                   onClick={() =>
                     b.offered_price != null ? acceptPrice(b.id) : respond(b.id, "accepted")
                   }
-                  className="press flex-1 rounded-full bg-world py-1.5 text-[12px] font-semibold text-white"
+                  className="press flex-1 rounded-full bg-world py-1.5 text-[12px] font-semibold text-on-world"
                 >
                   {b.offered_price != null
                     ? `accept ${moneyIn(Number(b.offered_price), "INR")}`

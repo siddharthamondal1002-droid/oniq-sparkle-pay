@@ -296,7 +296,7 @@ function OfficialScreen() {
                 type="button"
                 data-testid="official-confirm-open"
                 onClick={confirmOpen}
-                className="press rounded-2xl bg-world py-3 text-sm font-semibold text-white"
+                className="press rounded-2xl bg-world py-3 text-sm font-semibold text-on-world"
               >
                 Open site
               </button>

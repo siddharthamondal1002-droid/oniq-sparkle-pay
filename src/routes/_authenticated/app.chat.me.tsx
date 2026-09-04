@@ -264,7 +264,7 @@ function MyPageTab() {
               <button
                 onClick={saveBio}
                 disabled={savingBio}
-                className="press flex h-8 items-center gap-1 rounded-full bg-world px-3 text-xs font-semibold text-white disabled:opacity-50"
+                className="press flex h-8 items-center gap-1 rounded-full bg-world px-3 text-xs font-semibold text-on-world disabled:opacity-50"
               >
                 <Check className="h-3.5 w-3.5" /> save
               </button>

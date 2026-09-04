@@ -371,7 +371,31 @@ function ImageScreen() {
               9:16 -> 768x1376), with a nonsense sibling rejected as proof the
               200 means something. Tapping the active chip again clears it,
               which sends no imageConfig at all — the shape the control used. */}
-          {needsPicture ? null : (
+          {needsPicture ? (
+            // AND WHY THERE IS NO RATIO CONTROL ON THIS TAB. Silence reads as
+            // an oversight; this reads as a decision, which is what it is.
+            //
+            // aspectRatio is measured and honoured on a TEXT-ONLY call
+            // (2026-09-04: control 1408x768, 1:1 -> 1024x1024, 9:16 ->
+            // 768x1376). It is UNMEASURED when an inlineData part goes first,
+            // and this repo does not ship a control whose effect is unknown —
+            // an accepted-and-ignored parameter is indistinguishable from a
+            // working one by status code alone. Settling it costs two image
+            // calls on the metered key against the same picture and prompt,
+            // 1:1 then 9:16, comparing returned pixel dimensions.
+            //
+            // Note this sentence is also the honest DEFAULT behaviour and not
+            // just an excuse: with no imageConfig sent, an edit comes back
+            // shaped like what went in, which is what a person handing over
+            // their own picture expects.
+            <p
+              data-testid="image-ratio-note"
+              className="mt-4 text-[11px] leading-snug text-muted-foreground"
+            >
+              Your picture keeps its shape — {tab === "edit" ? "edits" : "transforms"} come back the
+              same size you sent.
+            </p>
+          ) : (
             <>
               <p className="mt-4 text-[11px] font-semibold text-muted-foreground">Aspect Ratio</p>
               <div
@@ -422,7 +446,7 @@ function ImageScreen() {
               // from the instruction alone — a billable call answering a
               // question nobody asked.
               disabled={missing !== null || busy}
-              className="press inline-flex items-center gap-2 rounded-full bg-world px-4 py-2 text-[13px] font-semibold normal-case tracking-normal text-white world-glow disabled:opacity-50"
+              className="press inline-flex items-center gap-2 rounded-full bg-world px-4 py-2 text-[13px] font-semibold normal-case tracking-normal text-on-world world-glow disabled:opacity-50"
             >
               <Sparkles className="h-4 w-4" aria-hidden="true" />
               {busy

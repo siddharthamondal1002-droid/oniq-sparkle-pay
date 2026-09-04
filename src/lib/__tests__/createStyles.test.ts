@@ -235,8 +235,30 @@ describe("aspect ratio", () => {
     expect(fn).toContain("{ generationConfig: { imageConfig } }");
   });
 
-  it("ships no Duration row on Music, because there is no field behind it", () => {
+  it("ships no Duration CONTROL on Music, because there is no field behind it", () => {
+    // The reference draws 30s / 1 min / 2 min / Custom. All four request
+    // shapes returned 400 when measured 2026-09-04 and Lyria's response
+    // carries no duration either, so four chips would be a lie told four
+    // ways.
+    //
+    // WHAT CHANGED 2026-09-04: this used to forbid the WORD, which caught the
+    // comment explaining the absence as readily as a control. It now holds
+    // the real property — no input, no request field — and additionally
+    // requires the screen to SAY so, because a silent gap reads as an
+    // oversight and this is a decision.
     const music = read("src/routes/_authenticated/app.music.tsx");
-    expect(music).not.toMatch(/Duration|durationSeconds/);
+    const code = music.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+    // No request field, and no state holding a chosen length.
+    expect(code).not.toMatch(/durationSeconds|duration:\s|setDuration/);
+    // No chip group offering one — the shapes the reference draws.
+    expect(code).not.toMatch(/30s|"1 min"|"2 min"/);
+    // And it tells the person, rather than leaving a hole where a row was.
+    expect(music).toContain('data-testid="music-length-note"');
+    // The length it DID come out at is shown: the honest half of "duration".
+    expect(music).toContain('data-testid="music-song-length"');
+    expect(code).toContain("onLoadedMetadata");
+    // preload="none" would leave that reading 0:00 until played, which is the
+    // state the screen was in when the gap was raised.
+    expect(code).toContain('preload="metadata"');
   });
 });

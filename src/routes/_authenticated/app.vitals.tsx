@@ -514,7 +514,7 @@ function DailyCheckin({ todayRow }: { todayRow: Checkin | null }) {
           onClick={() => setExercised((v) => !v)}
           aria-pressed={exercised}
           className={`press rounded-full px-3 py-1.5 text-xs font-semibold ${
-            exercised ? "bg-world text-white" : "bg-surface-2 text-muted-foreground"
+            exercised ? "bg-world text-on-world" : "bg-surface-2 text-muted-foreground"
           }`}
         >
           {exercised ? "yes — sweat era 💦" : "not yet"}
@@ -549,7 +549,7 @@ function DailyCheckin({ todayRow }: { todayRow: Checkin | null }) {
         type="button"
         onClick={() => save.mutate()}
         disabled={save.isPending}
-        className="press mt-4 w-full rounded-2xl bg-world py-3 font-semibold text-white world-glow disabled:opacity-60"
+        className="press mt-4 w-full rounded-2xl bg-world py-3 font-semibold text-on-world world-glow disabled:opacity-60"
       >
         {save.isPending ? "saving…" : "save today's check-in"}
       </button>
@@ -743,7 +743,7 @@ function CycleSection() {
         type="button"
         onClick={() => save.mutate()}
         disabled={save.isPending}
-        className="press mt-3 w-full rounded-2xl bg-world py-3 font-semibold text-white disabled:opacity-60"
+        className="press mt-3 w-full rounded-2xl bg-world py-3 font-semibold text-on-world disabled:opacity-60"
       >
         {save.isPending ? "saving…" : "log this cycle"}
       </button>
@@ -1155,7 +1155,7 @@ function ReportsSection() {
         type="button"
         onClick={submit}
         disabled={busy || !file}
-        className="press mt-3 w-full rounded-2xl bg-world py-3 font-semibold text-white disabled:opacity-60"
+        className="press mt-3 w-full rounded-2xl bg-world py-3 font-semibold text-on-world disabled:opacity-60"
       >
         {busy ? (
           <span className="inline-flex items-center gap-2">

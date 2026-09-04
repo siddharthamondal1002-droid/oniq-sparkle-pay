@@ -138,7 +138,7 @@ function NewsScreen() {
               <button
                 type="button"
                 onClick={() => setUseHome(true)}
-                className="press mt-4 rounded-full bg-world px-5 py-2 text-sm font-medium text-white world-glow"
+                className="press mt-4 rounded-full bg-world px-5 py-2 text-sm font-medium text-on-world world-glow"
               >
                 Show {home} news instead
               </button>
@@ -164,7 +164,7 @@ function NewsScreen() {
               <button
                 type="button"
                 onClick={() => refetch()}
-                className="press mt-3 rounded-full bg-world px-5 py-2 text-sm font-medium text-white world-glow"
+                className="press mt-3 rounded-full bg-world px-5 py-2 text-sm font-medium text-on-world world-glow"
               >
                 Retry
               </button>

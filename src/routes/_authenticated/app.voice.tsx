@@ -255,7 +255,7 @@ function VoiceScreen() {
                 data-testid="voice-transcribe"
                 onClick={() => void transcribe()}
                 disabled={!audio || busy}
-                className="press mt-3 inline-flex items-center gap-2 rounded-full bg-world px-4 py-2 text-[13px] font-semibold text-white world-glow disabled:opacity-50"
+                className="press mt-3 inline-flex items-center gap-2 rounded-full bg-world px-4 py-2 text-[13px] font-semibold text-on-world world-glow disabled:opacity-50"
               >
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
                 {busy ? "Listening…" : mode === "translate" ? "Translate" : "Write it down"}
@@ -284,7 +284,7 @@ function VoiceScreen() {
               data-testid="voice-generate"
               onClick={() => void generate()}
               disabled={!text.trim() || busy}
-              className="press inline-flex items-center gap-2 rounded-full bg-world px-4 py-2 text-[13px] font-semibold text-white world-glow disabled:opacity-50"
+              className="press inline-flex items-center gap-2 rounded-full bg-world px-4 py-2 text-[13px] font-semibold text-on-world world-glow disabled:opacity-50"
             >
               <Sparkles className="h-4 w-4" aria-hidden="true" />
               {busy ? "Reading…" : "Say it"}
