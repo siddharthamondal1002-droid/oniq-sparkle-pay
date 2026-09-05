@@ -21,10 +21,17 @@
 // their own JWT and checks is_admin server-side; this page being unlinked is
 // cosmetic. It also asks for nothing and creates nothing — the function is
 // read-only by design.
+//
+// THE BRIDGE CHECK BESIDE IT is the other half, added 2026-09-05 with the
+// server-side route: it round-trips ONE document and ONE small file through
+// the caller's own subtree and deletes both. "Deployed" and "working" are
+// different claims, and only the second is worth anything.
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeError";
+import { firebaseBridge } from "@/lib/firebaseBridge.functions";
 
 export const Route = createFileRoute("/_authenticated/app/admin/firebase")({
   head: () => ({
@@ -34,19 +41,32 @@ export const Route = createFileRoute("/_authenticated/app/admin/firebase")({
 });
 
 function FirebaseProvisioningTool() {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<null | "probe" | "bridge">(null);
   const [result, setResult] = useState<string | null>(null);
+  const runBridge = useServerFn(firebaseBridge);
 
   const run = async () => {
-    setBusy(true);
+    setBusy("probe");
     setResult(null);
     const { data, error } = await supabase.functions.invoke("firebase-provisioning", {
       body: {},
     });
-    setBusy(false);
+    setBusy(null);
     // The server's own sentence is the one worth showing — a refusal from
     // Google names the role to grant, and a summary would lose it.
     setResult(error ? await edgeErrorMessage(error) : JSON.stringify(data, null, 2));
+  };
+
+  const bridge = async () => {
+    setBusy("bridge");
+    setResult(null);
+    try {
+      const data = await runBridge({ data: { action: "selftest" } });
+      setResult(JSON.stringify(data, null, 2));
+    } catch (e) {
+      setResult((e as Error).message);
+    }
+    setBusy(null);
   };
 
   return (
@@ -57,15 +77,32 @@ function FirebaseProvisioningTool() {
         whether Firestore is provisioned. Creates nothing.
       </p>
 
-      <button
-        type="button"
-        data-testid="firebase-provisioning-run"
-        onClick={() => void run()}
-        disabled={busy}
-        className="press mt-4 rounded-full bg-world px-4 py-2 text-sm font-semibold text-on-world disabled:opacity-50"
-      >
-        {busy ? "Asking Google…" : "Check"}
-      </button>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          data-testid="firebase-provisioning-run"
+          onClick={() => void run()}
+          disabled={busy !== null}
+          className="press rounded-full bg-world px-4 py-2 text-sm font-semibold text-on-world disabled:opacity-50"
+        >
+          {busy === "probe" ? "Asking Google…" : "Check"}
+        </button>
+
+        <button
+          type="button"
+          data-testid="firebase-bridge-selftest"
+          onClick={() => void bridge()}
+          disabled={busy !== null}
+          className="press rounded-full border border-border px-4 py-2 text-sm font-semibold disabled:opacity-50"
+        >
+          {busy === "bridge" ? "Round-tripping…" : "Bridge check"}
+        </button>
+      </div>
+
+      <p className="mt-2 max-w-prose text-xs text-muted-foreground">
+        Bridge check writes one document and one tiny file into your own space through the backend
+        service account, reads them back, then deletes both.
+      </p>
 
       {result ? (
         <pre
