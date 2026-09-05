@@ -1,55 +1,51 @@
-# Ting "ting choked on that" — diagnosis
+# Server-side Firebase route (Lovable Cloud stays the identity)
 
-## First priority: is it the profiles grant change?
+Build the backend bridge so ONIQ can put files in Firebase Storage and read/write
+Firestore documents using the service account it already holds — with no Firebase
+web app, no Firebase Auth, and no change to how anyone signs in.
 
-**No.** The Ting path never reads `public.profiles`. The edge function `supabase/functions/ting/index.ts` contains no `profiles` query at all (verified by search); it uses the caller's identity only as a `uid` string for the spend ledger, and all ledger writes go through a service-role RPC, not the caller's JWT. No `select("*")` on profiles anywhere in the Ting client or function. The grant change is ruled out.
+## The shape
 
-## 1. The UI path and the swallowed error
-
-- File: `src/routes/_authenticated/app.ai.tsx`
-- Line 242: `toast.error(msg && !/non-2xx/i.test(msg) ? msg : "ting choked on that 😵‍💫 try again")`
-- It swallows two things: (a) the `error` object from `supabase.functions.invoke("ting")`, whose message for a non-200 is the generic `Edge Function returned a non-2xx status code` — which the regex deliberately replaces with the toast, and (b) `new Error(d.error)` when the function returns 200 with an `error` field. In this incident it is case (a): the function returned non-2xx, so the real provider error never reaches the device.
-
-## 2. The backend
-
-- Function: `ting` — `supabase/functions/ting/index.ts`
-- Runs with the caller's JWT for identity, but all database work (spend ledger admission/settlement) uses `serviceRoleRpc()`.
-- Providers: **Anthropic** for both the model and web search (server tool `web_search_20250305`, `max_uses: TING_MAX_SEARCHES`), with a **Google Gemini** (`gemini-3.1-flash-lite`) text-only fallback.
-- Secrets: `ANTHROPIC_API_KEY` (primary), `GOOGLE_AI_API_KEY` (fallback), `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (ledger RPC).
-
-## 3. What the logs actually say
-
-Recent `ting` invocations (two, matching the two user attempts) each logged exactly:
-
-```
-error  anthropic error 400 {"type":"error","error":{"type":"invalid_request_error",
-       "message":"Your credit balance is too low to access the Anthropic API.
-       Please go to Plans & Billing to upgrade or purchase credits."}}
-warn   Ting: Gemini fallback not admitted (unpriced-model)
+```text
+phone  --(Lovable Cloud session)-->  edge function  --(service account)-->  Firebase
+                                     |
+                                     +-- checks who you are against Postgres
+                                     +-- decides what you may touch
 ```
 
-Boot ~20 ms, immediate shutdown — no timeout, no slow call.
+Every request is authorised the way the rest of ONIQ already authorises requests:
+the caller's own token is re-derived server-side and their user id decides the
+path they may read or write. Firebase never sees an end user, so Firestore and
+Storage rules are not a second authorisation system to keep in sync — the
+existing 242 policies stay the only authority.
 
-Against your five candidates:
-- (a) permission denied from the grant change — **no**
-- (b) missing/expired secret — **no**, the key authenticates fine
-- (c) upstream billing/quota — **yes, this is it.** Anthropic returns HTTP 400 `invalid_request_error`: the Anthropic account's credit balance is exhausted. Not a 401 and not a 429; it is a billing balance, not a rate limit.
-- (d) timeout — **no**
-- (e) response-shape change — **no**
+## What gets built
 
-Secondary finding, and the reason there is no degraded answer instead of a red toast: the Gemini fallback was refused by the spend ledger with `unpriced-model` — `withSearchSpendGuard` could not compute a worst-case cost for `gemini-3.1-flash-lite` under the fallback's budget, so it declined admission before calling Google. The fallback is therefore currently inert for Ting even when Anthropic is down.
+1. **`_shared/firebaseServer.ts`** — one place that knows how to talk to Firebase
+   with the existing service-account token from `googleAuth.ts`:
+   - Firestore REST: get / set / update / delete / query a document path.
+   - Storage: upload bytes, and mint a short-lived read URL for an object.
+   - Value conversion between plain JSON and Firestore's typed field format,
+     with tests for round-tripping.
+2. **`firebase-bridge` edge function** — the only entry point. Signed-in users
+   only. Namespacing is server-computed (`users/{supabase-uid}/...`); a path sent
+   by the client is never trusted. Actions: `doc.get`, `doc.set`, `doc.delete`,
+   `collection.list`, `file.upload`, `file.url`.
+3. **`src/lib/firebaseBridge.ts`** — thin typed client for app screens to call it.
+4. **Admin visibility** — extend the existing read-only `/app/admin/firebase`
+   screen with a "bridge check" button that round-trips one document and one
+   small file, so the wiring can be proven without a console.
 
-## 4. Did it ever work, and what changed
+## Deliberately out of scope
 
-Yes — Ting with search has been working since the search spend guard went live on 2026-08-24, and the ledger holds successful settled Anthropic searches from that battery. Nothing on this code path changed since; the most recent Ting-adjacent change was the guard wiring itself. The failure is external: the Anthropic account ran out of credit between then and 31 Aug.
+Chat, calls, wallet and the money paths are untouched. No message or conversation
+moves to Firestore in this change — that decision depends on the identity switch
+and stays open. Nothing client-side talks to Firebase directly.
 
-## What I propose (nothing applied yet)
+## Notes
 
-Two separate things, both yours to decide because both are business calls:
-
-1. **Anthropic credit** — top up / re-enable billing on the Anthropic account that owns `ANTHROPIC_API_KEY`. This is the actual outage. I cannot do this from here and will not switch Ting onto another paid provider without your say-so.
-2. **Fallback + error surfacing** (code, one pass, on your approval):
-   - Fix the `unpriced-model` refusal so the Gemini fallback can actually be admitted (add the missing published rate for the failover model to the search budget table, or price the fallback under its token-only rates) — so a provider outage degrades to a Gemini answer instead of a dead toast.
-   - Surface the real cause to the user: have `ting` return 200 with a typed `error` (e.g. `provider-unavailable`) instead of a non-2xx, so the UI shows "ting's brain is offline right now" rather than the catch-all, and log the provider status server-side.
-
-No database grant, policy, view or migration is touched by either item. The scroll diagnostic, chat list and call paths are untouched.
+- Firestore must be provisioned in the Firebase project for the document actions
+  to work; the file actions work today because the bucket already exists. The
+  bridge reports which of the two is unavailable rather than failing opaquely.
+- No secret value is ever returned or logged; failures pass Google's own words
+  through, as the weather build established.
