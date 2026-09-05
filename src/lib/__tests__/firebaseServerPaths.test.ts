@@ -26,6 +26,7 @@ import {
   userCollectionPath,
   userDocPath,
   userObjectPath,
+  v4CanonicalRequest,
 } from "../../../supabase/functions/_shared/firebaseServer.ts";
 
 const UID = "0f8fad5b-d9cb-469f-a165-70867728950e";
@@ -185,5 +186,46 @@ describe("the inspector asks the write question without writing", () => {
     ]);
     const url = testPermissionsUrl("oniq-309bd.firebasestorage.app");
     for (const p of STORAGE_PERMISSIONS) expect(url).toContain(encodeURIComponent(p));
+  });
+});
+
+describe("the signed URL's canonical query is byte-sorted", () => {
+  // A V4 signature is all-or-nothing and its failure ("403
+  // SignatureDoesNotMatch") names nothing, so the ordering rule is asserted
+  // here where a break is legible.
+  const SIGNING_KEYS = {
+    "X-Goog-Algorithm": "GOOG4-RSA-SHA256",
+    "X-Goog-Credential": "sa@p.iam.gserviceaccount.com/20260905/auto/storage/goog4_request",
+    "X-Goog-Date": "20260905T071500Z",
+    "X-Goog-Expires": "900",
+    "X-Goog-SignedHeaders": "host",
+  };
+
+  it("the five signing keys are already in sorted order", () => {
+    const keys = [...new URLSearchParams(SIGNING_KEYS).keys()];
+    expect(keys).toEqual([...keys].sort());
+  });
+
+  it("sorting is by BYTE, so a capitalised extra is the case that reorders", () => {
+    // The conventional extras are all lowercase and sort AFTER "X-Goog-*",
+    // which is why nothing has broken. A capitalised key does not, and that
+    // is the one a reader would not have in mind.
+    const lower = [...new URLSearchParams({ ...SIGNING_KEYS, generation: "1" }).keys()];
+    expect(lower, "a lowercase extra stays in order on its own").toEqual([...lower].sort());
+
+    const upper = new URLSearchParams({ ...SIGNING_KEYS, "Content-Type": "text/plain" });
+    const before = [...upper.keys()];
+    upper.sort();
+    expect(before, "a capitalised extra does reorder").not.toEqual([...upper.keys()]);
+    expect([...upper.keys()]).toEqual([...before].sort());
+  });
+
+  it("signs over exactly the query string it puts in the URL", () => {
+    // The canonical request and the URL must carry the same bytes; building
+    // them from one sorted value is what guarantees it.
+    const query = "X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Date=20260905T071500Z";
+    const canonical = v4CanonicalRequest({ bucket: "b", object: "users/u/a.jpg", query });
+    expect(canonical.split("\n")[2]).toBe(query);
+    expect(canonical.split("\n")[1]).toBe("/b/users/u/a.jpg");
   });
 });

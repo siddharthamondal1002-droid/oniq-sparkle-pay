@@ -329,13 +329,23 @@ export async function signedReadUrl(args: {
   const expires = Math.min(Math.max(args.expiresInSeconds ?? 900, 60), 60 * 60 * 12);
   const { stamp, date } = v4Timestamp(args.now ?? new Date());
   const scope = `${date}/auto/storage/goog4_request`;
-  const query = new URLSearchParams({
+  const params = new URLSearchParams({
     "X-Goog-Algorithm": "GOOG4-RSA-SHA256",
     "X-Goog-Credential": `${args.clientEmail}/${scope}`,
     "X-Goog-Date": stamp,
     "X-Goog-Expires": String(expires),
     "X-Goog-SignedHeaders": "host",
-  }).toString();
+  });
+  // V4 signs the canonical query BYTE-SORTED. The five keys above are already
+  // written in that order, so this is a no-op today and is here to make the
+  // requirement explicit rather than incidental. Note the ordering is by BYTE:
+  // every conventional extra ("response-content-disposition", "generation")
+  // is lowercase and therefore sorts AFTER "X-Goog-*", so it would not have
+  // broken anything either — only a capitalised key sorting before "X" would,
+  // and that is exactly the case a reader cannot be expected to have in mind
+  // when the answer is the unreadable 403 SignatureDoesNotMatch.
+  params.sort();
+  const query = params.toString();
 
   const canonical = v4CanonicalRequest({ bucket: args.bucket, object: args.object, query });
   const toSign = ["GOOG4-RSA-SHA256", stamp, scope, await sha256Hex(canonical)].join("\n");
