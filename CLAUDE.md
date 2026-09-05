@@ -190,6 +190,49 @@ an edge function holding `FIREBASE_SERVICE_ACCOUNT` puts bytes in the
 bucket and hands back a signed URL — which is precisely the shape ONIQ
 already uses for Supabase Storage today.
 
+### Owner directive, 2026-09-05 (later the same day) — the SERVER route
+
+**Decided: Lovable Cloud stays the identity, and the backend talks to Firebase
+with the service account it already holds.** The phone presents its ordinary
+Supabase session, the server re-derives who that is, and Firebase only ever
+sees the service account. `src/lib/firebaseBridge.server.ts` is the only way
+ONIQ speaks to Firestore or Firebase Storage; `supabase/functions/_shared/firebaseServer.ts`
+holds the pure halves.
+
+This SUPERSEDES the tension below rather than resolving it by argument — it is
+decided, and the paragraph is kept because the cost it names is still being
+paid. What the choice buys and costs:
+
+- It needs **no Firebase web app, no Firebase Auth, and no user import** — all
+  three of the things blocked in consoles this container cannot reach. The
+  uid-preservation plan above is not wrong, it is DORMANT: it is exactly what
+  a later identity switch would still need, so it stays recorded.
+- **RLS stays the single authority.** Firebase is never asked to judge who may
+  touch what, so there is no second authorization system to drift.
+- **No realtime listeners and no offline cache**, because nothing client-side
+  speaks to Firebase. That is precisely why **chat is NOT in this change** —
+  a chat that has lost its live listeners is worse than the one ONIQ ships
+  today. The Firestore-for-messages half of the mapping still waits on the
+  identity switch.
+
+THE GATE IS THE MIDDLEWARE, AND THE PREFIX IS THE BOUNDARY. `requireSupabaseAuth`
+verifies the JWT and yields `claims.sub`; `BridgeRequest` has no user-id field,
+so a caller cannot pass one. Every path is built server-side as
+`users/{uid}/…`, and a caller only ever names a collection and a document.
+Two properties were added 2026-09-05 after review, both mutation-tested:
+
+- **The uid is validated, not merely interpolated.** It cannot hold a slash
+  today because it is a verified UUID, but the builders are exported and the
+  prefix is the whole boundary — the day one is called with an id from an edge
+  function or an admin "act as", `../` would walk straight out.
+- **A real filename survives the guard.** The first charset refused any space,
+  so `Screenshot 2026-09-05 at 10.13.45.png` and `beach day.jpg` were rejected
+  as "Bad file name". A guard nobody can upload through gets loosened by
+  whoever hits it next, and they will not stop at the part that was merely
+  inconvenient. The traversal rule is untouched; only the charset widened, and
+  non-ASCII is still refused deliberately — arbitrary names want a generated id
+  plus a display name in Firestore, not a bigger regex.
+
 THE TENSION TO DECIDE WITH OPEN EYES, because it does not go away by
 picking a default. Going client-side with Firebase rules means TWO
 authorization systems — Firestore/Storage rules and 242 Postgres RLS

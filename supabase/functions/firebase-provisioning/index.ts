@@ -46,7 +46,7 @@ import {
   FIREBASE_BUCKET,
   STORAGE_PERMISSIONS,
   testPermissionsUrl,
-} from "../_shared/firebaseStorage.ts";
+} from "../_shared/firebaseServer.ts";
 
 /** The project FCM, Vertex and weather already run on. One project, not two. */
 const FIREBASE_PROJECT_ID = "oniq-309bd";
