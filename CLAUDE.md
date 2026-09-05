@@ -166,6 +166,14 @@ reach — nothing client-side ships until the first one exists:
    certainly does not exist as readily as for `oniq-309bd`, so that probe
    proves nothing. Only the console or the service account can answer it.
 
+Both are answerable without a console visit, and the thing that answers them
+is already live. `firebase-provisioning` is DEPLOYED on production — measured
+2026-09-05, `POST /functions/v1/firebase-provisioning` answers 401 with no
+JWT, the admin gate holding — so one tap on `/app/admin/firebase` asks Google
+directly with the service account and prints whichever of the two is missing,
+in Google's own words. That is faster and more certain than reading a console,
+and it is the only credential that can answer at all.
+
 Storage is unblocked ONLY IN ITS SERVER-SIDE FORM, and the distinction is
 the architectural one this whole directive turns on. Firebase Storage rules
 key on `request.auth.uid` exactly as Firestore's do, so CLIENT-side Firebase
@@ -183,6 +191,35 @@ throws away the realtime listeners and offline cache that are the reason to
 want Firestore at all. Preserving the UUID as the Firebase uid is what
 makes the client-side option survivable: both systems then key on the same
 value, so a rule and a policy can be read against each other.
+
+## Two Supabase projects — only one of them is ONIQ
+
+MEASURED 2026-09-05. `.mcp.json` wires the Supabase MCP server to project
+`nzbthoecadcwdoqxhaok`, which `list_projects` names **"oniq-sparkle-pay"** —
+the same string as this repository. **It is not the project this app talks
+to.** Production is `bqwttemnnoexadpwifcj`, named in `supabase/config.toml`,
+in `.env`, and in the Lovable MCP manifest's OAuth issuer.
+
+The trap is expensive because the wrong answer looks like a right one. Asked
+for the deployed edge functions, that MCP returned NINE. Probed directly, one
+POST per function, production answered for all 63 in this repo and **not one
+404** — including `send-push`, which the MCP's list omitted and which is
+certainly live, since FCM v1 delivers to 48 registered device tokens through
+it. A nine-item list reads exactly like "these are the ones deployed", so the
+natural next move is to deploy the missing one into a project nothing will
+ever call. It runs the other way too: SQL run there returns real rows from a
+real database that simply is not ONIQ's.
+
+**Do not repoint it.** Production is a Lovable Cloud project, so it lives in
+Lovable's Supabase organisation rather than the owner's; `list_projects` on
+the owner's own credential returns exactly one project and production is not
+in it. The Lovable agent holds the only real service role, which is why every
+deploy and every production query goes through it — see the `oniq-ship`
+skill. `read_only=true` on the MCP URL is the second line of defence: it makes
+a mix-up cost a round trip instead of a deploy.
+
+`src/lib/__tests__/supabaseProjectRef.test.ts` pins all of this, and fails if
+the MCP is ever given production so the fact gets updated deliberately.
 
 ## Linting
 
