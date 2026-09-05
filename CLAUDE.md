@@ -552,6 +552,78 @@ was meant to. Whatever publishable key the run picked up was not accepted at
 `Authorization` pair returning 200 FIRST, so that "rejected" can be
 distinguished from "never reached the check".
 
+### Owner directive, 2026-09-05 (final) — PHONE OTP ONLY. Supabase stays the identity.
+
+**This SUPERSEDES the "Firebase BECOMES the identity" directive above.** The
+owner's words, once the mismatch surfaced: _"I was having Google authentication
+and everything was working fine. I added firebase for mobile number
+authentication only."_
+
+HOW THE MISUNDERSTANDING HAPPENED, recorded because the shape of it will recur.
+The owner was offered two shapes and picked "Firebase becomes the identity" —
+but described the other one. What made the mismatch visible was the owner
+noticing an agent claim that Google sign-in might not work, and objecting. The
+claim was wrong twice over:
+
+- **ONIQ's Google sign-in has never been Firebase.** `src/routes/auth.tsx:531`
+  calls `lovable.auth.signInWithOAuth("google", …)` — Lovable Cloud, i.e.
+  Supabase Auth. The "39 of 125 with no password hash" measured earlier ARE
+  those users. The "Google — Enabled" row in the FIREBASE console is a separate,
+  unused provider toggled on during a console pass, and reading it as ONIQ's
+  Google login was the error.
+- It was argued from `android/app/google-services.json` showing `oauth: NONE`.
+  That file was last committed 2026-08-22 — a snapshot, not live state. **A
+  checked-in config file is a catalogue, and this file already says a catalogue
+  is not a POST.** The same lesson, made the same evening, by the agent writing
+  it down.
+
+WHAT THE CORRECTED DIRECTIVE COSTS AND SAVES. Firebase sends the SMS and proves
+possession of the phone; that is all it does. The client runs
+`signInWithPhoneNumber`, gets a Firebase ID token, and hands it to an edge
+function which verifies it with the service account ONIQ already holds, reads
+the verified `phone_number` claim, and mints an ordinary **Supabase** session.
+The same shape `msg91-verify-session` already uses.
+
+- **Google sign-in is untouched.** So are the 125 accounts and all 242 RLS
+  policies.
+- **THE UID PROBLEM DISAPPEARS ENTIRELY**, and this is the load-bearing
+  consequence. The Firebase uid never reaches Postgres — only the phone number
+  crosses, and the session minted is a Supabase one keyed to a Supabase UUID.
+  So `auth.uid()` keeps returning what it always did. The signup hole recorded
+  above (a native 28-char uid failing the `::uuid` cast on every policy) is
+  **moot under this directive**; it was a consequence of the identity switch,
+  not of phone OTP.
+- **The uid-preservation plan and `scripts/firebase-import-users.mjs` go back to
+  DORMANT.** Both stay recorded, correct, and unused. They are what a future
+  identity switch would still need.
+- **NO SUPABASE THIRD-PARTY AUTH REGISTRATION IS NEEDED.** The blocker measured
+  tonight — PostgREST answering `PGRST301 "No suitable key was found to decode
+the JWT"` to a valid Firebase token — is real and stays true, and is now
+  simply IRRELEVANT: no Firebase token is ever presented to PostgREST. The
+  registration was a requirement of the abandoned shape only.
+- What is given up: nothing client-side speaks to Firebase for data, so there
+  are still no realtime listeners and no offline cache. That was already the
+  standing position under the SERVER-route directive, which this restores.
+
+NONE OF THE CONSOLE WORK WAS WASTED. The Web app, Authentication being
+provisioned, the SMS region policy, the Phone provider and `oniqhub.com` as an
+authorized domain are all required by phone OTP itself, and all are DONE and
+measured. What is no longer required is the one thing that was still blocked.
+
+WHAT IS LEFT TO BUILD, and it is small:
+
+1. Client: Firebase JS SDK + `signInWithPhoneNumber` with reCAPTCHA, using
+   `src/integrations/firebase/config.ts`. Adding the `firebase` dependency is
+   Lovable's to do — it owns `package.json`.
+2. Server: one edge function that takes the Firebase ID token, verifies it
+   against Google's public keys for project `oniq-309bd`, and exchanges the
+   verified phone for a Supabase session. Verify the token properly —
+   signature, `aud`, `iss` and expiry — a decoded-but-unverified JWT is an
+   unauthenticated caller naming any phone number they like.
+3. `send-otp` and the MSG91 widget path stay until the Firebase path is proven,
+   then retire together. `send-otp`'s abuse controls move to whatever endpoint
+   ends up unauthenticated.
+
 ## ONIQ Study and the Google mapping — what is built, what cannot be
 
 The owner mapped ONIQ Study onto thirteen Google capabilities, 2026-09-05.
