@@ -36,6 +36,21 @@ export function OniqCard({
   ariaLabel?: string;
 }) {
   const base = cn(
+    // MIN-W-0, AND IT IS LOAD-BEARING. A grid or flex item defaults to
+    // `min-width: auto`, which refuses to shrink below the min-content width
+    // of its subtree — and `<audio controls>` carries a UA minimum inside its
+    // shadow DOM that is far wider than a phone. Measured 2026-09-05 at a
+    // 390px viewport: one song card in Creations' single-column grid forced
+    // the whole COLUMN to 548px, so every card in the list — films with no
+    // audio in them at all — hung 198px off the right edge with their titles
+    // sliced by the screen instead of ellipsised by `truncate`.
+    //
+    // The obvious one-line fix does NOT work: `audio { min-width: 0 }` was
+    // measured and changed nothing, because the UA minimum lives in the
+    // element's shadow tree and still counts toward the grid item's
+    // min-content contribution. It has to be the item that is allowed to
+    // shrink, which is this.
+    "min-w-0",
     "rounded-3xl",
     VARIANT[variant],
     PADDING[padding],
