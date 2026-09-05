@@ -243,6 +243,74 @@ want Firestore at all. Preserving the UUID as the Firebase uid is what
 makes the client-side option survivable: both systems then key on the same
 value, so a rule and a policy can be read against each other.
 
+## ONIQ Study and the Google mapping — what is built, what cannot be
+
+The owner mapped ONIQ Study onto thirteen Google capabilities, 2026-09-05.
+Most of it already exists, and one part of it cannot be built with the
+credentials the mapping assumes. Both facts change what is worth doing next.
+
+ALREADY BUILT, and running in production today:
+
+| Mapping row                 | Where it lives                                                        |
+| --------------------------- | --------------------------------------------------------------------- |
+| AI tutor                    | `study-tutor` — Gemini via shared `callText`, with attachments        |
+| Explain textbook material   | `study-chapters`, `study-chapter-notes`, cache-first                  |
+| Generate practice questions | `study-quiz`                                                          |
+| Generate mock exams         | `study-paper-generate`, `study-paper-mock`                            |
+| Evaluate written answers    | `study-paper-grade` — reads a PHOTO of handwriting                    |
+| Analyze mistakes            | `study-paper-review`, `quiz_attempts`, `src/lib/retrievalPractice.ts` |
+| Personalized learning       | `learner_profiles` + the Study Vault (FTS over `study_notes`)         |
+| Images/diagrams             | already multimodal, same `callText` path                              |
+
+Nine Postgres tables carry it: `learner_profiles`, `chapters`,
+`chapter_notes`, `chapter_overrides`, `study_papers`, `study_notes`,
+`study_messages`, `quiz_attempts`, `study_chapters_debug`. **Do not rebuild
+any of this.** The gap is not capability, it is persistence and reach.
+
+WHAT THE FIREBASE SERVICE ACCOUNT ACTUALLY ADDS: **durable study documents.**
+Measured 2026-09-05 — attachments today are EPHEMERAL. `app.study.tsx` turns
+the file into base64 in the browser (`fileToBase64`), `study-tutor` forwards it
+inline to the model, and nothing is stored. Same for the handwriting photo in
+`study-paper-grade`. So a student re-uploads the same worksheet every session,
+the tutor cannot refer back to the chapter PDF from last week, and a graded
+answer sheet cannot be reopened. That is exactly the owner's "Storage =
+photos/videos/files" row, it needs no console and no new credential, and the
+bridge does it today.
+
+`file.list` was added to the bridge for this: without it an uploaded file is
+unfindable unless the caller already remembers the exact name, which is
+indistinguishable from never having stored it. **Listing makes the bucket its
+own index**, which is why Study needs no document table — a table would be a
+second source of truth that drifts from the bucket the first time an upload
+half-fails.
+
+WHAT THE FIREBASE CREDENTIALS CANNOT DO, and this is the load-bearing
+correction: **Classroom and Drive are not Firebase.** Five of the thirteen rows
+(import assignments, import courses, submit coursework, grades/progress, study
+documents-via-Drive) read a STUDENT'S OWN Google account. That data belongs to
+the student and their school's Workspace domain, not to project `oniq-309bd`,
+so a service account cannot reach it without domain-wide delegation granted by
+that school's Workspace admin — which ONIQ is not. The ordinary route is a
+per-user OAuth consent flow, and `oniq-309bd` has **no OAuth client at all**
+(measured 2026-09-05, `android/app/google-services.json`).
+
+That is stated as the expected answer, not a measured one. `firebase-provisioning`
+now carries two read-only probes — `classroom.googleapis.com/v1/courses` and
+`drive/v3/about` on the service-account token — so the next tap of
+`/app/admin/firebase` returns Google's own refusal under `googleWorkspace`,
+naming which of missing-scope or missing-consent applies. Replace this
+paragraph with that output when it arrives; do not build against the guess.
+
+STILL THE OWNER'S CALL, because each chooses a new provider surface:
+
+- **YouTube Data API** for educational videos — unlike Classroom this needs
+  only an API key for public search, no user OAuth, and has a free daily
+  quota. It is still a new API and a new key, so it is asked, not assumed.
+- **A Google OAuth client** for Classroom and Drive — a consent screen, scopes,
+  and Google verification before any student outside a test list can use it.
+- **Google Cloud speech** for the voice tutor — ONIQ already ships TTS through
+  `voice-generate`, so check that first rather than adding a second vendor.
+
 ## Two Supabase projects — only one of them is ONIQ
 
 MEASURED 2026-09-05. `.mcp.json` wires the Supabase MCP server to project

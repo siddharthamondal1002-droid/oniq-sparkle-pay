@@ -117,10 +117,20 @@ Deno.serve(async (req) => {
   }
 
   const p = FIREBASE_PROJECT_ID;
-  const [webApps, databases, bucket, perms] = await Promise.all([
+  const [webApps, databases, bucket, perms, classroom, drive] = await Promise.all([
     get(`https://firebase.googleapis.com/v1beta1/projects/${p}/webApps`, auth.token),
     get(`https://firestore.googleapis.com/v1/projects/${p}/databases`, auth.token),
     get(`https://storage.googleapis.com/storage/v1/b/${FIREBASE_BUCKET}`, auth.token),
+    // CAN THIS CREDENTIAL REACH THE STUDENT'S GOOGLE ACCOUNT? Asked, not
+    // assumed. The ONIQ Study mapping puts Classroom behind four capabilities
+    // (assignments, courses, coursework, grades) and Drive behind one, and the
+    // whole plan turns on whether the service account already in hand opens
+    // them. Two read-only GETs settle it in Google's own words, which is worth
+    // more than a paragraph of mine — and the answer, whichever way it goes,
+    // is the difference between a week of wiring and a console task nobody
+    // has started.
+    get("https://classroom.googleapis.com/v1/courses?pageSize=1", auth.token),
+    get("https://www.googleapis.com/drive/v3/about?fields=user", auth.token),
     // "May this credential write?" asked WITHOUT writing. testIamPermissions
     // returns only the permissions actually held, so an empty list is a
     // definite no rather than an ambiguous error — which is exactly the
@@ -170,6 +180,15 @@ Deno.serve(async (req) => {
           created: (bucket.data as { timeCreated?: string })?.timeCreated,
         }
       : bucket,
+    // Classroom and Drive belong to the STUDENT, not to the project, so a
+    // service account cannot read them without domain-wide delegation granted
+    // by the school's Workspace admin. That is the expected answer; it is
+    // reported rather than assumed, and Google's refusal names which of the
+    // two reasons applies (missing scope vs missing consent).
+    googleWorkspace: {
+      classroom: classroom.ok ? { reachable: true } : classroom,
+      drive: drive.ok ? { reachable: true } : drive,
+    },
     // The permissions actually held, listed — so a partial grant is visible
     // as a partial grant rather than collapsing to a bare false.
     storagePermissions: perms.ok

@@ -14,19 +14,21 @@
  *     ordinary case gets loosened by whoever hits it next, and they will not
  *     stop at the part that was only inconvenient.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   STORAGE_PERMISSIONS,
   safeFileSegment,
   safeObjectName,
+  listObjects,
   safeSegment,
   testPermissionsUrl,
   userCollectionPath,
   userDocPath,
   userObjectPath,
   v4CanonicalRequest,
+  type StoredObject,
 } from "../../../supabase/functions/_shared/firebaseServer.ts";
 
 const UID = "0f8fad5b-d9cb-469f-a165-70867728950e";
@@ -227,5 +229,64 @@ describe("the signed URL's canonical query is byte-sorted", () => {
     const canonical = v4CanonicalRequest({ bucket: "b", object: "users/u/a.jpg", query });
     expect(canonical.split("\n")[2]).toBe(query);
     expect(canonical.split("\n")[1]).toBe("/b/users/u/a.jpg");
+  });
+});
+
+describe("listing is confined to the owner's prefix", () => {
+  it("an empty sub-prefix lists exactly the owner's own folder", () => {
+    // `users/{uid}/` and not `users/{uid}` — the trailing slash is what makes
+    // this a folder listing rather than a prefix match that would also catch
+    // `users/{uid}-evil/`.
+    expect(userObjectPath(UID, "")).toBe(`users/${UID}/`);
+    expect(userObjectPath(UID, "")).not.toBe(`users/${UID}`);
+  });
+
+  it("a crafted sub-prefix is refused before it becomes a listing", () => {
+    for (const bad of [`../${OTHER}`, "..", "a/../..", "/etc"]) {
+      const sub = safeObjectName(bad);
+      if (sub === null) continue;
+      expect(userObjectPath(UID, sub).startsWith(`users/${UID}/`), bad).toBe(true);
+    }
+    expect(safeObjectName(`../${OTHER}`)).toBeNull();
+  });
+
+  // The repo guard in testIsolation.test.ts requires an afterEach restore, not
+  // a local try/finally: a test that throws before its finally would leave the
+  // stub installed for every file after it, and "no test can spend money" is
+  // exactly the property that must not depend on the happy path.
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  it("strips the owner prefix off returned names and clamps the page size", async () => {
+    const calls: string[] = [];
+    globalThis.fetch = (async (url: string | URL) => {
+      calls.push(String(url));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: [
+            {
+              name: `users/${UID}/study/algebra.pdf`,
+              size: "1024",
+              contentType: "application/pdf",
+            },
+          ],
+        }),
+      } as unknown as Response;
+    }) as typeof fetch;
+    const r = await listObjects("tok", "b", `users/${UID}/`, 9999);
+    expect(r.ok).toBe(true);
+    const items = (r as { ok: true; data: StoredObject[] }).data;
+    // A screen shows "study/algebra.pdf", never the owner's uid — and the full
+    // path is still there for a follow-up call.
+    expect(items[0].name).toBe("study/algebra.pdf");
+    expect(items[0].object).toBe(`users/${UID}/study/algebra.pdf`);
+    expect(items[0].size).toBe(1024);
+    // Unbounded paging is how one caller walks the whole bucket.
+    expect(calls[0]).toContain("maxResults=500");
+    expect(calls[0]).toContain(encodeURIComponent(`users/${UID}/`));
   });
 });

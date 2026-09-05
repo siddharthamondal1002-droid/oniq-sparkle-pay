@@ -31,6 +31,7 @@ import {
   deleteObject,
   getDoc,
   listDocs,
+  listObjects,
   safeObjectName,
   safeSegment,
   setDoc,
@@ -40,6 +41,7 @@ import {
   userDocPath,
   userObjectPath,
   type FirestoreDoc,
+  type StoredObject,
   type Json,
 } from "../../supabase/functions/_shared/firebaseServer.ts";
 
@@ -58,6 +60,7 @@ export type BridgeRequest = {
     | "doc.delete"
     | "collection.list"
     | "file.upload"
+    | "file.list"
     | "file.url"
     | "file.delete"
     | "selftest";
@@ -89,6 +92,7 @@ export type BridgeResponse = {
   docs?: FirestoreDoc[];
   deleted?: boolean;
   object?: string;
+  objects?: StoredObject[];
   size?: number;
   url?: string;
   expiresInSeconds?: number;
@@ -187,6 +191,19 @@ export async function runBridge(uid: string, body: BridgeRequest): Promise<Bridg
       return r.ok
         ? { configured: true, object: r.data.object, size: r.data.size }
         : refused(r.reason);
+    }
+
+    // Listing is what makes an uploaded file findable again. Without it the
+    // caller has to remember every name it ever wrote, and a forgotten name is
+    // a file that may as well not have been stored.
+    case "file.list": {
+      // An absent prefix means "everything I own"; a present one is validated
+      // exactly like any other name, so a listing cannot climb out either.
+      const sub = body.name === undefined ? "" : safeObjectName(body.name);
+      if (sub === null) return { configured: true, error: "Bad prefix" };
+      const prefix = sub ? `${userObjectPath(uid, sub)}/` : userObjectPath(uid, "");
+      const r = await listObjects(token, FIREBASE_BUCKET, prefix, body.limit);
+      return r.ok ? { configured: true, objects: r.data } : refused(r.reason);
     }
 
     case "file.url": {

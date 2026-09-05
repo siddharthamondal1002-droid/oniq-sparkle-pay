@@ -492,6 +492,59 @@ export async function uploadObject(
   };
 }
 
+export type StoredObject = {
+  /** Full object path, including the `users/{uid}/` prefix. */
+  object: string;
+  /** The part below the caller's own prefix — what a screen shows. */
+  name: string;
+  size: number;
+  contentType: string | null;
+  updated: string | null;
+};
+
+/**
+ * What this owner has in the bucket, under `prefix`.
+ *
+ * WHY THIS EXISTS: without it an uploaded file is unfindable. The bridge could
+ * put an object in, sign a URL for it and delete it, but every one of those
+ * needs the caller to already know the exact name — so a file survived the
+ * upload and was then lost, which is indistinguishable from not having stored
+ * it. Listing is what makes the bucket its own index, and it is the reason no
+ * separate index table is needed: a row that drifts from the bucket is a
+ * second source of truth, and this way there is only one.
+ *
+ * The prefix is built by the caller from the verified uid, exactly as every
+ * other path here is, so a listing cannot reach outside its owner's subtree.
+ */
+export async function listObjects(
+  token: string,
+  bucket: string,
+  prefix: string,
+  pageSize = 100,
+): Promise<FirebaseResult<StoredObject[]>> {
+  const q = new URLSearchParams({
+    prefix,
+    maxResults: String(Math.min(Math.max(pageSize, 1), 500)),
+  });
+  const res = await fetch(`${STORAGE_HOST}/storage/v1/b/${bucket}/o?${q}`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return await failure(res);
+  const body = (await res.json()) as {
+    items?: { name?: string; size?: string; contentType?: string; updated?: string }[];
+  };
+  const items = (body.items ?? []).map((o) => ({
+    object: o.name ?? "",
+    // Strip the owner prefix rather than making every screen do it, and never
+    // hand back a name that would look like someone else's path.
+    name: (o.name ?? "").startsWith(prefix) ? (o.name ?? "").slice(prefix.length) : (o.name ?? ""),
+    size: Number(o.size ?? 0),
+    contentType: o.contentType ?? null,
+    updated: o.updated ?? null,
+  }));
+  return { ok: true, data: items };
+}
+
 export async function deleteObject(
   token: string,
   bucket: string,
