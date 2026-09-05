@@ -119,6 +119,44 @@ function projectFromServiceAccount(json: string | undefined): string | null {
   }
 }
 
+/**
+ * The service account's own email, private key and project — or null.
+ *
+ * EXISTS FOR ONE REASON: a Cloud Storage V4 signed URL is signed LOCALLY with
+ * the private key. There is no API that will mint one from an access token
+ * without also granting the token-minting service account the
+ * `iam.serviceAccounts.signBlob` permission, which is a second grant to chase
+ * for something the key in hand can already do. So `firebaseServer.ts` needs
+ * the key material itself, and it should read it through the same kill switch
+ * everything else here obeys rather than reaching for the raw secret.
+ *
+ * NOTHING HERE IS EVER RETURNED TO A CALLER OR LOGGED. It is passed straight
+ * into WebCrypto and discarded; the rule at the top of this file governs.
+ */
+export function serviceAccountIdentity(
+  env: (k: string) => string | undefined,
+): { clientEmail: string; privateKey: string; projectId: string } | null {
+  const json = serviceAccountJson(env);
+  if (!json) return null;
+  try {
+    const sa = JSON.parse(json) as {
+      client_email?: unknown;
+      private_key?: unknown;
+      project_id?: unknown;
+    };
+    if (
+      typeof sa.client_email !== "string" ||
+      typeof sa.private_key !== "string" ||
+      typeof sa.project_id !== "string"
+    ) {
+      return null;
+    }
+    return { clientEmail: sa.client_email, privateKey: sa.private_key, projectId: sa.project_id };
+  } catch {
+    return null;
+  }
+}
+
 /** Which credential the environment holds, without minting anything. */
 export function googleAuthStatus(env: (k: string) => string | undefined): GoogleAuthStatus {
   const sa = serviceAccountJson(env);
