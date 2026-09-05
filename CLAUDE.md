@@ -124,6 +124,36 @@ string across means those 86 keep the password they already know; without it,
 have no hash (provider or one-time-code sign-ins) and are imported without
 one rather than with a guessed one.
 
+WHO CAN CHANGE WHAT, MEASURED 2026-09-05 — because "Lovable has Supabase
+admin access" is true and still not enough. The Lovable agent holds the
+project's SERVICE ROLE: it runs SQL, deploys edge functions, and drives the
+Auth _user_ admin API. It does NOT hold a management personal access token,
+and third-party auth registration lives on the CONTROL plane. Asked to add
+it, the agent tried every reachable path and got, verbatim:
+
+    GET https://api.supabase.com/v1/projects/<ref>/config/auth
+        Authorization: Bearer <service-role key>
+    -> {"message":"JWT failed verification"}   HTTP 401
+
+    GET <project>/auth/v1/admin/settings  (service role) -> 404 page not found
+
+So: anything under `api.supabase.com` is the OWNER's to do, or needs a PAT
+deliberately provisioned. A PAT is account-wide — it can delete projects —
+so storing one as a project secret to save a dashboard visit is a bad trade
+for a one-time setting. Recorded here so the next session does not spend a
+round trip rediscovering that the service role is the wrong credential.
+
+AND THE PROPAGATION QUESTION IS STILL OPEN. Whether the
+`[auth.third_party.firebase]` block in `supabase/config.toml` reaches the
+hosted project could NOT be answered: the public `/auth/v1/settings` endpoint
+returns `external`, `saml_enabled` and `passkeys_enabled` but carries no
+third-party field at all, so a Firebase registration would be invisible there
+whether or not it exists. That is the same trap as the Firestore HTML 404 —
+an endpoint that answers identically for "absent" and "not exposed" is not
+evidence. It will be settled BEHAVIOURALLY instead: once a single Firebase
+user exists, present its ID token to PostgREST. Accepted means registered;
+rejected means not.
+
 TWO THINGS ONLY THE OWNER CAN DO, both in consoles this container cannot
 reach — nothing client-side ships until the first one exists:
 
