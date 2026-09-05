@@ -23,6 +23,7 @@
 // second copy of it that could drift.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, json, SUPPORTED_LANGS, callText, callGemini } from "../_shared/llm.ts";
+import { TEXT_DIRECT_STANDARD } from "../_shared/modelRegistry.ts";
 
 /** Long messages are rare and expensive. Matches the standalone translator. */
 const MAX_CHARS = 1000;
@@ -128,11 +129,10 @@ Deno.serve(async (req) => {
     "Return ONLY the translation as plain text — no quotes, no commentary, no romanization " +
     "unless the target language uses the Latin script.";
 
-  // callText returns { ok, data } where data is Anthropic-shaped, and it
-  // already falls back to Gemini internally on credit exhaustion — the shared
-  // helper normalises Gemini's response into the same shape. So there is one
-  // call here, not a hand-rolled fallback chain: a second one would duplicate
-  // logic that _shared/llm.ts already owns.
+  // callText returns { ok, data } where data is Anthropic-shaped, and it owns
+  // the whole engine chain — the shared helper normalises Gemini's response
+  // into the same shape. So there is one call here, not a hand-rolled fallback
+  // chain: a second one would duplicate logic that _shared/llm.ts already owns.
   const opts = {
     system,
     messages: [{ role: "user" as const, content: text }],
@@ -145,12 +145,31 @@ Deno.serve(async (req) => {
     return { ok: false as const, reason: "threw" };
   });
 
-  // Anthropic unreachable for a reason its own fallback does not cover (no
-  // key, timeout, 5xx). Chat translation is a "tap and wait" interaction, so
-  // one explicit retry on the other provider beats showing an error.
+  // LAST DITCH — AND IT IS NO LONGER "THE OTHER PROVIDER".
+  //
+  // This block used to read "Anthropic unreachable, so try Gemini instead",
+  // which was true while callText meant Claude-first. The 2026-09-04b reversal
+  // made callText try Gemini DIRECT first and only catch with Claude, so
+  // reaching here means BOTH engines have already refused. Chat translation is
+  // a "tap and wait" interaction, so one more attempt still beats showing an
+  // error — but it is a RETRY, not a failover, and the log line now says so
+  // rather than blaming Claude for a Gemini failure.
+  //
+  // PINNED — owner directive 2026-09-05. Unpinned, callGemini falls back to
+  // GEMINI_FALLBACK_MODEL, and this was the LAST door in ONIQ that reached it:
+  // the September bill put 399,078 output tokens there at ₹142.99, 41.3% of the
+  // month, entirely from callers that simply did not name a model.
+  //
+  // What pinning gives up, stated rather than glossed: this used to retry on a
+  // DIFFERENT model, which incidentally covered a model-specific outage — the
+  // exact failure llm.ts's measured 404 table records, where a listed model
+  // 404s on every real call for months. That cover was never worth much here,
+  // because callText's own primary is this same id: if it dies, Study, Ting and
+  // story-plot die with it and a private retry rescues translation alone. Model
+  // -outage cover belongs in llm.ts, not in one function's local retry.
   if (!res.ok) {
-    console.warn("claude unavailable, trying gemini:", res.reason);
-    res = await callGemini(opts).catch((e) => {
+    console.warn("both engines refused, retrying gemini:", res.reason);
+    res = await callGemini({ ...opts, geminiModel: TEXT_DIRECT_STANDARD.id }).catch((e) => {
       console.error("callGemini threw", e);
       return { ok: false as const, reason: "threw" };
     });

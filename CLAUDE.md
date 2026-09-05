@@ -71,9 +71,32 @@ Text was the largest line, not image and not music — and it ran on a model no
 line of ONIQ names. `gemini-3.6-flash` is `GEMINI_FALLBACK_MODEL` in `llm.ts`,
 what `callGemini` reaches for when a caller does not say. Only two callers did
 not say: story-plot's two direct-Gemini branches and translate-message's
-post-Claude retry. **translate-message is still unpinned** — left alone
-deliberately, because pinning it is a second model-tier choice and therefore
-the owner's, not an engineer's.
+retry. **Both are pinned now** — the owner answered "fix it" on the second one
+the same day, so no path in ONIQ reaches the fallback model any more.
+
+**THE GUARD IS THE CALL SITE, NOT THE DEFAULT** —
+`src/lib/__tests__/geminiModelPinned.test.ts` fails if any `callGemini(` in
+`supabase/functions` omits `geminiModel`, or names a hand-typed id instead of a
+registry constant. Changing `GEMINI_FALLBACK_MODEL` would NOT have prevented
+this: the next caller to forget would simply land on whatever the new default
+was, equally unchosen. A default is not a decision, and only the call site can
+carry one. The fallback constant stays as `callGemini`'s internal default —
+deleting it turns a forgotten model into a crash rather than an expensive
+success, which is a different change and not this one.
+
+What pinning translate-message gives up, stated rather than glossed: it used to
+retry on a DIFFERENT model, which incidentally covered a model-specific outage
+— llm.ts's measured 404 table records exactly that failure, a listed model
+404ing on every real call for months. That cover was never worth much there,
+because `callText`'s own primary is the same id: if flash-lite dies, Study, Ting
+and story-plot die with it and a private retry rescues chat translation alone.
+Model-outage cover belongs in `llm.ts`, not in one function's local retry.
+
+That retry is also no longer a failover, and its log line was corrected to
+match. It read "claude unavailable, trying gemini" — true when `callText` meant
+Claude-first. Since the 2026-09-04b reversal `callText` tries Gemini DIRECT and
+only catches with Claude, so reaching that line means BOTH engines already
+refused. It is a third attempt, not a second opinion.
 
 WHY THE TIER DID NOT SAVE IT, which is the part worth remembering. story-plot's
 `opts` asked for `tier: "heavy"`, and the heavy id billed **zero tokens all
