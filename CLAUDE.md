@@ -318,6 +318,79 @@ want Firestore at all. Preserving the UUID as the Firebase uid is what
 makes the client-side option survivable: both systems then key on the same
 value, so a rule and a policy can be read against each other.
 
+### Owner directive, 2026-09-05 (later still) — phone OTP on Firebase, and Firebase BECOMES the identity
+
+The owner was asked which shape a Firebase phone-OTP switch should take and
+chose **Firebase as the identity**, not Firebase as SMS delivery. That
+SUPERSEDES the SERVER-route directive above on the identity question: its
+"needs no Firebase web app, no Firebase Auth, and no user import" no longer
+holds, and the uid-preservation plan recorded further up is **no longer
+dormant — it is the plan**. The server-route bridge for Storage/Firestore is
+untouched; only who issues identity changes.
+
+Google's SMS pricing was accepted **as given**, the way the model prices were:
+Firebase Phone Auth bills per message per destination country on the Blaze
+plan, this container cannot reach Google's pricing pages, and the owner chose
+to proceed without a MSG91 comparison. It is not established that this is
+cheaper than what it replaces.
+
+**THE SEND CANNOT BE DONE SERVER-SIDE, and that reshapes the work.** The
+service account has no send-verification-code API; the real call is
+`identitytoolkit.googleapis.com/v1/accounts:sendVerificationCode?key=<WEB_API_KEY>`
+and it needs two things no server can supply — a Web API key, and a
+reCAPTCHA/Play-Integrity attestation minted in the browser or by the
+Play-signed app. So `send-otp` is not rewritten onto Firebase; its send half
+goes away and the client does it. `send-otp` stays live and guarded until
+then (see its own header).
+
+**MEASURED 2026-09-05, and it is the unambiguous kind.** Asked with the
+service account:
+
+    GET https://firebase.googleapis.com/v1beta1/projects/oniq-309bd/webApps
+    -> HTTP 200   {}
+
+A 200 with an empty body is a successful list that is empty — **zero Firebase
+Web apps** — not the Firestore HTML-404 trap where "absent" and "not exposed"
+answer identically. The blocker is real and uncleared. `google-services.json`
+agrees: one Android client (`com.oniqhub.app`), `oauth: NONE`.
+
+**THE TWO BLOCKERS SERIALISE — they cannot be worked in parallel.** Settling
+whether `[auth.third_party.firebase]` in `supabase/config.toml` actually
+reaches the hosted project was to be answered BEHAVIOURALLY, by presenting a
+Firebase ID token to PostgREST. Minting an ID token needs
+`accounts:signInWithCustomToken?key=<WEB_API_KEY>` — the Web API key, which
+comes from the Web app that does not exist. So blocker 2 is downstream of
+blocker 1, and nothing further can be established until a Web app is
+registered. Asked directly, the Lovable agent said it does not know whether
+its deploy tooling applies that config block, and declined to infer it from
+the file's presence — which is the right answer, not a gap to paper over.
+
+**THE PLAN OF RECORD HAS NO SIGNUP STORY, and this is the load-bearing find.**
+`scripts/firebase-import-users.mjs` covers the 125 EXISTING accounts and
+carries `phoneNumber` across (line 84), so an existing user signing in by
+phone resolves to their preserved UUID uid — that half is sound. But a person
+with NO account who signs in by phone gets a Firebase-minted **native 28-char
+uid**, and the script's own header states the consequence exactly: `auth.uid()`
+casts the `sub` claim to `uuid`, so a native uid "would not merely fail to
+match rows — it would fail to cast, and every policy on every table would
+error." Signup is precisely what a phone-OTP switch is for, so this is a
+total-failure hole in the direction just chosen, not a rough edge.
+
+The shape that closes it, NOT YET BUILT because building against an untested
+flow is what this file keeps warning against: the phone sign-in must not be
+the account-creating step. A server endpoint takes the phone first,
+`createUser({ uid: <a fresh UUID>, phoneNumber, customClaims: { role:
+'authenticated' } })`, and only then does the client call
+`signInWithPhoneNumber` — which now RESOLVES to that account instead of
+minting one, so the token's `sub` is a UUID and the invariant holds for new
+users as it does for imported ones. That endpoint is also the natural home for
+the abuse controls `send-otp` just got, since it is what will be
+unauthenticated and spending money next.
+
+**NOTHING ELSE CAN PROCEED UNTIL A WEB APP IS REGISTERED** for `oniq-309bd`.
+That is one console action, owner-only, and it also produces the Web API key
+that unblocks the propagation check.
+
 ## ONIQ Study and the Google mapping — what is built, what cannot be
 
 The owner mapped ONIQ Study onto thirteen Google capabilities, 2026-09-05.
