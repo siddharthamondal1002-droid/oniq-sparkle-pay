@@ -99,6 +99,31 @@ first would mean proxying every read through the service account, which
 throws away the client listeners that are the reason to use Firestore at
 all. The order is Storage → Auth → Firestore, not "identity last".
 
+WHAT THE FULL SUPABASE PAGE CHANGED, once the owner supplied it — the search
+excerpt had cut both:
+
+- **The restrictive RLS policies are OPTIONAL for ONIQ.** Firebase signs every
+  project's tokens with ONE shared key set, so a token from an unrelated
+  Firebase project is cryptographically valid. On SELF-HOSTED Supabase that
+  must be guarded with `as restrictive` policies on every table, bucket and
+  channel; the HOSTED platform rejects unregistered project ids before they
+  reach Postgres. That removes a policy pass over 142 tables — and makes one
+  due the day ONIQ leaves hosted, so the reason lives in
+  `supabase/config.toml` beside the switch rather than only here.
+- **The vendor's own backfill sample is broken.** It calls
+  `setCustomUserClaims(userRecord.id, ...)`, but firebase-admin's `UserRecord`
+  exposes `uid`; `.id` is undefined, so all 125 calls would land in its catch
+  having changed nothing. `scripts/firebase-import-users.mjs` sets the claim
+  inline at import instead, so there is no second pass to get wrong.
+
+PASSWORDS SURVIVE, which the remap answer needs to be true. Measured
+2026-09-05: 86 of the 125 have a password and every stored hash begins
+`$2a$` — bcrypt, which Firebase imports natively. Carrying the modular-crypt
+string across means those 86 keep the password they already know; without it,
+"keep every account" would still have meant 86 forced resets. The other 39
+have no hash (provider or one-time-code sign-ins) and are imported without
+one rather than with a guessed one.
+
 TWO THINGS ONLY THE OWNER CAN DO, both in consoles this container cannot
 reach — nothing client-side ships until the first one exists:
 

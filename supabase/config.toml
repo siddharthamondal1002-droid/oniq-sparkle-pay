@@ -91,3 +91,32 @@ verify_jwt = false
 # a real user JWT and the platform gate should check it. Each then re-derives
 # the user from that token and refuses unless the order and the payment attempt
 # belong to them — a signature proves a payment happened, not whose it was.
+
+# FIREBASE AUTH AS A THIRD-PARTY IDENTITY PROVIDER. Owner directive
+# 2026-09-05: identity moves to Firebase while Postgres stays the system of
+# record. This block is what makes Supabase accept a Firebase ID token, so
+# auth.uid() resolves to the token's `sub` and all 242 RLS policies keep
+# working unchanged.
+#
+# IT IS ADDITIVE. Supabase Auth keeps issuing sessions exactly as before;
+# enabling this only widens what is ACCEPTED. Turning it on before any user
+# exists in Firebase changes nothing for anybody, which is why it goes first.
+#
+# THE UID IS THE SAFETY PROPERTY. auth.uid() casts the `sub` claim to uuid,
+# and every one of those policies compares it against uuid columns, so a
+# native Firebase uid would not merely fail to match — it would fail to
+# cast. importUsers() takes a caller-specified uid of up to 128 characters,
+# and all 125 production ids are UUIDs of 36, so each user is imported
+# carrying the id they already have. See scripts/firebase-import-users.mjs.
+#
+# NO RESTRICTIVE RLS POLICIES ARE NEEDED HERE, and the reason is specific:
+# Firebase signs every project's tokens with ONE shared set of keys, so a
+# token from an unrelated Firebase project is cryptographically valid. On
+# SELF-HOSTED Supabase that is your problem to guard with `as restrictive`
+# policies on every table, bucket and channel. ONIQ is on the HOSTED
+# platform, which rejects tokens whose project id is not registered here
+# before they ever reach Postgres. Moving off hosted would make those 142
+# tables' policies load-bearing overnight.
+[auth.third_party.firebase]
+enabled = true
+project_id = "oniq-309bd"
