@@ -58,6 +58,7 @@
 // in a system prompt would drift from the first one and nobody would notice
 // until a Story came back the wrong length.
 import { callGemini, callText, SUPPORTED_LANGS } from "../_shared/llm.ts";
+import { TEXT_DIRECT_STANDARD } from "../_shared/modelRegistry.ts";
 import { orchestratePlan } from "../_shared/planOrchestrator.ts";
 import { verifyJobToken } from "../_shared/jobToken.ts";
 
@@ -194,6 +195,44 @@ function attemptBudget(shots: number): number {
 }
 
 /**
+ * OWNER DIRECTIVE, 2026-09-05 — cap what ONE plot request may spend.
+ *
+ * The September bill made this the largest single line in ONIQ: 399,078 output
+ * tokens on the text model, 41% of a 346.21 total, more than image and music
+ * put together. This function is where they came from, and nothing bounded it.
+ *
+ * `maxTokens` IS NOT THAT BOUND ON GEMINI, which is the measured finding that
+ * shapes this. Every value story-plot passes goes through
+ * `geminiOutputCeiling`, whose floor is GEMINI_MIN_OUTPUT_TOKENS = 16384:
+ * max(8192 + 8192, 16384) and max(300 + 8192, 16384) are both 16384, so every
+ * ceiling in this file — 300, 8192, anything under 8192 — sends Google the
+ * identical number. Lowering them would cut Claude's ceiling only, and
+ * lowering the shared floor would break study-paper-generate, which needs it.
+ * A per-call ceiling cannot cap this function; a per-REQUEST meter can.
+ *
+ * WHAT RUNS AWAY IS THE CHAIN, NOT THE CALL. A 90-shot film may make a spine
+ * (2 calls) plus twelve batches on EACH engine, plus a rescue pass — 28 calls
+ * that Google will each allow 16,384 output tokens. One request could bill
+ * 458k tokens, more than the whole of September, and every call after the
+ * first failure is money spent on a film that has already failed once.
+ *
+ * SIZED FROM THE FILE'S OWN MEASUREMENTS, not from a guess: ~350 output tokens
+ * per movie-grammar shot (the figure recorded at the 8192 ceiling below), plus
+ * thinking, which Gemini bills as output and which Google's own trackers put
+ * at ~6k per call even on simple work. One full engine pass over 43 shots is
+ * therefore ~70k and over 90 shots ~125k; this leaves roughly 60% headroom
+ * over that at every size. So it never bites a film that is going well, and it
+ * stops a second full pass on a large film that is not.
+ *
+ * The shape deliberately mirrors `attemptBudget` above — the comment there
+ * says "the budget that varies is TIME, never tokens", and that is now half
+ * true: tokens vary too, but only as a ceiling on the whole request.
+ */
+function outputBudget(shots: number): number {
+  return Math.min(220_000, 40_000 + shots * 1_800);
+}
+
+/**
  * The whole function's wall clock, shared across every attempt.
  *
  * Scaling one attempt is not enough on its own: three scaled attempts in a row
@@ -266,6 +305,59 @@ Deno.serve(async (req) => {
       return json({ error: "Bad shot count." }, 400);
     }
 
+    // THE SPEND METER. Every billable call in this function goes through
+    // `metered`, which refuses once `outputBudget(shots)` is gone and adds what
+    // each reply actually cost. Both engines report output tokens in the same
+    // field — callGemini normalises Google's usageMetadata into Anthropic's
+    // shape — so one counter covers the whole chain.
+    //
+    // It REFUSES rather than truncating. A truncated reply is the documented
+    // Gemini failure this file already carries a scar from: MAX_TOKENS comes
+    // back EMPTY, which reads as "bad JSON", which spends the retry chain to
+    // reach the same place. A refusal is a reason, and it travels back in the
+    // 502 body with every other reason.
+    //
+    // THE WORD "quota" IS LOAD-BEARING. `classifyFailure` in planOrchestrator
+    // sorts a reason into transient (worth another engine) or permanent, and
+    // its unknown case defaults to permanent — but it also matches BARE
+    // numbers, `\b(429|500|502|503|504|529)\b`, so a reason carrying raw
+    // figures is one arithmetic change away from reading as a retryable 503.
+    // "quota" is on its permanent list, which makes the classification
+    // deliberate instead of incidental. A spent budget is exactly a quota, and
+    // retrying it on the other engine can only refuse again.
+    const tokenBudget = outputBudget(shots);
+    let tokensSpent = 0;
+    const outputTokensOf = (data: unknown): number => {
+      const n = (data as { usage?: { output_tokens?: unknown } })?.usage?.output_tokens;
+      return typeof n === "number" && n > 0 ? n : 0;
+    };
+    type TextCall = (
+      o: Parameters<typeof callText>[0],
+    ) => Promise<Awaited<ReturnType<typeof callText>>>;
+    const budgetSpentReason = () =>
+      `output token quota spent for this plan (${tokensSpent}/${tokenBudget})`;
+    const metered =
+      (call: TextCall): TextCall =>
+      async (o) => {
+        if (tokensSpent >= tokenBudget) {
+          return { ok: false, reason: budgetSpentReason() };
+        }
+        const res = await call(o);
+        if (res.ok) tokensSpent += outputTokensOf(res.data);
+        return res;
+      };
+    const meteredText = metered(callText);
+    // FLASH-LITE, PINNED — owner directive 2026-09-05, "switch it to
+    // flash-lite". callGemini's own default is GEMINI_FALLBACK_MODEL, and an
+    // unpinned call here is exactly how this function came to run on a model
+    // no line of ONIQ names: the September bill shows 399,078 output tokens on
+    // it and ZERO on the tier this file's `opts` asked for, because the tier is
+    // a callText concept and callGemini never sees it. Naming the id at the
+    // call site is what makes the directive true on both branches.
+    const meteredGemini = metered((o) =>
+      callGemini({ ...o, geminiModel: TEXT_DIRECT_STANDARD.id }),
+    );
+
     // VERBATIM MODE (owner directive, 2026-08-14): the worker supplies the
     // narrations — the user's own text, pre-sliced — and Ting designs only
     // what prose cannot carry: the frames, the locks, the sizes. The worker
@@ -306,7 +398,7 @@ Deno.serve(async (req) => {
       if (!hasClaude) {
         return json({ error: "The story check is unavailable right now — try again later." }, 503);
       }
-      const gate = await callText({
+      const gate = await meteredText({
         system: CONTENT_GATE_SYSTEM,
         messages: [
           {
@@ -348,13 +440,20 @@ Deno.serve(async (req) => {
         : "";
 
     const opts = {
-      // THE HEAVY TIER. Owner directive 2026-09-04 named two text models, an
-      // "AI" and a "Better AI"; planning a whole film from one sentence is
-      // what the better one is for, and this call was on claude-opus-5 before
-      // the switch. Every other caller takes the standard tier by default —
-      // see callText. The tier is a routing hint, not a model id: it is the
-      // router's job to know which id each tier means.
-      tier: "heavy" as const,
+      // THE STANDARD TIER — owner directive 2026-09-05, "switch it to
+      // flash-lite". This SUPERSEDES the 2026-09-04 heavy-tier choice recorded
+      // here before, and the reason is the bill rather than an argument about
+      // quality: story-plot was the largest line in September, and the heavy
+      // tier (gemini-3.1-pro-preview) does not appear on that bill at all —
+      // not one token — because production has no Claude key, so the callText
+      // path this tier steers was never reached and every plot went to the
+      // unpinned Gemini rescue below instead. The tier was costing nothing and
+      // buying nothing; the model that was actually writing the films is the
+      // one that had to change, and it now matches this one.
+      //
+      // The tier is still a routing hint, not a model id: it is the router's
+      // job to know which id each tier means, which is why the direct-Gemini
+      // branches have to name the id themselves.
       system: SYSTEM + storyLanguageInstruction(lang),
       messages: [
         {
@@ -453,7 +552,7 @@ Deno.serve(async (req) => {
           `Return exactly ${shots} beats.`;
       const parseSpineReply = (t: string) =>
         isVerbatim ? parseSpineStructure(t, narrations) : parseSpine(t, shots);
-      const callFor = (engine: string) => (engine === "gemini" ? callGemini : callText);
+      const callFor = (engine: string) => (engine === "gemini" ? meteredGemini : meteredText);
 
       // SPINE on ONE engine within `timeoutMs`. A transient failure bubbles up
       // for the orchestrator to fall over; a reply that ARRIVED but would not
@@ -613,7 +712,7 @@ Deno.serve(async (req) => {
       const first =
         firstMs === 0
           ? ({ ok: false, reason: "no time left after the spine" } as const)
-          : await callText({ ...opts, timeoutMs: firstMs });
+          : await meteredText({ ...opts, timeoutMs: firstMs });
       if (first.ok) {
         const r = parsePlan(textOf(first.data), shots);
         if ("plan" in r) plan = r.plan;
@@ -642,7 +741,7 @@ Deno.serve(async (req) => {
         const retry =
           retryMs === 0
             ? ({ ok: false, reason: "no time left after the first attempt" } as const)
-            : await callText({
+            : await meteredText({
                 ...opts,
                 timeoutMs: retryMs,
                 messages: [
@@ -693,7 +792,7 @@ Deno.serve(async (req) => {
       const g =
         geminiMs === 0
           ? ({ ok: false, reason: "no time left after Claude" } as const)
-          : await callGemini({ ...opts, timeoutMs: geminiMs });
+          : await meteredGemini({ ...opts, timeoutMs: geminiMs });
       if (g.ok) {
         const r = parsePlan(textOf(g.data), shots);
         if ("plan" in r) plan = r.plan;
@@ -708,10 +807,13 @@ Deno.serve(async (req) => {
       // costs money and a half-built plan spends it on a film that cannot
       // finish. Fail here, where nothing has been generated yet.
       console.error("story-plot produced no usable plan", JSON.stringify(tried));
-      return json({ error: "Ting could not write that one — try again.", shots, tried }, 502);
+      return json(
+        { error: "Ting could not write that one — try again.", shots, tried, tokensSpent },
+        502,
+      );
     }
 
-    return json({ configured: true, plan, servedBy });
+    return json({ configured: true, plan, servedBy, tokensSpent });
   } catch (e) {
     console.error("story-plot fn error", e);
     return json({ error: "Something went sideways — try again" }, 500);
