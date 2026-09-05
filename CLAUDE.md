@@ -414,11 +414,59 @@ enabling Auth normally enables it too, so check that second.) The service
 account is fine and the project id is right — `webApps` answered 200 on the
 same credential minutes earlier.
 
-**SO THE ORDER IS THREE, NOT TWO, AND STILL SERIAL:** register a Web app
-(DONE) -> **enable Authentication and turn on the Phone sign-in provider**
-(OWNER, outstanding) -> only then can the third-party-auth propagation question
-be settled behaviourally, because that test needs an ID token and no ID token
-can be minted until Auth exists.
+**AUTHENTICATION IS NOW PROVISIONED — measured 2026-09-05, and measured
+WITHOUT the service account.** Identity Toolkit is reachable from this
+container (unlike `*.supabase.co`), and `createAuthUri` needs only the public
+Web API key, so the check no longer depends on the Lovable agent:
+
+    POST identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=<WEB_KEY>
+         {"identifier":"probe@example.com","continueUri":"http://localhost"}
+    -> HTTP 200  {"kind":"identitytoolkit#CreateAuthUriResponse","sessionId":"..."}
+
+A 200 there is only possible once the Auth config exists; the same call
+answered `CONFIGURATION_NOT_FOUND` an hour earlier. **That is the API-key-only
+probe to reach for first in future** — it is free, read-only, needs no
+credential ONIQ has to protect, and it distinguishes provisioned from not.
+
+**BUT NO SMS CAN BE SENT YET, and it is not India-specific.** Same key,
+`accounts:sendVerificationCode`, three countries, no reCAPTCHA token:
+
+    +91  India  -> 400 OPERATION_NOT_ALLOWED : SMS unable to be sent until
+                       this region enabled by the app developer.
+    +1   US     -> 400 (identical message)
+    +44  UK     -> 400 (identical message)
+
+Identical for every region tested, so this is default-deny rather than a rule
+about India. Two candidates, both on the Authentication screen and NOT
+distinguishable from outside — the API-key-readable `getProjectConfig` returns
+`signIn.phone: null` on modern projects, so it cannot say which:
+
+1. **SMS region policy** (Authentication -> Settings) starts allowing nothing
+   and every region must be opted in. The error text is that feature's own
+   wording, which makes it the likelier of the two.
+2. The **Phone provider toggle** itself never got saved.
+
+Check both; they are adjacent. This matters more for ONIQ than for most apps —
+every phone path in the codebase is India-first (`normalizeIndian` refuses
+anything but `+91`), so a region policy that omits India is a total outage of
+sign-in, not a degradation.
+
+**AND `oniqhub.com` IS NOT AN AUTHORIZED DOMAIN — measured, same probe:**
+
+    getProjectConfig -> authorizedDomains:
+        ['localhost', 'oniq-309bd.firebaseapp.com', 'oniq-309bd.web.app']
+
+Web phone auth runs reCAPTCHA, and reCAPTCHA refuses on any domain not in that
+list. ONIQ serves from `oniqhub.com`, which is absent, so the flow would fail
+in production while working perfectly in local development — the worst shape of
+bug to find late. Authentication -> Settings -> Authorized domains -> add it.
+
+**SO THE ORDER IS FIVE, NOT TWO, AND STILL SERIAL:** register a Web app (DONE)
+-> enable Authentication (DONE) -> **allow the SMS region for +91, and confirm
+the Phone provider is really on** (OWNER) -> **add `oniqhub.com` to authorized
+domains** (OWNER) -> then the third-party-auth propagation question, which is
+the only one still needing the service account, because minting an ID token
+needs a custom token and that is the one step an API key cannot do.
 
 **AND ONE NON-RESULT, recorded so nobody reads it as a result.** The control
 arm of that experiment — the same PostgREST call with `Bearer notatoken` —
