@@ -387,9 +387,47 @@ users as it does for imported ones. That endpoint is also the natural home for
 the abuse controls `send-otp` just got, since it is what will be
 unauthenticated and spending money next.
 
-**NOTHING ELSE CAN PROCEED UNTIL A WEB APP IS REGISTERED** for `oniq-309bd`.
-That is one console action, owner-only, and it also produces the Web API key
-that unblocks the propagation check.
+**THE WEB APP IS REGISTERED — and it was not the last blocker.** The owner
+created it the same day; the config came back with `appId`
+`1:948410240436:web:b6eb8391ad7135e7b676e1`, `authDomain
+oniq-309bd.firebaseapp.com`, and a Web API key. (That key is PUBLIC by design
+— Firebase ships it in every browser bundle — so it belongs in client config
+next to the Supabase publishable key, not in the secret store.)
+
+**FIREBASE AUTHENTICATION IS NOT TURNED ON, measured immediately after.** With
+the Web app in place, the behavioural test was run: create one throwaway user
+with a UUID uid, mint a custom token, exchange it for an ID token, present that
+to PostgREST. It failed at the first step, in Google's own words:
+
+    POST identitytoolkit.googleapis.com/v1/projects/oniq-309bd/accounts
+    -> HTTP 400  {"error":{"code":400,"message":"CONFIGURATION_NOT_FOUND"}}
+
+    POST identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken
+    -> HTTP 400  {"error":{"code":400,"message":"CONFIGURATION_NOT_FOUND"}}
+
+Registering a Web app produces CONFIG; it does not provision the Auth PRODUCT.
+`CONFIGURATION_NOT_FOUND` is what Identity Toolkit returns for a project that
+has no Auth configuration at all — which is the state before someone opens
+Firebase console -> Build -> Authentication -> Get started. (The other thing
+that produces it is the Identity Toolkit API being disabled in the GCP project;
+enabling Auth normally enables it too, so check that second.) The service
+account is fine and the project id is right — `webApps` answered 200 on the
+same credential minutes earlier.
+
+**SO THE ORDER IS THREE, NOT TWO, AND STILL SERIAL:** register a Web app
+(DONE) -> **enable Authentication and turn on the Phone sign-in provider**
+(OWNER, outstanding) -> only then can the third-party-auth propagation question
+be settled behaviourally, because that test needs an ID token and no ID token
+can be minted until Auth exists.
+
+**AND ONE NON-RESULT, recorded so nobody reads it as a result.** The control
+arm of that experiment — the same PostgREST call with `Bearer notatoken` —
+returned `401 {"message":"Invalid API key"}`. That is PostgREST rejecting the
+`apikey` header, not the bearer token, so the control never exercised what it
+was meant to. Whatever publishable key the run picked up was not accepted at
+`/rest/v1`. Before re-running the experiment, get a known-good `apikey` +
+`Authorization` pair returning 200 FIRST, so that "rejected" can be
+distinguished from "never reached the check".
 
 ## ONIQ Study and the Google mapping — what is built, what cannot be
 
