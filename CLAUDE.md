@@ -49,6 +49,58 @@ advertised returned 404 on every real call for months, leaving the fallback it
 served dead the whole time. A catalogue says what exists; only a POST says what
 this key may call.
 
+## Owner directive, 2026-09-05 — cap story-plot, switch it to flash-lite
+
+The owner read the September bill and gave two instructions for `story-plot`.
+Both are recorded in full beside the code they govern —
+`supabase/functions/story-plot/index.ts`, at `outputBudget` and at the spend
+meter — and pinned by `src/lib/__tests__/storyPlotSpend.test.ts`.
+
+WHAT THE BILL SAID, ₹346.21 for 1–30 September:
+
+    gemini 3.6 flash text, output       399,078 count   ₹142.99   41.3%
+    Gemini 3.1 Flash Image, output       16,800 count    ₹96.31
+    Lyria 3 Music, 10 tracks + 2 clips       12 count    ₹84.08
+    gemini 3.1 flash lite text, output    3,177 count     ₹0.46
+    gemini 3.1 pro preview                                  absent
+
+By category: text ₹150.35, image ₹111.26, music ₹84.08. Twenty-five SKU
+rows, reconciling to the ₹346.21 total exactly.
+
+Text was the largest line, not image and not music — and it ran on a model no
+line of ONIQ names. `gemini-3.6-flash` is `GEMINI_FALLBACK_MODEL` in `llm.ts`,
+what `callGemini` reaches for when a caller does not say. Only two callers did
+not say: story-plot's two direct-Gemini branches and translate-message's
+post-Claude retry. **translate-message is still unpinned** — left alone
+deliberately, because pinning it is a second model-tier choice and therefore
+the owner's, not an engineer's.
+
+WHY THE TIER DID NOT SAVE IT, which is the part worth remembering. story-plot's
+`opts` asked for `tier: "heavy"`, and the heavy id billed **zero tokens all
+month**. A tier is a `callText` concept; `callGemini` never sees one. And with
+no Claude key in production the `callText` path was never reached at all, so
+every film fell through to the unpinned Gemini rescue. The tier was steering
+nothing. Naming the id at the call site is what makes a model choice true.
+
+**`maxTokens` CANNOT CAP A GEMINI CALLER — measured, not reasoned.**
+`geminiOutputCeiling` floors at `GEMINI_MIN_OUTPUT_TOKENS` = 16384, so every
+value story-plot passes sends Google the identical number:
+
+    geminiOutputCeiling(300) = 16384      geminiOutputCeiling(4096) = 16384
+    geminiOutputCeiling(1024) = 16384     geminiOutputCeiling(8192) = 16384
+
+Lowering those ceilings would tighten Claude only; lowering the shared floor
+would break `study-paper-generate`, which needs it. So the cap is a
+per-REQUEST output-token meter instead — `outputBudget(shots)`, mirroring
+`attemptBudget`'s shape — and it refuses rather than truncating, because a
+truncated Gemini reply comes back EMPTY and is spent twice over as "bad JSON".
+What runs away here is the chain, not the call: a 90-shot film may make 28
+calls that Google would each allow 16,384 output tokens.
+
+`tokensSpent` now travels back on both the 200 and the 502. The bill is a
+monthly total with no per-request breakdown, so that is the only place the
+cost of one film is knowable.
+
 ## Owner directive, 2026-09-05 — Firebase for four services
 
 The owner mapped four ONIQ services onto Firebase and answered the two
