@@ -174,6 +174,14 @@ directly with the service account and prints whichever of the two is missing,
 in Google's own words. That is faster and more certain than reading a console,
 and it is the only credential that can answer at all.
 
+The SCREEN is live too, which is a separate fact from the function being
+deployed and from the code being on `main` — see `oniq-ship`. Verified against
+the shipped bundle 2026-09-05: `admin/firebase` is in the served entry chunk
+`assets/index-CdfOeNcr.js`, and the button's `firebase-provisioning-run`
+marker is in its own route chunk `assets/app.admin.firebase-kO_onh2Z.js`.
+Greping either one alone would have given a false verdict — the route path
+appears only in the first, the marker only in the second.
+
 Storage is unblocked ONLY IN ITS SERVER-SIDE FORM, and the distinction is
 the architectural one this whole directive turns on. Firebase Storage rules
 key on `request.auth.uid` exactly as Firestore's do, so CLIENT-side Firebase
