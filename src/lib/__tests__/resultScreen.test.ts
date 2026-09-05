@@ -378,3 +378,46 @@ describe("no Oniq component is handed a data-* attribute it will drop", () => {
     ).toEqual([]);
   });
 });
+
+/* ------------------------------------ the list that hung off the right edge
+ * REPORTED FROM A PHONE, 2026-09-05: on Creations every card ran past the
+ * screen, titles sliced by the viewport instead of ellipsised — including
+ * FILM cards, which contain no audio at all.
+ *
+ * MEASURED CAUSE, in a browser at a 390px viewport against the real
+ * stylesheet: a grid item defaults to `min-width: auto` and so refuses to
+ * shrink below its subtree's min-content width. `<audio controls>` carries a
+ * UA minimum inside its shadow DOM — 522px in this Chromium — so ONE song
+ * card forced the single-column track to 548px, and every sibling in the
+ * column inherited it. 350px column, 548px cards, 198px of overflow.
+ *
+ * `audio { min-width: 0 }` was measured too and fixed NOTHING: the UA minimum
+ * still counts toward the item's min-content contribution. It has to be the
+ * grid ITEM that may shrink. With `min-w-0` on the card: 350px column, 350px
+ * cards, body scrollWidth back to exactly 390.
+ * -------------------------------------------------------------------------- */
+describe("a card can shrink to its grid track", () => {
+  const CARD = read("src/components/oniq/OniqCard.tsx");
+
+  it("OniqCard ships min-w-0 in its base classes", () => {
+    // Not in VARIANT or PADDING — those are overridable per call site, and a
+    // card that can be made unshrinkable by a prop is the bug again.
+    const base = CARD.slice(CARD.indexOf("const base = cn("), CARD.indexOf("if (onClick)"));
+    expect(base).toContain('"min-w-0"');
+  });
+
+  it("every list that puts a native audio control in a grid goes through OniqCard", () => {
+    // The fix lives on the card, so a screen that hand-rolls its own card
+    // around an <audio controls> would reintroduce the overflow. Three
+    // screens had this exact shape and all three were affected.
+    for (const [name, src] of [
+      ["creations", CREATIONS],
+      ["music", MUSIC],
+      ["voice", VOICE],
+    ] as const) {
+      expect(src, `${name} lost its grid`).toMatch(/grid gap-2/);
+      expect(src, `${name} lost its <audio controls>`).toMatch(/<audio[\s\n]+controls/);
+      expect(src, `${name} stopped using OniqCard around it`).toContain("<OniqCard");
+    }
+  });
+});
