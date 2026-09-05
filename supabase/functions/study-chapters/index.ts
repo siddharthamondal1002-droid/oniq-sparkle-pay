@@ -43,15 +43,28 @@ Deno.serve(async (req) => {
   const profileId = String(body.profileId ?? "").trim();
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId);
 
-  if (!BOARD_LABEL[board]) return json(200, { source: "unavailable", chapters: [], reason: "invalid board" });
-  if (!(VALID_CLASS_LEVELS as readonly string[]).includes(classLevel)) {
-    return json(200, { source: "unavailable", chapters: [], reason: "invalid classLevel" });
-  }
-  if (subject.length < 2) return json(200, { source: "unavailable", chapters: [], reason: "invalid subject" });
-
+  // THE ADMIN CLIENT AND THE LOGGER COME BEFORE THE GUARDS, AND THAT ORDER IS
+  // THE FIX. Until 2026-09-05 the three validation guards below returned
+  // without logging anything, because `logDebug` was not defined until after
+  // them. A request rejected for a bad board, class or subject therefore left
+  // NO trace at all — not a debug row, not even a console line.
+  //
+  // That blind spot cost a real investigation. Asked why Study showed no
+  // chapters, `study_chapters_debug` held 320 cache hits, 52 overrides, 71
+  // generations and exactly one failure since July — a table that looked
+  // healthy precisely because the failure mode being hunted was the one it
+  // could not see. "No rows" read as "no problem" when it may equally have
+  // meant "rejected at the door, silently".
+  //
+  // So a rejection is now a logged outcome like any other. The cost is one
+  // insert on a path that returns nothing anyway; the benefit is that the next
+  // person asking this question gets an answer from the table instead of from
+  // five round trips of inference.
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!supabaseUrl || !serviceKey) {
+    // The one rejection that still cannot be logged: without the service key
+    // there is nothing to log WITH. Saying so is the honest answer.
     return json(200, { source: "unavailable", chapters: [], reason: "backend not configured" });
   }
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
@@ -68,6 +81,21 @@ Deno.serve(async (req) => {
       });
     } catch { /* best effort */ }
   };
+
+  // Validation, now that a rejection can be recorded. Each one returns the
+  // same shape it always did — only the trace is new.
+  if (!BOARD_LABEL[board]) {
+    await logDebug({ source: "rejected", reason: "invalid board" });
+    return json(200, { source: "unavailable", chapters: [], reason: "invalid board" });
+  }
+  if (!(VALID_CLASS_LEVELS as readonly string[]).includes(classLevel)) {
+    await logDebug({ source: "rejected", reason: "invalid classLevel" });
+    return json(200, { source: "unavailable", chapters: [], reason: "invalid classLevel" });
+  }
+  if (subject.length < 2) {
+    await logDebug({ source: "rejected", reason: "invalid subject" });
+    return json(200, { source: "unavailable", chapters: [], reason: "invalid subject" });
+  }
 
   // IDOR guard: profileId is client-supplied, so a caller could otherwise
   // pass another family's learner UUID and read that learner's custom syllabus

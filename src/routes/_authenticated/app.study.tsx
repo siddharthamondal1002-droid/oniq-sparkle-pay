@@ -2152,6 +2152,13 @@ function ChapterPickerPanel({
   onBack: () => void;
 }) {
   const [chapters, setChapters] = useState<ChapterRow[] | null>(null);
+  // WHY THE LIST IS EMPTY, NOT JUST THAT IT IS. study-chapters answers HTTP 200
+  // with `{ source: "unavailable", chapters: [], reason }` — it always says why
+  // — and this screen used to discard the reason and render one sentence for
+  // every cause. An invalid board, a subject the model refused, a timeout and a
+  // genuine "no such syllabus" all looked identical, to the student and to
+  // whoever was asked to fix it.
+  const [reason, setReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { data: attempts } = useAttempts();
 
@@ -2177,10 +2184,18 @@ function ChapterPickerPanel({
         });
         if (cancelled) return;
         if (error) throw error;
-        const d = data as { chapters?: ChapterRow[] };
-        setChapters(Array.isArray(d?.chapters) ? d.chapters : []);
-      } catch {
-        if (!cancelled) setChapters([]);
+        const d = data as { chapters?: ChapterRow[]; reason?: string };
+        const list = Array.isArray(d?.chapters) ? d.chapters : [];
+        setChapters(list);
+        setReason(list.length === 0 ? (d?.reason ?? null) : null);
+      } catch (e) {
+        // A thrown error is a different failure from an empty answer — the
+        // function never replied at all — and saying so is the difference
+        // between "your syllabus isn't listed" and "the request died".
+        if (!cancelled) {
+          setChapters([]);
+          setReason(e instanceof Error && e.message ? e.message : "the request did not complete");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -2231,6 +2246,15 @@ function ChapterPickerPanel({
       {!loading && chapters && chapters.length === 0 && (
         <div className="py-2 text-center text-[11px] text-muted-foreground">
           no chapter list available — use whole subject
+          {reason ? (
+            // Small, secondary and never in place of the usable instruction
+            // above it: the student's next move is still "use whole subject".
+            // This line is for the person who wants to know why, and for
+            // whoever they tell.
+            <span className="mt-1 block text-[11px] opacity-70" data-testid="chapters-reason">
+              ({reason})
+            </span>
+          ) : null}
         </div>
       )}
       {!loading &&
@@ -2303,6 +2327,10 @@ function SubjectSheet({
 }) {
   const [chapters, setChapters] = useState<ChapterRow[] | null>(null);
   const [chaptersSource, setChaptersSource] = useState<string>("");
+  // The same reason the picker above now shows. Two components fetch chapters
+  // and both threw the explanation away; fixing only one would leave the sheet
+  // — the surface a student actually studies from — still silent.
+  const [reason, setReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [paperFor, setPaperFor] = useState<{ chapter?: string } | null>(null);
   const [notesFor, setNotesFor] = useState<{ chapter: string; number: number } | null>(null);
@@ -2329,11 +2357,16 @@ function SubjectSheet({
         });
         if (cancelled) return;
         if (error) throw error;
-        const d = data as { chapters?: ChapterRow[]; source?: string };
-        setChapters(Array.isArray(d?.chapters) ? d.chapters : []);
+        const d = data as { chapters?: ChapterRow[]; source?: string; reason?: string };
+        const list = Array.isArray(d?.chapters) ? d.chapters : [];
+        setChapters(list);
         setChaptersSource(String(d?.source ?? ""));
-      } catch {
-        if (!cancelled) setChapters([]);
+        setReason(list.length === 0 ? (d?.reason ?? null) : null);
+      } catch (e) {
+        if (!cancelled) {
+          setChapters([]);
+          setReason(e instanceof Error && e.message ? e.message : "the request did not complete");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -2506,6 +2539,14 @@ function SubjectSheet({
             {!loading && chapters && chapters.length === 0 && (
               <div className="py-2 text-center text-[11px] text-muted-foreground">
                 no chapter list available — use whole subject above
+                {reason ? (
+                  <span
+                    className="mt-1 block text-[11px] opacity-70"
+                    data-testid="sheet-chapters-reason"
+                  >
+                    ({reason})
+                  </span>
+                ) : null}
               </div>
             )}
             {!loading &&
