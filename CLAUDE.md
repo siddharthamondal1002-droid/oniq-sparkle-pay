@@ -461,12 +461,87 @@ list. ONIQ serves from `oniqhub.com`, which is absent, so the flow would fail
 in production while working perfectly in local development — the worst shape of
 bug to find late. Authentication -> Settings -> Authorized domains -> add it.
 
-**SO THE ORDER IS FIVE, NOT TWO, AND STILL SERIAL:** register a Web app (DONE)
--> enable Authentication (DONE) -> **allow the SMS region for +91, and confirm
-the Phone provider is really on** (OWNER) -> **add `oniqhub.com` to authorized
-domains** (OWNER) -> then the third-party-auth propagation question, which is
-the only one still needing the service account, because minting an ID token
-needs a custom token and that is the one step an API key cannot do.
+**SMS AND THE PHONE PROVIDER ARE NOW LIVE — measured by the error CHANGING.**
+After the owner fixed the console settings, the same API-key-only call moved on:
+
+    accounts:sendVerificationCode, +91 and +1, no reCAPTCHA token
+    was -> 400 OPERATION_NOT_ALLOWED : SMS unable to be sent until this
+                region enabled by the app developer
+    now -> 400 MISSING_CLIENT_IDENTIFIER
+
+`MISSING_CLIENT_IDENTIFIER` is Google asking for the app verifier — the
+attestation step, which a server cannot pass and is not meant to. Reaching it
+means the region check AND the provider check both passed. **An advancing error
+is the signal here; a still-failing call is not the same as an unchanged one,
+and reading only the status code would have missed it.**
+
+**THE PROPAGATION QUESTION IS ANSWERED. FIREBASE IS _NOT_ REGISTERED.** Settled
+behaviourally 2026-09-05 exactly as this file planned, with the three-way
+control the earlier attempt lacked:
+
+    Firebase ID token, correctly shaped:
+      sub = <a generated UUID>   aud = oniq-309bd
+      iss = https://securetoken.google.com/oniq-309bd   role = authenticated
+
+    GET /rest/v1/chapters?select=*&limit=1
+      apikey + Firebase idToken  -> 401 PGRST301
+                                    "No suitable key was found to decode the JWT"
+      apikey + "Bearer notatoken"-> 401 "Expected 3 parts in JWT; got 1"
+      apikey only                -> 200 []
+
+Three DISTINCT outcomes, which is what makes it evidence: the token was
+well-formed (so not the control's failure) and reached the JWT check (so not
+the baseline's path), and PostgREST refused it on the KEYSET. So
+`[auth.third_party.firebase]` in `supabase/config.toml` is **inert on the
+hosted project** — the file declares it, nothing applies it. Registration lives
+on the Supabase CONTROL plane, which the service role cannot touch
+(`api.supabase.com` -> `JWT failed verification`), so it is the OWNER's to add
+or needs a deliberately provisioned PAT. **This is now the single blocker for
+the whole identity switch.**
+
+**`oniqhub.com` IS STILL NOT AN AUTHORIZED DOMAIN** — re-checked after the
+owner's console pass, `getProjectConfig` still returns only `['localhost',
+'oniq-309bd.firebaseapp.com', 'oniq-309bd.web.app']`. Web phone auth runs
+reCAPTCHA, which refuses unlisted domains, so sign-in would work in local
+development and fail in production.
+
+**AND EMAIL/PASSWORD SELF-SIGNUP IS OPEN TO ANYONE HOLDING THE PUBLIC KEY** —
+found while looking for a way to mint an ID token without the service account:
+
+    POST accounts:signUp?key=<WEB_KEY>  {"email":..,"password":..}
+    -> 200, account created, idToken returned
+    POST accounts:signUp?key=<WEB_KEY>  {"returnSecureToken":true}  (anonymous)
+    -> 400 ADMIN_ONLY_OPERATION
+
+Anonymous is correctly locked; Email/Password is not. The web key ships in
+every browser bundle, so that is unbounded account creation in the project
+about to become ONIQ's identity. It buys an attacker nothing TODAY (Supabase
+rejects the tokens, per above) and even after registration a self-signed-up
+account carries a native 28-char uid that fails the `::uuid` cast — but it is
+almost certainly unintended, since the console pass was only meant to turn on
+Phone. Turn Email/Password off unless something needs it.
+
+**SO THE ORDER IS SIX, AND ONE REMAINS:** Web app (DONE) -> enable
+Authentication (DONE) -> SMS region + Phone provider (DONE) -> add
+`oniqhub.com` to authorized domains (OWNER, outstanding) -> turn off
+Email/Password unless wanted (OWNER, outstanding) -> **register Firebase as a
+third-party auth provider on the Supabase control plane** (OWNER, and now the
+only thing standing between here and a working identity switch).
+
+**HOW TO CHECK ALL OF THIS WITHOUT ANY CREDENTIAL ONIQ MUST PROTECT.** The web
+API key alone answers most of it, and `identitytoolkit.googleapis.com` is
+reachable from the dev container even though `*.supabase.co` is not:
+
+    accounts:createAuthUri       -> is Auth provisioned at all
+    accounts:sendVerificationCode-> region policy + phone provider, by which
+                                    error comes back (no SMS is ever sent,
+                                    the attestation check fails first)
+    relyingparty/getProjectConfig-> authorizedDomains
+    accounts:signUp              -> which signup providers are open
+
+Only the last question — does Supabase accept the token — needs the service
+account, because minting an ID token needs a custom token and an API key
+cannot sign one.
 
 **AND ONE NON-RESULT, recorded so nobody reads it as a result.** The control
 arm of that experiment — the same PostgREST call with `Bearer notatoken` —
