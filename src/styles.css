@@ -1034,6 +1034,12 @@
 @utility no-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;
+  /* Same containment as snap-rail, and for the same reason: in this codebase
+     `no-scrollbar` marks a horizontal row that scrolls (the Watch genre
+     selector, the section tabs), and one that chains its swipe outward drags
+     the app exactly as a rail does. Horizontal only, so a vertical list
+     wearing this class is unaffected. */
+  overscroll-behavior-x: contain;
   &::-webkit-scrollbar {
     display: none;
   }
@@ -1041,6 +1047,31 @@
 @utility snap-rail {
   display: flex;
   overflow-x: auto;
+  /*
+   * THE SWIPE STOPS HERE — reported 2026-09-05, "screen displacement".
+   *
+   * Three screenshots, measured against the OS status bar (which cannot move,
+   * and does not: [42,1028] in all three): the app header sits at [63,1076]
+   * before and [8,1021] after, so the WHOLE app — header, content and nav —
+   * is translated left by 55 device px, about 20 CSS px, with no re-layout
+   * (both spans are 1013px wide). The sequence is the tell: rail at rest,
+   * rail scrolled, app displaced.
+   *
+   * It is NOT an overflowing document. Measured headless against this
+   * stylesheet at 360, 393 and 411 CSS px, body scrollWidth equals body width
+   * exactly — the `-mx-5 … px-5` bleed below is balanced and adds nothing.
+   * Which is also why `overflow-x: clip` on html/body did not prevent it:
+   * that stops the document being WIDER, and the document is not wider.
+   *
+   * What was missing is that overscroll-behavior governs chaining OUT OF the
+   * element it is set on. `html, body { overscroll-behavior-x: none }` stops
+   * the DOCUMENT chaining outward to the native view; it says nothing about a
+   * rail chaining into the document. So a swipe that ran to the end of a rail
+   * carried on into whatever would take it. `contain` and not `none`: the
+   * rail keeps its own end-of-travel feel, it just no longer hands the
+   * gesture to its ancestors.
+   */
+  overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
   scroll-padding-inline: 1.25rem;
   scrollbar-width: none;
@@ -1294,6 +1325,15 @@ body {
    * `clip` and not `hidden`: hidden would make body a scroll container and
    * quietly change what position: sticky sticks to.
    */
+  overflow-x: clip;
+}
+
+/* And the shell too, which is the element the 2026-09-05 screenshots actually
+ * show moving. The rule above clips the DOCUMENT; if a future child ever does
+ * overflow, this keeps the frame the user sees from panning with it. Same
+ * `clip` for the same reason — `hidden` would make the shell a scroll
+ * container and change what the sticky headers inside it stick to. */
+[data-app-shell] {
   overflow-x: clip;
 }
 
