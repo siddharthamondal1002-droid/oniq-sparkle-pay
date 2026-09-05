@@ -301,11 +301,35 @@ now carries two read-only probes — `classroom.googleapis.com/v1/courses` and
 naming which of missing-scope or missing-consent applies. Replace this
 paragraph with that output when it arrives; do not build against the guess.
 
+THE YOUTUBE ANSWER, decided 2026-09-05 and then corrected by a guard this
+repo already had. The owner chose "YouTube Data API only" of the new surfaces.
+Search is the wrong shape for it, and that is measured rather than argued:
+
+- `src/data/__tests__/watchChannels.test.ts` carries a REPO-WIDE assertion,
+  "never calls search.list — 100 units would drain the free daily quota". It
+  greps every non-test source file for `youtube/v3/search`. So the obvious
+  implementation fails CI, by a guard written for exactly this reason.
+- The arithmetic behind it: `search.list` costs 100 units of a 10,000/day
+  default allowance. That is **100 searches per day for the whole app**, across
+  125 users — under one per student per day. A feature that stops working
+  mid-morning is not a feature. (The 10,000 figure is Google's documented
+  default; this container cannot reach their quota page, so it is recorded as
+  given, the way the model prices are.)
+- **The cheap calls are the way in.** `playlistItems.list` and `videos.list`
+  cost 1 unit each, so the same allowance buys 10,000 calls a day. Curate a
+  small roster of board-aligned playlists — the shape `WATCH_CHANNELS` already
+  uses — and list their items instead of searching. Zero search quota, and the
+  embed path is the one `liveEmbedUrl` already proves.
+- Whichever way it goes, the 2026-08-16 Watch rules still bind: ONIQ resolves,
+  stores and proxies NO stream URL, playback is YouTube's own embed, minimum
+  player size, nothing rendered in front of it.
+
+**Not built.** Choosing which playlists represent CBSE class 10 science is a
+curriculum decision, not an engineering one, so it waits for the owner's roster
+rather than being guessed.
+
 STILL THE OWNER'S CALL, because each chooses a new provider surface:
 
-- **YouTube Data API** for educational videos — unlike Classroom this needs
-  only an API key for public search, no user OAuth, and has a free daily
-  quota. It is still a new API and a new key, so it is asked, not assumed.
 - **A Google OAuth client** for Classroom and Drive — a consent screen, scopes,
   and Google verification before any student outside a test list can use it.
 - **Google Cloud speech** for the voice tutor — ONIQ already ships TTS through
