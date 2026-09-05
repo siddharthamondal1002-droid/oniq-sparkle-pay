@@ -73,8 +73,10 @@ function FirebaseProvisioningTool() {
     <div className="min-h-screen px-4 pt-12 pb-16">
       <h1 className="font-display text-2xl font-bold">Firebase provisioning</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        Read-only. Asks Google what exists in the project: whether a web app is registered, and
-        whether Firestore is provisioned. Creates nothing.
+        Read-only. Asks Google what exists in the project: whether a web app is registered, whether
+        Firestore is provisioned, and whether the service account may actually write to the Storage
+        bucket. Creates nothing and writes nothing — the storage question is asked with
+        testIamPermissions, which reports the permissions held without exercising them.
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2">

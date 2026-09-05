@@ -9,7 +9,7 @@
 
 import type { LegalRegime } from "@/data/countryRegistry";
 
-export const NOTICE_VERSION = "2026-08-19.1";
+export const NOTICE_VERSION = "2026-09-05.1";
 
 /** The purpose id chat translation writes to the ledger. One name, one place. */
 export const TRANSLATION_PURPOSE_ID = "translation";
@@ -48,10 +48,25 @@ export const CONSENT_PURPOSES: ConsentPurpose[] = [
     },
     categories: [
       { id: "email", label: { en: "Email address", hi: "ईमेल पता" } },
-      { id: "phone", label: { en: "Phone number (if you sign in with one)", hi: "फ़ोन नंबर (यदि आप उससे साइन इन करते हैं)" } },
-      { id: "username", label: { en: "Username and display name", hi: "यूज़रनेम और प्रदर्शित नाम" } },
-      { id: "avatar", label: { en: "Profile photo, if you upload one", hi: "प्रोफ़ाइल फ़ोटो, यदि आप अपलोड करें" } },
-      { id: "dob", label: { en: "Date of birth (age check only)", hi: "जन्म तिथि (केवल आयु जाँच के लिए)" } },
+      {
+        id: "phone",
+        label: {
+          en: "Phone number (if you sign in with one)",
+          hi: "फ़ोन नंबर (यदि आप उससे साइन इन करते हैं)",
+        },
+      },
+      {
+        id: "username",
+        label: { en: "Username and display name", hi: "यूज़रनेम और प्रदर्शित नाम" },
+      },
+      {
+        id: "avatar",
+        label: { en: "Profile photo, if you upload one", hi: "प्रोफ़ाइल फ़ोटो, यदि आप अपलोड करें" },
+      },
+      {
+        id: "dob",
+        label: { en: "Date of birth (age check only)", hi: "जन्म तिथि (केवल आयु जाँच के लिए)" },
+      },
       { id: "country", label: { en: "Home country you select", hi: "आपका चुना हुआ गृह देश" } },
     ],
   },
@@ -63,9 +78,24 @@ export const CONSENT_PURPOSES: ConsentPurpose[] = [
       hi: "आपके चैट, मीडिया और कॉल उन लोगों तक पहुँचाने के लिए जिन्हें आप भेजते हैं, और आने वाली कॉल पर आपके डिवाइस को बजाने के लिए।",
     },
     categories: [
-      { id: "messages", label: { en: "Message text and attachments you send", hi: "आपके भेजे संदेश और अटैचमेंट" } },
-      { id: "call_meta", label: { en: "Call time, duration and participants (not call audio or video)", hi: "कॉल का समय, अवधि और प्रतिभागी (कॉल का ऑडियो/वीडियो नहीं)" } },
-      { id: "device_token", label: { en: "Push notification token for your device", hi: "आपके डिवाइस का पुश नोटिफ़िकेशन टोकन" } },
+      {
+        id: "messages",
+        label: { en: "Message text and attachments you send", hi: "आपके भेजे संदेश और अटैचमेंट" },
+      },
+      {
+        id: "call_meta",
+        label: {
+          en: "Call time, duration and participants (not call audio or video)",
+          hi: "कॉल का समय, अवधि और प्रतिभागी (कॉल का ऑडियो/वीडियो नहीं)",
+        },
+      },
+      {
+        id: "device_token",
+        label: {
+          en: "Push notification token for your device",
+          hi: "आपके डिवाइस का पुश नोटिफ़िकेशन टोकन",
+        },
+      },
     ],
   },
   {
@@ -111,22 +141,50 @@ export const CONSENT_PURPOSES: ConsentPurpose[] = [
     },
     categories: [
       { id: "hub", label: { en: "Which hub you opened", hi: "आपने कौन सा हब खोला" } },
-      { id: "time", label: { en: "Time of day and day of week", hi: "दिन का समय और सप्ताह का दिन" } },
-      { id: "city", label: { en: "Coarse city (never precise location)", hi: "मोटा शहर (कभी सटीक स्थान नहीं)" } },
-      { id: "card", label: { en: "Whether you tapped or dismissed a suggestion", hi: "आपने सुझाव पर टैप किया या हटाया" } },
+      {
+        id: "time",
+        label: { en: "Time of day and day of week", hi: "दिन का समय और सप्ताह का दिन" },
+      },
+      {
+        id: "city",
+        label: { en: "Coarse city (never precise location)", hi: "मोटा शहर (कभी सटीक स्थान नहीं)" },
+      },
+      {
+        id: "card",
+        label: {
+          en: "Whether you tapped or dismissed a suggestion",
+          hi: "आपने सुझाव पर टैप किया या हटाया",
+        },
+      },
     ],
   },
   {
     id: "study",
     title: { en: "Study Buddy tutoring", hi: "स्टडी बडी ट्यूशन" },
     purpose: {
-      en: "To answer your questions against your board and syllabus, generate practice papers, and keep your progress.",
-      hi: "आपके बोर्ड और पाठ्यक्रम के अनुसार आपके प्रश्नों के उत्तर देने, अभ्यास प्रश्नपत्र बनाने और आपकी प्रगति रखने के लिए।",
+      en: "To answer your questions against your board and syllabus, generate practice papers, keep your progress, and save the worksheets and photos you attach so you can use them again.",
+      hi: "आपके बोर्ड और पाठ्यक्रम के अनुसार आपके प्रश्नों के उत्तर देने, अभ्यास प्रश्नपत्र बनाने, आपकी प्रगति रखने, और आपके द्वारा संलग्न वर्कशीट व फ़ोटो सहेजने के लिए ताकि आप उन्हें दोबारा उपयोग कर सकें।",
     },
     categories: [
-      { id: "learner", label: { en: "Board, class, subjects and exam goal", hi: "बोर्ड, कक्षा, विषय और परीक्षा लक्ष्य" } },
-      { id: "study_chat", label: { en: "Your tutor questions and answers", hi: "आपके ट्यूटर प्रश्न और उत्तर" } },
+      {
+        id: "learner",
+        label: {
+          en: "Board, class, subjects and exam goal",
+          hi: "बोर्ड, कक्षा, विषय और परीक्षा लक्ष्य",
+        },
+      },
+      {
+        id: "study_chat",
+        label: { en: "Your tutor questions and answers", hi: "आपके ट्यूटर प्रश्न और उत्तर" },
+      },
       { id: "scores", label: { en: "Quiz and paper scores", hi: "क्विज़ और प्रश्नपत्र अंक" } },
+      {
+        id: "study_docs",
+        label: {
+          en: "Worksheets, textbook photos and answer sheets you attach, which are kept so you can reuse them",
+          hi: "आपके द्वारा संलग्न वर्कशीट, पाठ्यपुस्तक की फ़ोटो और उत्तर पुस्तिकाएँ, जिन्हें सहेजा जाता है ताकि आप उन्हें दोबारा उपयोग कर सकें",
+        },
+      },
     ],
   },
   {
@@ -137,8 +195,14 @@ export const CONSENT_PURPOSES: ConsentPurpose[] = [
       hi: "केवल वे स्वास्थ्य प्रविष्टियाँ रखने के लिए जो आप स्वयं लिखते हैं, ताकि आप उन्हें फिर देख सकें। यह कहीं साझा, बेचा या निजीकरण में उपयोग नहीं होता।",
     },
     categories: [
-      { id: "checkins", label: { en: "Daily check-ins you enter", hi: "आपकी दैनिक जाँच प्रविष्टियाँ" } },
-      { id: "cycle", label: { en: "Cycle log dates you enter", hi: "आपके दर्ज चक्र लॉग की तिथियाँ" } },
+      {
+        id: "checkins",
+        label: { en: "Daily check-ins you enter", hi: "आपकी दैनिक जाँच प्रविष्टियाँ" },
+      },
+      {
+        id: "cycle",
+        label: { en: "Cycle log dates you enter", hi: "आपके दर्ज चक्र लॉग की तिथियाँ" },
+      },
     ],
   },
   {
@@ -209,9 +273,15 @@ export const NOTICE_STRINGS = {
   give: { en: "Give consent", hi: "सहमति दें" },
   essential: { en: "Required to run your account", hi: "खाता चलाने के लिए आवश्यक" },
   rights: { en: "Exercise your rights", hi: "अपने अधिकारों का उपयोग करें" },
-  complain: { en: "Complain to the Data Protection Board", hi: "डेटा संरक्षण बोर्ड से शिकायत करें" },
+  complain: {
+    en: "Complain to the Data Protection Board",
+    hi: "डेटा संरक्षण बोर्ड से शिकायत करें",
+  },
   grievance: { en: "Grievance Officer", hi: "शिकायत अधिकारी" },
-  terms: { en: "Accepting the terms of use is a separate action.", hi: "उपयोग की शर्तें स्वीकार करना एक अलग कार्य है।" },
+  terms: {
+    en: "Accepting the terms of use is a separate action.",
+    hi: "उपयोग की शर्तें स्वीकार करना एक अलग कार्य है।",
+  },
   history: { en: "Your consent history", hi: "आपकी सहमति का इतिहास" },
   chainOk: { en: "Record chain verified — untampered", hi: "रिकॉर्ड शृंखला सत्यापित — अपरिवर्तित" },
   chainBad: { en: "Record chain verification FAILED", hi: "रिकॉर्ड शृंखला सत्यापन विफल" },

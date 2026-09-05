@@ -42,6 +42,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/llm.ts";
 import { googleAccessToken } from "../_shared/googleAuth.ts";
+import {
+  FIREBASE_BUCKET,
+  STORAGE_PERMISSIONS,
+  testPermissionsUrl,
+} from "../_shared/firebaseServer.ts";
 
 /** The project FCM, Vertex and weather already run on. One project, not two. */
 const FIREBASE_PROJECT_ID = "oniq-309bd";
@@ -112,9 +117,25 @@ Deno.serve(async (req) => {
   }
 
   const p = FIREBASE_PROJECT_ID;
-  const [webApps, databases] = await Promise.all([
+  const [webApps, databases, bucket, perms, classroom, drive] = await Promise.all([
     get(`https://firebase.googleapis.com/v1beta1/projects/${p}/webApps`, auth.token),
     get(`https://firestore.googleapis.com/v1/projects/${p}/databases`, auth.token),
+    get(`https://storage.googleapis.com/storage/v1/b/${FIREBASE_BUCKET}`, auth.token),
+    // CAN THIS CREDENTIAL REACH THE STUDENT'S GOOGLE ACCOUNT? Asked, not
+    // assumed. The ONIQ Study mapping puts Classroom behind four capabilities
+    // (assignments, courses, coursework, grades) and Drive behind one, and the
+    // whole plan turns on whether the service account already in hand opens
+    // them. Two read-only GETs settle it in Google's own words, which is worth
+    // more than a paragraph of mine — and the answer, whichever way it goes,
+    // is the difference between a week of wiring and a console task nobody
+    // has started.
+    get("https://classroom.googleapis.com/v1/courses?pageSize=1", auth.token),
+    get("https://www.googleapis.com/drive/v3/about?fields=user", auth.token),
+    // "May this credential write?" asked WITHOUT writing. testIamPermissions
+    // returns only the permissions actually held, so an empty list is a
+    // definite no rather than an ambiguous error — which is exactly the
+    // property the Firestore HTML 404 lacked.
+    get(testPermissionsUrl(FIREBASE_BUCKET), auth.token),
   ]);
 
   // A registered web app is useless without its config, so fetch it in the
@@ -137,6 +158,14 @@ Deno.serve(async (req) => {
       firestoreProvisioned: databases.ok
         ? ((databases.data as { databases?: unknown[] })?.databases ?? []).length > 0
         : "unknown — see databases.error",
+      // Storage is the one service whose SERVER-SIDE path needs nothing from
+      // any console, so this is the answer that unblocks work rather than
+      // merely reporting on it.
+      storageWritable: perms.ok
+        ? STORAGE_PERMISSIONS.every((x) =>
+            ((perms.data as { permissions?: string[] })?.permissions ?? []).includes(x),
+          )
+        : "unknown — see storagePermissions.error",
     },
     webApps: webApps.ok
       ? { count: apps.length, apps: apps.map((a) => ({ name: a.name, appId: a.appId })) }
@@ -144,5 +173,29 @@ Deno.serve(async (req) => {
     // Public client config, not a credential — see the header.
     webConfig: webConfig?.ok ? webConfig.data : webConfig,
     databases: databases.ok ? databases.data : databases,
+    bucket: bucket.ok
+      ? {
+          name: (bucket.data as { name?: string })?.name,
+          location: (bucket.data as { location?: string })?.location,
+          created: (bucket.data as { timeCreated?: string })?.timeCreated,
+        }
+      : bucket,
+    // Classroom and Drive belong to the STUDENT, not to the project, so a
+    // service account cannot read them without domain-wide delegation granted
+    // by the school's Workspace admin. That is the expected answer; it is
+    // reported rather than assumed, and Google's refusal names which of the
+    // two reasons applies (missing scope vs missing consent).
+    googleWorkspace: {
+      classroom: classroom.ok ? { reachable: true } : classroom,
+      drive: drive.ok ? { reachable: true } : drive,
+    },
+    // The permissions actually held, listed — so a partial grant is visible
+    // as a partial grant rather than collapsing to a bare false.
+    storagePermissions: perms.ok
+      ? {
+          asked: STORAGE_PERMISSIONS,
+          held: (perms.data as { permissions?: string[] })?.permissions ?? [],
+        }
+      : perms,
   });
 });

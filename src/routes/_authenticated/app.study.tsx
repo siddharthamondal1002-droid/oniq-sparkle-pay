@@ -23,6 +23,9 @@ import {
   Loader2,
 } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
+import { useServerFn } from "@tanstack/react-start";
+import { firebaseBridge } from "@/lib/firebaseBridge.functions";
+import { base64OfText, studyObjectName } from "@/lib/studyDocuments";
 import { toast } from "sonner";
 import {
   OniqAIOrb,
@@ -1375,6 +1378,11 @@ function TutorChat({
   const [hydrating, setHydrating] = useState(true);
   const [notConfigured, setNotConfigured] = useState(false);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
+  // Owner directive 2026-09-05: what a student attaches is KEPT, in their own
+  // space, so the same worksheet is not re-uploaded every session. Declared
+  // here with the other hooks — rules-of-hooks is a release blocker in this
+  // repo and this component has early returns below.
+  const keepDocument = useServerFn(firebaseBridge);
   const [quizSubject, setQuizSubject] = useState<{ subject: string; chapter?: string } | null>(
     null,
   );
@@ -1537,9 +1545,37 @@ function TutorChat({
     setAttachment(null);
   }
 
+  /**
+   * Keep this attachment in the student's own space. Best-effort, and
+   * deliberately not awaited.
+   *
+   * Retention must never delay or break an answer: the file has already been
+   * read by the tutor either way, so a storage failure costs the archive copy
+   * and nothing the student asked for. It is also why this does not toast —
+   * an error about a background copy, in the middle of studying, buys the
+   * student nothing they can act on.
+   */
+  async function keepAttachment(att: Attachment) {
+    try {
+      const data = att.kind === "text" ? base64OfText(att.text ?? "") : att.data;
+      if (!data) return;
+      await keepDocument({
+        data: {
+          action: "file.upload",
+          name: studyObjectName(new Date(), att.name),
+          contentType: att.mime,
+          data,
+        },
+      });
+    } catch (e) {
+      console.warn("study: could not keep attachment", (e as Error)?.message);
+    }
+  }
+
   async function ask(text: string) {
     if (notConfigured) return;
     const att = attachment;
+    if (att) void keepAttachment(att);
     const userMsg: Msg = {
       role: "user",
       content: text,
@@ -1703,7 +1739,9 @@ function TutorChat({
                   {(m.content || m.role === "assistant") && (
                     <div
                       className={`whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm ${
-                        m.role === "user" ? "bg-world text-on-world" : "oniq-surface text-foreground"
+                        m.role === "user"
+                          ? "bg-world text-on-world"
+                          : "oniq-surface text-foreground"
                       }`}
                     >
                       {m.content}
@@ -5379,7 +5417,10 @@ function QuizSheetModal({ attempt, onClose }: { attempt: Attempt; onClose: () =>
           {isLoading && items.length === 0 && (
             <div className="space-y-3">
               {[0, 1, 2].map((i) => (
-                <div key={i} className="h-24 animate-pulse rounded-2xl border border-border bg-muted/40" />
+                <div
+                  key={i}
+                  className="h-24 animate-pulse rounded-2xl border border-border bg-muted/40"
+                />
               ))}
             </div>
           )}

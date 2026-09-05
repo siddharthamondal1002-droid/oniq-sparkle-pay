@@ -124,6 +124,36 @@ string across means those 86 keep the password they already know; without it,
 have no hash (provider or one-time-code sign-ins) and are imported without
 one rather than with a guessed one.
 
+WHO CAN CHANGE WHAT, MEASURED 2026-09-05 — because "Lovable has Supabase
+admin access" is true and still not enough. The Lovable agent holds the
+project's SERVICE ROLE: it runs SQL, deploys edge functions, and drives the
+Auth _user_ admin API. It does NOT hold a management personal access token,
+and third-party auth registration lives on the CONTROL plane. Asked to add
+it, the agent tried every reachable path and got, verbatim:
+
+    GET https://api.supabase.com/v1/projects/<ref>/config/auth
+        Authorization: Bearer <service-role key>
+    -> {"message":"JWT failed verification"}   HTTP 401
+
+    GET <project>/auth/v1/admin/settings  (service role) -> 404 page not found
+
+So: anything under `api.supabase.com` is the OWNER's to do, or needs a PAT
+deliberately provisioned. A PAT is account-wide — it can delete projects —
+so storing one as a project secret to save a dashboard visit is a bad trade
+for a one-time setting. Recorded here so the next session does not spend a
+round trip rediscovering that the service role is the wrong credential.
+
+AND THE PROPAGATION QUESTION IS STILL OPEN. Whether the
+`[auth.third_party.firebase]` block in `supabase/config.toml` reaches the
+hosted project could NOT be answered: the public `/auth/v1/settings` endpoint
+returns `external`, `saml_enabled` and `passkeys_enabled` but carries no
+third-party field at all, so a Firebase registration would be invisible there
+whether or not it exists. That is the same trap as the Firestore HTML 404 —
+an endpoint that answers identically for "absent" and "not exposed" is not
+evidence. It will be settled BEHAVIOURALLY instead: once a single Firebase
+user exists, present its ID token to PostgREST. Accepted means registered;
+rejected means not.
+
 TWO THINGS ONLY THE OWNER CAN DO, both in consoles this container cannot
 reach — nothing client-side ships until the first one exists:
 
@@ -136,6 +166,22 @@ reach — nothing client-side ships until the first one exists:
    certainly does not exist as readily as for `oniq-309bd`, so that probe
    proves nothing. Only the console or the service account can answer it.
 
+Both are answerable without a console visit, and the thing that answers them
+is already live. `firebase-provisioning` is DEPLOYED on production — measured
+2026-09-05, `POST /functions/v1/firebase-provisioning` answers 401 with no
+JWT, the admin gate holding — so one tap on `/app/admin/firebase` asks Google
+directly with the service account and prints whichever of the two is missing,
+in Google's own words. That is faster and more certain than reading a console,
+and it is the only credential that can answer at all.
+
+The SCREEN is live too, which is a separate fact from the function being
+deployed and from the code being on `main` — see `oniq-ship`. Verified against
+the shipped bundle 2026-09-05: `admin/firebase` is in the served entry chunk
+`assets/index-CdfOeNcr.js`, and the button's `firebase-provisioning-run`
+marker is in its own route chunk `assets/app.admin.firebase-kO_onh2Z.js`.
+Greping either one alone would have given a false verdict — the route path
+appears only in the first, the marker only in the second.
+
 Storage is unblocked ONLY IN ITS SERVER-SIDE FORM, and the distinction is
 the architectural one this whole directive turns on. Firebase Storage rules
 key on `request.auth.uid` exactly as Firestore's do, so CLIENT-side Firebase
@@ -143,6 +189,49 @@ Storage waits on Auth too. What needs neither is the service-account form:
 an edge function holding `FIREBASE_SERVICE_ACCOUNT` puts bytes in the
 bucket and hands back a signed URL — which is precisely the shape ONIQ
 already uses for Supabase Storage today.
+
+### Owner directive, 2026-09-05 (later the same day) — the SERVER route
+
+**Decided: Lovable Cloud stays the identity, and the backend talks to Firebase
+with the service account it already holds.** The phone presents its ordinary
+Supabase session, the server re-derives who that is, and Firebase only ever
+sees the service account. `src/lib/firebaseBridge.server.ts` is the only way
+ONIQ speaks to Firestore or Firebase Storage; `supabase/functions/_shared/firebaseServer.ts`
+holds the pure halves.
+
+This SUPERSEDES the tension below rather than resolving it by argument — it is
+decided, and the paragraph is kept because the cost it names is still being
+paid. What the choice buys and costs:
+
+- It needs **no Firebase web app, no Firebase Auth, and no user import** — all
+  three of the things blocked in consoles this container cannot reach. The
+  uid-preservation plan above is not wrong, it is DORMANT: it is exactly what
+  a later identity switch would still need, so it stays recorded.
+- **RLS stays the single authority.** Firebase is never asked to judge who may
+  touch what, so there is no second authorization system to drift.
+- **No realtime listeners and no offline cache**, because nothing client-side
+  speaks to Firebase. That is precisely why **chat is NOT in this change** —
+  a chat that has lost its live listeners is worse than the one ONIQ ships
+  today. The Firestore-for-messages half of the mapping still waits on the
+  identity switch.
+
+THE GATE IS THE MIDDLEWARE, AND THE PREFIX IS THE BOUNDARY. `requireSupabaseAuth`
+verifies the JWT and yields `claims.sub`; `BridgeRequest` has no user-id field,
+so a caller cannot pass one. Every path is built server-side as
+`users/{uid}/…`, and a caller only ever names a collection and a document.
+Two properties were added 2026-09-05 after review, both mutation-tested:
+
+- **The uid is validated, not merely interpolated.** It cannot hold a slash
+  today because it is a verified UUID, but the builders are exported and the
+  prefix is the whole boundary — the day one is called with an id from an edge
+  function or an admin "act as", `../` would walk straight out.
+- **A real filename survives the guard.** The first charset refused any space,
+  so `Screenshot 2026-09-05 at 10.13.45.png` and `beach day.jpg` were rejected
+  as "Bad file name". A guard nobody can upload through gets loosened by
+  whoever hits it next, and they will not stop at the part that was merely
+  inconvenient. The traversal rule is untouched; only the charset widened, and
+  non-ASCII is still refused deliberately — arbitrary names want a generated id
+  plus a display name in Firestore, not a bigger regex.
 
 THE TENSION TO DECIDE WITH OPEN EYES, because it does not go away by
 picking a default. Going client-side with Firebase rules means TWO
@@ -153,6 +242,127 @@ throws away the realtime listeners and offline cache that are the reason to
 want Firestore at all. Preserving the UUID as the Firebase uid is what
 makes the client-side option survivable: both systems then key on the same
 value, so a rule and a policy can be read against each other.
+
+## ONIQ Study and the Google mapping — what is built, what cannot be
+
+The owner mapped ONIQ Study onto thirteen Google capabilities, 2026-09-05.
+Most of it already exists, and one part of it cannot be built with the
+credentials the mapping assumes. Both facts change what is worth doing next.
+
+ALREADY BUILT, and running in production today:
+
+| Mapping row                 | Where it lives                                                        |
+| --------------------------- | --------------------------------------------------------------------- |
+| AI tutor                    | `study-tutor` — Gemini via shared `callText`, with attachments        |
+| Explain textbook material   | `study-chapters`, `study-chapter-notes`, cache-first                  |
+| Generate practice questions | `study-quiz`                                                          |
+| Generate mock exams         | `study-paper-generate`, `study-paper-mock`                            |
+| Evaluate written answers    | `study-paper-grade` — reads a PHOTO of handwriting                    |
+| Analyze mistakes            | `study-paper-review`, `quiz_attempts`, `src/lib/retrievalPractice.ts` |
+| Personalized learning       | `learner_profiles` + the Study Vault (FTS over `study_notes`)         |
+| Images/diagrams             | already multimodal, same `callText` path                              |
+
+Nine Postgres tables carry it: `learner_profiles`, `chapters`,
+`chapter_notes`, `chapter_overrides`, `study_papers`, `study_notes`,
+`study_messages`, `quiz_attempts`, `study_chapters_debug`. **Do not rebuild
+any of this.** The gap is not capability, it is persistence and reach.
+
+WHAT THE FIREBASE SERVICE ACCOUNT ACTUALLY ADDS: **durable study documents.**
+Measured 2026-09-05 — attachments today are EPHEMERAL. `app.study.tsx` turns
+the file into base64 in the browser (`fileToBase64`), `study-tutor` forwards it
+inline to the model, and nothing is stored. Same for the handwriting photo in
+`study-paper-grade`. So a student re-uploads the same worksheet every session,
+the tutor cannot refer back to the chapter PDF from last week, and a graded
+answer sheet cannot be reopened. That is exactly the owner's "Storage =
+photos/videos/files" row, it needs no console and no new credential, and the
+bridge does it today.
+
+`file.list` was added to the bridge for this: without it an uploaded file is
+unfindable unless the caller already remembers the exact name, which is
+indistinguishable from never having stored it. **Listing makes the bucket its
+own index**, which is why Study needs no document table — a table would be a
+second source of truth that drifts from the bucket the first time an upload
+half-fails.
+
+WHAT THE FIREBASE CREDENTIALS CANNOT DO, and this is the load-bearing
+correction: **Classroom and Drive are not Firebase.** Five of the thirteen rows
+(import assignments, import courses, submit coursework, grades/progress, study
+documents-via-Drive) read a STUDENT'S OWN Google account. That data belongs to
+the student and their school's Workspace domain, not to project `oniq-309bd`,
+so a service account cannot reach it without domain-wide delegation granted by
+that school's Workspace admin — which ONIQ is not. The ordinary route is a
+per-user OAuth consent flow, and `oniq-309bd` has **no OAuth client at all**
+(measured 2026-09-05, `android/app/google-services.json`).
+
+That is stated as the expected answer, not a measured one. `firebase-provisioning`
+now carries two read-only probes — `classroom.googleapis.com/v1/courses` and
+`drive/v3/about` on the service-account token — so the next tap of
+`/app/admin/firebase` returns Google's own refusal under `googleWorkspace`,
+naming which of missing-scope or missing-consent applies. Replace this
+paragraph with that output when it arrives; do not build against the guess.
+
+THE YOUTUBE ANSWER, decided 2026-09-05 and then corrected by a guard this
+repo already had. The owner chose "YouTube Data API only" of the new surfaces.
+Search is the wrong shape for it, and that is measured rather than argued:
+
+- `src/data/__tests__/watchChannels.test.ts` carries a REPO-WIDE assertion,
+  "never calls search.list — 100 units would drain the free daily quota". It
+  greps every non-test source file for `youtube/v3/search`. So the obvious
+  implementation fails CI, by a guard written for exactly this reason.
+- The arithmetic behind it: `search.list` costs 100 units of a 10,000/day
+  default allowance. That is **100 searches per day for the whole app**, across
+  125 users — under one per student per day. A feature that stops working
+  mid-morning is not a feature. (The 10,000 figure is Google's documented
+  default; this container cannot reach their quota page, so it is recorded as
+  given, the way the model prices are.)
+- **The cheap calls are the way in.** `playlistItems.list` and `videos.list`
+  cost 1 unit each, so the same allowance buys 10,000 calls a day. Curate a
+  small roster of board-aligned playlists — the shape `WATCH_CHANNELS` already
+  uses — and list their items instead of searching. Zero search quota, and the
+  embed path is the one `liveEmbedUrl` already proves.
+- Whichever way it goes, the 2026-08-16 Watch rules still bind: ONIQ resolves,
+  stores and proxies NO stream URL, playback is YouTube's own embed, minimum
+  player size, nothing rendered in front of it.
+
+**Not built.** Choosing which playlists represent CBSE class 10 science is a
+curriculum decision, not an engineering one, so it waits for the owner's roster
+rather than being guessed.
+
+STILL THE OWNER'S CALL, because each chooses a new provider surface:
+
+- **A Google OAuth client** for Classroom and Drive — a consent screen, scopes,
+  and Google verification before any student outside a test list can use it.
+- **Google Cloud speech** for the voice tutor — ONIQ already ships TTS through
+  `voice-generate`, so check that first rather than adding a second vendor.
+
+## Two Supabase projects — only one of them is ONIQ
+
+MEASURED 2026-09-05. `.mcp.json` wires the Supabase MCP server to project
+`nzbthoecadcwdoqxhaok`, which `list_projects` names **"oniq-sparkle-pay"** —
+the same string as this repository. **It is not the project this app talks
+to.** Production is `bqwttemnnoexadpwifcj`, named in `supabase/config.toml`,
+in `.env`, and in the Lovable MCP manifest's OAuth issuer.
+
+The trap is expensive because the wrong answer looks like a right one. Asked
+for the deployed edge functions, that MCP returned NINE. Probed directly, one
+POST per function, production answered for all 63 in this repo and **not one
+404** — including `send-push`, which the MCP's list omitted and which is
+certainly live, since FCM v1 delivers to 48 registered device tokens through
+it. A nine-item list reads exactly like "these are the ones deployed", so the
+natural next move is to deploy the missing one into a project nothing will
+ever call. It runs the other way too: SQL run there returns real rows from a
+real database that simply is not ONIQ's.
+
+**Do not repoint it.** Production is a Lovable Cloud project, so it lives in
+Lovable's Supabase organisation rather than the owner's; `list_projects` on
+the owner's own credential returns exactly one project and production is not
+in it. The Lovable agent holds the only real service role, which is why every
+deploy and every production query goes through it — see the `oniq-ship`
+skill. `read_only=true` on the MCP URL is the second line of defence: it makes
+a mix-up cost a round trip instead of a deploy.
+
+`src/lib/__tests__/supabaseProjectRef.test.ts` pins all of this, and fails if
+the MCP is ever given production so the fact gets updated deliberately.
 
 ## Linting
 

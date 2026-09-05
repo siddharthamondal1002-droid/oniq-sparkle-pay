@@ -69,28 +69,82 @@ export function safeSegment(value: unknown): string | null {
   return /^[A-Za-z0-9._-]+$/.test(s) ? s : null;
 }
 
+/**
+ * One segment of a FILE name. Wider than `safeSegment`, on purpose.
+ *
+ * MEASURED against real filenames, 2026-09-05: `safeSegment` refuses anything
+ * outside [A-Za-z0-9._-], which refuses a space — and a space is not an
+ * attack, it is what a phone calls a photo. "Screenshot 2026-09-05 at
+ * 10.13.45.png" and "WhatsApp Image 2026-09-05 (1).jpeg" are both ordinary
+ * and both were rejected outright as "Bad file name". A guard nobody can
+ * upload through gets loosened by whoever hits it next, and they will loosen
+ * the traversal rule along with it.
+ *
+ * So the traversal rule is untouched — no "/", no ".", no "..", bounded
+ * length — and only the CHARSET widens, by exactly the two characters
+ * measured to matter. Still an allowlist, still no control characters, still
+ * refuse-rather-than-rewrite, because rewriting is many-to-one and two names
+ * that scrub alike would overwrite each other.
+ *
+ * NON-ASCII IS STILL REFUSED — "Résumé.pdf" does not pass. That is a known
+ * gap, not an oversight: a caller that needs arbitrary names should send a
+ * generated id and keep the display name in Firestore beside it, which is
+ * what a photo library wants anyway.
+ */
+const FILE_SEGMENT = /^[A-Za-z0-9._\-() ]+$/;
+
+export function safeFileSegment(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const s = value.trim();
+  if (!s || s.length > 128) return null;
+  if (s === "." || s === ".." || s.includes("..") || s.includes("/")) return null;
+  return FILE_SEGMENT.test(s) ? s : null;
+}
+
 /** An object name may contain slashes; each piece still has to be a segment. */
 export function safeObjectName(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const parts = value.trim().split("/");
   if (parts.length > 6) return null;
-  const clean = parts.map(safeSegment);
+  const clean = parts.map(safeFileSegment);
   return clean.every((p): p is string => p !== null) ? clean.join("/") : null;
+}
+
+/**
+ * The owner prefix, or a throw.
+ *
+ * DEFENCE IN DEPTH, and the only reason it is not merely decorative. Today
+ * every uid reaching these builders is `claims.sub` off a verified Supabase
+ * JWT — a UUID, incapable of holding a slash. But the builders are exported
+ * and the prefix they write IS the entire access-control story here: a bucket
+ * reached with the service account has no per-user boundary of its own. The
+ * day something calls one of these with an id from anywhere else — an edge
+ * function, an admin "act as", a job row — a uid carrying "../" would walk
+ * straight out of the subtree, and every caller currently passes the check,
+ * so nothing is being loosened to add it.
+ *
+ * It throws rather than returning null because there is no safe fallback
+ * path: a caller that cannot name an owner must not get a path at all.
+ */
+function ownerPrefix(uid: string): string {
+  const safe = safeSegment(uid);
+  if (!safe) throw new Error("refusing to build a path without a valid owner id");
+  return `users/${safe}`;
 }
 
 /** Where a user's documents live. Built here; never taken from the client. */
 export function userDocPath(uid: string, collection: string, docId: string): string {
-  return `users/${uid}/${collection}/${docId}`;
+  return `${ownerPrefix(uid)}/${collection}/${docId}`;
 }
 
 /** Where a user's collection lives. */
 export function userCollectionPath(uid: string, collection: string): string {
-  return `users/${uid}/${collection}`;
+  return `${ownerPrefix(uid)}/${collection}`;
 }
 
 /** Where a user's files live in the bucket. */
 export function userObjectPath(uid: string, name: string): string {
-  return `users/${uid}/${name}`;
+  return `${ownerPrefix(uid)}/${name}`;
 }
 
 /* ---------------------------------------------------------------- values -- */
@@ -162,6 +216,28 @@ export function storageObjectUrl(bucket: string, object: string): string {
 export function storageUploadUrl(bucket: string, object: string): string {
   const q = new URLSearchParams({ uploadType: "media", name: object });
   return `${STORAGE_UPLOAD_HOST}/b/${bucket}/o?${q}`;
+}
+
+/**
+ * The read-only question "may this credential write here?", asked without
+ * writing. testIamPermissions returns ONLY the permissions the caller holds,
+ * so an empty list is a definite no rather than an ambiguous error — which is
+ * the property the Firestore HTML 404 lacked.
+ *
+ * It still earns its place next to the bridge selftest, which answers the same
+ * question by actually writing: when the selftest FAILS, this separates "the
+ * grant is missing" from "the bucket or project is wrong", and it does so
+ * without leaving an object behind.
+ */
+export const STORAGE_PERMISSIONS = [
+  "storage.objects.create",
+  "storage.objects.get",
+  "storage.objects.delete",
+] as const;
+
+export function testPermissionsUrl(bucket: string): string {
+  const q = STORAGE_PERMISSIONS.map((p) => `permissions=${encodeURIComponent(p)}`).join("&");
+  return `${STORAGE_HOST}/storage/v1/b/${bucket}/iam/testPermissions?${q}`;
 }
 
 /* --------------------------------------------------------------- signing -- */
@@ -253,13 +329,23 @@ export async function signedReadUrl(args: {
   const expires = Math.min(Math.max(args.expiresInSeconds ?? 900, 60), 60 * 60 * 12);
   const { stamp, date } = v4Timestamp(args.now ?? new Date());
   const scope = `${date}/auto/storage/goog4_request`;
-  const query = new URLSearchParams({
+  const params = new URLSearchParams({
     "X-Goog-Algorithm": "GOOG4-RSA-SHA256",
     "X-Goog-Credential": `${args.clientEmail}/${scope}`,
     "X-Goog-Date": stamp,
     "X-Goog-Expires": String(expires),
     "X-Goog-SignedHeaders": "host",
-  }).toString();
+  });
+  // V4 signs the canonical query BYTE-SORTED. The five keys above are already
+  // written in that order, so this is a no-op today and is here to make the
+  // requirement explicit rather than incidental. Note the ordering is by BYTE:
+  // every conventional extra ("response-content-disposition", "generation")
+  // is lowercase and therefore sorts AFTER "X-Goog-*", so it would not have
+  // broken anything either — only a capitalised key sorting before "X" would,
+  // and that is exactly the case a reader cannot be expected to have in mind
+  // when the answer is the unreadable 403 SignatureDoesNotMatch.
+  params.sort();
+  const query = params.toString();
 
   const canonical = v4CanonicalRequest({ bucket: args.bucket, object: args.object, query });
   const toSign = ["GOOG4-RSA-SHA256", stamp, scope, await sha256Hex(canonical)].join("\n");
@@ -404,6 +490,59 @@ export async function uploadObject(
     ok: true,
     data: { object: body.name ?? object, size: Number(body.size ?? bytes.length) },
   };
+}
+
+export type StoredObject = {
+  /** Full object path, including the `users/{uid}/` prefix. */
+  object: string;
+  /** The part below the caller's own prefix — what a screen shows. */
+  name: string;
+  size: number;
+  contentType: string | null;
+  updated: string | null;
+};
+
+/**
+ * What this owner has in the bucket, under `prefix`.
+ *
+ * WHY THIS EXISTS: without it an uploaded file is unfindable. The bridge could
+ * put an object in, sign a URL for it and delete it, but every one of those
+ * needs the caller to already know the exact name — so a file survived the
+ * upload and was then lost, which is indistinguishable from not having stored
+ * it. Listing is what makes the bucket its own index, and it is the reason no
+ * separate index table is needed: a row that drifts from the bucket is a
+ * second source of truth, and this way there is only one.
+ *
+ * The prefix is built by the caller from the verified uid, exactly as every
+ * other path here is, so a listing cannot reach outside its owner's subtree.
+ */
+export async function listObjects(
+  token: string,
+  bucket: string,
+  prefix: string,
+  pageSize = 100,
+): Promise<FirebaseResult<StoredObject[]>> {
+  const q = new URLSearchParams({
+    prefix,
+    maxResults: String(Math.min(Math.max(pageSize, 1), 500)),
+  });
+  const res = await fetch(`${STORAGE_HOST}/storage/v1/b/${bucket}/o?${q}`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return await failure(res);
+  const body = (await res.json()) as {
+    items?: { name?: string; size?: string; contentType?: string; updated?: string }[];
+  };
+  const items = (body.items ?? []).map((o) => ({
+    object: o.name ?? "",
+    // Strip the owner prefix rather than making every screen do it, and never
+    // hand back a name that would look like someone else's path.
+    name: (o.name ?? "").startsWith(prefix) ? (o.name ?? "").slice(prefix.length) : (o.name ?? ""),
+    size: Number(o.size ?? 0),
+    contentType: o.contentType ?? null,
+    updated: o.updated ?? null,
+  }));
+  return { ok: true, data: items };
 }
 
 export async function deleteObject(
