@@ -189,6 +189,27 @@ describe("the inspector asks the write question without writing", () => {
     const url = testPermissionsUrl("oniq-309bd.firebasestorage.app");
     for (const p of STORAGE_PERMISSIONS) expect(url).toContain(encodeURIComponent(p));
   });
+
+  it("re-runs the Vertex voices call at the byte-identical URL that refused", () => {
+    // The 403 of 2026-09-06 named aiplatform.voices.list on
+    // projects/oniq-309bd/locations/global. After the owner granted a Vertex
+    // role, the ONLY thing that says whether the grant landed is that SAME
+    // call answering differently — so this URL is the experiment's control.
+    // Retargeting it to a region, to v1, or to a different surface would look
+    // like tidying and would silently void the comparison.
+    expect(codeOnly).toContain(
+      "https://aiplatform.googleapis.com/v1beta1/projects/${p}/locations/global/voices",
+    );
+  });
+
+  it("passes Google's Vertex refusal through instead of a bare false", () => {
+    // The status is 403 whether IAM is unsatisfied or an allowlist refuses;
+    // only the WORDING separates them. Reducing it to a boolean would throw
+    // away the whole answer — the same mistake reading only the status code
+    // would have made on the SMS region policy.
+    expect(codeOnly).toContain("vertexVoicesReadable");
+    expect(codeOnly, "the refusal stopped travelling back").toMatch(/:\s*vertexVoices,/);
+  });
 });
 
 describe("the signed URL's canonical query is byte-sorted", () => {

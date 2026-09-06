@@ -76,7 +76,9 @@ function FirebaseProvisioningTool() {
         Read-only. Asks Google what exists in the project: whether a web app is registered, whether
         Firestore is provisioned, and whether the service account may actually write to the Storage
         bucket. Creates nothing and writes nothing — the storage question is asked with
-        testIamPermissions, which reports the permissions held without exercising them.
+        testIamPermissions, which reports the permissions held without exercising them. It also
+        re-runs the Vertex voice-catalogue call that refused with a named IAM permission, so a grant
+        can be checked by what Google says rather than by what a console shows.
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2">

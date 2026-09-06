@@ -17,6 +17,11 @@
 // "not allowed to look" is not evidence, and this function exists because the
 // only credential that CAN answer lives as a Supabase secret and nowhere else.
 //
+// It has since taken a third question of the same shape: whether Vertex will
+// let this credential read the voice catalogue. That one is a re-run rather
+// than a discovery — see the comment on the probe itself for why the wording
+// of the refusal, not its status code, is what carries the answer.
+//
 // WHY IT IS AN EDGE FUNCTION AND NOT A SCRIPT. FIREBASE_SERVICE_ACCOUNT is
 // readable here and in no other place ONIQ controls — not the dev container,
 // not CI, not the Lovable sandbox. googleAuth.ts already mints a token from it
@@ -117,7 +122,7 @@ Deno.serve(async (req) => {
   }
 
   const p = FIREBASE_PROJECT_ID;
-  const [webApps, databases, bucket, perms, classroom, drive] = await Promise.all([
+  const [webApps, databases, bucket, perms, classroom, drive, vertexVoices] = await Promise.all([
     get(`https://firebase.googleapis.com/v1beta1/projects/${p}/webApps`, auth.token),
     get(`https://firestore.googleapis.com/v1/projects/${p}/databases`, auth.token),
     get(`https://storage.googleapis.com/storage/v1/b/${FIREBASE_BUCKET}`, auth.token),
@@ -136,6 +141,31 @@ Deno.serve(async (req) => {
     // definite no rather than an ambiguous error — which is exactly the
     // property the Firestore HTML 404 lacked.
     get(testPermissionsUrl(FIREBASE_BUCKET), auth.token),
+    // THE VOICE-CLONE BLOCKER, ASKED THE ONLY WAY IT CAN BE ASKED. Measured
+    // 2026-09-06 this exact URL refused with 403 PERMISSION_DENIED naming
+    // "aiplatform.voices.list denied on projects/oniq-309bd/locations/global"
+    // — itself an ADVANCE on the 401 CREDENTIALS_MISSING of 2026-09-04, which
+    // is what established that the credential is accepted and the block is
+    // authorization. The owner then granted the service account a Vertex role.
+    // The hypothesis recorded beside that measurement is that an ALLOWLIST or
+    // preview refusal can wear the same 403, so the grant landing and the
+    // grant being enough are two different questions.
+    //
+    // RE-RUNNING THE IDENTICAL URL IS WHAT SEPARATES THEM, AND THE ANSWER IS
+    // IN THE MESSAGE, NOT THE STATUS CODE. The same aiplatform.voices.list
+    // wording means the grant did not reach THIS principal; different wording
+    // at the same 403 means IAM is satisfied and something else refuses. That
+    // is the same shape as the SMS region policy, where OPERATION_NOT_ALLOWED
+    // became MISSING_CLIENT_IDENTIFIER and reading only the status code would
+    // have reported no change at all.
+    //
+    // So this URL must stay byte-identical to the one that produced the 403.
+    // Move it to a region, a different API version, or the v1 surface and the
+    // comparison is worth nothing — pinned in firebaseServerPaths.test.ts.
+    get(
+      `https://aiplatform.googleapis.com/v1beta1/projects/${p}/locations/global/voices`,
+      auth.token,
+    ),
   ]);
 
   // A registered web app is useless without its config, so fetch it in the
@@ -166,6 +196,11 @@ Deno.serve(async (req) => {
             ((perms.data as { permissions?: string[] })?.permissions ?? []).includes(x),
           )
         : "unknown — see storagePermissions.error",
+      // NOT "is voice cloning built" — it is not. No deployed function imports
+      // _shared/voiceReplication.ts, and voice-generate can only ask for a
+      // prebuilt voiceName. This answers the narrower question that gates it:
+      // whether Google lets this credential see the voice catalogue at all.
+      vertexVoicesReadable: vertexVoices.ok ? true : "no — see vertexVoices.error",
     },
     webApps: webApps.ok
       ? { count: apps.length, apps: apps.map((a) => ({ name: a.name, appId: a.appId })) }
@@ -189,6 +224,11 @@ Deno.serve(async (req) => {
       classroom: classroom.ok ? { reachable: true } : classroom,
       drive: drive.ok ? { reachable: true } : drive,
     },
+    // Google's refusal verbatim, because here the WORDING is the whole signal
+    // and a summarised one would erase it. See the probe's comment above.
+    vertexVoices: vertexVoices.ok
+      ? { voices: ((vertexVoices.data as { voices?: unknown[] })?.voices ?? []).length }
+      : vertexVoices,
     // The permissions actually held, listed — so a partial grant is visible
     // as a partial grant rather than collapsing to a bare false.
     storagePermissions: perms.ok
