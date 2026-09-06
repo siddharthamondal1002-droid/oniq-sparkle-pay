@@ -16,6 +16,8 @@ import { describe, expect, it } from "vitest";
 import {
   genericUpiUri,
   isUpiAppId,
+  amendUpiUri,
+  isMerchantUpiUri,
   orderedPayApps,
   retargetUpiUri,
   UPI_APP_IDS,
@@ -107,5 +109,72 @@ describe("a stored value is validated, never trusted", () => {
     // value must degrade to the chooser rather than build a bogus scheme.
     const junk = "evil" as unknown as UpiAppId;
     expect(retargetUpiUri(MERCHANT, isUpiAppId(junk) ? junk : null)).toBe(MERCHANT);
+  });
+});
+
+/**
+ * THE ₹3,300 THAT FAILED — the exact case, pinned.
+ *
+ * A puja society's SBI collection QR: merchant fields present, NO amount,
+ * because the payer is meant to type one. Typing it flipped `rawIntact` false
+ * and the launcher fell back to a payee-only link, dropping mc/tr/mode/orgid/
+ * sign. The banks saw a P2P payment to a current account and refused it AFTER
+ * settlement (UTR 586505577554) with "UPI payments are not allowed on either
+ * your account type or the receiver's account type" — a true statement about
+ * the account and a badly misleading one about the cause. The same QR pays
+ * fine inside PhonePe, which is the control proving the payee was never wrong.
+ */
+describe("a collection QR survives having its amount typed", () => {
+  // Amount-less, merchant-marked — the shape that broke.
+  const COLLECTION = "upi://pay?pa=officerws@sbi&pn=OFFICERS%20W%20SOCITY&mc=8398&cu=INR";
+
+  it("is recognised as a merchant, not a person", () => {
+    expect(isMerchantUpiUri(COLLECTION)).toBe(true);
+    expect(isMerchantUpiUri("upi://pay?pa=friend@okicici&pn=Friend&cu=INR")).toBe(false);
+  });
+
+  it("keeps the merchant identity when an amount is typed", () => {
+    const out = amendUpiUri(COLLECTION, { am: "3300", tn: "" });
+    expect(out).toContain("mc=8398");
+    expect(out).toContain("pa=officerws%40sbi");
+    expect(out).toContain("am=3300");
+  });
+
+  it("REGRESSION: the payee-only fallback is what dropped the merchant", () => {
+    // This is what shipped and failed. Kept as the contrast that gives the
+    // test above its meaning — without it, "contains mc" proves nothing.
+    const payeeOnly = "upi://pay?pa=officerws%40sbi&pn=OFFICERS+W+SOCITY&cu=INR";
+    expect(payeeOnly).not.toContain("mc=");
+    expect(amendUpiUri(COLLECTION, { am: "3300" })).toContain("mc=");
+  });
+
+  it("carries every unmodelled field across an amount edit", () => {
+    const full =
+      "upi://pay?pa=store@ybl&pn=Store&cu=INR&mc=5411&tr=TXN1&tid=TID2&mode=02&orgid=159753&sign=abc";
+    const out = amendUpiUri(full, { am: "250.00", tn: "Order 9" });
+    for (const f of ["mc=5411", "tr=TXN1", "tid=TID2", "mode=02", "orgid=159753", "sign=abc"]) {
+      expect(out).toContain(f);
+    }
+    expect(out).toContain("am=250.00");
+    expect(out).toContain("tn=Order+9");
+  });
+
+  it("clearing the amount removes am rather than sending an empty one", () => {
+    const withAmt = amendUpiUri(COLLECTION, { am: "3300" });
+    expect(amendUpiUri(withAmt, { am: "" })).not.toContain("am=");
+    expect(amendUpiUri(withAmt, { am: "  " })).not.toContain("am=");
+  });
+
+  it("leaves a non-UPI string alone", () => {
+    expect(amendUpiUri("https://example.com?a=1", { am: "5" })).toBe("https://example.com?a=1");
+    expect(isMerchantUpiUri("not a uri")).toBe(false);
+  });
+
+  it("an amended merchant URI still retargets to a named app intact", () => {
+    const amended = amendUpiUri(COLLECTION, { am: "3300" });
+    const gpay = retargetUpiUri(amended, "gpay");
+    expect(gpay.startsWith("tez://upi/pay?")).toBe(true);
+    expect(gpay).toContain("mc=8398");
+    expect(gpay).toContain("am=3300");
   });
 });

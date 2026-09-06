@@ -129,3 +129,58 @@ export function orderedPayApps(preferred: UpiAppId | null): UpiAppId[] {
   if (!preferred) return [...UPI_APP_IDS];
   return [preferred, ...UPI_APP_IDS.filter((id) => id !== preferred)];
 }
+
+/**
+ * Does this scanned URI describe a MERCHANT rather than a person?
+ *
+ * `mc` is the merchant category code and is the field UPI apps and banks key
+ * the P2M classification on; `mode`, `orgid` and `sign` travel with it on
+ * Bharat-QR style codes. A person's QR carries none of them.
+ *
+ * The distinction is not cosmetic. A merchant payment sent WITHOUT these is
+ * processed as person-to-person, and a current/collection account frequently
+ * cannot receive P2P — the bank refuses with "UPI payments are not allowed on
+ * either your account type or the receiver's account type", which is a true
+ * statement about the account and a completely misleading one about the cause.
+ */
+export function isMerchantUpiUri(uri: string): boolean {
+  const q = uri.indexOf("?");
+  if (q < 0 || !/^upi:\/\/pay\?/i.test(uri)) return false;
+  const p = new URLSearchParams(uri.slice(q + 1));
+  return ["mc", "mode", "orgid", "sign"].some((k) => (p.get(k) ?? "").trim() !== "");
+}
+
+/**
+ * Set the amount and note on a scanned URI, KEEPING EVERY OTHER FIELD.
+ *
+ * THIS EXISTS BECAUSE A COLLECTION QR CARRIES NO AMOUNT. Observed 2026-09-06:
+ * a puja society's SBI collection QR (officerws@sbi, mc present, am absent)
+ * scanned fine, and the moment ₹3,300 was typed the `rawIntact` guard in
+ * app.upi.tsx went false — because the typed amount no longer equalled the
+ * scanned one — and the launcher fell back to `upiPayeeLink`, which emits only
+ * pa/pn/cu. mc, tr, mode, orgid and sign were all dropped, the banks saw a P2P
+ * payment to a merchant account, and it failed after reaching settlement (UTR
+ * 586505577554). The same QR works when paid inside PhonePe, which is the
+ * control that proves the payee was never the problem.
+ *
+ * So editing the amount must AMEND the scanned query, never replace it.
+ * Entering an amount on an amount-less merchant QR is the intended flow — it
+ * is exactly what PhonePe does natively — so preserving mc while setting am is
+ * the behaviour that matches the rest of the ecosystem.
+ *
+ * Order is preserved and untouched keys are copied verbatim, so a field ONIQ
+ * has never heard of still reaches the payer's bank.
+ */
+export function amendUpiUri(raw: string, patch: { am?: string; tn?: string }): string {
+  const q = raw.indexOf("?");
+  if (q < 0 || !/^upi:\/\/pay\?/i.test(raw)) return raw;
+  const params = new URLSearchParams(raw.slice(q + 1));
+  const apply = (key: "am" | "tn", value: string | undefined) => {
+    const v = (value ?? "").trim();
+    if (v) params.set(key, v);
+    else params.delete(key);
+  };
+  apply("am", patch.am);
+  apply("tn", patch.tn);
+  return "upi://pay?" + params.toString();
+}

@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { upiLink, upiPayeeLink, isValidVpa, launchUpiIntent } from "@/lib/miniapps";
 import {
   UPI_APP_LABEL,
+  amendUpiUri,
+  isMerchantUpiUri,
   orderedPayApps,
   forgetUpiApp,
   readPreferredUpiApp,
@@ -195,7 +197,24 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
     if (app) rememberUpiApp(app);
     else forgetUpiApp();
     setPreferred(app);
-    const base = rawIntact ? prefill.raw! : upiPayeeLink(params);
+    // WHICH BYTES GO TO THE BANK, and getting this wrong costs a real payment.
+    //
+    //   untouched scan          -> the scanned URI, verbatim
+    //   MERCHANT scan, edited   -> the scanned URI with am/tn AMENDED, so
+    //                              mc/tr/mode/orgid/sign survive
+    //   anything else           -> payee-only, no amount
+    //
+    // The middle case is the one that was broken. A collection QR carries no
+    // amount, so typing one flipped rawIntact false and dropped the whole
+    // merchant identity — the banks then saw a P2P payment to a current
+    // account and refused it as "not allowed on the receiver's account type".
+    // See amendUpiUri in upiPreference.ts for the measured case.
+    const merchantScan = !!prefill.raw && isMerchantUpiUri(prefill.raw);
+    const base = rawIntact
+      ? prefill.raw!
+      : merchantScan
+        ? amendUpiUri(prefill.raw!, { am: amount, tn: note })
+        : upiPayeeLink(params);
     void launchUpiIntent(retargetUpiUri(base, app));
   }
 
