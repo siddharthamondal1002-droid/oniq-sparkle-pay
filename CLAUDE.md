@@ -1881,6 +1881,32 @@ be useful will hit them. It searches import statements now. The assertion is
 inverted rather than deleted, and four new ones are mutation-checked: POST→GET,
 the gate sinking below the credential, a hard delete, and the import removed.
 
+**LIVE AND VERIFIED, 2026-09-06.** `main` at `299a2d77`, migration applied,
+`voice-clone` deployed, web published, and the served ROUTE chunk checked —
+not the entry, because all four markers live in the route chunk and greping
+`index-*.js` would come back clean and read as a stale deploy:
+
+    https://oniqhub.com
+      entry   assets/index-BV-CTaHT.js
+      chunk   app.admin.firebase-NkQwgG4l.js   2,997 bytes
+        voice-clone-probe   1     Asking Vertex               1
+        Voice replication   1     firebase-provisioning-run   1
+      POST /functions/v1/voice-clone with no JWT  ->  401
+
+**AND THE LOVABLE AGENT CAUGHT SOMETHING WORTH CHECKING.** It flagged that the
+migration carried no `GRANT`, its own rule being that a public-schema table
+without one "will fail at runtime" — and it applied the file unchanged and said
+so rather than silently editing it, which is the right order. Measured instead
+of argued, with `voice_jobs` as the control:
+
+    has_table_privilege('authenticated','public.voice_clones','SELECT')  t
+    has_table_privilege('service_role','public.voice_clones','INSERT')   t
+    has_table_privilege('authenticated','public.voice_jobs','SELECT')    t
+
+Grants are present — this project's default privileges cover new public tables,
+so the RLS policy is load-bearing rather than decorative. Recorded because the
+flag was reasonable and the answer is not obvious from the file.
+
 WHAT IS STILL UNKNOWN, stated as unknown: whether Google will mint. Replication
 is an allowlisted preview, and a missing IAM role, an allowlist refusal and a
 disabled API all arrive as **403 with only the text to separate them** — so the
