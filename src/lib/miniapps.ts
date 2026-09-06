@@ -356,9 +356,30 @@ export function upiLink(p: UpiParams) {
 }
 
 /**
- * Payee-only intent for manual P2P sends. PhonePe (and others) decline
- * third-party intents that pre-fill an amount — "declined for security
- * reasons" — so the payer types the amount inside their own UPI app.
+ * Payee-only intent for manual P2P sends — no `am`, deliberately.
+ *
+ * THE AMOUNT IS NOT THE WHOLE STORY, and this comment used to say it was.
+ * Observed 2026-09-06 on the owner's handset: a `upi://` link with NO amount,
+ * opened outside ONIQ, with ₹1 typed inside the UPI app itself, was STILL
+ * refused — "Your payment is declined for security reasons. Please try using
+ * a mobile number, UPI ID, or QR code."
+ *
+ * So the rule these apps enforce is broader than "don't pre-fill": GPay and
+ * PhonePe decline PERSON-TO-PERSON payments initiated from any third-party
+ * app, amount or no amount. "Try using a mobile number, UPI ID, or QR code"
+ * is them saying use OUR entry points. Merchant intents are unaffected —
+ * that is how every payment gateway on the platform works, and it is why the
+ * rawIntact path preserves mc/tr/sign rather than rebuilding the URI.
+ *
+ * Dropping the amount is still right: it removes one refusal reason and costs
+ * nothing, since the payer types it in their own app either way. It just is
+ * not sufficient, and no string ONIQ can build will make a P2P intent land.
+ * The honest mitigation is the copy-the-UPI-ID path the screen already offers.
+ *
+ * NOT MEASURED THROUGH ONIQ. The observation came from a link tapped
+ * elsewhere, so it is strong evidence about the UPI apps and not a test of
+ * this function. Treat a P2P send through ONIQ as expected-to-decline until
+ * one is actually tried.
  */
 export function upiPayeeLink({ vpa, name }: Pick<UpiParams, "vpa" | "name">) {
   const q = new URLSearchParams();

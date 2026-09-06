@@ -176,9 +176,13 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
    * scanned merchant QR's mc/tr/sign intact, which rebuilding the URI would
    * destroy (see rawIntact below, and upiRoundTrip.test.ts).
    *
-   * Manual sends stay payee-only: GPay and PhonePe decline third-party intents
-   * that pre-fill an amount ("declined for security reasons"), so the payer
-   * types the amount inside their own app.
+   * Manual sends stay payee-only, though that is a mitigation and not a cure.
+   * GPay and PhonePe decline PERSON-TO-PERSON payments started from any
+   * third-party app whether or not an amount is pre-filled — measured
+   * 2026-09-06, an amountless link still returned "declined for security
+   * reasons". Merchant intents are unaffected. See upiPayeeLink in
+   * miniapps.ts for the full observation, and the help panel below for what
+   * to tell the person when it happens.
    *
    * The choice is REMEMBERED so the next payment skips the chooser. It is a
    * shortcut and never a lock — "Any UPI app" stays on this sheet, and if the
