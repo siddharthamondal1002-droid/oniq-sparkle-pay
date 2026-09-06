@@ -52,6 +52,33 @@ the carrying chunk, then fetch THAT file from production. An unchanged entry
 bundle hash is not evidence of a stale deploy — the entry chunk only changes
 when its own inputs do.
 
+**AND THE ROUTE CHUNK IS NOT IN THE HTML — it is in the dynamic map inside
+`index-*.js`.** Measured 2026-09-06 verifying `/app/diag` and `/app/upi`. Both
+pages preload the SAME eighteen entry stubs and neither names its own route
+chunk; `curl <page> | grep -oE 'assets/app\.diag-[^"]+\.js'` returns nothing at
+all. That empty result looks exactly like "the route was not built", and acting
+on it would mean re-publishing a healthy deploy — the same false negative as the
+Episode 4 case above, arriving by a different door.
+
+The route chunks are in Vite's `mapDeps` array inside the entry bundle, so the
+working order is:
+
+    curl -s <origin>/<page> | grep -aoE 'assets/[^"]+\.js'      # entry stubs only
+    curl -s <origin>/assets/index-<hash>.js \
+      | grep -oE 'assets/[A-Za-z0-9_.-]+\.js' | sort -u          # <- the real list
+    curl -s <origin>/assets/app.diag-<hash>.js | grep -c '<marker>'
+
+Two smaller traps in the same run. **The served HTML is one long line, so `grep`
+calls it binary and prints nothing but "Binary file matches" — use `grep -a`.**
+And a LOCAL build gives the right chunk NAME but the wrong HASH: local
+`app.diag-4V3X-YAM.js` vs production `app.diag-qwjf2xwk.js`, same content. The
+name prefix is what transfers between builds; never hard-code a local hash into
+a production URL.
+
+Verified this way: `app.diag-qwjf2xwk.js` 7,489 bytes carrying `qr decoder` and
+`barcode-detector`; `app.upi-CiGEXn38.js` 19,909 bytes carrying `upi-tab-pay`
+and `upi-tab-receive`.
+
 ## Working with the Lovable agent
 
 - **`send_message` times out at 60s client-side, but the message is queued.**
