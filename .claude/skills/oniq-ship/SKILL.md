@@ -52,6 +52,21 @@ the carrying chunk, then fetch THAT file from production. An unchanged entry
 bundle hash is not evidence of a stale deploy — the entry chunk only changes
 when its own inputs do.
 
+**And a chunk's NAME tells you nothing about what is in it.** Verifying the
+2026-09-06 UPI copy change, the entry bundle returned 0 for BOTH the old
+phrase and the new one — which reads like "the change did not ship" and is
+actually "you are greping the wrong file". A local build found the site card's
+copy in `routes-*.js` and the Home tile's hint in **`useIsAdult18-*.js`**:
+Vite names a shared chunk after whichever module happened to land in it first,
+so a UPI string lives in a chunk named after an age check. No amount of
+reasoning gets you that name. Run the build, `rg -l` the marker, then fetch
+THAT file.
+
+**Grep for the OLD string as well as the new one**, and require 0 and 1. Two
+zeroes means the marker is not in that chunk at all, which is the false
+negative above; only old=0 AND new=1 in the same file distinguishes a landed
+change from a mislocated grep.
+
 **AND THE ROUTE CHUNK IS NOT IN THE HTML — it is in the dynamic map inside
 `index-*.js`.** Measured 2026-09-06 verifying `/app/diag` and `/app/upi`. Both
 pages preload the SAME eighteen entry stubs and neither names its own route
@@ -88,7 +103,7 @@ and `upi-tab-receive`.
 - **`accepted` is not a promise that it will ever run.** A queued message can be
   DROPPED. One carrying a 99 MB attachment sat at queue position 1, then
   `get_message` returned **404** for it — an unrelated `Error: aborted /
-  has_blank_screen` report had arrived and interrupted the turn, and both agent
+has_blank_screen` report had arrived and interrupted the turn, and both agent
   turns ended `stopped` rather than `completed`. The work was silently lost.
   So: a queued message is a request, not a delivery. Confirm by the ARTIFACT
   changing, never by the queue accepting. If a turn ends `stopped`, assume
@@ -122,6 +137,7 @@ and `upi-tab-receive`.
   Both will come back the next time the bot bumps a dependency. Diagnose with
   `npm ci --dry-run`, which reproduces the resolution failure without needing to
   download anything.
+
 - Give it **one narrow job** and say explicitly what not to touch. It respects
   that. Telling it "do not edit lores.ts, I am writing that myself" avoided a
   conflict.
