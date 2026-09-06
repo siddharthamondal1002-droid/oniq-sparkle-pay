@@ -797,6 +797,27 @@ is the environment, not the code, and it means a green local build is not
 available as evidence for anything touching the Firebase SDK. Have the Lovable
 agent build before publishing rather than discovering it from a failed deploy.
 
+**THE FAILED BUILD IS STILL USEFUL, though, and this is the part worth copying.**
+It dies at the Firebase resolution step, AFTER emitting 423 chunks — so it
+answers `oniq-ship`'s "learn which chunk carries your marker from a local build
+first" without needing to succeed:
+
+    firebase-recaptcha           -> assets/auth-*.js
+    oniq-309bd.firebaseapp.com   -> assets/auth-*.js
+    (entry index-*.js carries neither)
+
+So production is verified by fetching the AUTH ROUTE chunk, not the entry
+bundle. Greping `index-*.js` would have returned clean and been read as "the
+deploy is stale" — the exact false negative that nearly got a healthy Episode 4
+deploy re-published.
+
+It also settles the silent-failure risk for free: `oniq-309bd.firebaseapp.com`
+being present proves the six `VITE_FIREBASE_*` values inline from `.env` at
+build time, so `FIREBASE_WEB.configured` is true. Had they not inlined,
+`phoneAvailable` would be false and the phone tab would simply never render —
+no crash, no console error, just an absent tab. That check does not depend on
+the Firebase package resolving, so the local result transfers.
+
 **MEASURED THE SAME DAY, and one correction.** `getProjectConfig` on the public
 key now returns `authorizedDomains: ['localhost', 'oniq-309bd.firebaseapp.com',
 'oniq-309bd.web.app', 'oniqhub.com']` — the owner DID add it, and the
