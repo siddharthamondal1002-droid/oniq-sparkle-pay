@@ -1150,6 +1150,132 @@ auth would still want the second, and the SHA-256 belongs to it:
 Custom Tab works, because a Custom Tab IS Chrome. Failing there kills option 1
 outright and leaves only the native route.
 
+## Owner directive, 2026-09-06 — the payment architecture, and Firebase BECOMES the identity (again)
+
+The owner mapped ONIQ's payments onto Google Play Billing for digital goods and
+UPI for everything else, and then answered the three questions that mapping
+raised. The full specification, with the repo inventory behind it, is the
+artifact linked from that session; what binds is here.
+
+    1. Firebase Auth + Firestore   YES — "yes I authenticate"
+    2. UPI in the entitlement layer NO  — "UPI stays facilitation only"
+    3. RevenueCat vs direct         no preference -> DIRECT Play Billing
+
+**THIS SUPERSEDES THE 2026-09-05 FINAL DIRECTIVE ON THE IDENTITY QUESTION.**
+"PHONE OTP ONLY. Supabase stays the identity" no longer holds. It also
+supersedes "Postgres stays the system of record" FOR PAYMENTS AND ENTITLEMENTS
+ONLY — the owner was shown that conflict in its own words and confirmed anyway.
+Everything else in the 2026-09-05 mapping stands.
+
+**THE UID-PRESERVATION PLAN IS NO LONGER DORMANT. IT IS THE PLAN.** The 125
+users are imported into Firebase with their existing Supabase UUID as the
+Firebase uid, plus the `role: 'authenticated'` custom claim.
+`scripts/firebase-import-users.mjs` already does exactly this and carries
+`phoneNumber` across. Read its header before touching it.
+
+Decision 3 was delegated, so it was made here and is recorded as an
+ENGINEERING call, not an owner one: **direct Play Billing.** It is what the
+owner's own architecture described, it adds no paid fourth party taking a cut,
+and it needs no new `package.json` dependency — which matters because Lovable
+owns that file and every dependency is a round trip. The hard half is
+server-side and `parked/creator-billing/play-rtdn.ts` already implements it.
+RevenueCat stays parked and is the fallback if renewal edge cases bite.
+
+### THE BLOCKER THAT CHANGED SEVERITY THE MOMENT THIS WAS DECIDED
+
+**EMAIL/PASSWORD SELF-SIGNUP IS OPEN, AND IT IS NOW AN RLS OUTAGE VECTOR
+REACHABLE BY ANYONE.** Measured again 2026-09-06 with nothing but the PUBLIC
+web API key — the one that ships in every browser bundle by design:
+
+    POST accounts:signUp?key=<WEB_KEY>  {"email":…,"password":…}
+    -> HTTP 200   localId 8KkQ87d0WnUcN93aAlkkldsjkKo1   idToken 932 bytes
+
+That `localId` is a NATIVE 28-CHARACTER UID, not a UUID. (The probe account was
+deleted in the same run; `accounts:lookup` on its token then answered
+`USER_NOT_FOUND`.)
+
+Under the previous directive this was harmless and this file said so in those
+words — no Firebase token was ever presented to Postgres. **The decision above
+is what makes it critical.** Once Firebase is registered as Supabase's
+third-party auth provider, that token IS accepted, `auth.uid()` casts the `sub`
+claim to `uuid`, and per `scripts/firebase-import-users.mjs`'s own header a
+native uid "would not merely fail to match rows — it would fail to CAST, and
+every policy on every table would error."
+
+So this is not "unwanted accounts". It is an unauthenticated, remote way to
+make all 242 RLS policies error, reachable by anyone who reads the shipped
+bundle. **Turn Email/Password OFF in the Firebase console before registering
+third-party auth, not after.** Order matters: registering first opens the hole
+for as long as the console tab takes.
+
+Anonymous sign-in remains correctly locked (`ADMIN_ONLY_OPERATION`).
+
+**AND A SERVER-SIDE SIGNUP ENDPOINT IS STILL REQUIRED, for the same reason.**
+Turning the provider off closes the public hole; it does not give new users a
+way in. Phone sign-in must not be the account-creating step — a server endpoint
+takes the phone first and calls `createUser({ uid: <a fresh UUID>, phoneNumber,
+customClaims: { role: 'authenticated' } })`, and only then does the client call
+`signInWithPhoneNumber`, which now RESOLVES to that account instead of minting
+one. The shape was recorded on 2026-09-05 and was moot under the phone-OTP-only
+directive. It is live work again.
+
+### MEASURED 2026-09-06, free, with no credential ONIQ must protect
+
+    accounts:createAuthUri     POST -> 200   Auth IS provisioned
+    projects                   GET  -> 200   authorizedDomains: [localhost,
+                                             oniq-309bd.firebaseapp.com,
+                                             oniq-309bd.web.app, oniqhub.com]
+    accounts:signUp            POST -> 200   Email/Password STILL OPEN
+    accounts:signUp (no email) POST -> 400   ADMIN_ONLY_OPERATION, anonymous locked
+
+`node scripts/check-firebase-blockers.mjs` re-runs all four and exits non-zero
+while any blocker stands. It CREATES NOTHING — the obvious signup probe left a
+real account in the owner's project on its first run (deleted in the same run,
+`accounts:lookup` then answering `USER_NOT_FOUND`), so it now sends a
+deliberately too-short password instead: Google validates the password BEFORE
+creating anything, and the provider's state comes back in which error arrives —
+`WEAK_PASSWORD` means open, `OPERATION_NOT_ALLOWED` means closed. A diagnostic
+that mutates what it measures is not a diagnostic.
+
+**AND THE AUTHORIZED-DOMAINS ENDPOINT IN THIS FILE WAS WRONG ALL ALONG.** Every
+earlier entry above names `relyingparty/getProjectConfig`. Measured 2026-09-06
+on both verbs, that path returns Google's HTML **404**; the endpoint that
+answers is `GET /v1/projects`. The wrong name survived because the command
+carrying it ended in `|| curl <other endpoint>` — the parse failed, the
+fallback fired silently, and the RIGHT data arrived from the WRONG URL and was
+written down under it. The domain values recorded earlier are correct; only the
+endpoint attributed to them is not. **Never let a probe fall back to a second
+endpoint without printing which one answered.**
+
+`www.oniqhub.com` is still absent from authorizedDomains and still does not
+matter, because www 302s to the apex before any Firebase call runs.
+
+### WHAT IS BLOCKED, AND WHO OWNS EACH
+
+Nothing client-side ships until the first two clear, and they are BOTH the
+owner's — the Lovable agent holds the service role, and third-party auth
+registration is a CONTROL-plane operation it measurably cannot reach
+(`api.supabase.com` -> `JWT failed verification`).
+
+    1. OWNER   Turn Email/Password OFF          <- do this FIRST, see above
+    2. OWNER   Register Firebase as a third-party auth provider on the
+               Supabase control plane. Measured NOT registered 2026-09-05:
+               PostgREST answered 401 PGRST301 "No suitable key was found to
+               decode the JWT" to a correctly-shaped Firebase token.
+    3. OWNER   Confirm Firestore is provisioned (Native mode, which region).
+               One tap on /app/admin/firebase asks Google with the service
+               account and answers it; the unauthenticated probe cannot.
+    4. AGENT   Import the 125 users, uid preserved. Reversible: the Supabase
+               accounts are untouched by an import.
+    5. AGENT   Server-side signup endpoint (above), then the client switch.
+
+**DO NOT BUILD AGAINST BLOCKER 2 UNTIL IT IS MEASURED CLEARED**, and measure it
+the way this file already prescribes: present a real Firebase ID token to
+PostgREST with a THREE-WAY control, and get a known-good `apikey` +
+`Authorization` pair returning 200 FIRST — the 2026-09-05 run's control arm
+returned `401 {"message":"Invalid API key"}`, which is PostgREST rejecting the
+apikey header, so it never exercised what it was meant to.
+
 ## ONIQ Study and the Google mapping — what is built, what cannot be
 
 The owner mapped ONIQ Study onto thirteen Google capabilities, 2026-09-05.
