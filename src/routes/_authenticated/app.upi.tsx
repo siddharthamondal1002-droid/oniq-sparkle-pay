@@ -33,11 +33,13 @@ export const Route = createFileRoute("/_authenticated/app/upi")({
 
 function UpiScreen() {
   const prefill = Route.useSearch();
-  // Not state any more: with the tab strip gone there is nothing to change it,
-  // and a setter nobody calls reads as though the view is still switchable.
-  // The ?tab= param is the only input, which is exactly how the deep links
-  // that still reach this screen already addressed it.
-  const tab: "pay" | "receive" = prefill.tab === "receive" ? "receive" : "pay";
+  // State again — owner directive, 2026-09-06: "Make upi active again". The
+  // strip below is what changes it, and `?tab=` still seeds the initial value
+  // so the deep links that kept working through the hidden period still land
+  // on the view they name.
+  const [tab, setTab] = useState<"pay" | "receive">(
+    prefill.tab === "receive" ? "receive" : "pay",
+  );
 
   return (
     <div className="px-5 pt-12 pb-6">
@@ -51,15 +53,36 @@ function UpiScreen() {
         <h1 className="font-display text-2xl font-bold">UPI</h1>
       </div>
 
-      {/* NO TAB STRIP — owner directive, 2026-08-17: hide Scan & Pay and every
-          pay-by-QR tab and button.
+      {/* THE SWITCHER IS BACK — owner directive, 2026-09-06, reversing
+          2026-08-17. Restored as it was rather than redesigned: same two
+          testids, same labels, so `app.upi` tests and any saved deep link keep
+          meaning what they meant.
 
-          The switcher is what is gone, not the screen. This route still
-          resolves so a deep link, a chat attachment or a UPI intent handed in
-          by another app still lands somewhere that works and still carries the
-          anti-fraud note below. `tab` is now decided entirely by the ?tab=
-          search param, which is how those deep links already arrived — a
-          person navigating the app has no way to reach either view. */}
+          It is the only way to reach My QR. "Scan a QR instead" below already
+          reaches the scanner, so the PAY direction was navigable the moment the
+          Plug tile came back; RECEIVE was not reachable at all without typing
+          ?tab=receive, which nobody does. That asymmetry is why this is part of
+          the same change and not a nice-to-have. */}
+      <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-1 text-sm font-semibold">
+        <button
+          data-testid="upi-tab-pay"
+          onClick={() => setTab("pay")}
+          className={`flex items-center justify-center gap-2 rounded-xl py-2.5 transition ${
+            tab === "pay" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+          }`}
+        >
+          <ScanLine className="h-4 w-4" /> Scan &amp; Pay
+        </button>
+        <button
+          data-testid="upi-tab-receive"
+          onClick={() => setTab("receive")}
+          className={`flex items-center justify-center gap-2 rounded-xl py-2.5 transition ${
+            tab === "receive" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+          }`}
+        >
+          <QrCode className="h-4 w-4" /> My QR
+        </button>
+      </div>
 
       {/* Standing, low-key anti-fraud note — visible on both tabs. */}
       <p className="mt-3 text-center text-[11px] text-muted-foreground">
