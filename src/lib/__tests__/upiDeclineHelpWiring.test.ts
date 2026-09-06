@@ -159,15 +159,28 @@ describe("the storefront claims only what ONIQ does", () => {
     }
   });
 
-  it("the site card and the Home tile both say 'open it in'", () => {
-    expect(CARD).toMatch(/Scan any UPI QR and open it in your own/);
-    expect(TILE).toMatch(/Scan any UPI QR, open it in your own app/);
-  });
-
-  it("the Play declaration no longer claims scan-and-PAY", () => {
-    // Claiming less capability on a Play form is the safe direction and, since
-    // the hand-off completes nothing, also the accurate one.
-    expect(PLAY).not.toMatch(/UPI scan-and-pay/i);
-    expect(PLAY).toMatch(/UPI QR scanning, handed off/);
+  /**
+   * THE SOFTENED WORDING OUTLIVED ITS OWN SURFACES BY ABOUT AN HOUR.
+   *
+   * "open it in your own GPay, PhonePe or Paytm" was the corrected site card;
+   * the owner then said "hide upi" and the card, the Home tile and the Play
+   * capability line all went away. So there is no longer anything to soften,
+   * and the assertion becomes the stronger one: ONIQ makes NO UPI claim at all.
+   *
+   * The `pay from` check above still earns its place — it is what an editor
+   * would reach for if any of these came back — but it is now checking that a
+   * phrase stays absent from files that mention UPI nowhere, which is a weaker
+   * guarantee than it looks. This is the assertion that actually holds the
+   * line, so it is stated positively rather than as three absences.
+   */
+  it("makes no UPI claim on any storefront surface", () => {
+    for (const [label, src] of [
+      ["the site card deck", CARD],
+      ["the Home tile list", TILE],
+      ["the Play declaration", PLAY],
+    ] as const) {
+      expect(src, `${label} still advertises UPI`).not.toMatch(/UPI QR/i);
+      expect(src, `${label} still advertises UPI`).not.toMatch(/scan-and-pay/i);
+    }
   });
 });

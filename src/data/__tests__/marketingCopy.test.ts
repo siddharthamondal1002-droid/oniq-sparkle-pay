@@ -58,14 +58,17 @@ describe("every live card maps to a surface that exists", () => {
     }
   });
 
-  it("advertises Scan & Pay, but still no Receive card", () => {
-    // Owner directive, 2026-09-06: "Make upi active again", reversing
-    // 2026-08-17. Scan & Pay is back and LIVE — the surface exists and the app
-    // offers a way in, which is the only status this deck permits.
-    const scan = FEATURE_CARDS.find((c) => c.title === "Scan & Pay");
-    expect(scan, "Scan & Pay is missing — check appRegistry oniq-upi agrees").toBeTruthy();
-    expect(scan?.status).toBe("live");
-    expect(scan?.route).toBe("/app/upi");
+  it("advertises neither Scan & Pay nor Receive", () => {
+    // Owner directive, 2026-09-06 (evening): "hide upi", reversing that
+    // morning's "make upi active again". The card is REMOVED rather than
+    // marked "soon", because "soon" would be false in the other direction —
+    // the screen exists and works; what fails is the hand-off to the UPI app,
+    // measured across PhonePe, Google Pay and Paytm. `CardStatus` has two
+    // values by design, and absent is the honest third.
+    expect(
+      FEATURE_CARDS.find((c) => c.title === "Scan & Pay"),
+      "Scan & Pay is on the deck while appRegistry oniq-upi carries hidden: true",
+    ).toBeFalsy();
 
     // RECEIVE DID NOT COME BACK WITH IT, and that asymmetry is the assertion.
     // There is no receive route — src/routes/_authenticated/ holds app.upi.tsx
@@ -88,8 +91,16 @@ describe("every live card maps to a surface that exists", () => {
     // The live Play listing once shipped a screenshot of a payment tile the
     // app would not open; this is what stops that recurring. The flag has now
     // moved three times, and each move has to carry the site with it.
+    // THE 400-CHARACTER WINDOW THIS USED TO TAKE WAS A LATENT FALSE FAILURE.
+    // On 2026-09-06 a comment written above the flag pushed `hidden: true` to
+    // offset 1,193, so the slice never saw it and this test reported "site and
+    // app disagree" while they agreed perfectly — which reads as "your site
+    // edit was wrong" and invites reverting the correct half. Prose must not
+    // be able to move a flag out of frame, so the entry is now sliced to its
+    // own closing brace instead of a magic number.
     const registry = readFileSync(join(ROOT, "src/data/appRegistry.ts"), "utf8");
-    const entry = registry.slice(registry.indexOf('id: "oniq-upi"')).slice(0, 400);
+    const from = registry.indexOf('id: "oniq-upi"');
+    const entry = registry.slice(from, registry.indexOf("\n  },", from));
     const siteOffers = FEATURE_CARDS.find((c) => c.title === "Scan & Pay")?.status === "live";
     const appHides = /hidden:\s*true/.test(entry);
     expect(

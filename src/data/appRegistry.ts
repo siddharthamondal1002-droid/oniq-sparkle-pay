@@ -535,6 +535,30 @@ export const APP_REGISTRY: AppEntry[] = [
   // One handset, one merchant QR; no wider claim than that is supported.
   {
     id: "oniq-upi",
+    // Kept immediately after `id` — see the note below on why its POSITION is
+    // load-bearing, not just its value.
+    hidden: true,
+    // Owner directive, 2026-09-06 (evening): "hide upi". It reverses that
+    // morning's "make upi active again", and the reason is measured rather
+    // than aesthetic: the upi:// hand-off was declined by PhonePe, Google Pay
+    // AND Paytm on a real merchant QR — including when handed the QR's own
+    // bytes with zero transformation — while scanning the same code inside the
+    // app succeeded. The feature reads a QR correctly and cannot pay with it.
+    //
+    // HIDDEN, NOT DELETED. `/app/upi` and `/app/scan` still resolve, so a
+    // bookmark or deep link still works and nothing has to be rebuilt if the
+    // answer changes; what goes away is every door ONIQ opens to it. `hidden`
+    // is filtered out of the rendered list, so this is data with no entry
+    // point — exactly what the flag was defined for.
+    //
+    // IT SITS DIRECTLY UNDER `id` ON PURPOSE. registry.test.ts and
+    // marketingCopy.test.ts both find this entry by `id: "oniq-upi"` and read
+    // a fixed-length slice forward. Written at the BOTTOM of the entry, behind
+    // the comment above, it landed 1,193 characters in — past the 400-char
+    // window — so the agreement test reported "site and app disagree" while
+    // they agreed perfectly. That reads as "your site edit was wrong" and
+    // invites reverting the correct half. The window was widened too, but a
+    // flag that prose can push out of frame is a bad flag: keep it first.
     name: "Pay via UPI",
     tagline: "GPay · PhonePe · Paytm",
     category: "payments",

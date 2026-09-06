@@ -79,8 +79,9 @@ describe("app registry integrity", () => {
     expect(upi, "oniq-upi is missing from the registry").toBeTruthy();
     expect(
       upi?.hidden ?? false,
-      "oniq-upi is hidden again — marketingCopy and playCompliance must follow",
-    ).toBe(false);
+      "oniq-upi is VISIBLE again — marketingCopy (the Scan & Pay card) and " +
+        "playCompliance (the UPI capability line) must come back in the same commit",
+    ).toBe(true);
     expect(upi?.countries).toEqual(["IN"]);
     expect(upi?.launchType).toBe("webOnly");
   });

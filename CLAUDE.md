@@ -1477,6 +1477,53 @@ one, is a different architecture and a business decision. Rail A (Razorpay) is
 untouched by any of this and must stay that way; `sign` is never weakened,
 regenerated or stripped.
 
+### Owner directive, 2026-09-06 (evening) — "hide upi"
+
+Reverses that morning's "make upi active again". The flag has now moved FOUR
+times (visible -> hidden 2026-08-17 -> visible 2026-09-06 -> hidden), and the
+reason this time is measured rather than aesthetic: all three UPI apps declined
+the hand-off, including on the QR's own untransformed bytes.
+
+**HIDDEN IS NOT DELETED.** `/app/upi` and `/app/scan` still resolve, so a
+bookmark, a deep link or a chat attachment still works, the anti-fraud UX is
+intact, and a fifth flip is a flag rather than a rebuild.
+
+**THERE ARE SIX DOORS, ACROSS FOUR FILES, AND THE MORNING PROVED THAT MISSING
+ONE IS THE DEFAULT OUTCOME.** Unhiding the registry entry alone lit only the
+shortcut buried inside Plug, three taps down a directory, while Home had no tile
+and `worlds.test.ts` forbade adding one — "active" and unreachable, reported as
+_"no tabs, no icons"_. Hiding has the mirror-image failure: shut four, miss the
+fifth, and the feature is "hidden" behind a link that still opens it.
+
+    1  registry entry            appRegistry.ts      hidden: true
+    2  Plug shortcut             app.miniapps.tsx    derived from 1
+    3  mini-apps directory       appRegistry.ts      derived from 1
+    4  Home tile                 worlds.ts           removed
+    5  site card                 marketingCopy.ts    removed
+    6  Play capability line      playCompliance.ts   removed
+
+Doors 2 and 3 are DERIVED, not declared, so they closed for free — and that is
+exactly why `src/data/__tests__/upiDoors.test.ts` EVALUATES the app's own
+expressions rather than greping. A future edit replacing `!UPI_ENTRY.hidden`
+with a literal would pass any text search while reopening the door.
+Mutation-checked one door at a time: unhiding the entry fails 4 assertions, the
+Home tile 1, the site card 2, the Play line 1.
+
+The Scan & Pay card is REMOVED rather than marked `soon`, because `soon` is
+false in the other direction — the screen exists and works; the hand-off is what
+fails. `CardStatus` has two values by design and absent is the honest third.
+
+**AND A COMMENT PUSHED A FLAG OUT OF A TEST'S FRAME.** `marketingCopy.test.ts`
+read the registry entry as a fixed 400-character slice. Writing the directive
+above `hidden: true` moved it to offset 1,193, so the slice never saw it and the
+test reported "site and app disagree" while they agreed perfectly — which reads
+as "your site edit was wrong" and invites reverting the correct half. Two fixes,
+because either alone is luck: the flag now sits immediately under `id`, and the
+slice runs to the entry's closing brace instead of a magic number. Verified by
+mutation — with the flag pushed back to offset 1,867 the test still passes.
+
+**Where a test reads source by offset, a comment is executable.**
+
 ## ONIQ Study and the Google mapping — what is built, what cannot be
 
 The owner mapped ONIQ Study onto thirteen Google capabilities, 2026-09-05.

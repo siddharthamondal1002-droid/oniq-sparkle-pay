@@ -188,24 +188,21 @@ export const FEATURE_CARDS: FeatureCard[] = [
     adultOnly: true,
   },
 
-  // SCAN & PAY IS BACK, AND IT BELONGS IN THE LIVE BLOCK — owner directive,
-  // 2026-09-06: "Make upi active again." It reverses 2026-08-17. `live` is the
-  // honest status: the surface exists and the app offers a way in again
-  // (appRegistry `oniq-upi` is no longer hidden), and `marketingCopy.test.ts`
-  // fails if those two ever disagree in either direction.
-  {
-    title: "Scan & Pay",
-    // "pay from" PROMISED AN OUTCOME ONIQ DOES NOT CONTROL, and on 2026-09-06
-    // it was measured false: a merchant QR handed to PhonePe, Google Pay and
-    // Paytm was declined by all three, while scanning it inside the app
-    // succeeded. Owner directive the same evening: soften it. "open it in"
-    // claims only what ONIQ does — read the code and hand it over — and stops
-    // asserting that the payment completes. See upiPayeeLink in
-    // src/lib/miniapps.ts for the run.
-    copy: "Scan any UPI QR and open it in your own GPay, PhonePe or Paytm.",
-    status: "live",
-    route: "/app/upi",
-  },
+  // SCAN & PAY IS OFF THE DECK — owner directive, 2026-09-06 (evening): "hide
+  // upi". It reverses that morning's "make upi active again", and the flag has
+  // now moved four times.
+  //
+  // REMOVED RATHER THAN MARKED "soon", because "soon" would be a lie in the
+  // other direction. The screen exists and works; what fails is the hand-off
+  // to the UPI app, measured across PhonePe, Google Pay and Paytm. A card
+  // saying "coming soon" advertises a thing that is already built, and this
+  // deck's whole rule is that the site, the listing and the app agree about
+  // what a person can actually do. Absent is the only honest status, and
+  // `CardStatus` has no third value by design.
+  //
+  // `marketingCopy.test.ts` derives `siteOffers` from this card's status, so
+  // removing it makes that false and the symmetry with `oniq-upi`'s
+  // `hidden: true` holds with no edit to the agreement test itself.
 
   // ---- Coming soon --------------------------------------------------------
   // These must LOOK different — dimmed, badged, not clickable. A card that
@@ -329,7 +326,7 @@ ONIQ is not affiliated with, endorsed by, or sponsored by any third-party app, b
   screenshotChecklist: [
     "No Watch player, channel grid or library screenshot — Watch is India-only and not advertised; a screenshot of another platform's player in ONIQ reads as ONIQ offering that platform's video.",
     "No Glance card — the surface is gone.",
-    "Scan & Pay may be screenshotted again — owner directive 2026-09-06 made UPI active, reversing 2026-08-17. Still NO Receive tile: there is no receive route, so a screenshot of one advertises a surface that does not exist. This rule has now flipped three times; check src/data/appRegistry.ts (whether oniq-upi carries hidden) for what is true on the day rather than trusting this sentence.",
+    "NO Scan & Pay screenshot, and no Receive tile — owner directive 2026-09-06 (evening) hid UPI again after all three UPI apps declined the hand-off. A screenshot of a payment tile the app no longer opens is exactly what once shipped on the live listing. This rule has now flipped four times; check src/data/appRegistry.ts (whether oniq-upi carries hidden) for what is true on the day rather than trusting this sentence.",
     "Any checkout screenshot showing a card or netbanking payment is Razorpay against a real-world order. Do not screenshot a payment for anything digital — Play requires Play Billing for that.",
     "No live-TV or streaming wording in any caption or feature graphic.",
     "Category is not Entertainment or Video Players & Editors.",
