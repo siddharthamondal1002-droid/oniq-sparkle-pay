@@ -6,6 +6,8 @@
  * re-verifying after a session is minted, a wrongly formatted number reaching
  * the SMS call — with no SDK, no DOM and no reCAPTCHA.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   createFirebasePhoneProviders,
@@ -142,5 +144,30 @@ describe("exchangeFirebaseIdToken", () => {
     await expect(
       exchangeFirebaseIdToken(url, "anon", "tok", f as unknown as typeof fetch),
     ).rejects.toThrow();
+  });
+});
+
+describe("the SDK import must survive the build", () => {
+  // Regression guard for a defect this file already shipped once in draft.
+  // `import(SOME_VARIABLE)` with `@vite-ignore` compiles fine and then leaves
+  // the SDK out of the bundle entirely, so sign-in fails at runtime with a
+  // bare specifier the browser cannot resolve. Nothing in a typecheck or a
+  // unit test catches that — only reading the import form does.
+  const SRC = readFileSync(join(process.cwd(), "src/lib/firebasePhoneOtp.ts"), "utf8");
+
+  it("imports firebase by literal specifier, so Vite can bundle it", () => {
+    expect(SRC).toContain('import("firebase/app")');
+    expect(SRC).toContain('import("firebase/auth")');
+  });
+
+  it("never tells Vite to skip analysing a firebase import", () => {
+    const code = SRC.replace(/\/\*\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+    expect(code).not.toContain("@vite-ignore");
+  });
+
+  it("keeps the import dynamic, so the SDK is not in the entry chunk", () => {
+    // Static `import ... from "firebase/..."` would pull ~hundreds of KB into
+    // the bundle every session, for a path most sessions never take.
+    expect(SRC).not.toMatch(/^import\s[^\n]*from\s+["']firebase\//m);
   });
 });

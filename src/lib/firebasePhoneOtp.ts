@@ -130,31 +130,50 @@ export async function firebasePhoneSurface(
   config: Record<string, string>,
   containerId: string,
 ): Promise<PhoneAuthSurface> {
-  // THE SPECIFIERS ARE VARIABLES, and that is deliberate rather than clever.
-  // A literal `import("firebase/app")` is resolved by tsc at build time, so it
-  // fails the typecheck until the dependency exists — and `package.json` is the
-  // Lovable agent's to edit. Binding the specifier late keeps this file
-  // compiling today and importing correctly the moment `firebase` is added.
-  // Delete the indirection then; it earns nothing once the dep is real.
-  const APP = "firebase/app";
-  const AUTH = "firebase/auth";
-  const appMod = (await import(/* @vite-ignore */ APP)) as {
-    initializeApp: (c: unknown) => unknown;
-    getApps: () => unknown[];
-    getApp: () => unknown;
-  };
-  const authMod = (await import(/* @vite-ignore */ AUTH)) as {
-    getAuth: (app: unknown) => unknown;
-    RecaptchaVerifier: new (auth: unknown, id: string, opts: unknown) => unknown;
-    signInWithPhoneNumber: (
-      auth: unknown,
-      phone: string,
-      verifier: unknown,
-    ) => Promise<{
-      confirm: (code: string) => Promise<{ user: { getIdToken: () => Promise<string> } }>;
-    }>;
-  };
+  // DYNAMIC WITH LITERAL SPECIFIERS. Both halves of that matter.
+  //
+  // LITERAL, because the first draft used `import(VARIABLE)` with
+  // `@vite-ignore` to keep the file compiling before `firebase` was a
+  // dependency — and that would have SHIPPED BROKEN. `@vite-ignore` tells Vite
+  // not to analyse the import, so the SDK would never have entered the build
+  // and the browser would have been handed a bare "firebase/app" to resolve at
+  // runtime. A workaround for a typecheck had quietly become a production
+  // defect, invisible until someone tried to sign in.
+  //
+  // DYNAMIC, because the Firebase SDK is large and most sessions never reach
+  // phone sign-in. A literal dynamic import is exactly what lets Vite split it
+  // into its own chunk and fetch it only when this function is called.
+  //
+  // The narrow cast is an ENVIRONMENT limitation, not a preference: the
+  // lockfile resolves firebase from Lovable's Artifact Registry mirror, which
+  // the dev container's proxy denies, so `@firebase/app` installs empty here
+  // and the SDK's own types cannot be read. CI and the Lovable sandbox both
+  // reach that mirror. Anyone working with a complete install should replace
+  // this with the SDK's real types and delete the cast.
+  const [appMod, authMod] = (await Promise.all([
+    import("firebase/app"),
+    import("firebase/auth"),
+  ])) as unknown as [
+    {
+      initializeApp: (c: unknown) => unknown;
+      getApps: () => unknown[];
+      getApp: () => unknown;
+    },
+    {
+      getAuth: (app: unknown) => unknown;
+      RecaptchaVerifier: new (auth: unknown, id: string, opts: unknown) => unknown;
+      signInWithPhoneNumber: (
+        auth: unknown,
+        phone: string,
+        verifier: unknown,
+      ) => Promise<{
+        confirm: (code: string) => Promise<{ user: { getIdToken: () => Promise<string> } }>;
+      }>;
+    },
+  ];
 
+  // getApps() first: initializing twice throws, and this can be reached again
+  // on a retry or a remount.
   const app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(config);
   const auth = authMod.getAuth(app);
   const verifier = new authMod.RecaptchaVerifier(auth, containerId, { size: "invisible" });
