@@ -1,3 +1,4 @@
+import { activeQrDecoder, cameraSupported } from "@/lib/qr/decodeQr";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, Activity, Copy } from "lucide-react";
@@ -164,6 +165,26 @@ function DiagScreen() {
           <Stat label="upload cap" value={formatBytes(MAX_UPLOAD_BYTES)} />
           <Stat label="chunk size" value={formatBytes(UPLOAD_CHUNK_BYTES)} />
           <Stat label="parts at cap" value={`${parts.length}`} hint="resume granularity" />
+          {/* WHICH QR DECODER THIS DEVICE ACTUALLY USES.
+              "barcode-detector" means Google's — on Android, Chromium backs the
+              Shape Detection API with Play Services' ML Kit scanner, so Scan &
+              Pay is already running Google's detector. "jsqr" means this engine
+              exposes none and the pure-JS fallback is doing the work: slower per
+              frame and weaker on the dense, low-contrast codes printed on real
+              shop counters.
+              Read this INSIDE THE APP, not in a mobile browser. The two can
+              differ, and today the Capacitor WebView turned out to block
+              reCAPTCHA while every browser allowed it. */}
+          <Stat
+            label="qr decoder"
+            value={activeQrDecoder()}
+            hint={
+              activeQrDecoder() === "barcode-detector"
+                ? "Google ML Kit via Play Services"
+                : "pure-JS fallback — no detector exposed here"
+            }
+          />
+          <Stat label="camera" value={cameraSupported() ? "available" : "blocked"} />
         </dl>
       </section>
 

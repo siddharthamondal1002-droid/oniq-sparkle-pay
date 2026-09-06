@@ -11,6 +11,31 @@ export function cameraSupported(): boolean {
   return typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
 }
 
+/**
+ * Which decoder this device will actually use.
+ *
+ * `BarcodeDetector` IS Google's barcode API: on Android, Chromium implements
+ * the Shape Detection API on top of Play Services' ML Kit scanner, so the fast
+ * path below already runs Google's detector on the platform ONIQ ships to. jsQR
+ * is the fallback for engines that expose no detector at all — iOS WebKit, and
+ * possibly the Capacitor WebView, which is the open question this exists to
+ * answer.
+ *
+ * THE ANSWER MATTERS AND WAS NOT OBSERVABLE. A silent fallback to jsQR is a
+ * worse scanner — slower per frame and weaker on the dense, low-contrast codes
+ * printed on real shop counters — and it looks identical from the outside to a
+ * Google-backed scan that simply missed. Today the app's WebView turned out to
+ * block reCAPTCHA while every browser allowed it, so "the WebView behaves like
+ * Chrome" is precisely the assumption not to carry into this one. Surfaced on
+ * /app/diag so it can be read off a real handset instead of reasoned about.
+ *
+ * Feature detection only — no user-agent branching, same rule as the rest of
+ * this file.
+ */
+export function activeQrDecoder(): "barcode-detector" | "jsqr" {
+  return getDetector() ? "barcode-detector" : "jsqr";
+}
+
 /** Upload-QR decoding always works — canvas + jsQR need no special APIs. */
 export function qrDecodeSupported(): boolean {
   return typeof window !== "undefined" && typeof document !== "undefined";
