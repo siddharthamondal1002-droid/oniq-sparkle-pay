@@ -41,7 +41,13 @@ describe("retargeting keeps the payment identical", () => {
   it("every unmodelled merchant field survives", () => {
     for (const app of UPI_APP_IDS) {
       const out = retargetUpiUri(MERCHANT, app);
-      for (const f of ["mc=5411", "tr=TXN1234567890", "tid=TID998877", "mode=02", "sign=MEUCIQDabc123"]) {
+      for (const f of [
+        "mc=5411",
+        "tr=TXN1234567890",
+        "tid=TID998877",
+        "mode=02",
+        "sign=MEUCIQDabc123",
+      ]) {
         expect(out).toContain(f);
       }
     }
@@ -197,7 +203,8 @@ describe("a collection QR survives having its amount typed", () => {
   });
 
   it("carries every unmodelled field across an amount edit, when unsigned", () => {
-    const full = "upi://pay?pa=store@ybl&pn=Store&cu=INR&mc=5411&tr=TXN1&tid=TID2&mode=02&orgid=159753";
+    const full =
+      "upi://pay?pa=store@ybl&pn=Store&cu=INR&mc=5411&tr=TXN1&tid=TID2&mode=02&orgid=159753";
     const out = amendUpiUri(full, { am: "250.00", tn: "Order 9" });
     for (const f of ["mc=5411", "tr=TXN1", "tid=TID2", "mode=02", "orgid=159753", "pa=store@ybl"]) {
       expect(out).toContain(f);
@@ -232,5 +239,66 @@ describe("a collection QR survives having its amount typed", () => {
     expect(gpay).toContain("mc=8398");
     expect(gpay).toContain("am=3300");
     expect(gpay).toContain("pa=officerws@sbi");
+  });
+});
+
+/**
+ * THE OWNER'S REPRO, REDUCED TO ONE VARIABLE.
+ *
+ * 2026-09-06: the same society QR paid successfully from PhonePe's OWN scanner
+ * and failed through ONIQ, with the amount left untouched. Untouched means
+ * `rawIntact` is true in app.upi.tsx, so `amendUpiUri` never runs and the
+ * query is passed through verbatim. What these pin is that after that, exactly
+ * ONE thing still differs: the scheme `retargetUpiUri` swaps in to skip
+ * Android's chooser.
+ *
+ * That matters because `tez://upi/pay` is Google's documented deep link while
+ * `phonepe://pay` and `paytmmp://pay` are not documented here, and nothing in
+ * this repository ever measured that they carry a full NPCI merchant payload.
+ * PhonePe's own scanner never receives such a link — it decodes the QR
+ * internally — so this is the ONIQ-only step. These tests do not claim it is
+ * the fault; they pin that it is the only remaining candidate, so a future
+ * change cannot quietly add a second one and leave the on-device experiment
+ * measuring two things at once.
+ */
+describe("scan, touch nothing, tap an app — what actually differs", () => {
+  const SHAPES = {
+    "amount-less collection QR":
+      "upi://pay?pa=officerws@sbi&pn=OFFICERS%20W%20SOCITY&mc=8398&cu=INR",
+    "a QR that already carries the amount":
+      "upi://pay?pa=officerws@sbi&pn=OFFICERS%20W%20SOCITY&am=3300.00&mc=8398&cu=INR&tr=X1&mode=02&orgid=159753",
+  } as const;
+
+  const schemeOf = (s: string) => s.slice(0, s.indexOf("?"));
+
+  for (const [label, raw] of Object.entries(SHAPES)) {
+    it.each(UPI_APP_IDS)(`${label}: %s changes the scheme and NOTHING else`, (app) => {
+      const sent = retargetUpiUri(raw, app);
+      expect(query(sent)).toBe(query(raw)); // byte for byte
+      expect(schemeOf(sent)).not.toBe(schemeOf(raw)); // and the scheme did move
+      expect(sent).not.toBe(raw);
+    });
+  }
+
+  it("the generic control really is the scanned string, unchanged", () => {
+    // Test 1 in the diagnostic launches `raw` itself, so it must be a no-op
+    // path — if this ever stopped being true the experiment would compare two
+    // transformed strings and prove nothing.
+    for (const raw of Object.values(SHAPES)) {
+      expect(retargetUpiUri(raw, null)).toBe(raw);
+      expect(genericUpiUri(raw)).toBe(raw);
+    }
+  });
+
+  it("PhonePe's target scheme is the undocumented one, and is named here", () => {
+    // Pinned so that changing it is a deliberate act with a test to update,
+    // not an incidental edit — it is the single variable under test on a real
+    // handset spending real money.
+    expect(retargetUpiUri(SHAPES["amount-less collection QR"], "phonepe")).toMatch(
+      /^phonepe:\/\/pay\?/,
+    );
+    expect(retargetUpiUri(SHAPES["amount-less collection QR"], "gpay")).toMatch(
+      /^tez:\/\/upi\/pay\?/,
+    );
   });
 });

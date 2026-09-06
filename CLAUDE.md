@@ -1106,7 +1106,7 @@ WHY IT TOOK SIX ROUNDS, worth recording because the shape recurs:
 - **A first-party header is not where you look when a Google flow fails.** Every
   hypothesis was about Google's configuration — App Check, key restrictions,
   authorized domains, the authDomain helper. The one thing under ONIQ's own
-  control was never suspected *because* it is ONIQ's.
+  control was never suspected _because_ it is ONIQ's.
 - **A familiar precedent made the wrong answer feel confirmed.** `auth.tsx`
   carries a real "Google blocks OAuth inside embedded WebViews" lesson for
   Custom Tabs, so "embedded WebView breaks Google attestation" arrived
@@ -1121,7 +1121,7 @@ WHY IT TOOK SIX ROUNDS, worth recording because the shape recurs:
 **AND PLAY INTEGRITY IS THE OTHER HALF OF THE SAME FACT.** Native Firebase
 phone auth does not use reCAPTCHA at all: it attests with Play Integrity, which
 is why the SHA-256 the owner was asked for exists. So the SHA was never
-irrelevant — it was irrelevant *to the web SDK*, which is what ONIQ runs. Under
+irrelevant — it was irrelevant _to the web SDK_, which is what ONIQ runs. Under
 the native route it becomes required. Saying "the SHA is not on the code path"
 was true and incomplete, and the incompleteness read as dismissal.
 
@@ -1275,6 +1275,67 @@ PostgREST with a THREE-WAY control, and get a known-good `apikey` +
 `Authorization` pair returning 200 FIRST — the 2026-09-05 run's control arm
 returned `401 {"message":"Invalid API key"}`, which is PostgREST rejecting the
 apikey header, so it never exercised what it was meant to.
+
+### 2026-09-06 — UPI Rail B: the merchant QR that pays in PhonePe and fails in ONIQ
+
+**THE OWNER'S CORRECTION IS THE WHOLE FINDING, and the first conclusion drawn
+from it here was wrong.** A society's SBI collection QR, ₹3,300. It was recorded
+above as a bank/account-type refusal because PhonePe said so —
+`"UPI payments are not allowed on either your account type or the receiver's
+account type"`, UTR 586505577554. The owner then supplied the control that kills
+that reading: **the same QR, the same amount, the same handset, scanned in
+PhonePe's OWN scanner, went through.** Payer, payee, amount and QR are therefore
+all known-good, and the error string was describing a symptom, not the cause. An
+error message from a third party is evidence about what it refused, never about
+why — the CSP saga three sections up is the same lesson.
+
+FOUR CANDIDATES KILLED BY EXECUTION, not by reading:
+
+    router round trip     `raw` through defaultStringifySearch/defaultParseSearch
+                          -> byte-identical, pa/pn/mc/tr/mode/orgid/cu/sign intact
+    a non-URI QR          resolveScannedCode returns "unknown" for anything that
+                          is not upi://pay, which never reaches the pay screen
+    merchant fields dropped  the payee-only fallback — real, fixed in a2cde2ad
+    encoding corruption   URLSearchParams turning pa=x@y into x%40y and spaces
+                          into "+" — real, fixed in 47b5906b
+
+**AND ON THE OWNER'S STATED REPRO EXACTLY ONE VARIABLE IS LEFT.** Scan and
+change nothing and `rawIntact` is true in `app.upi.tsx`, so `amendUpiUri` never
+runs and the query is passed through verbatim. Executed against both candidate
+QR shapes, the only remaining difference is the SCHEME `retargetUpiUri` swaps in
+to skip Android's chooser:
+
+    scanned     upi://pay?pa=officerws@sbi&pn=OFFICERS%20W%20SOCITY&mc=8398&cu=INR
+    ONIQ sends  phonepe://pay?pa=…&pn=…&mc=…&cu=INR       query byte-identical
+
+`tez://upi/pay` is Google's documented deep link. **`phonepe://pay` and
+`paytmmp://pay` are not documented anywhere in this repository, and nothing here
+ever measured that they carry a full NPCI merchant payload** the way the generic
+`upi://pay` intent must. PhonePe's own scanner never receives such a link — it
+decodes the QR internally — so this is precisely the ONIQ-only step. It is
+recorded as **the single remaining candidate, NOT as the cause**: nothing in
+this container can ask PhonePe what its deep-link handler does.
+
+**THE EXPERIMENT IS ON THE SCREEN, and it costs one payment rather than six
+hypotheses.** `src/components/upi/UpiIntentDiagnostic.tsx` renders under the pay
+form whenever a QR was scanned: the scanned bytes, the exact string about to be
+handed to Android, a per-field diff, and a banner that names the single variable
+when the query survives intact. Test 1 launches the scanned string with no
+parsing, no amendment and no retargeting; Test 2 is the ordinary Pay button.
+Test 1 first — **if it succeeds the money has moved AND the answer is in.**
+`payloadFor()` is shared with `confirmPay` so what the panel shows cannot drift
+from what is sent.
+
+**WHAT THIS COST, and it is the same bill as the CSP day.** Two real fixes came
+out of the static passes (a2cde2ad, 47b5906b) and both were worth making, but
+every test that "proved" them ran against a QR fixture invented here. The real
+QR's bytes — whether it carries `sign`, what its `mode` is, whether it already
+carries `am` — were never known, and each implies a different defect. Reading
+harder does not produce a byte you do not have. Build the thing that reads it.
+
+**DO NOT DECLARE THIS FIXED** until ONIQ -> scan that QR -> PhonePe -> ₹3,300
+succeeds on the real handset. Rail A (Razorpay) is untouched by any of this and
+must stay that way; `sign` is never weakened, regenerated or stripped.
 
 ## ONIQ Study and the Google mapping — what is built, what cannot be
 

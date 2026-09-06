@@ -27,6 +27,23 @@ import { upiAmendability, isMerchantUpiUri } from "@/lib/upiPreference";
  * to stop guessing — this repository has spent a day proving that a confident
  * narrative built on one error string is the most expensive thing to produce.
  *
+ * ON THE OWNER'S OWN REPRO THERE IS EXACTLY ONE VARIABLE LEFT, and that is
+ * what makes this experiment worth a real payment. Scan and change nothing and
+ * `rawIntact` is true, so `amendUpiUri` never runs and the query goes out byte
+ * for byte as scanned — executed, both for an amount-less collection QR and
+ * for one already carrying `am`. The single remaining difference is the SCHEME
+ * that `retargetUpiUri` swaps in to skip Android's chooser:
+ *
+ *     scanned    upi://pay?pa=…&pn=…&mc=…&cu=INR
+ *     ONIQ sends phonepe://pay?pa=…&pn=…&mc=…&cu=INR      query identical
+ *
+ * `tez://upi/pay` is Google's documented deep link. `phonepe://pay` and
+ * `paytmmp://pay` are NOT documented here, and nothing in this repository ever
+ * measured that they carry a full NPCI merchant payload the way the generic
+ * `upi://pay` intent is required to. PhonePe's own scanner never receives such
+ * a link — it decodes the QR internally — so this is precisely the ONIQ-only
+ * step, and no amount of reading settles it. Only the handset does.
+ *
  * TEST 1 vs TEST 2 IS THE WHOLE POINT. Test 1 hands `App.openUrl()` the
  * scanned string with NO parsing, NO amendment and NO retargeting — the
  * shortest possible path from camera to UPI app. Test 2 runs the production
@@ -56,6 +73,23 @@ export function UpiIntentDiagnostic({ raw, finalUri }: { raw: string; finalUri: 
       });
   };
 
+  const scheme = (uri: string) => {
+    const q = uri.indexOf("?");
+    return q < 0 ? uri : uri.slice(0, q);
+  };
+  const queryOf = (uri: string) => {
+    const q = uri.indexOf("?");
+    return q < 0 ? "" : uri.slice(q + 1);
+  };
+
+  // THE LABEL THAT MAKES THIS AN EXPERIMENT RATHER THAN TWO BUTTONS. When the
+  // query survives untouched, the scheme is the ONLY thing under test, and the
+  // person about to spend real money should be told which single variable
+  // their payment is measuring.
+  const queryIdentical = queryOf(raw) === queryOf(finalUri);
+  const schemeChanged = scheme(raw) !== scheme(finalUri);
+  const schemeIsTheOnlyDiff = queryIdentical && schemeChanged;
+
   const rawPairs = params(raw);
   const finalPairs = params(finalUri);
   const finalMap = new Map(finalPairs);
@@ -69,6 +103,8 @@ export function UpiIntentDiagnostic({ raw, finalUri }: { raw: string; finalUri: 
       "identical: " + identical,
       "amendability: " + upiAmendability(raw),
       "merchant (mc/mode/orgid/sign present): " + isMerchantUpiUri(raw),
+      "query byte-identical: " + queryIdentical,
+      "scheme: " + scheme(raw) + (schemeChanged ? " -> " + scheme(finalUri) : " (unchanged)"),
       "",
       ...keys.map((k) => {
         const a = rawPairs.find(([kk]) => kk === k)?.[1] ?? "(absent)";
@@ -149,11 +185,34 @@ export function UpiIntentDiagnostic({ raw, finalUri }: { raw: string; finalUri: 
             </table>
           </div>
 
+          {schemeIsTheOnlyDiff && (
+            <div
+              data-testid="upi-diag-scheme-only"
+              className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2"
+            >
+              <div className="font-semibold text-foreground">
+                One difference only: the app is addressed directly
+              </div>
+              <div className="mt-1 text-muted-foreground">
+                Everything after the <code>?</code> is byte-for-byte what the QR says. The only
+                change is <code>{scheme(raw)}</code> → <code>{scheme(finalUri)}</code>, which skips
+                Android&apos;s &ldquo;which app?&rdquo; chooser. Test 1 below sends the standard{" "}
+                <code>{scheme(raw)}</code> form instead.
+              </div>
+            </div>
+          )}
+
           <p className="text-muted-foreground">
             <span className="font-semibold text-foreground">Test 1</span> sends the scanned code
-            with no processing at all — the shortest path there is.{" "}
-            <span className="font-semibold text-foreground">Test 2</span> is the normal Pay
-            button. If Test 1 works and Test 2 does not, the fault is in this app.
+            with no processing at all — the shortest path there is. You&apos;ll be asked which app
+            to use; pick the same one. <span className="font-semibold text-foreground">Test 2</span>{" "}
+            is the normal Pay button. If Test 1 works and Test 2 does not, the fault is in this app.
+          </p>
+
+          <p className="text-muted-foreground">
+            <span className="font-semibold text-foreground">Test 1 pays for real.</span> If it goes
+            through, the money has moved and the answer is in — so try Test 1 first, and only try
+            Test 2 if Test 1 also fails.
           </p>
 
           <div className="grid grid-cols-2 gap-2">
