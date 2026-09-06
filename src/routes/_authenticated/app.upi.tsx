@@ -13,6 +13,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { upiLink, upiPayeeLink, isValidVpa, launchUpiIntent } from "@/lib/miniapps";
+import {
+  UPI_APP_LABEL,
+  orderedPayApps,
+  forgetUpiApp,
+  readPreferredUpiApp,
+  rememberUpiApp,
+  retargetUpiUri,
+  type UpiAppId,
+} from "@/lib/upiPreference";
 
 import { supabase } from "@/integrations/supabase/client";
 
@@ -116,6 +125,12 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
   const [note, setNote] = useState(prefill.tn ?? "");
   const [confirming, setConfirming] = useState(false);
   const [launched, setLaunched] = useState(false);
+  // Read after mount: localStorage does not exist during SSR, and a preference
+  // guessed on the server would render the wrong button as primary.
+  const [preferred, setPreferred] = useState<UpiAppId | null>(null);
+  useEffect(() => {
+    setPreferred(readPreferredUpiApp());
+  }, []);
 
   const amt = parseFloat(amount);
   const params = {
@@ -152,15 +167,32 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
     setConfirming(true);
   }
 
-  function confirmPay() {
+  /**
+   * Open a UPI app with this payment.
+   *
+   * `app` null means the generic `upi://pay` intent, which every UPI app
+   * answers, so Android shows its chooser. Naming an app swaps only the scheme
+   * PREFIX and carries the query across untouched — that is what keeps a
+   * scanned merchant QR's mc/tr/sign intact, which rebuilding the URI would
+   * destroy (see rawIntact below, and upiRoundTrip.test.ts).
+   *
+   * Manual sends stay payee-only: GPay and PhonePe decline third-party intents
+   * that pre-fill an amount ("declined for security reasons"), so the payer
+   * types the amount inside their own app.
+   *
+   * The choice is REMEMBERED so the next payment skips the chooser. It is a
+   * shortcut and never a lock — "Any UPI app" stays on this sheet, and if the
+   * remembered app has since been uninstalled `launchUpiIntent` falls back to
+   * the generic intent and clears the preference rather than stranding anyone.
+   */
+  function confirmPay(app: UpiAppId | null) {
     setConfirming(false);
     setLaunched(true);
-    // Generic upi://pay intent — no package/scheme override, so Android
-    // shows its native chooser of every UPI-capable app installed.
-    // Manual sends go payee-only: PhonePe & co decline third-party intents
-    // that pre-fill an amount ("declined for security reasons") — the payer
-    // types the amount inside their own UPI app instead.
-    void launchUpiIntent(rawIntact ? prefill.raw! : upiPayeeLink(params));
+    if (app) rememberUpiApp(app);
+    else forgetUpiApp();
+    setPreferred(app);
+    const base = rawIntact ? prefill.raw! : upiPayeeLink(params);
+    void launchUpiIntent(retargetUpiUri(base, app));
   }
 
   async function copyLink() {
@@ -377,21 +409,41 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
               <li>• your UPI PIN is only ever needed to SEND money — never to receive it</li>
               <li>• "pay ₹1 to verify", refund and cashback requests are scams</li>
             </ul>
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            {/* THE APP LIST IS THE ONLY WAY TO LEARN A PREFERENCE. Android
+                gives no callback saying which app its chooser picked, so the
+                person has to name it. Their last choice leads and carries the
+                testid the tests pin. */}
+            <div className="mt-4 flex flex-col gap-2">
+              {orderedPayApps(preferred).map((id, i) => (
+                <button
+                  key={id}
+                  type="button"
+                  data-testid={i === 0 ? "upi-confirm-send" : `upi-confirm-${id}`}
+                  onClick={() => confirmPay(id)}
+                  className={`press rounded-2xl py-3 text-sm font-semibold ${
+                    i === 0
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-border bg-background"
+                  }`}
+                >
+                  Pay with {UPI_APP_LABEL[id]}
+                  {preferred === id ? " · last used" : ""}
+                </button>
+              ))}
               <button
                 type="button"
-                onClick={() => setConfirming(false)}
+                data-testid="upi-confirm-any"
+                onClick={() => confirmPay(null)}
                 className="press rounded-2xl border border-border bg-background py-3 text-sm font-semibold"
               >
-                Cancel
+                Any UPI app
               </button>
               <button
                 type="button"
-                data-testid="upi-confirm-send"
-                onClick={confirmPay}
-                className="press rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+                onClick={() => setConfirming(false)}
+                className="press rounded-2xl py-3 text-sm font-semibold text-muted-foreground"
               >
-                Yes, open UPI app
+                Cancel
               </button>
             </div>
           </div>

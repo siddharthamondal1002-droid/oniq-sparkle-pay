@@ -22,6 +22,7 @@ export type {
 } from "@/data/appRegistry";
 import { effectiveLaunchType as _effLaunch, type AppEntry } from "@/data/appRegistry";
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
+import { forgetUpiApp, genericUpiUri } from "@/lib/upiPreference";
 
 // ---------------- Seamless switch-and-return launcher ----------------
 
@@ -279,13 +280,40 @@ export async function launchUpiIntent(url: string): Promise<void> {
   try {
     const native = await isCapacitorNative();
     if (native) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let mod: any;
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mod: any = await import(/* @vite-ignore */ "@capacitor/app");
+        mod = await import(/* @vite-ignore */ "@capacitor/app");
+      } catch (err) {
+        console.warn("[upi] @capacitor/app unavailable", err);
+        window.location.href = url;
+        return;
+      }
+      try {
         await mod.App.openUrl({ url });
         return;
       } catch (err) {
-        // openUrl throws when no app can handle the scheme.
+        // openUrl throws when NO installed app handles this scheme.
+        //
+        // THE STALE-PREFERENCE CASE IS WHY THIS RETRIES. A remembered app
+        // (tez://, phonepe://, paytmmp://) can be uninstalled between one
+        // payment and the next, and then the shortcut that was meant to save a
+        // tap becomes a dead end mid-payment. So an app-specific failure falls
+        // back to the generic upi:// intent — every UPI app answers that — and
+        // forgets the preference so the next payment offers the chooser again.
+        //
+        // The query string is carried across untouched, which is what keeps a
+        // scanned merchant QR's mc/tr/sign intact through the retry.
+        const generic = genericUpiUri(url);
+        if (generic !== url) {
+          forgetUpiApp();
+          try {
+            await mod.App.openUrl({ url: generic });
+            return;
+          } catch (err2) {
+            console.warn("[upi] generic retry failed", err2);
+          }
+        }
         try {
           const { toast } = await import(/* @vite-ignore */ "sonner");
           toast.error("No UPI app installed — try Google Pay, PhonePe, or Paytm");
