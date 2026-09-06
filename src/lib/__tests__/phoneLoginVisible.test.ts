@@ -74,18 +74,18 @@ describe("phoneLoginVisible — flag OR opt-in", () => {
 });
 
 describe("the flag itself", () => {
-  it("is OFF — the first real sign-in failed, 2026-09-06", () => {
-    // This assertion has now been flipped twice in one day, which is the point
-    // of having it. It said `false` while phone sign-in was unproven; the owner
-    // turned it on knowing two things were unproven; the first real attempt on
-    // a handset returned `Firebase: Error (auth/internal-error)`; it is off
-    // again. Each flip was a deliberate edit to this line, which is exactly the
-    // friction a flag that ships SMS spend to 125 users should have.
+  it("is ON — restored after a rollback that was not mine to make", () => {
+    // Flipped three times in one day, and the third flip is the instructive
+    // one. False while unproven. True by owner decision, risk stated. False
+    // again when the first real sign-in failed — that one was ME reverting a
+    // product decision belonging to the owner, and worse, the `?phone=1`
+    // escape hatch I left in its place cannot be typed into a WebView, so the
+    // owner was left with an auth screen offering no phone option at all.
+    // True again: the risk is theirs to carry, and the tab has to be reachable
+    // to be diagnosed.
     //
-    // Turning it back on is NOT gated on a green build, a passing suite, or a
-    // successful publish — all three were true when it broke. It is gated on a
-    // code arriving on a real handset. See flags.ts for what has been ruled
-    // out by measurement and what is still only a candidate.
-    expect(OTP_LOGIN_ENABLED).toBe(false);
+    // The friction of editing this line deliberately is the point. What it is
+    // NOT is a licence for an agent to flip it back on the owner's behalf.
+    expect(OTP_LOGIN_ENABLED).toBe(true);
   });
 });

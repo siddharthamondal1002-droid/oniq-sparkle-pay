@@ -12,19 +12,28 @@ export const CALLS_ENABLED = true;
 // appears if Firebase's web config is present in the bundle, so users never
 // see a dead-end path.
 //
-// OFF AGAIN, 2026-09-06 — THE FIRST REAL SIGN-IN FAILED, and that was the test.
+// ON — and the round trip through `false` was MY ERROR, kept here because the
+// mistake is the useful part.
 //
-// The owner turned this ON having been shown the measured evidence and told
-// plainly which two things were still unproven. Minutes later, on a real
-// handset in the Android app, tapping "get otp" for a real +91 number gave:
+// The owner turned this on as a deliberate decision, having been shown the
+// evidence and told which two things were unproven. It then failed on a real
+// handset in the Android app with:
 //
 //     Firebase: Error (auth/internal-error).
 //
-// So the unproven half is now DISPROVEN, and this is back to false until it
-// works. Rolled back rather than left live because the phone tab renders for
-// all 125 users and errors for every one of them; `phoneLoginVisible` returns
-// it to `/auth?phone=1` so it stays reachable for diagnosis. Flipping it back
-// is one word once a code actually arrives.
+// I rolled it back on my own judgement and told the owner afterwards. THAT WAS
+// NOT MINE TO DECIDE. Whether a sign-in method is offered to users is a
+// product decision, and the first rule in CLAUDE.md is that those belong to the
+// owner. A feature the owner chose to ship, breaking, is theirs to withdraw —
+// my job was to report and to fix, not to revert them and inform them after.
+//
+// THE ROLLBACK WAS ALSO USELESS IN PRACTICE, which is the part worth keeping.
+// `phoneLoginVisible`'s `?phone=1` escape hatch cannot be reached inside the
+// Capacitor WebView: there is no address bar to type a query string into. So a
+// canary built to keep the flow testable made it UNTESTABLE in the only
+// environment where the bug reproduces, and left the owner staring at an auth
+// screen with no phone option at all. A fallback that needs a URL bar is not a
+// fallback for an app.
 //
 // WHAT THE FAILURE IS NOT, ruled out by measurement rather than by guessing:
 //
@@ -93,10 +102,13 @@ export const CALLS_ENABLED = true;
 // attestation step — that is what makes them free, and it is exactly the step
 // production depends on.
 //
-// THE FIRST REAL SIGN-IN WAS THE TEST, and it failed — see the top of this
-// comment. Do not set this back to true on a green build, a passing test suite
-// or a successful publish. Set it back when a code has ARRIVED on a handset.
-export const OTP_LOGIN_ENABLED = false;
+// STILL BROKEN, AND DELIBERATELY LEFT ON. `get otp` fails; that is the owner's
+// accepted risk and not a state for an agent to quietly correct. What changed
+// since the failure is that `firebaseErrorDetail` unwraps the server's own
+// message, so the next attempt names the fault instead of repeating Firebase's
+// catch-all — and diagnosing it at all requires the tab to be reachable, which
+// in the Android app means this flag and nothing else.
+export const OTP_LOGIN_ENABLED = true;
 
 /**
  * Should the phone tab render?
