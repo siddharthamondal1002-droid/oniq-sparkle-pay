@@ -107,7 +107,10 @@ export const WORLD_GROUPS: WorldGroup[] = [
         to: "/app/upi",
         world: "plug",
         emoji: "💳",
-        hint: "Scan any UPI QR, pay from your own app",
+        // "pay from" -> "open it in", owner directive 2026-09-06: the tile must
+        // not promise a completed payment when all three UPI apps declined the
+        // hand-off. Kept in step with the site card in marketingCopy.ts.
+        hint: "Scan any UPI QR, open it in your own app",
       },
       {
         key: "rides",

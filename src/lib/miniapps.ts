@@ -397,9 +397,22 @@ export function upiLink(p: UpiParams) {
  * reached PhonePe — it opened and showed the payment — and PhonePe refused the
  * HAND-OFF, not the payment.
  *
- * Stated as measured rather than as a theory about anyone's policy: this is
- * PhonePe, one handset, one merchant. GPay and Paytm have NOT been tried
- * through ONIQ, and no claim is made about them here.
+ * ALL THREE APPS WERE THEN TRIED, AND ALL THREE REFUSED. Owner, same evening:
+ * "all failed". So the sentence that used to sit here — "GPay and Paytm have
+ * NOT been tried through ONIQ, and no claim is made about them" — is spent,
+ * and the finding is no longer about one vendor:
+ *
+ *     PhonePe -> DECLINED    Google Pay -> DECLINED    Paytm -> DECLINED
+ *     the same QR scanned inside the app itself -> SUCCEEDED
+ *
+ * That is every UPI app ONIQ can target. **The `upi://` hand-off does not
+ * complete a merchant payment from ONIQ on this handset**, and no string,
+ * scheme or field ordering changes it — Test 1 was the QR's own bytes.
+ *
+ * Still stated no wider than it was measured: ONE handset, ONE merchant QR.
+ * Whether this is a rule these apps now enforce, an allowlist ONIQ is not on,
+ * or something about this payer or payee cannot be established from here, and
+ * guessing which is what cost two days already.
  *
  * Preserving mc/tr/sign on the rawIntact path is still right — a mangled
  * merchant payload would be a second, independent failure — it just is not

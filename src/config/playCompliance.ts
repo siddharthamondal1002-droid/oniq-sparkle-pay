@@ -52,7 +52,11 @@ export const NATIVE_CAPABILITIES = [
   // hand-off builds a UPI intent URL and passes it to the user's own payment
   // app; the payment happens there, and no VPA, amount or transaction record
   // reaches ONIQ. See the rule in marketingCopy.ts.
-  "UPI scan-and-pay through the user's own payment apps.",
+  // "scan-and-pay" claimed a completed payment. Measured 2026-09-06: all three
+  // UPI apps declined the hand-off. Narrowed to what ONIQ demonstrably does —
+  // claiming LESS capability on a Play declaration is always the safe
+  // direction, and this is now also the accurate one.
+  "UPI QR scanning, handed off to the user's own payment apps.",
   // Card and netbanking checkout for FOOD ORDERS, via Razorpay. Physical goods
   // and services only — Play permits a third-party processor for those and
   // requires Play Billing for digital content, so this is deliberately wired

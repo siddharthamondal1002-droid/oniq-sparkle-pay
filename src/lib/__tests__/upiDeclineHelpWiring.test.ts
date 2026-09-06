@@ -124,7 +124,50 @@ describe("the disproven claim stays disproven", () => {
   it("miniapps records the measured run rather than a theory", () => {
     expect(MINIAPPS).toContain("ZERO transformation");
     expect(MINIAPPS).toMatch(/SUCCEEDED/);
-    // and is honest about how far it generalises
-    expect(MINIAPPS).toMatch(/GPay and Paytm have NOT been tried/);
+    // all three apps, since that is what was measured in the end
+    expect(MINIAPPS).toMatch(/Google Pay -> DECLINED/);
+    expect(MINIAPPS).toMatch(/Paytm -> DECLINED/);
+    // and is still honest about how far it generalises
+    expect(MINIAPPS).toMatch(/ONE handset, ONE merchant QR/);
+  });
+});
+
+/**
+ * THE STOREFRONT MUST NOT PROMISE AN OUTCOME ONIQ DOES NOT CONTROL.
+ *
+ * Owner directive 2026-09-06, after testing all three: "all failed" — a
+ * merchant QR handed over by ONIQ was declined by PhonePe, Google Pay AND
+ * Paytm, while scanning the same code inside the app succeeded. The site card
+ * and the Home tile both said "pay from your own GPay, PhonePe or Paytm",
+ * which asserts a completed payment. They now say "open it in", which is the
+ * part ONIQ actually performs.
+ *
+ * Pinned against the wording rather than the sentiment, because "pay from" is
+ * the exact phrase that was false and it is the one an editor reaches for when
+ * tightening a card. The card TITLE and its live/hidden agreement with
+ * appRegistry are pinned separately in marketingCopy.test.ts and are untouched
+ * by this.
+ */
+describe("the storefront claims only what ONIQ does", () => {
+  const CARD = stripComments(read("src/data/marketingCopy.ts"));
+  const TILE = stripComments(read("src/data/worlds.ts"));
+  const PLAY = stripComments(read("src/config/playCompliance.ts"));
+
+  it("no surface says 'pay from your own'", () => {
+    for (const src of [CARD, TILE, PLAY]) {
+      expect(src).not.toMatch(/pay from your own/i);
+    }
+  });
+
+  it("the site card and the Home tile both say 'open it in'", () => {
+    expect(CARD).toMatch(/Scan any UPI QR and open it in your own/);
+    expect(TILE).toMatch(/Scan any UPI QR, open it in your own app/);
+  });
+
+  it("the Play declaration no longer claims scan-and-PAY", () => {
+    // Claiming less capability on a Play form is the safe direction and, since
+    // the hand-off completes nothing, also the accurate one.
+    expect(PLAY).not.toMatch(/UPI scan-and-pay/i);
+    expect(PLAY).toMatch(/UPI QR scanning, handed off/);
   });
 });

@@ -195,7 +195,14 @@ export const FEATURE_CARDS: FeatureCard[] = [
   // fails if those two ever disagree in either direction.
   {
     title: "Scan & Pay",
-    copy: "Scan any UPI QR and pay from your own GPay, PhonePe or Paytm.",
+    // "pay from" PROMISED AN OUTCOME ONIQ DOES NOT CONTROL, and on 2026-09-06
+    // it was measured false: a merchant QR handed to PhonePe, Google Pay and
+    // Paytm was declined by all three, while scanning it inside the app
+    // succeeded. Owner directive the same evening: soften it. "open it in"
+    // claims only what ONIQ does — read the code and hand it over — and stops
+    // asserting that the payment completes. See upiPayeeLink in
+    // src/lib/miniapps.ts for the run.
+    copy: "Scan any UPI QR and open it in your own GPay, PhonePe or Paytm.",
     status: "live",
     route: "/app/upi",
   },

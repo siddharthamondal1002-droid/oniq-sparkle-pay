@@ -527,7 +527,12 @@ export const APP_REGISTRY: AppEntry[] = [
   // unaffected" was false; the hand-off itself is what gets refused, for
   // merchant QRs as well as person-to-person sends. Nothing in ONIQ's code
   // fixes that — see upiPayeeLink in src/lib/miniapps.ts for the full run.
-  // (PhonePe only, one handset; GPay and Paytm untested through ONIQ.)
+  //
+  // AND IT IS NOT ONE VENDOR. All three were tried the same evening —
+  // PhonePe, Google Pay and Paytm — and all three declined, while scanning the
+  // same QR inside the app succeeded. That is every app this tile names, so
+  // "Pay via UPI" currently completes no merchant payment by hand-off at all.
+  // One handset, one merchant QR; no wider claim than that is supported.
   {
     id: "oniq-upi",
     name: "Pay via UPI",

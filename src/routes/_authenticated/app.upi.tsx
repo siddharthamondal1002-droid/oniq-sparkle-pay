@@ -366,9 +366,9 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
         >
           <p className="text-sm font-semibold text-foreground">Payment declined? 🛡️</p>
           <p className="mt-1.5">
-            A UPI app can refuse a payment that another app started — including shop and society
-            QRs. It is not your bank, not this payee, and not the amount: the same payment goes
-            through when you start it yourself. Either of these works:
+            GPay, PhonePe and Paytm can all refuse a payment that another app started — including
+            shop and society QRs. It is not your bank, not this payee, and not the amount: the same
+            payment goes through when you start it yourself. This works:
           </p>
           <ol className="mt-2 list-decimal space-y-1 pl-4">
             <li>

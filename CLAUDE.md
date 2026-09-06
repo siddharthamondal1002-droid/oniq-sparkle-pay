@@ -1419,9 +1419,63 @@ what ONIQ advertises is a user-visible policy change, so it is asked rather than
 edited. What WAS done needs no permission under any answer: the failure path now
 leads with the step that was measured to work.
 
-**DO NOT DECLARE THIS FIXED** until ONIQ -> scan that QR -> PhonePe -> ₹3,300
-succeeds on the real handset. Rail A (Razorpay) is untouched by any of this and
-must stay that way; `sign` is never weakened, regenerated or stripped.
+### 2026-09-06 (later) — ALL THREE UPI APPS REFUSE. Rail B does not complete a merchant payment.
+
+Owner: _"all failed"_. The remaining two were tried on the same QR and the same
+handset, so the finding is no longer about one vendor:
+
+    PhonePe  -> DECLINED     Google Pay -> DECLINED     Paytm -> DECLINED
+    the same QR scanned inside the app itself -> SUCCEEDED
+
+That is EVERY app ONIQ can target. Combined with Test 1 — the QR's own bytes,
+zero transformation, also declined — **the `upi://` hand-off completes no
+merchant payment from ONIQ**, and there is no string, scheme or field ordering
+left to try. Scan & Pay reads a QR correctly and cannot pay with it.
+
+Stated no wider than measured, and this is the discipline that matters here:
+ONE handset, ONE merchant QR. Whether this is a rule the apps now enforce, an
+allowlist ONIQ is not on, or something about this payer or payee **cannot be
+established from this container**, and guessing which is what cost two days.
+
+**THE OWNER CHOSE "LEAVE IT AS SHIPPED" WHEN THE EVIDENCE WAS ONE APP.** That
+answer is recorded as given and has NOT been overridden — the hand-off is still
+offered, and the decline panel still names the route that works. The premise it
+rested on ("PhonePe refuses, the others are untested") is gone, so the choice
+was put back to the owner rather than re-decided here. Until they say otherwise,
+every merchant payment through Scan & Pay begins with a failure.
+
+WHAT WAS CHANGED WITHOUT ASKING, because all of it is truth-keeping rather than
+product:
+
+- The stale caveat **"GPay and Paytm have NOT been tried through ONIQ"** is
+  gone from `miniapps.ts` and `appRegistry.ts`. It was accurate for about an
+  hour. A caveat that outlives its measurement is exactly what produced
+  "merchant intents are unaffected", the sentence that misdirected this whole
+  investigation — so it gets corrected the moment the measurement lands.
+- The decline panel said "a UPI app can refuse"; it now names all three.
+
+WHAT THE OWNER DIRECTED, 2026-09-06 — **soften the marketing claim**:
+
+    site card   "Scan any UPI QR and pay from your own GPay, PhonePe or Paytm."
+             -> "Scan any UPI QR and open it in your own GPay, PhonePe or Paytm."
+    Home tile   "Scan any UPI QR, pay from your own app"
+             -> "Scan any UPI QR, open it in your own app"
+
+`pay from` asserted a completed payment. `open it in` claims only the part ONIQ
+performs — read the code, hand it over. The Play declaration went the same way,
+`"UPI scan-and-pay"` -> `"UPI QR scanning, handed off to the user's own payment
+apps"`: claiming LESS capability on a Play form is always the safe direction and
+is now also the accurate one. `marketingCopy.test.ts` pins the card's TITLE and
+its live/hidden agreement with `appRegistry`, neither of which moved.
+
+`upiDeclineHelpWiring.test.ts` pins the wording against `pay from` returning,
+mutation-checked. It pins the PHRASE rather than the sentiment, because that is
+the exact phrase that was false and the one an editor reaches for.
+
+**DO NOT DECLARE THIS FIXED.** Nothing here fixes it — the fix, if there is
+one, is a different architecture and a business decision. Rail A (Razorpay) is
+untouched by any of this and must stay that way; `sign` is never weakened,
+regenerated or stripped.
 
 ## ONIQ Study and the Google mapping — what is built, what cannot be
 
