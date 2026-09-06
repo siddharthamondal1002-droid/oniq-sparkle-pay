@@ -26,6 +26,7 @@ import {
   type UpiAppId,
 } from "@/lib/upiPreference";
 
+import { UpiIntentDiagnostic } from "@/components/upi/UpiIntentDiagnostic";
 import { supabase } from "@/integrations/supabase/client";
 
 type UpiSearch = { pa?: string; pn?: string; am?: string; tn?: string; tab?: string; raw?: string };
@@ -192,6 +193,22 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
    * remembered app has since been uninstalled `launchUpiIntent` falls back to
    * the generic intent and clears the preference rather than stranding anyone.
    */
+  /**
+   * The exact string `confirmPay` would hand to the OS, computed the same way.
+   * Shared with the diagnostic so what it displays cannot drift from what is
+   * actually sent — a diagnostic that recomputes the payload differently is
+   * worse than none.
+   */
+  function payloadFor(app: UpiAppId | null): string {
+    const merchantScan = !!prefill.raw && isMerchantUpiUri(prefill.raw);
+    const base = rawIntact
+      ? prefill.raw!
+      : merchantScan
+        ? amendUpiUri(prefill.raw!, { am: amount, tn: note })
+        : upiPayeeLink(params);
+    return retargetUpiUri(base, app);
+  }
+
   function confirmPay(app: UpiAppId | null) {
     setConfirming(false);
     setLaunched(true);
@@ -210,7 +227,6 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
     // merchant identity — the banks then saw a P2P payment to a current
     // account and refused it as "not allowed on the receiver's account type".
     // See amendUpiUri in upiPreference.ts for the measured case.
-    const merchantScan = !!prefill.raw && isMerchantUpiUri(prefill.raw);
     // A SIGNED QR CANNOT CARRY AN AMOUNT WE ADD. `sign` covers the payload it
     // was issued for and only the merchant's PSP can re-sign, so appending `am`
     // would hand the app a signature that no longer matches — which is what a
@@ -223,12 +239,7 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
         duration: 7000,
       });
     }
-    const base = rawIntact
-      ? prefill.raw!
-      : merchantScan
-        ? amendUpiUri(prefill.raw!, { am: amount, tn: note })
-        : upiPayeeLink(params);
-    void launchUpiIntent(retargetUpiUri(base, app));
+    void launchUpiIntent(payloadFor(app));
   }
 
   async function copyLink() {
@@ -346,6 +357,10 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
         Android shows a chooser of every UPI app you have — GPay, PhonePe, Paytm, BHIM, your bank's
         app, whatever's installed.
       </p>
+
+      {prefill.raw ? (
+        <UpiIntentDiagnostic raw={prefill.raw} finalUri={payloadFor(preferred)} />
+      ) : null}
 
       {launched && (
         <div
