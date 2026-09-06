@@ -41,7 +41,7 @@ export const Route = createFileRoute("/_authenticated/app/admin/firebase")({
 });
 
 function FirebaseProvisioningTool() {
-  const [busy, setBusy] = useState<null | "probe" | "bridge">(null);
+  const [busy, setBusy] = useState<null | "probe" | "bridge" | "voice">(null);
   const [result, setResult] = useState<string | null>(null);
   const runBridge = useServerFn(firebaseBridge);
 
@@ -54,6 +54,18 @@ function FirebaseProvisioningTool() {
     setBusy(null);
     // The server's own sentence is the one worth showing — a refusal from
     // Google names the role to grant, and a summary would lose it.
+    setResult(error ? await edgeErrorMessage(error) : JSON.stringify(data, null, 2));
+  };
+
+  // The voice-replication question, asked with the verb that matters. See the
+  // probe's own comment in voice-clone for why a GET could never answer it.
+  const voice = async () => {
+    setBusy("voice");
+    setResult(null);
+    const { data, error } = await supabase.functions.invoke("voice-clone", {
+      body: { action: "probe" },
+    });
+    setBusy(null);
     setResult(error ? await edgeErrorMessage(error) : JSON.stringify(data, null, 2));
   };
 
@@ -90,6 +102,16 @@ function FirebaseProvisioningTool() {
           className="press rounded-full bg-world px-4 py-2 text-sm font-semibold text-on-world disabled:opacity-50"
         >
           {busy === "probe" ? "Asking Google…" : "Check"}
+        </button>
+
+        <button
+          type="button"
+          data-testid="voice-clone-probe"
+          onClick={() => void voice()}
+          disabled={busy !== null}
+          className="press rounded-full border border-border px-4 py-2 text-sm font-semibold disabled:opacity-50"
+        >
+          {busy === "voice" ? "Asking Vertex…" : "Voice replication"}
         </button>
 
         <button

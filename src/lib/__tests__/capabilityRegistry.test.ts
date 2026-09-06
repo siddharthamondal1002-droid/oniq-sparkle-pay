@@ -250,6 +250,18 @@ describe("voice.clone: the wiring is pinned, not just the allowlist", () => {
     expect(codeOnly, "voice-clone gained a hard delete").not.toMatch(/\.delete\(\)/);
   });
 
+  it("the mint probe has a caller, which is the bug this whole entry is about", () => {
+    // voice-clone exists because voiceReplication.ts had no caller for two
+    // days while the blocker was reported as Google's. Shipping a probe that
+    // nothing invokes would repeat exactly that, one level up.
+    const screen = read("src/routes/_authenticated/app.admin.firebase.tsx");
+    expect(screen).toContain('invoke("voice-clone"');
+    expect(screen).toContain('action: "probe"');
+    expect(screen, "the button's marker moved away from its handler").toContain(
+      "voice-clone-probe",
+    );
+  });
+
   it("voice-generate can only ask for a BUILT-IN voice", () => {
     const fn = read("supabase/functions/voice-generate/index.ts");
     expect(fn).toContain("prebuiltVoiceConfig");

@@ -1813,3 +1813,76 @@ here.
 The pre-existing violation tail is frozen in `eslint-suppressions.json` and
 `eslint-suppressions.ci.json`. Only new violations fail. Ratchet it down with
 `--prune-suppressions`; never add to it to make a new violation go away.
+
+### 2026-09-06 — the voice-clone blocker was never only Google's. It was ours.
+
+The owner, after a day of Vertex probing: _"We have already proved that Firebase
+can be used for vertex AI... everything is done in the Firebase and in the
+cloud. Fix it."_ They were right to stop it, and the honest answer to "what is
+the problem you are facing right now?" was not a Google one.
+
+**NOTHING IN THE DEPLOYED APP CALLED THE FEATURE.** `_shared/voiceReplication.ts`
+has been complete since 2026-09-04 — consent scripts, WAV rules, both request
+bodies, key reader, expiry rule, all unit-tested — and a grep for it across
+`supabase/functions/*/index.ts` returned **0 importers**. `voice-generate`'s only
+voice field is `speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName`: a
+built-in Google voice, with no branch that could carry a minted key. This was
+already written down in the `voice.clone` capability row and in
+`capabilityRegistry.test.ts`, which asserted the gap deliberately so it would go
+red the day someone closed it. **It was read as a footnote to the Google story
+instead of as the other half of it.**
+
+**AND EVERY PROBE USED THE WRONG VERB.** Each measurement of the "blocker" — the
+401 on 2026-09-04, the 403 on 2026-09-06, and the read-only probe added to
+`firebase-provisioning` the same evening — was a **GET** of
+`.../locations/global/voices`. That is a LIST. Minting is a **POST to the same
+path** and needs a different permission, so not one probe ever exercised the
+call the feature makes. This file's own first rule, written months earlier:
+
+> **Verify a model id by POST before writing it into code.** Not by ListModels
+> — a catalogue says what exists; only a POST says what this key may call.
+
+Three sessions read that rule and then measured a catalogue. The GET probe is
+kept (it is still the cheapest signal that a grant landed) but it is now
+labelled as what it is, and `voice-clone`'s `create` is the first POST anyone
+has made to that endpoint.
+
+WHAT WAS BUILT, `supabase/functions/voice-clone`:
+
+    script   the consent sentence, free, ABOVE every gate — it is needed
+             before a recording exists. Refuses the five languages whose
+             scripts arrived corrupted rather than handing over a sentence
+             that cannot match Google's word-for-word check.
+    create   both recordings validated BEFORE the billable POST, then
+             replicationKeyBody -> voicesUrl -> readReplicationKey -> stored
+    speak    replicatedSpeechBody with the stored key; PCM wrapped, signed URL
+    list     the caller's live voices, expiry via keyExpired
+    delete   marks the row and NULLS the key
+
+**ADMIN-ONLY, AND THAT IS A SPEND DECISION NOT A CAUTION.** Vertex replication
+bills the METERED Google key, not Lovable credits. Who may mint, how many a day
+and at what price are the owner's under this file's first rule, so the gate is
+`is_admin` and the caps are floors rather than policy until the owner sets them.
+The gate sits ABOVE the first line that can spend, and that ordering is pinned.
+
+**`voice_clones` IS THE CAP LEDGER, so delete marks and nulls the key.** The
+rolling-24h counts do not filter on `status` — the same shape as `image_jobs`,
+`music_jobs` and `voice_jobs` — so a hard `DELETE` would buy unmetered mints on
+the owner's key for the price of a delete. RLS gives a person `select` on their
+own rows and **no write at all**; every write is the service role, because a
+client that could insert here could name any voice key it liked, including one
+minted from somebody else's recording.
+
+**THE GUARD WENT RED ON CUE, THEN RED FOR THE WRONG REASON.** `grep -rl
+voiceReplication` also matched `firebase-provisioning`, whose only mention is a
+COMMENT saying nothing imports it — **the fourth prose match in this repo in two
+days.** Good comments quote the code they discuss, so any grep strict enough to
+be useful will hit them. It searches import statements now. The assertion is
+inverted rather than deleted, and four new ones are mutation-checked: POST→GET,
+the gate sinking below the credential, a hard delete, and the import removed.
+
+WHAT IS STILL UNKNOWN, stated as unknown: whether Google will mint. Replication
+is an allowlisted preview, and a missing IAM role, an allowlist refusal and a
+disabled API all arrive as **403 with only the text to separate them** — so the
+mint passes Google's own words straight back to the caller. **The first real
+POST is the measurement.** Do not record it as working until one returns a key.

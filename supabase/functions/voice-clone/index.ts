@@ -261,6 +261,45 @@ Deno.serve(async (req) => {
   const projectId = auth.projectId;
   if (!projectId) return json(503, { error: "Voice replication has no Google project" });
 
+  // ---- does Vertex let this credential MINT? -------------------------------
+  // THE MEASUREMENT THE VOICE WORK KEPT MISSING, and it costs nothing. Every
+  // earlier probe was a GET of this same path — a LIST — refused as
+  // "aiplatform.voices.list denied". Minting is a POST and needs a different
+  // permission, so a list refusal never said anything about it.
+  //
+  // THE BODY IS DELIBERATELY EMPTY. Google validates the request before doing
+  // any work, so nothing is modelled, nothing is stored and nothing is billed
+  // — and the answer is WHICH error comes back:
+  //
+  //   400 INVALID_ARGUMENT   AUTHORIZED. The call cleared every gate and only
+  //                          the payload was missing, which is the one thing
+  //                          a real mint supplies.
+  //   403 PERMISSION_DENIED  still shut. A missing IAM role, an allowlist
+  //                          refusal and a disabled API all wear this, and
+  //                          only the TEXT separates them — so it travels back
+  //                          verbatim rather than as a boolean.
+  //
+  // Same shape as check-firebase-blockers.mjs sending a deliberately too-short
+  // password instead of creating an account: a diagnostic that mutates what it
+  // measures is not a diagnostic.
+  if (action === "probe") {
+    const probed = await vertexPost(voicesUrl(projectId), auth.token, projectId, {});
+    return json(200, {
+      project: projectId,
+      url: voicesUrl(projectId),
+      authMode: auth.mode,
+      status: probed.ok ? 200 : probed.status,
+      detail: probed.ok ? null : probed.detail,
+      verdict: probed.ok
+        ? "minting is open"
+        : probed.status === 400
+          ? "AUTHORIZED — the call cleared every gate; only the payload was missing"
+          : probed.status === 403
+            ? "STILL SHUT — read the detail; an IAM role, an allowlist and a disabled API all give 403"
+            : `UNEXPECTED ${probed.status} — read the detail`,
+    });
+  }
+
   // ---- speak in a voice already minted -------------------------------------
   if (action === "speak") {
     const id = typeof body.id === "string" ? body.id.trim() : "";
