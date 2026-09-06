@@ -788,6 +788,89 @@ is now a separate export, `phoneOptInParam`, and that is what
 flag ON, breaking the parse still fails. Where a test's subject can be
 short-circuited by a flag, test the part the flag cannot reach.
 
+**THE BUILD COULD NOT BE RUN HERE, AND THAT IS NOW FIXED AT THE ROOT.** It used
+to die on `Rolldown failed to resolve import "@firebase/app"` because every
+`node_modules/@firebase/*` package installed EMPTY — 0 entries — against proxy
+denials to `europe-west1-npm.pkg.dev`. That was not a Firebase problem. It was
+the lockfile: **70 entries** had `resolved` URLs pointing at Lovable's Artifact
+Registry mirror, and this container cannot reach it.
+
+CI caught it as `check:deps` failing on `firebase` (103/104). The check only
+inspects DIRECT dependencies, so it named one package while 69 more — the whole
+`@firebase/*` tree plus grpc, protobufjs, websocket-driver, idb — were in the
+same state. **Read the count, not the name.**
+
+Resolved by the procedure `oniq-ship` and the check itself prescribe, not by
+relaxing anything:
+
+    for each of the 70: npm view <pkg>@<ver> dist.integrity  vs  the lockfile
+    -> MATCH 70   MISMATCH 0   MISSING 0
+
+    repointed `resolved` to each package's own dist.tarball from the public
+    registry (not a hand-built URL); every `integrity` left untouched, and the
+    before/after key sets and integrity maps asserted identical
+
+    npm ci  -> exit 0, no EINTEGRITY
+
+**The clean `npm ci` IS the proof**, because it verifies every tarball against
+the hash the mirror recorded. Had a hash differed the answer was to stop, and
+that is the case the check exists for. Now 104/104, and
+`node_modules/@firebase/app` has contents.
+
+So the build runs here, and it answers what previously had to be asked of the
+Lovable agent:
+
+    Firebase SDK chunk    assets/index.esm-*.js   123.8 KB, split out
+    entry index-*.js      0 occurrences of signInWithPhoneNumber
+    firebase-recaptcha            -> assets/auth-*.js
+    oniq-309bd.firebaseapp.com    -> assets/auth-*.js
+    firebase-phone-session        -> assets/auth-*.js
+    verify.msg91.com / initSendOTP / msg91-verify-session /
+      get-otp-config / otp-provider.js   -> 0 chunks each
+
+Three facts fall out. The literal dynamic import works — the SDK is its own
+chunk and the entry never mentions it, so sessions that never sign in by phone
+never fetch those 124 KB. The six `VITE_FIREBASE_*` values DO inline from
+`.env`, so `FIREBASE_WEB.configured` is true; had they not, `phoneAvailable`
+would be false and the phone tab would simply never render — no crash, no
+console error, just an absent tab. And MSG91 is gone from every chunk.
+
+**VERIFY PRODUCTION AGAINST `auth-*.js`, NOT THE ENTRY BUNDLE.** All three
+markers live in the auth route chunk and none in `index-*.js`; greping the
+entry would come back clean and read as a stale deploy — the same false
+negative that nearly got a healthy Episode 4 deploy re-published.
+
+Expect the mirror URLs to come back the next time the Lovable agent installs
+anything, since its sandbox genuinely resolves through that mirror. The fix is
+this same procedure, not a lockfile the check ignores.
+
+### Owner directive, 2026-09-06 — `OTP_LOGIN_ENABLED = true`
+
+Asked to choose, with the evidence above and the two unproven facts stated
+plainly, and with the one-handset canary offered as the alternative, the owner
+chose **"Merge and publish, and flip the flag too."** Recorded as given. Phone
+sign-in is live for all 125 users with reCAPTCHA-on-`oniqhub.com` and actual SMS
+delivery unproven; **the first real sign-in is the test.**
+
+That inverts what the canary is for: it is now the ROLLBACK path, not the
+rollout one. Setting `OTP_LOGIN_ENABLED` back to false is a one-word change that
+needs nothing else, and `?phone=1` immediately puts it back into one-browser
+mode so whatever failed can be diagnosed without the tab being live. Which
+symptom means what is written beside the flag — "couldn't send the code" on
+every attempt is reCAPTCHA (check `oniqhub.com` is still authorized, and that
+nothing is serving from `www.oniqhub.com`, which is NOT); the code box appearing
+with no SMS is delivery, which is Google's side and lands on the Blaze bill.
+
+**A TEST CAN STOP TESTING WITHOUT FAILING, and this flip is how that gets
+found.** `phoneLoginVisible` short-circuits on the flag, so every parameter
+assertion written against it became vacuous the moment the flag went true —
+`?phone=0`, `?telephone=1`, all of them returned true and all of them passed,
+because the function no longer looked at the string. Nothing went red. The parse
+is now a separate export, `phoneOptInParam`, and that is what
+`src/lib/__tests__/phoneLoginVisible.test.ts` targets; mutation-checked with the
+flag ON, breaking the parse still fails. Where a test's subject can be
+short-circuited by a flag, test the part the flag cannot reach.
+
 **AND THE BUILD CANNOT BE PROVEN IN THIS CONTAINER.** `npm run build` emits 423
 chunks and then fails on one line —
 `Rolldown failed to resolve import "@firebase/app"` — because every
