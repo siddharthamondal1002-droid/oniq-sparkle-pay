@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
 import { GpuVideoPanel } from "@/components/admin/GpuVideoPanel";
+import { DevicePanel } from "@/components/admin/DevicePanel";
 
 export const Route = createFileRoute("/_authenticated/app/admin")({
   component: AdminInbox,
@@ -31,7 +32,15 @@ type ReporterMap = Record<string, { username: string | null; display_name: strin
 function AdminInbox() {
   const qc = useQueryClient();
   const [section, setSection] = useState<
-    "reports" | "kyc" | "takedowns" | "proofs" | "payouts" | "errors" | "billing" | "gpuvideo"
+    | "reports"
+    | "kyc"
+    | "takedowns"
+    | "proofs"
+    | "payouts"
+    | "errors"
+    | "billing"
+    | "gpuvideo"
+    | "device"
   >("reports");
   const [statusFilter, setStatusFilter] = useState<"open" | "resolved" | "dismissed" | "all">(
     "open",
@@ -179,6 +188,7 @@ function AdminInbox() {
             ["errors", "errors 🐞"],
             ["billing", "billing 🧾"],
             ["gpuvideo", "gpu video 🎬"],
+            ["device", "device 📱"],
           ] as const
         ).map(([k, label]) => (
           <button
@@ -205,6 +215,7 @@ function AdminInbox() {
       </div>
 
       {section === "gpuvideo" && <GpuVideoPanel />}
+      {section === "device" && <DevicePanel />}
 
       {section === "kyc" && <PartnerKycPanel />}
 
