@@ -318,6 +318,312 @@ want Firestore at all. Preserving the UUID as the Firebase uid is what
 makes the client-side option survivable: both systems then key on the same
 value, so a rule and a policy can be read against each other.
 
+### Owner directive, 2026-09-05 (later still) — phone OTP on Firebase, and Firebase BECOMES the identity
+
+The owner was asked which shape a Firebase phone-OTP switch should take and
+chose **Firebase as the identity**, not Firebase as SMS delivery. That
+SUPERSEDES the SERVER-route directive above on the identity question: its
+"needs no Firebase web app, no Firebase Auth, and no user import" no longer
+holds, and the uid-preservation plan recorded further up is **no longer
+dormant — it is the plan**. The server-route bridge for Storage/Firestore is
+untouched; only who issues identity changes.
+
+Google's SMS pricing was accepted **as given**, the way the model prices were:
+Firebase Phone Auth bills per message per destination country on the Blaze
+plan, this container cannot reach Google's pricing pages, and the owner chose
+to proceed without a MSG91 comparison. It is not established that this is
+cheaper than what it replaces.
+
+**THE SEND CANNOT BE DONE SERVER-SIDE, and that reshapes the work.** The
+service account has no send-verification-code API; the real call is
+`identitytoolkit.googleapis.com/v1/accounts:sendVerificationCode?key=<WEB_API_KEY>`
+and it needs two things no server can supply — a Web API key, and a
+reCAPTCHA/Play-Integrity attestation minted in the browser or by the
+Play-signed app. So `send-otp` is not rewritten onto Firebase; its send half
+goes away and the client does it. `send-otp` stays live and guarded until
+then (see its own header).
+
+**MEASURED 2026-09-05, and it is the unambiguous kind.** Asked with the
+service account:
+
+    GET https://firebase.googleapis.com/v1beta1/projects/oniq-309bd/webApps
+    -> HTTP 200   {}
+
+A 200 with an empty body is a successful list that is empty — **zero Firebase
+Web apps** — not the Firestore HTML-404 trap where "absent" and "not exposed"
+answer identically. The blocker is real and uncleared. `google-services.json`
+agrees: one Android client (`com.oniqhub.app`), `oauth: NONE`.
+
+**THE TWO BLOCKERS SERIALISE — they cannot be worked in parallel.** Settling
+whether `[auth.third_party.firebase]` in `supabase/config.toml` actually
+reaches the hosted project was to be answered BEHAVIOURALLY, by presenting a
+Firebase ID token to PostgREST. Minting an ID token needs
+`accounts:signInWithCustomToken?key=<WEB_API_KEY>` — the Web API key, which
+comes from the Web app that does not exist. So blocker 2 is downstream of
+blocker 1, and nothing further can be established until a Web app is
+registered. Asked directly, the Lovable agent said it does not know whether
+its deploy tooling applies that config block, and declined to infer it from
+the file's presence — which is the right answer, not a gap to paper over.
+
+**THE PLAN OF RECORD HAS NO SIGNUP STORY, and this is the load-bearing find.**
+`scripts/firebase-import-users.mjs` covers the 125 EXISTING accounts and
+carries `phoneNumber` across (line 84), so an existing user signing in by
+phone resolves to their preserved UUID uid — that half is sound. But a person
+with NO account who signs in by phone gets a Firebase-minted **native 28-char
+uid**, and the script's own header states the consequence exactly: `auth.uid()`
+casts the `sub` claim to `uuid`, so a native uid "would not merely fail to
+match rows — it would fail to cast, and every policy on every table would
+error." Signup is precisely what a phone-OTP switch is for, so this is a
+total-failure hole in the direction just chosen, not a rough edge.
+
+The shape that closes it, NOT YET BUILT because building against an untested
+flow is what this file keeps warning against: the phone sign-in must not be
+the account-creating step. A server endpoint takes the phone first,
+`createUser({ uid: <a fresh UUID>, phoneNumber, customClaims: { role:
+'authenticated' } })`, and only then does the client call
+`signInWithPhoneNumber` — which now RESOLVES to that account instead of
+minting one, so the token's `sub` is a UUID and the invariant holds for new
+users as it does for imported ones. That endpoint is also the natural home for
+the abuse controls `send-otp` just got, since it is what will be
+unauthenticated and spending money next.
+
+**THE WEB APP IS REGISTERED — and it was not the last blocker.** The owner
+created it the same day; the config came back with `appId`
+`1:948410240436:web:b6eb8391ad7135e7b676e1`, `authDomain
+oniq-309bd.firebaseapp.com`, and a Web API key. (That key is PUBLIC by design
+— Firebase ships it in every browser bundle — so it belongs in client config
+next to the Supabase publishable key, not in the secret store.)
+
+**FIREBASE AUTHENTICATION IS NOT TURNED ON, measured immediately after.** With
+the Web app in place, the behavioural test was run: create one throwaway user
+with a UUID uid, mint a custom token, exchange it for an ID token, present that
+to PostgREST. It failed at the first step, in Google's own words:
+
+    POST identitytoolkit.googleapis.com/v1/projects/oniq-309bd/accounts
+    -> HTTP 400  {"error":{"code":400,"message":"CONFIGURATION_NOT_FOUND"}}
+
+    POST identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken
+    -> HTTP 400  {"error":{"code":400,"message":"CONFIGURATION_NOT_FOUND"}}
+
+Registering a Web app produces CONFIG; it does not provision the Auth PRODUCT.
+`CONFIGURATION_NOT_FOUND` is what Identity Toolkit returns for a project that
+has no Auth configuration at all — which is the state before someone opens
+Firebase console -> Build -> Authentication -> Get started. (The other thing
+that produces it is the Identity Toolkit API being disabled in the GCP project;
+enabling Auth normally enables it too, so check that second.) The service
+account is fine and the project id is right — `webApps` answered 200 on the
+same credential minutes earlier.
+
+**AUTHENTICATION IS NOW PROVISIONED — measured 2026-09-05, and measured
+WITHOUT the service account.** Identity Toolkit is reachable from this
+container (unlike `*.supabase.co`), and `createAuthUri` needs only the public
+Web API key, so the check no longer depends on the Lovable agent:
+
+    POST identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=<WEB_KEY>
+         {"identifier":"probe@example.com","continueUri":"http://localhost"}
+    -> HTTP 200  {"kind":"identitytoolkit#CreateAuthUriResponse","sessionId":"..."}
+
+A 200 there is only possible once the Auth config exists; the same call
+answered `CONFIGURATION_NOT_FOUND` an hour earlier. **That is the API-key-only
+probe to reach for first in future** — it is free, read-only, needs no
+credential ONIQ has to protect, and it distinguishes provisioned from not.
+
+**BUT NO SMS CAN BE SENT YET, and it is not India-specific.** Same key,
+`accounts:sendVerificationCode`, three countries, no reCAPTCHA token:
+
+    +91  India  -> 400 OPERATION_NOT_ALLOWED : SMS unable to be sent until
+                       this region enabled by the app developer.
+    +1   US     -> 400 (identical message)
+    +44  UK     -> 400 (identical message)
+
+Identical for every region tested, so this is default-deny rather than a rule
+about India. Two candidates, both on the Authentication screen and NOT
+distinguishable from outside — the API-key-readable `getProjectConfig` returns
+`signIn.phone: null` on modern projects, so it cannot say which:
+
+1. **SMS region policy** (Authentication -> Settings) starts allowing nothing
+   and every region must be opted in. The error text is that feature's own
+   wording, which makes it the likelier of the two.
+2. The **Phone provider toggle** itself never got saved.
+
+Check both; they are adjacent. This matters more for ONIQ than for most apps —
+every phone path in the codebase is India-first (`normalizeIndian` refuses
+anything but `+91`), so a region policy that omits India is a total outage of
+sign-in, not a degradation.
+
+**AND `oniqhub.com` IS NOT AN AUTHORIZED DOMAIN — measured, same probe:**
+
+    getProjectConfig -> authorizedDomains:
+        ['localhost', 'oniq-309bd.firebaseapp.com', 'oniq-309bd.web.app']
+
+Web phone auth runs reCAPTCHA, and reCAPTCHA refuses on any domain not in that
+list. ONIQ serves from `oniqhub.com`, which is absent, so the flow would fail
+in production while working perfectly in local development — the worst shape of
+bug to find late. Authentication -> Settings -> Authorized domains -> add it.
+
+**SMS AND THE PHONE PROVIDER ARE NOW LIVE — measured by the error CHANGING.**
+After the owner fixed the console settings, the same API-key-only call moved on:
+
+    accounts:sendVerificationCode, +91 and +1, no reCAPTCHA token
+    was -> 400 OPERATION_NOT_ALLOWED : SMS unable to be sent until this
+                region enabled by the app developer
+    now -> 400 MISSING_CLIENT_IDENTIFIER
+
+`MISSING_CLIENT_IDENTIFIER` is Google asking for the app verifier — the
+attestation step, which a server cannot pass and is not meant to. Reaching it
+means the region check AND the provider check both passed. **An advancing error
+is the signal here; a still-failing call is not the same as an unchanged one,
+and reading only the status code would have missed it.**
+
+**THE PROPAGATION QUESTION IS ANSWERED. FIREBASE IS _NOT_ REGISTERED.** Settled
+behaviourally 2026-09-05 exactly as this file planned, with the three-way
+control the earlier attempt lacked:
+
+    Firebase ID token, correctly shaped:
+      sub = <a generated UUID>   aud = oniq-309bd
+      iss = https://securetoken.google.com/oniq-309bd   role = authenticated
+
+    GET /rest/v1/chapters?select=*&limit=1
+      apikey + Firebase idToken  -> 401 PGRST301
+                                    "No suitable key was found to decode the JWT"
+      apikey + "Bearer notatoken"-> 401 "Expected 3 parts in JWT; got 1"
+      apikey only                -> 200 []
+
+Three DISTINCT outcomes, which is what makes it evidence: the token was
+well-formed (so not the control's failure) and reached the JWT check (so not
+the baseline's path), and PostgREST refused it on the KEYSET. So
+`[auth.third_party.firebase]` in `supabase/config.toml` is **inert on the
+hosted project** — the file declares it, nothing applies it. Registration lives
+on the Supabase CONTROL plane, which the service role cannot touch
+(`api.supabase.com` -> `JWT failed verification`), so it is the OWNER's to add
+or needs a deliberately provisioned PAT. **This is now the single blocker for
+the whole identity switch.**
+
+**`oniqhub.com` IS STILL NOT AN AUTHORIZED DOMAIN** — re-checked after the
+owner's console pass, `getProjectConfig` still returns only `['localhost',
+'oniq-309bd.firebaseapp.com', 'oniq-309bd.web.app']`. Web phone auth runs
+reCAPTCHA, which refuses unlisted domains, so sign-in would work in local
+development and fail in production.
+
+**AND EMAIL/PASSWORD SELF-SIGNUP IS OPEN TO ANYONE HOLDING THE PUBLIC KEY** —
+found while looking for a way to mint an ID token without the service account:
+
+    POST accounts:signUp?key=<WEB_KEY>  {"email":..,"password":..}
+    -> 200, account created, idToken returned
+    POST accounts:signUp?key=<WEB_KEY>  {"returnSecureToken":true}  (anonymous)
+    -> 400 ADMIN_ONLY_OPERATION
+
+Anonymous is correctly locked; Email/Password is not. The web key ships in
+every browser bundle, so that is unbounded account creation in the project
+about to become ONIQ's identity. It buys an attacker nothing TODAY (Supabase
+rejects the tokens, per above) and even after registration a self-signed-up
+account carries a native 28-char uid that fails the `::uuid` cast — but it is
+almost certainly unintended, since the console pass was only meant to turn on
+Phone. Turn Email/Password off unless something needs it.
+
+**SO THE ORDER IS SIX, AND ONE REMAINS:** Web app (DONE) -> enable
+Authentication (DONE) -> SMS region + Phone provider (DONE) -> add
+`oniqhub.com` to authorized domains (OWNER, outstanding) -> turn off
+Email/Password unless wanted (OWNER, outstanding) -> **register Firebase as a
+third-party auth provider on the Supabase control plane** (OWNER, and now the
+only thing standing between here and a working identity switch).
+
+**HOW TO CHECK ALL OF THIS WITHOUT ANY CREDENTIAL ONIQ MUST PROTECT.** The web
+API key alone answers most of it, and `identitytoolkit.googleapis.com` is
+reachable from the dev container even though `*.supabase.co` is not:
+
+    accounts:createAuthUri       -> is Auth provisioned at all
+    accounts:sendVerificationCode-> region policy + phone provider, by which
+                                    error comes back (no SMS is ever sent,
+                                    the attestation check fails first)
+    relyingparty/getProjectConfig-> authorizedDomains
+    accounts:signUp              -> which signup providers are open
+
+Only the last question — does Supabase accept the token — needs the service
+account, because minting an ID token needs a custom token and an API key
+cannot sign one.
+
+**AND ONE NON-RESULT, recorded so nobody reads it as a result.** The control
+arm of that experiment — the same PostgREST call with `Bearer notatoken` —
+returned `401 {"message":"Invalid API key"}`. That is PostgREST rejecting the
+`apikey` header, not the bearer token, so the control never exercised what it
+was meant to. Whatever publishable key the run picked up was not accepted at
+`/rest/v1`. Before re-running the experiment, get a known-good `apikey` +
+`Authorization` pair returning 200 FIRST, so that "rejected" can be
+distinguished from "never reached the check".
+
+### Owner directive, 2026-09-05 (final) — PHONE OTP ONLY. Supabase stays the identity.
+
+**This SUPERSEDES the "Firebase BECOMES the identity" directive above.** The
+owner's words, once the mismatch surfaced: _"I was having Google authentication
+and everything was working fine. I added firebase for mobile number
+authentication only."_
+
+HOW THE MISUNDERSTANDING HAPPENED, recorded because the shape of it will recur.
+The owner was offered two shapes and picked "Firebase becomes the identity" —
+but described the other one. What made the mismatch visible was the owner
+noticing an agent claim that Google sign-in might not work, and objecting. The
+claim was wrong twice over:
+
+- **ONIQ's Google sign-in has never been Firebase.** `src/routes/auth.tsx:531`
+  calls `lovable.auth.signInWithOAuth("google", …)` — Lovable Cloud, i.e.
+  Supabase Auth. The "39 of 125 with no password hash" measured earlier ARE
+  those users. The "Google — Enabled" row in the FIREBASE console is a separate,
+  unused provider toggled on during a console pass, and reading it as ONIQ's
+  Google login was the error.
+- It was argued from `android/app/google-services.json` showing `oauth: NONE`.
+  That file was last committed 2026-08-22 — a snapshot, not live state. **A
+  checked-in config file is a catalogue, and this file already says a catalogue
+  is not a POST.** The same lesson, made the same evening, by the agent writing
+  it down.
+
+WHAT THE CORRECTED DIRECTIVE COSTS AND SAVES. Firebase sends the SMS and proves
+possession of the phone; that is all it does. The client runs
+`signInWithPhoneNumber`, gets a Firebase ID token, and hands it to an edge
+function which verifies it with the service account ONIQ already holds, reads
+the verified `phone_number` claim, and mints an ordinary **Supabase** session.
+The same shape `msg91-verify-session` already uses.
+
+- **Google sign-in is untouched.** So are the 125 accounts and all 242 RLS
+  policies.
+- **THE UID PROBLEM DISAPPEARS ENTIRELY**, and this is the load-bearing
+  consequence. The Firebase uid never reaches Postgres — only the phone number
+  crosses, and the session minted is a Supabase one keyed to a Supabase UUID.
+  So `auth.uid()` keeps returning what it always did. The signup hole recorded
+  above (a native 28-char uid failing the `::uuid` cast on every policy) is
+  **moot under this directive**; it was a consequence of the identity switch,
+  not of phone OTP.
+- **The uid-preservation plan and `scripts/firebase-import-users.mjs` go back to
+  DORMANT.** Both stay recorded, correct, and unused. They are what a future
+  identity switch would still need.
+- **NO SUPABASE THIRD-PARTY AUTH REGISTRATION IS NEEDED.** The blocker measured
+  tonight — PostgREST answering `PGRST301 "No suitable key was found to decode
+the JWT"` to a valid Firebase token — is real and stays true, and is now
+  simply IRRELEVANT: no Firebase token is ever presented to PostgREST. The
+  registration was a requirement of the abandoned shape only.
+- What is given up: nothing client-side speaks to Firebase for data, so there
+  are still no realtime listeners and no offline cache. That was already the
+  standing position under the SERVER-route directive, which this restores.
+
+NONE OF THE CONSOLE WORK WAS WASTED. The Web app, Authentication being
+provisioned, the SMS region policy, the Phone provider and `oniqhub.com` as an
+authorized domain are all required by phone OTP itself, and all are DONE and
+measured. What is no longer required is the one thing that was still blocked.
+
+WHAT IS LEFT TO BUILD, and it is small:
+
+1. Client: Firebase JS SDK + `signInWithPhoneNumber` with reCAPTCHA, using
+   `src/integrations/firebase/config.ts`. Adding the `firebase` dependency is
+   Lovable's to do — it owns `package.json`.
+2. Server: one edge function that takes the Firebase ID token, verifies it
+   against Google's public keys for project `oniq-309bd`, and exchanges the
+   verified phone for a Supabase session. Verify the token properly —
+   signature, `aud`, `iss` and expiry — a decoded-but-unverified JWT is an
+   unauthenticated caller naming any phone number they like.
+3. `send-otp` and the MSG91 widget path stay until the Firebase path is proven,
+   then retire together. `send-otp`'s abuse controls move to whatever endpoint
+   ends up unauthenticated.
+
 ## ONIQ Study and the Google mapping — what is built, what cannot be
 
 The owner mapped ONIQ Study onto thirteen Google capabilities, 2026-09-05.

@@ -120,3 +120,10 @@ verify_jwt = false
 [auth.third_party.firebase]
 enabled = true
 project_id = "oniq-309bd"
+
+# The Firebase phone exchange authenticates ITSELF, on the token's signature.
+# The caller is not signed in yet — that is the point of the endpoint — so a
+# gateway JWT check would reject every legitimate request before the function's
+# own, far stronger, check could run.
+[functions.firebase-phone-session]
+verify_jwt = false
