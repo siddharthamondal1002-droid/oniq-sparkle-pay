@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { ArrowLeft, Mail, Lock, Phone } from "lucide-react";
-import { OTP_LOGIN_ENABLED } from "@/lib/flags";
+import { phoneLoginVisible } from "@/lib/flags";
 import { COUNTRIES, toE164, nextResendDelay, MAX_RESENDS, OTP_EXPIRY_MINUTES } from "@/lib/phoneAuth";
 import { readFirebaseWebConfig } from "@/integrations/firebase/config";
 import {
@@ -169,8 +169,17 @@ function AuthPage() {
   // the confirmation Firebase hands back from `send` is what `verify` needs.
   const providersRef = useRef<OtpProviders | null>(null);
   // Phone sign-in is offered only when Firebase's web config is actually in
-  // the bundle — never a dead-end tab, never a client-side bypass.
-  const phoneAvailable = OTP_LOGIN_ENABLED && FIREBASE_WEB.configured;
+  // the bundle — never a dead-end tab, never a client-side bypass. The config
+  // check is the AND that matters; `phoneLoginVisible` only decides whether the
+  // flag is on or this browser opted in with ?phone=1 (see flags.ts).
+  //
+  // Read once, not per render: `location` is not reactive, and re-reading it
+  // inside the body would make the tab appear or vanish on an unrelated
+  // re-render if anything ever rewrote the query string.
+  const [phoneOptIn] = useState(() =>
+    phoneLoginVisible(typeof window === "undefined" ? undefined : window.location.search),
+  );
+  const phoneAvailable = phoneOptIn && FIREBASE_WEB.configured;
 
   // DPDP Stage 0 signup fields
   const [dob, setDob] = useState("");

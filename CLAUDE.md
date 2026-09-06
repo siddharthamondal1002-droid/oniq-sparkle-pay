@@ -680,9 +680,109 @@ changed by changing who sends it. Firebase's TEST PHONE NUMBERS (Authentication
 a fixed code and send no SMS, so proving it costs nothing. Prove it there, then
 on one real handset, then flip.
 
-**AND DELETING SOURCE DOES NOT UNDEPLOY.** All five functions are still live on
-production until the Lovable agent removes them — see `oniq-ship` on the two
-being separate events.
+**AND DELETING SOURCE DOES NOT UNDEPLOY — and the undeploy is correctly
+BLOCKED, which turned out to be the interesting part.** Asked to delete the five,
+the Lovable agent refused, in its tooling's own words:
+
+    Edge functions were not deleted. The migrated TanStack app is not published
+    at the latest commit yet. Leave the deployed Supabase functions live as
+    rollback coverage; publish and verify the app first, then delete them in a
+    later turn.
+
+That guard caught a real ordering error, not a false positive. `claude/check-56jtg5`
+is 2 commits ahead of `origin/main`, so the PUBLISHED bundle still contains the
+MSG91 client code that calls `get-otp-config` and `msg91-verify-session`.
+Deleting them today would be deleting a dependency of the live app — harmless
+only because `OTP_LOGIN_ENABLED` gates it, which is luck, not design. **The order
+is merge -> publish -> verify the served chunks no longer name those functions ->
+then delete.** All five confirmed still live, and one probe is worth keeping:
+
+    send-otp              400 {"error":"invalid Indian phone number"}
+    verify-otp            400 {"error":"invalid phone or otp"}
+    msg91-verify-session  500 {"error":"otp service not configured"}
+    get-otp-config        200 {"widgetId":"…","tokenAuth":null,"ready":false}
+    check-user-exists     405 {"error":"method not allowed"}   (GET-only)
+
+`ready:false` is the owner's premise, measured: MSG91 never had working
+credentials. And **`check-user-exists` fails CLOSED** — `CHECK_USER_KEY` is
+unset, so it 401s every request. It was called "a live account-existence oracle"
+earlier in this session, including in the message asking for its deletion; that
+overstated it. It is hygiene to remove, not an open door. State the guard, then
+check whether the guard is armed.
+
+### 2026-09-06 — the phone path, PROVEN, for zero money
+
+Measured with a Firebase TEST PHONE NUMBER, which runs the entire real flow with
+a fixed code, sends no SMS and needs no reCAPTCHA — so it is reachable from a
+server with only the PUBLIC web key. Added and removed again with the service
+account in the same run; both throwaway records deleted.
+
+    sendVerificationCode                 200  sessionInfo
+    signInWithPhoneNumber                200  a real Google-signed ID token
+    verifyFirebaseIdToken vs LIVE JWKS   ACCEPTED  (RS256, iss/aud oniq-309bd,
+                                                    sign_in_provider phone)
+      wrong project id                   rejected: bad iss
+      tampered signature                 rejected: bad signature
+      clock +2h                          rejected: expired
+    POST firebase-phone-session          200  {"verified":true,
+                                               "email":"phone_…@oniq.phone"}
+    GET  /auth/v1/verify?type=magiclink  303  access_token returned
+    GET  /auth/v1/user with it           200  phone_9000000001@oniq.phone
+                                              {auth_via:"firebase_phone",
+                                               phone_verified:true}
+
+**THE VERIFIER HAD NEVER SEEN A REAL TOKEN.** `firebaseIdToken.test.ts` mints its
+own RSA keys, which proves the checking logic and proves nothing about whether it
+agrees with Google's actual key format, kid rotation or claim shapes. It does.
+The three controls on the SAME real token are what make "ACCEPTED" mean
+something — without them it could equally be a verifier that accepts everything.
+
+**AND ISSUING A token_hash IS NOT MINTING A SESSION.** The run before this one
+stopped at the function's 200 and looked finished. It wasn't: the session is the
+sign-in, and only the last two lines say it happens. Two Supabase calls with no
+ONIQ code between them "very probably work" — which is exactly how the MSG91 path
+shipped and sat dead.
+
+`scripts/prove-firebase-phone.ts` re-runs the free half (`npx tsx`). Its header
+carries the setup PATCH and the warning not to circulate that response body: it
+also contains `hashConfig.signerKey`, which the Lovable agent spotted and
+flagged unprompted.
+
+**WHAT IS STILL UNPROVEN, and it is now only two things**: the reCAPTCHA a real
+number requires in a real browser on `oniqhub.com`, and whether an SMS actually
+ARRIVES. Test numbers skip the attestation step — that is what makes them free,
+and it is precisely the step production depends on.
+
+**THE DEADLOCK, AND THE CANARY THAT BREAKS IT.** Both remaining facts need a real
+handset on the live site; while the flag is off the tab never renders, so there
+is nothing to test against. Flipping the flag to find out would ship an unproven,
+SMS-spending path to all 125 users. So `phoneLoginVisible()` in `flags.ts` opts
+ONE browser in with `/auth?phone=1` — pinned by
+`src/lib/__tests__/phoneLoginVisible.test.ts`, which tests the two ways a
+query-string check goes quietly wrong (`?telephone=1` matching, `?phone=0`
+reading as true) rather than the one-line happy path. It is not a security
+boundary and must not become one: it decides who SEES the tab, and Firebase's
+reCAPTCHA guards the send either way.
+
+**MEASURED THE SAME DAY, and one correction.** `getProjectConfig` on the public
+key now returns `authorizedDomains: ['localhost', 'oniq-309bd.firebaseapp.com',
+'oniq-309bd.web.app', 'oniqhub.com']` — the owner DID add it, and the
+"`oniqhub.com` IS STILL NOT AN AUTHORIZED DOMAIN" line recorded above was wrong
+by the time it was written. `www.oniqhub.com` is still absent, which matters only
+if the site is ever served from the www host. `smsRegionConfig.allowlistOnly` is
+`[IN, US, GB, AU]`.
+
+**EMAIL/PASSWORD SELF-SIGNUP IS STILL OPEN** — re-measured, `accounts:signUp`
+with the public web key returns 200 and creates an account. Anonymous is
+correctly locked (`ADMIN_ONLY_OPERATION`). It buys an attacker nothing under the
+phone-OTP-only directive, because no Firebase token is ever presented to
+Postgres, but it is unbounded account creation in the owner's project and was
+almost certainly never intended. Still an owner console action.
+
+One number that settles a question this file kept circling: **the Firebase
+project holds ZERO users.** The only account in it was one this session created
+by probing `accounts:signUp`, since deleted. ONIQ's identity is entirely
+Supabase, exactly as the final directive says.
 
 ## ONIQ Study and the Google mapping — what is built, what cannot be
 
