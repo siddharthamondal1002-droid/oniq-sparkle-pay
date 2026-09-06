@@ -18,6 +18,7 @@ import {
   isUpiAppId,
   amendUpiUri,
   isMerchantUpiUri,
+  upiAmendability,
   orderedPayApps,
   retargetUpiUri,
   UPI_APP_IDS,
@@ -125,7 +126,7 @@ describe("a stored value is validated, never trusted", () => {
  * fine inside PhonePe, which is the control proving the payee was never wrong.
  */
 describe("a collection QR survives having its amount typed", () => {
-  // Amount-less, merchant-marked — the shape that broke.
+  // Amount-less, merchant-marked, UNSIGNED — the shape that broke.
   const COLLECTION = "upi://pay?pa=officerws@sbi&pn=OFFICERS%20W%20SOCITY&mc=8398&cu=INR";
 
   it("is recognised as a merchant, not a person", () => {
@@ -136,27 +137,81 @@ describe("a collection QR survives having its amount typed", () => {
   it("keeps the merchant identity when an amount is typed", () => {
     const out = amendUpiUri(COLLECTION, { am: "3300", tn: "" });
     expect(out).toContain("mc=8398");
-    expect(out).toContain("pa=officerws%40sbi");
     expect(out).toContain("am=3300");
   });
 
+  /**
+   * THE ENCODING REGRESSION, and the reason this file exists twice over.
+   *
+   * The first amendUpiUri round-tripped through URLSearchParams. Executed
+   * against a real collection-QR shape it produced:
+   *
+   *   pa  officerws@sbi                 -> officerws%40sbi
+   *   pn  OFFICERS%20W%20SOCITY         -> OFFICERS+W+SOCITY
+   *
+   * Both are legal encodings; both are wrong here. UPI apps do not uniformly
+   * decode `pa`, so a percent-encoded handle can resolve to nothing, and `+`
+   * for space is form encoding rather than RFC 3986. Preserving mc/tr/sign is
+   * worthless if the payee arrives mangled.
+   */
+  it("does not re-encode the fields it is not changing", () => {
+    const out = amendUpiUri(COLLECTION, { am: "3300" });
+    expect(out).toContain("pa=officerws@sbi");
+    expect(out).not.toContain("pa=officerws%40sbi");
+    expect(out).toContain("pn=OFFICERS%20W%20SOCITY");
+    expect(out).not.toContain("OFFICERS+W+SOCITY");
+  });
+
+  it("leaves every untouched pair byte-identical, in its original order", () => {
+    const out = amendUpiUri(COLLECTION, { am: "3300" });
+    const original = COLLECTION.slice(COLLECTION.indexOf("?") + 1).split("&");
+    const produced = out.slice(out.indexOf("?") + 1).split("&");
+    // every original pair appears verbatim, in the same relative order
+    expect(produced.slice(0, original.length)).toEqual(original);
+  });
+
+  /**
+   * A SIGNED QR IS NEVER AMENDED. `sign` covers the payload it was issued for;
+   * appending `am` leaves a signature that no longer matches what it signs, and
+   * only the merchant's PSP can re-sign. An invalid signature is exactly what a
+   * PSP refuses "for security reasons".
+   */
+  it("refuses to amend a SIGNED merchant QR", () => {
+    const signed = COLLECTION + "&sign=MEQCIF9xample";
+    expect(upiAmendability(signed)).toBe("signed-immutable");
+    expect(amendUpiUri(signed, { am: "3300" })).toBe(signed);
+    expect(amendUpiUri(signed, { am: "3300" })).not.toContain("am=3300");
+  });
+
+  it("classifies amendability for every shape a scan can produce", () => {
+    expect(upiAmendability(COLLECTION)).toBe("amendable");
+    expect(upiAmendability(COLLECTION + "&sign=x")).toBe("signed-immutable");
+    expect(upiAmendability("https://example.com?a=1")).toBe("not-upi");
+    expect(upiAmendability("nonsense")).toBe("not-upi");
+  });
+
   it("REGRESSION: the payee-only fallback is what dropped the merchant", () => {
-    // This is what shipped and failed. Kept as the contrast that gives the
-    // test above its meaning — without it, "contains mc" proves nothing.
     const payeeOnly = "upi://pay?pa=officerws%40sbi&pn=OFFICERS+W+SOCITY&cu=INR";
     expect(payeeOnly).not.toContain("mc=");
     expect(amendUpiUri(COLLECTION, { am: "3300" })).toContain("mc=");
   });
 
-  it("carries every unmodelled field across an amount edit", () => {
-    const full =
-      "upi://pay?pa=store@ybl&pn=Store&cu=INR&mc=5411&tr=TXN1&tid=TID2&mode=02&orgid=159753&sign=abc";
+  it("carries every unmodelled field across an amount edit, when unsigned", () => {
+    const full = "upi://pay?pa=store@ybl&pn=Store&cu=INR&mc=5411&tr=TXN1&tid=TID2&mode=02&orgid=159753";
     const out = amendUpiUri(full, { am: "250.00", tn: "Order 9" });
-    for (const f of ["mc=5411", "tr=TXN1", "tid=TID2", "mode=02", "orgid=159753", "sign=abc"]) {
+    for (const f of ["mc=5411", "tr=TXN1", "tid=TID2", "mode=02", "orgid=159753", "pa=store@ybl"]) {
       expect(out).toContain(f);
     }
     expect(out).toContain("am=250.00");
-    expect(out).toContain("tn=Order+9");
+    expect(out).toContain("tn=Order%209");
+  });
+
+  it("replaces an existing amount in place rather than appending a second one", () => {
+    const withAmt = "upi://pay?pa=store@ybl&am=100&mc=5411&cu=INR";
+    const out = amendUpiUri(withAmt, { am: "250" });
+    expect(out.match(/am=/g)).toHaveLength(1);
+    expect(out).toContain("am=250");
+    expect(out).not.toContain("am=100");
   });
 
   it("clearing the amount removes am rather than sending an empty one", () => {
@@ -176,5 +231,6 @@ describe("a collection QR survives having its amount typed", () => {
     expect(gpay.startsWith("tez://upi/pay?")).toBe(true);
     expect(gpay).toContain("mc=8398");
     expect(gpay).toContain("am=3300");
+    expect(gpay).toContain("pa=officerws@sbi");
   });
 });

@@ -151,36 +151,77 @@ export function isMerchantUpiUri(uri: string): boolean {
 }
 
 /**
- * Set the amount and note on a scanned URI, KEEPING EVERY OTHER FIELD.
+ * Set the amount/note on a scanned URI WITHOUT re-encoding anything else.
  *
- * THIS EXISTS BECAUSE A COLLECTION QR CARRIES NO AMOUNT. Observed 2026-09-06:
- * a puja society's SBI collection QR (officerws@sbi, mc present, am absent)
- * scanned fine, and the moment ₹3,300 was typed the `rawIntact` guard in
- * app.upi.tsx went false — because the typed amount no longer equalled the
- * scanned one — and the launcher fell back to `upiPayeeLink`, which emits only
- * pa/pn/cu. mc, tr, mode, orgid and sign were all dropped, the banks saw a P2P
- * payment to a merchant account, and it failed after reaching settlement (UTR
- * 586505577554). The same QR works when paid inside PhonePe, which is the
- * control that proves the payee was never the problem.
+ * THE FIRST VERSION OF THIS ROUND-TRIPPED THROUGH URLSearchParams AND CORRUPTED
+ * THE PAYLOAD. Executed against a real collection-QR shape, 2026-09-06:
  *
- * So editing the amount must AMEND the scanned query, never replace it.
- * Entering an amount on an amount-less merchant QR is the intended flow — it
- * is exactly what PhonePe does natively — so preserving mc while setting am is
- * the behaviour that matches the rest of the ecosystem.
+ *   pa   officerws@sbi                      -> officerws%40sbi
+ *   pn   OFFICERS%20W%20SOCITY%20PUJA%20COM -> OFFICERS+W+SOCITY+PUJA+COM
  *
- * Order is preserved and untouched keys are copied verbatim, so a field ONIQ
- * has never heard of still reaches the payer's bank.
+ * Both are legal encodings and both are WRONG here. `toString()` percent-encodes
+ * `@` and emits `+` for space (form encoding, not RFC 3986 query encoding). UPI
+ * apps are not uniform about decoding `pa`, so `officerws%40sbi` can be taken as
+ * a literal handle that resolves to nothing, and a payee name renders as
+ * "OFFICERS+W+SOCITY". Preserving mc/tr/sign is worthless if pa arrives mangled.
+ *
+ * So this edits the query as TEXT: the original bytes of every other parameter
+ * are passed through untouched, in their original order.
+ *
+ * AND A SIGNED QR IS NEVER AMENDED AT ALL — this is the load-bearing rule.
+ * `sign` covers the payload it was issued for. Appending `am` to a signed QR
+ * leaves a signature that no longer matches what it signs, and an invalid
+ * signature is exactly what a PSP refuses "for security reasons". There is no
+ * way to re-sign it: only the merchant's PSP holds that key. The honest response
+ * is to launch the signed QR EXACTLY as scanned and let the payer type the
+ * amount inside their own UPI app, which is what every UPI app does natively
+ * with a static signed QR. `amendUpiUri` returns the input unchanged in that
+ * case, and callers must surface that to the user rather than silently dropping
+ * the amount they typed — see `upiAmendability`.
  */
-export function amendUpiUri(raw: string, patch: { am?: string; tn?: string }): string {
+export type UpiAmendability = "amendable" | "signed-immutable" | "not-upi";
+
+/** Can this scanned URI safely carry an amount ONIQ adds? */
+export function upiAmendability(raw: string): UpiAmendability {
   const q = raw.indexOf("?");
-  if (q < 0 || !/^upi:\/\/pay\?/i.test(raw)) return raw;
-  const params = new URLSearchParams(raw.slice(q + 1));
-  const apply = (key: "am" | "tn", value: string | undefined) => {
-    const v = (value ?? "").trim();
-    if (v) params.set(key, v);
-    else params.delete(key);
-  };
-  apply("am", patch.am);
-  apply("tn", patch.tn);
-  return "upi://pay?" + params.toString();
+  if (q < 0 || !/^upi:\/\/pay\?/i.test(raw)) return "not-upi";
+  return /(^|&)sign=[^&]+/i.test(raw.slice(q + 1)) ? "signed-immutable" : "amendable";
 }
+
+export function amendUpiUri(raw: string, patch: { am?: string; tn?: string }): string {
+  if (upiAmendability(raw) !== "amendable") return raw;
+  const q = raw.indexOf("?");
+  // Split on & only — never parse or re-serialise. Each pair keeps its own bytes.
+  const pairs = raw.slice(q + 1).split("&").filter(Boolean);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const want: Record<string, string> = {};
+  for (const key of ["am", "tn"] as const) {
+    const v = (patch[key] ?? "").trim();
+    if (v) want[key] = encodeURIComponent(v);
+  }
+  for (const pair of pairs) {
+    const eq = pair.indexOf("=");
+    const k = (eq < 0 ? pair : pair.slice(0, eq)).toLowerCase();
+    if (k === "am" || k === "tn") {
+      // Replace in place when the caller supplied one; drop it when they cleared it.
+      if (k in want) {
+        out.push(`${k}=${want[k]}`);
+        seen.add(k);
+      }
+      continue;
+    }
+    out.push(pair); // untouched, original bytes
+  }
+  for (const k of Object.keys(want)) if (!seen.has(k)) out.push(`${k}=${want[k]}`);
+  return "upi://pay?" + out.join("&");
+}
+
+/**
+ * The app buttons to draw, last-used first.
+ *
+ * Order is the whole feature: the preferred app leads, so the common case is
+ * one tap on the top button and no chooser. Every app still appears, because
+ * a person who paid with GPay once must be able to pay with PhonePe next
+ * without hunting for a setting.
+ */

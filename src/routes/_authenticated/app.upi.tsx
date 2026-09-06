@@ -17,6 +17,7 @@ import {
   UPI_APP_LABEL,
   amendUpiUri,
   isMerchantUpiUri,
+  upiAmendability,
   orderedPayApps,
   forgetUpiApp,
   readPreferredUpiApp,
@@ -210,6 +211,18 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
     // account and refused it as "not allowed on the receiver's account type".
     // See amendUpiUri in upiPreference.ts for the measured case.
     const merchantScan = !!prefill.raw && isMerchantUpiUri(prefill.raw);
+    // A SIGNED QR CANNOT CARRY AN AMOUNT WE ADD. `sign` covers the payload it
+    // was issued for and only the merchant's PSP can re-sign, so appending `am`
+    // would hand the app a signature that no longer matches — which is what a
+    // PSP refuses "for security reasons". Launch it exactly as scanned and SAY
+    // SO, rather than dropping the typed amount silently.
+    const signedImmutable =
+      !!prefill.raw && upiAmendability(prefill.raw) === "signed-immutable";
+    if (signedImmutable && amount.trim() && amount.trim() !== (prefill.am ?? "")) {
+      toast("Enter ₹" + amount.trim() + " in your UPI app — this QR has a fixed, signed payload", {
+        duration: 7000,
+      });
+    }
     const base = rawIntact
       ? prefill.raw!
       : merchantScan
