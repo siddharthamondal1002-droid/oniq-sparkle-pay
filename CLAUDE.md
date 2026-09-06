@@ -1039,7 +1039,34 @@ CANDIDATES, none measured, in the order worth checking:
 two-host publish were all green at the moment it broke. The gate is a code
 arriving on a handset.
 
-### 2026-09-06 — DIAGNOSED: reCAPTCHA cannot run in the Capacitor WebView
+### 2026-09-06 — phone sign-in WORKS. The cause was ONIQ's own CSP.
+
+Owner, after `feecc298` shipped: _"otp came, working now."_ A real code, on a
+real handset, on a real number. That is the gate `flags.ts` held out for all
+day — a code ARRIVING, not a green build. Every green build in this saga was
+green while the feature was broken.
+
+**AND THE PROCESS FAILURE IS THE PART WORTH KEEPING.** The owner's verdict:
+_"if you don't understand something ask rather than speculation and wasting
+hours where its a simple solution."_ Correct, and specifically so. A CSP
+violation prints a loud, explicit console message naming the exact blocked URL.
+Asking "what does the browser console say?" after the FIRST `auth/internal-error`
+would have ended this in ten minutes. Instead six hypotheses were run off a
+single error string, four publishes went out, Lovable credits went on probing
+App Check, API keys, referrer restrictions and authDomain helpers — and the
+answer was found by accident, when an unrelated Playwright probe failed and
+prompted a glance at `gen-headers.ts`.
+
+Worse, the evidence was already in hand. `no-server-response` means the failure
+is LOCAL. It was instrumented, printed on the owner's screen, and then reasoned
+past in favour of theories about Google's configuration.
+
+**WHEN YOU CANNOT SEE SOMETHING, ASK FOR IT.** A console, a network tab, a
+response header. Inferring around a gap that one question would close is not
+diagnosis, and a confident narrative built on one error string is the most
+expensive thing an agent can produce.
+
+### 2026-09-06 — how it was found (six candidates, five irrelevant)
 
 Six candidates, five killed by measurement, and the sixth confirmed by naming
 the step. The instrumented error, verbatim from the handset:

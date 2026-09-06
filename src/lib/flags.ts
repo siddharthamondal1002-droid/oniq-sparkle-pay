@@ -102,12 +102,16 @@ export const CALLS_ENABLED = true;
 // attestation step — that is what makes them free, and it is exactly the step
 // production depends on.
 //
-// STILL BROKEN, AND DELIBERATELY LEFT ON. `get otp` fails; that is the owner's
-// accepted risk and not a state for an agent to quietly correct. What changed
-// since the failure is that `firebaseErrorDetail` unwraps the server's own
-// message, so the next attempt names the fault instead of repeating Firebase's
-// catch-all — and diagnosing it at all requires the tab to be reachable, which
-// in the Android app means this flag and nothing else.
+// WORKING, CONFIRMED ON A REAL HANDSET 2026-09-06: owner reported "otp came,
+// working now" after the CSP fix (feecc298) shipped. That is the gate this
+// comment kept insisting on — a code ARRIVING, not a green build. Every earlier
+// green build in this saga was green while the feature was broken.
+//
+// The cause was ONIQ's own Content-Security-Policy, not Firebase, not the
+// WebView, and not anything on Google's side: reCAPTCHA's script host, its
+// asset host and its challenge frame were all absent from `securityHeaders.ts`,
+// so the browser blocked the attestation before a request could be made. See
+// that file for the four origins and why omitting them was so hard to spot.
 export const OTP_LOGIN_ENABLED = true;
 
 /**
