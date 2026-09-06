@@ -8,12 +8,21 @@
 // silence.
 export const CALLS_ENABLED = true;
 
-// Master kill-switch for phone/OTP login. When true, the phone tab still
-// only appears once the OTP provider reports ready (get-otp-config), so
-// users never see a dead-end path while MSG91 credentials are missing.
-// Off while MSG91 delivery is being sorted out (MSG91 account credits / WhatsApp
-// channel setup). All app-side wiring is done and verified — flip back to
-// true once codes actually deliver.
+// Master kill-switch for phone/OTP login. When true, the phone tab still only
+// appears if Firebase's web config is present in the bundle, so users never
+// see a dead-end path.
+//
+// STILL OFF, AND FOR THE SAME REASON IT WAS OFF UNDER MSG91: no code has ever
+// been observed to arrive. That path was removed on 2026-09-06 ("that path was
+// never proven successful") and the send now runs on Firebase Phone Auth,
+// which the console work of 2026-09-05 measured all the way to
+// MISSING_CLIENT_IDENTIFIER — Google asking for the browser attestation a
+// server cannot mint, i.e. every check before it passed.
+//
+// WHAT FLIPS THIS IS A DELIVERED SMS, NOT A GREEN BUILD. Firebase's test phone
+// numbers (Authentication -> Sign-in method -> Phone -> numbers for testing)
+// run the whole real flow with a fixed code and send nothing, so proving it
+// costs nothing. Prove it there first, then on one real handset, then flip.
 export const OTP_LOGIN_ENABLED = false;
 
 // Attachment-sheet feature flags: a tile with a flag stays hidden everywhere

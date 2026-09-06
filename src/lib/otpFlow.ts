@@ -1,8 +1,14 @@
 // OTP send/verify orchestration with injectable providers, so the flow is
-// testable without the MSG91 browser widget or network. The production
-// adapter (widgetProviders) drives MSG91's script; verification of the
-// returned access token ALWAYS happens server-side (msg91-verify-session)
-// before a Supabase session is minted — the client never decides validity.
+// testable without a browser, an SMS or a network. The production adapter is
+// `firebasePhoneOtp.ts`: Firebase sends the code and proves possession of the
+// number, and the token it returns is ALWAYS verified server-side
+// (firebase-phone-session, against Google's published signing keys) before a
+// Supabase session is minted — the client never decides validity.
+//
+// The providers are injectable because the provider CHANGED. This flow was
+// written against MSG91's browser widget, which was deleted on 2026-09-06
+// without ever having delivered a code in production; every test below kept
+// passing, because not one of them ever knew who the provider was.
 
 import { isValidOtp } from "./phoneAuth";
 
@@ -12,20 +18,17 @@ export type OtpVerifyResult =
   | { ok: false; error: string; code: "invalid_code" | "expired" | "service" | "network" };
 
 export type OtpProviders = {
-  /** Ask the provider to send an OTP to a widget-format number. */
-  send: (widgetPhone: string) => Promise<void>;
+  /** Ask the provider to send an OTP to an E.164 number. */
+  send: (phone: string) => Promise<void>;
   /** Exchange the user-entered code for a provider access token. */
   verify: (code: string) => Promise<string>;
   /** Server-side: validate token, mint a Supabase session. Throws on failure. */
   createSession: (accessToken: string) => Promise<void>;
 };
 
-export async function sendOtp(
-  providers: OtpProviders,
-  widgetPhone: string,
-): Promise<OtpSendResult> {
+export async function sendOtp(providers: OtpProviders, phone: string): Promise<OtpSendResult> {
   try {
-    await providers.send(widgetPhone);
+    await providers.send(phone);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "couldn't send the code" };

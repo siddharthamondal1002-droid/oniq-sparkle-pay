@@ -1,6 +1,4 @@
 project_id = "bqwttemnnoexadpwifcj"
-[functions.check-user-exists]
-verify_jwt = false
 
 # The Story functions authenticate themselves, so the platform gate is off.
 #

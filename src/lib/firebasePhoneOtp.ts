@@ -7,10 +7,13 @@
  *
  * IT SATISFIES THE EXISTING `OtpProviders` CONTRACT ON PURPOSE. `otpFlow.ts`
  * already owns the send/verify state machine and its error mapping, and it is
- * already tested. Swapping the provider rather than writing a second flow
- * means the two paths cannot drift in how they treat a bad code, an expired
- * code or a dropped network — and the MSG91 path keeps working untouched while
- * this one is proven.
+ * already tested, so this is a provider swap rather than a second flow. The
+ * MSG91 provider it replaced has since been deleted (owner, 2026-09-06: "that
+ * path was never proven successful") — it never delivered a code in
+ * production, so there is nothing to fall back TO. That makes the contract
+ * more valuable, not less: the flow's handling of a bad code, an expired code
+ * and a dropped network is unit-tested independently of any provider, and
+ * survived the provider being removed underneath it.
  *
  * PURE PART SPLIT FROM NETWORKED PART, the same way the server module is.
  * `createFirebasePhoneProviders` is the whole orchestration and takes every
@@ -39,7 +42,7 @@ export type PhoneAuthSurface = {
   send: (e164: string) => Promise<PhoneConfirmation>;
 };
 
-/** E.164, which is what Firebase requires — not the MSG91 widget format. */
+/** E.164, with the leading `+`, which is the only shape Firebase accepts. */
 export function isE164(s: string): boolean {
   return /^\+[1-9]\d{6,17}$/.test(s);
 }
@@ -117,10 +120,9 @@ export async function exchangeFirebaseIdToken(
  * Load Firebase and hand back the narrow surface above.
  *
  * The dynamic import matches how this repo already reaches `@capacitor/browser`
- * in `miniapps.ts`: the module is resolved at runtime, so the build does not
- * need it present to typecheck. That is load-bearing here — `firebase` is not
- * yet a dependency, and `package.json` belongs to the Lovable agent (see the
- * `oniq-ship` skill on what happens when both sides edit it).
+ * in `miniapps.ts`. `firebase` IS a dependency now — the Lovable agent added
+ * it pinned at 12.18.0, since `package.json` is its to own — so the import is
+ * dynamic for weight rather than for availability: see the note at the call.
  *
  * `containerId` must name a DOM element that exists; Firebase renders its
  * invisible reCAPTCHA into it, and that reCAPTCHA is the only thing standing
@@ -161,7 +163,7 @@ export async function firebasePhoneSurface(
     },
     {
       getAuth: (app: unknown) => unknown;
-      RecaptchaVerifier: new (auth: unknown, id: string, opts: unknown) => unknown;
+      RecaptchaVerifier: new (auth: unknown, id: string, opts: unknown) => { clear: () => void };
       signInWithPhoneNumber: (
         auth: unknown,
         phone: string,
@@ -176,10 +178,27 @@ export async function firebasePhoneSurface(
   // on a retry or a remount.
   const app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(config);
   const auth = authMod.getAuth(app);
-  const verifier = new authMod.RecaptchaVerifier(auth, containerId, { size: "invisible" });
+  let verifier: { clear: () => void } | null = null;
 
   return {
     send: async (e164: string) => {
+      // A FRESH VERIFIER PER SEND, AND THE OLD ONE CLEARED FIRST. Both halves.
+      //
+      // An invisible reCAPTCHA token is SPENT by the send it authorises, so one
+      // verifier held across sends breaks the SECOND send — which is the resend
+      // button, i.e. exactly the path a user reaches when the first SMS is slow.
+      // Firebase reports that as a captcha error, and `otpFlow` would surface it
+      // as "couldn't send the code", blaming the network for a bug here.
+      //
+      // And constructing the replacement WITHOUT clearing the old one throws
+      // instead, because Firebase refuses a container that already holds a
+      // widget. Fixing only the first half swaps one broken resend for another.
+      //
+      // Neither half is reachable from a unit test — it needs a browser, a real
+      // reCAPTCHA and Google's SMS — so the reasoning is written down rather
+      // than left for the next reader to rediscover from a bug report.
+      verifier?.clear();
+      verifier = new authMod.RecaptchaVerifier(auth, containerId, { size: "invisible" });
       const confirmation = await authMod.signInWithPhoneNumber(auth, e164, verifier);
       return {
         confirm: async (code: string) => {

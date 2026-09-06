@@ -51,9 +51,20 @@ A social app requires a public member directory of exactly these fields —
 ## Edge functions
 
 Service-role usage reviewed function-by-function: each verifies the caller's
-JWT and acts only on the caller's rows (`study-paper-*`, `delete-account`,
-`msg91-verify-session`) or serves non-user content (news/TV/radio/AI proxies).
-None accepts an arbitrary `user_id` and returns that user's content.
+JWT and acts only on the caller's rows (`study-paper-*`, `delete-account`) or
+serves non-user content (news/TV/radio/AI proxies). None accepts an arbitrary
+`user_id` and returns that user's content.
+
+`firebase-phone-session` is the one that acts for a caller who has no session
+yet, so it cannot check a JWT and does not pretend to. Its credential is the
+Firebase ID token's SIGNATURE, verified against Google's published keys for
+project `oniq-309bd` before any claim is read; it then mints a Supabase
+session for the phone number in that verified token and nothing else. The
+MSG91 functions that used to sit here — `send-otp`, `verify-otp`,
+`msg91-verify-session` and `check-user-exists` — were deleted on 2026-09-06.
+`check-user-exists` is the one worth naming: it answered whether an ONIQ
+account exists for a phone number or email, behind a static URL key, for a
+widget that no longer exists.
 
 ## Deletion
 

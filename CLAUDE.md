@@ -624,6 +624,66 @@ WHAT IS LEFT TO BUILD, and it is small:
    then retire together. `send-otp`'s abuse controls move to whatever endpoint
    ends up unauthenticated.
 
+### Owner directive, 2026-09-06 — remove MSG91
+
+_"remove msg91 that path was never proven successful."_ Point 3 above is
+superseded: MSG91 did not wait for the Firebase path to be proven, it went
+first. The owner is right about the premise, and it is checkable —
+`OTP_LOGIN_ENABLED` has been `false` since the credentials went missing, so the
+phone tab never rendered for anyone. **MSG91 was not a working fallback being
+kept for safety; it was a disabled client path with a live, unauthenticated
+server surface behind it.**
+
+DELETED: `send-otp`, `verify-otp`, `msg91-verify-session`, `get-otp-config`,
+and `check-user-exists` — the last of which is the one to notice. It answered
+whether an ONIQ account exists for a phone number or an email, guarded only by
+a static key in the URL, for a widget that no longer had a caller. Also gone:
+`toWidgetFormat` (MSG91 wanted digits-only; Firebase wants E.164 with the `+`),
+the WhatsApp/voice re-delivery buttons (Firebase Phone Auth is SMS only), and
+the 4-digit branch of the code input (MSG91 widgets were configurable; Firebase
+codes are always six).
+
+**WHAT SURVIVED THE PROVIDER BEING REMOVED UNDERNEATH IT, and why that was
+worth building.** `otpFlow.ts` takes its provider as an argument, so every test
+of the send/verify state machine — bad code, expired code, dropped network —
+kept passing through the swap, because not one of them ever knew who the
+provider was. The frozen `phone_<digits>@oniq.phone` derivation survived too,
+deliberately: any account the old path did create signs in as ITSELF through
+the new one. `src/lib/__tests__/phoneIdentityAgreement.test.ts` now asserts the
+inverse of what it used to — that `_shared/phoneIdentity.ts` is the only place
+that derivation lives.
+
+**THE RESEND BUG THAT WOULD HAVE SHIPPED, found by asking what the second tap
+does.** An invisible reCAPTCHA token is SPENT by the send it authorises, so one
+verifier held across sends breaks the second one — which is the resend button,
+i.e. exactly the path a user reaches when the first SMS is slow. Firebase
+reports that as a captcha error and `otpFlow` would surface it as "couldn't
+send the code", blaming the network. `firebasePhoneSurface` now builds a fresh
+verifier per send and `clear()`s the previous one; fixing only the first half
+throws instead, because Firebase refuses a container that already holds a
+widget. Neither half is reachable from a unit test, so both are written down at
+the call site.
+
+`src/lib/__tests__/phoneSignInWiring.test.ts` pins the two things a typecheck
+cannot see: that the reCAPTCHA container id is ONE constant used both to render
+the node and to build the surface (rename either alone and sign-in breaks only
+for the person who taps the button, in production), and that the MSG91 surface
+stays deleted. Its brace-counting assertion replaced one that looked for `)}`
+between the ternary and the div — a string the form itself contains, so it
+passed identically with the node moved into the branch it is meant to be
+outside of. Measured both ways: net braces 0 outside, 1 inside.
+
+**STILL FLAGGED OFF, and what flips it.** `OTP_LOGIN_ENABLED` stays `false`:
+the reason it was off — no code has ever been observed to arrive — is not
+changed by changing who sends it. Firebase's TEST PHONE NUMBERS (Authentication
+-> Sign-in method -> Phone -> numbers for testing) run the whole real flow with
+a fixed code and send no SMS, so proving it costs nothing. Prove it there, then
+on one real handset, then flip.
+
+**AND DELETING SOURCE DOES NOT UNDEPLOY.** All five functions are still live on
+production until the Lovable agent removes them — see `oniq-ship` on the two
+being separate events.
+
 ## ONIQ Study and the Google mapping — what is built, what cannot be
 
 The owner mapped ONIQ Study onto thirteen Google capabilities, 2026-09-05.

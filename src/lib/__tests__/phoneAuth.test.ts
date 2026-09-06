@@ -3,7 +3,6 @@ import {
   cleanNationalNumber,
   isValidNationalNumber,
   toE164,
-  toWidgetFormat,
   isValidOtp,
   nextResendDelay,
   MAX_RESENDS,
@@ -41,16 +40,15 @@ describe("isValidNationalNumber — other countries", () => {
   });
 });
 
-describe("toE164 / toWidgetFormat", () => {
+describe("toE164", () => {
   it("builds E.164 with explicit country code", () => {
     expect(toE164("+91", "98765 43210")).toBe("+919876543210");
-    expect(toWidgetFormat("+91", "98765 43210")).toBe("919876543210");
   });
   it("returns null for invalid input, never guesses", () => {
     expect(toE164("+91", "12345")).toBeNull();
     expect(toE164("91", "9876543210")).toBeNull(); // dial must be +NN
     expect(toE164("+9999", "9876543210")).toBeNull(); // dial too long
-    expect(toWidgetFormat("+91", "hello")).toBeNull();
+    expect(toE164("+91", "hello")).toBeNull();
   });
 });
 

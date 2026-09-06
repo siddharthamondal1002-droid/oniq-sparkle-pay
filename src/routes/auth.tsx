@@ -1,13 +1,30 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { ArrowLeft, Mail, Lock, Phone } from "lucide-react";
 import { OTP_LOGIN_ENABLED } from "@/lib/flags";
-import { COUNTRIES, toWidgetFormat, nextResendDelay, MAX_RESENDS, OTP_EXPIRY_MINUTES } from "@/lib/phoneAuth";
+import { COUNTRIES, toE164, nextResendDelay, MAX_RESENDS, OTP_EXPIRY_MINUTES } from "@/lib/phoneAuth";
+import { readFirebaseWebConfig } from "@/integrations/firebase/config";
+import {
+  createFirebasePhoneProviders,
+  exchangeFirebaseIdToken,
+  firebasePhoneSurface,
+} from "@/lib/firebasePhoneOtp";
+import { sendOtp, verifyOtpCode, type OtpProviders } from "@/lib/otpFlow";
 import { NOTICE_VERSION } from "@/lib/consent/notice";
 import { DOB_REASON } from "@/lib/dobNotice";
+
+// Firebase renders its invisible reCAPTCHA into this node, and that reCAPTCHA
+// is the only thing between the send endpoint and someone else's SMS bill. It
+// must exist in the DOM before the verifier is constructed, which is why the
+// providers below are built on the first send rather than on mount.
+const RECAPTCHA_CONTAINER_ID = "firebase-recaptcha";
+
+// Vite inlines VITE_* at build time, so this is a constant per bundle — not a
+// per-render read, and not something a signed-in session can change.
+const FIREBASE_WEB = readFirebaseWebConfig();
 
 
 export const Route = createFileRoute("/auth")({
@@ -147,14 +164,13 @@ function AuthPage() {
   const [confirmationSentTo, setConfirmationSentTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resendIn, setResendIn] = useState(0);
-  // WhatsApp re-delivery unlocks after a short beat (widget retry window is
-  // ~10s) — much sooner than the full SMS resend cooldown.
-  const [waIn, setWaIn] = useState(0);
   const [sendCount, setSendCount] = useState(0);
-  const [widgetReady, setWidgetReady] = useState(false);
-  // Phone sign-in is offered only when the OTP provider is actually ready —
-  // never a dead-end tab, never a client-side bypass.
-  const phoneAvailable = OTP_LOGIN_ENABLED && widgetReady;
+  // Built lazily by getProviders() on the first send and then reused, because
+  // the confirmation Firebase hands back from `send` is what `verify` needs.
+  const providersRef = useRef<OtpProviders | null>(null);
+  // Phone sign-in is offered only when Firebase's web config is actually in
+  // the bundle — never a dead-end tab, never a client-side bypass.
+  const phoneAvailable = OTP_LOGIN_ENABLED && FIREBASE_WEB.configured;
 
   // DPDP Stage 0 signup fields
   const [dob, setDob] = useState("");
@@ -177,12 +193,6 @@ function AuthPage() {
     const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [resendIn]);
-
-  useEffect(() => {
-    if (waIn <= 0) return;
-    const t = setTimeout(() => setWaIn((s) => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [waIn]);
 
 
   useEffect(() => {
@@ -263,112 +273,58 @@ function AuthPage() {
     }
   }
 
-  function fullPhone(): string | null {
-    const digits = phone.replace(/\D/g, "");
-    if (digits.length < 8 || digits.length > 15) return null;
-    return dialCode + digits;
-  }
-  function phoneForWidget(): string | null {
-    // Strict per-country validation (E.164) — see src/lib/phoneAuth.ts.
-    return toWidgetFormat(dialCode, phone);
-  }
-
-  // MSG91 widget bootstrap: load /otp-provider.js once, call initSendOTP with
-  // exposeMethods:true so we drive sendOTP/verifyOTP/retryOTP from our own UI.
-  // The widget handles OTP generation + captcha on MSG91's DLT-registered
-  // infra (bypasses DND). We only ask our backend to verify the returned
-  // access-token and mint a Supabase session.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke("get-otp-config");
-        if (error) throw error;
-        const cfg = (data ?? {}) as { widgetId?: string; tokenAuth?: string | null; ready?: boolean };
-        if (cancelled) return;
-        setWidgetReady(!!cfg.ready);
-        if (!cfg.ready || !cfg.widgetId || !cfg.tokenAuth) return;
-        // Inject the widget script exactly once, with MSG91's official
-        // fallback host (verify.phone91.com) if the primary fails to load.
-        const existing = document.getElementById("msg91-otp-provider");
-        const ensureScript = () => new Promise<void>((resolve, reject) => {
-          if (existing) return resolve();
-          const urls = [
-            "https://verify.msg91.com/otp-provider.js",
-            "https://verify.phone91.com/otp-provider.js",
-          ];
-          let i = 0;
-          const attempt = () => {
-            const s = document.createElement("script");
-            s.id = i === 0 ? "msg91-otp-provider" : "msg91-otp-provider-alt";
-            s.src = urls[i];
-            s.async = true;
-            s.onload = () => resolve();
-            s.onerror = () => {
-              i += 1;
-              if (i < urls.length) attempt();
-              else reject(new Error("widget load failed"));
-            };
-            document.head.appendChild(s);
-          };
-          attempt();
-        });
-        await ensureScript();
-        const w = window as unknown as { initSendOTP?: (c: unknown) => void };
-        // The provider script wires up initSendOTP a beat after onload
-        // (and if the tag was already in the DOM we may land here early).
-        const until = Date.now() + 10000;
-        while (!cancelled && typeof w.initSendOTP !== "function" && Date.now() < until) {
-          await new Promise((r) => setTimeout(r, 200));
-        }
-        if (cancelled) return;
-        if (typeof w.initSendOTP === "function") {
-          w.initSendOTP({
-            widgetId: cfg.widgetId,
-            tokenAuth: cfg.tokenAuth,
-            exposeMethods: true,
-            success: () => { /* handled via imperative callbacks below */ },
-            failure: (err: unknown) => console.warn("msg91 widget failure", err),
-          });
-          setWidgetReady(true);
-        }
-      } catch (err) {
-        console.warn("otp config load failed", err);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  // MSG91 exposes its methods on window a few seconds after the page loads;
-  // poll instead of failing so an eager first tap still goes through.
-  async function waitForWidgetFn(name: "sendOTP" | "verifyOTP", timeoutMs = 8000): Promise<boolean> {
-    const w = window as unknown as Record<string, unknown>;
-    const until = Date.now() + timeoutMs;
-    while (Date.now() < until) {
-      if (typeof w[name] === "function") return true;
-      await new Promise((r) => setTimeout(r, 200));
+  /**
+   * Build the Firebase providers once, on the first send.
+   *
+   * NOT ON MOUNT, and the reason is mechanical: `RecaptchaVerifier` renders
+   * into a container that has to already be in the DOM, and that container is
+   * only mounted when the phone tab is showing. Doing this in an effect would
+   * mean loading a large SDK for every visitor who signs in with email, and
+   * constructing a verifier against a node that may not exist yet.
+   */
+  async function getProviders(): Promise<OtpProviders> {
+    if (providersRef.current) return providersRef.current;
+    if (!FIREBASE_WEB.configured) {
+      // Variable NAMES, never values — and this branch is unreachable while
+      // `phoneAvailable` gates the tab. It exists so a future caller that
+      // forgets the gate gets a sentence instead of an SDK stack trace.
+      throw new Error(`phone sign-in isn't configured (${FIREBASE_WEB.missing.join(", ")})`);
     }
-    return typeof w[name] === "function";
+    const surface = await firebasePhoneSurface(FIREBASE_WEB.config, RECAPTCHA_CONTAINER_ID);
+    const providers = createFirebasePhoneProviders({
+      surface,
+      // The ID token is checked against Google's published signing keys by
+      // `firebase-phone-session` before a single claim is read. The client is
+      // only a courier here; it never decides that a code was right.
+      exchange: (idToken) =>
+        exchangeFirebaseIdToken(
+          import.meta.env.VITE_SUPABASE_URL,
+          import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          idToken,
+        ),
+      establish: async (tokenHash) => {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: "magiclink",
+        });
+        if (error) throw error;
+      },
+    });
+    providersRef.current = providers;
+    return providers;
   }
 
   async function handleSendOtp(e?: React.FormEvent) {
     if (e) e.preventDefault();
     if (loading) return;
-    const mobile = phoneForWidget();
-    if (!mobile) {
+    // Strict per-country validation — see src/lib/phoneAuth.ts. Firebase wants
+    // E.164 with the leading +, and the adapter refuses anything else rather
+    // than repairing it: a silently "fixed" number sends an SMS to a stranger.
+    const e164 = toE164(dialCode, phone);
+    if (!e164) {
       toast.error("that number looks off — check the digits 📱");
       return;
     }
-    const w = window as unknown as { sendOTP?: (m: string, s: (d: unknown) => void, f: (e: unknown) => void) => void };
-    if (typeof w.sendOTP !== "function") {
-      setLoading(true);
-      const ok = await waitForWidgetFn("sendOTP");
-      setLoading(false);
-      if (!ok) {
-        toast.error("otp service couldn't start — check your internet and tap GET OTP again 🔄");
-        return;
-      }
-    }
     const attempt = sendCount + 1;
     const delay = nextResendDelay(attempt);
     if (delay === null) {
@@ -380,50 +336,18 @@ function AuthPage() {
     }
     setLoading(true);
     try {
-      await new Promise<void>((resolve, reject) => {
-        w.sendOTP!(mobile, () => resolve(), (err) => reject(err));
-      });
+      const providers = await getProviders();
+      const res = await sendOtp(providers, e164);
+      if (!res.ok) {
+        toast.error(friendlyAuthError(new Error(res.error)));
+        return;
+      }
       setOtpSent(true);
       setSendCount(attempt);
       setResendIn(delay);
-      setWaIn(10);
-      toast.success("otp sent ✉️ check SMS & WhatsApp");
+      toast.success("otp sent ✉️ check your messages");
     } catch (err) {
-      toast.error(friendlyAuthError(err));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Re-deliver the code over a specific channel (MSG91 channel codes:
-  // 11 = SMS, 12 = WhatsApp, 4 = voice, 3 = email). Uses the widget's
-  // retryOTP so it counts against the same OTP session.
-  async function handleRetryVia(channel: number) {
-    if (loading) return;
-    const w = window as unknown as { retryOTP?: (c: string, s: (d: unknown) => void, f: (e: unknown) => void) => void };
-    if (typeof w.retryOTP !== "function") {
-      toast.error("otp service not ready — use resend otp instead");
-      return;
-    }
-    const attempt = sendCount + 1;
-    const delay = nextResendDelay(attempt);
-    if (delay === null) {
-      toast.error(`too many codes requested — start over with your number (max ${MAX_RESENDS + 1} sends)`);
-      setOtpSent(false);
-      setOtp("");
-      setSendCount(0);
-      return;
-    }
-    setLoading(true);
-    try {
-      await new Promise<void>((resolve, reject) => {
-        w.retryOTP!(String(channel), () => resolve(), (err) => reject(err));
-      });
-      setSendCount(attempt);
-      setResendIn(delay);
-      setWaIn(15);
-      toast.success(channel === 12 ? "code sent on WhatsApp 💬" : "otp re-sent 🔁");
-    } catch (err) {
+      // getProviders() throws if the SDK chunk or the reCAPTCHA fails to load.
       toast.error(friendlyAuthError(err));
     } finally {
       setLoading(false);
@@ -433,48 +357,23 @@ function AuthPage() {
   async function handleVerifyOtp(e?: React.FormEvent, codeOverride?: string) {
     if (e) e.preventDefault();
     if (loading) return;
-    const code = (codeOverride ?? otp).trim();
-    // MSG91 widgets can be configured for 4- or 6-digit codes.
-    if (!/^[0-9]{4,6}$/.test(code)) {
-      toast.error("that code should be 4–6 digits 🔢");
+    const providers = providersRef.current;
+    if (!providers) {
+      // Verifying before sending is a bug in this screen, not a bad code, and
+      // saying "invalid code" here would blame the user for it.
+      toast.error("request a code first 🔁");
       return;
-    }
-    const w = window as unknown as { verifyOTP?: (c: string, s: (d: { message?: string; ["access-token"]?: string; access_token?: string }) => void, f: (e: unknown) => void) => void };
-    if (typeof w.verifyOTP !== "function") {
-      setLoading(true);
-      const ok = await waitForWidgetFn("verifyOTP");
-      setLoading(false);
-      if (!ok) {
-        toast.error("otp service not ready — refresh and try again");
-        return;
-      }
     }
     setLoading(true);
     try {
-      const accessToken = await new Promise<string>((resolve, reject) => {
-        w.verifyOTP!(code, (d) => {
-          const t = d?.["access-token"] ?? d?.access_token ?? d?.message;
-          if (typeof t === "string" && t.length > 10) resolve(t);
-          else reject(new Error("no access token"));
-        }, (err) => reject(err));
-      });
-      const { data, error } = await supabase.functions.invoke("msg91-verify-session", {
-        body: { access_token: accessToken },
-      });
-      if (error) throw error;
-      const resp = (data ?? {}) as { verified?: boolean; token_hash?: string; error?: string };
-      if (!resp.verified || !resp.token_hash) {
-        toast.error(resp.error === "invalid or expired code" ? "invalid code — try again 🔄" : (resp.error || "verification failed"));
+      // verifyOtpCode owns the length rule and the error mapping — a second
+      // copy here is a second thing to drift.
+      const res = await verifyOtpCode(providers, (codeOverride ?? otp).trim());
+      if (!res.ok) {
+        toast.error(res.error);
         return;
       }
-      const { error: vErr } = await supabase.auth.verifyOtp({
-        token_hash: resp.token_hash,
-        type: "magiclink",
-      });
-      if (vErr) throw vErr;
       navigate({ to: "/app" });
-    } catch (err) {
-      toast.error(friendlyAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -789,7 +688,7 @@ function AuthPage() {
                     {loading ? "sending…" : "get otp 📲"}
                   </button>
                   <p className="px-1 text-center text-[11px] text-muted-foreground">
-                    we'll send a login code by SMS or WhatsApp 💬
+                    we'll text you a 6-digit login code 💬
                   </p>
                 </form>
               ) : (
@@ -809,7 +708,7 @@ function AuthPage() {
                   <button
                     type="button"
                     onClick={() => handleVerifyOtp()}
-                    disabled={loading || otp.length < 4}
+                    disabled={loading || otp.length < 6}
                     className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
                   >
                     {loading ? "verifying…" : "verify ✅"}
@@ -835,21 +734,17 @@ function AuthPage() {
                           resend 🔁
                         </button>
                       )}
-                      {waIn <= 0 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRetryVia(12)}
-                          disabled={loading}
-                          className="font-semibold text-[#25D366] hover:opacity-80"
-                        >
-                          get it on WhatsApp 💬
-                        </button>
-                      )}
                     </span>
                   </div>
                 </div>
               )}
 
+              {/* Firebase's invisible reCAPTCHA mounts here. It renders
+                  nothing until a send is in flight, but the node must exist
+                  BEFORE the verifier is constructed — which is why it lives
+                  outside the sent/not-sent branch rather than beside the
+                  button that triggers it. */}
+              <div id={RECAPTCHA_CONTAINER_ID} />
             </>
           )}
 

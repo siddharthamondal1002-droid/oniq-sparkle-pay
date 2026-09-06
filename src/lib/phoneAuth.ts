@@ -42,12 +42,6 @@ export function toE164(dial: string, raw: string): string | null {
   return dial + cleanNationalNumber(raw);
 }
 
-/** MSG91 widget wants dial+national, digits only, no leading +. */
-export function toWidgetFormat(dial: string, raw: string): string | null {
-  const e164 = toE164(dial, raw);
-  return e164 ? e164.slice(1) : null;
-}
-
 export function isValidOtp(code: string): boolean {
   return /^[0-9]{6}$/.test(code.trim());
 }
