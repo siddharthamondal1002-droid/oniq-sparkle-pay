@@ -17,7 +17,8 @@
  * data rather than the surface — same rule here.
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import {
   ACTOR_PHOTO_HEAD_BYTES,
   actorPortraitAlt,
@@ -167,7 +168,24 @@ describe("the builder is wired to record the origin", () => {
 });
 
 describe("the migration opens the column it needs", () => {
-  const sql = readFileSync("supabase/migrations/20260906180000_actor_photo_source.sql", "utf8");
+  /**
+   * FOUND BY NAME, NOT BY PATH. This SQL was written here and then APPLIED by
+   * the Lovable agent, which holds the only service role — and applying it
+   * committed the agent's own copy under its own timestamped filename. Both
+   * files were byte-identical bar a trailing newline, so the duplicate was
+   * removed and the APPLIED one kept, because that is the name Supabase's
+   * migration ledger records.
+   *
+   * Globbing for the content rather than hard-coding either filename means the
+   * next round trip through that agent cannot break this test by renaming a
+   * file it recreated.
+   */
+  const dir = "supabase/migrations";
+  const file = readdirSync(dir).find((f) =>
+    readFileSync(join(dir, f), "utf8").includes("story_actor_assets_source_check"),
+  );
+  expect(file, "the actor-source migration is missing entirely").toBeTruthy();
+  const sql = readFileSync(join(dir, file as string), "utf8");
 
   it("widens the check rather than inventing a column", () => {
     expect(sql).toMatch(/check \(source in \('generated', 'uploaded'\)\)/);
