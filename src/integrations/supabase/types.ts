@@ -5664,6 +5664,39 @@ export type Database = {
           },
         ]
       }
+      voice_clones: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          label: string
+          language: string
+          status: string
+          user_id: string
+          voice_key: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          label: string
+          language: string
+          status?: string
+          user_id: string
+          voice_key?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          label?: string
+          language?: string
+          status?: string
+          user_id?: string
+          voice_key?: string | null
+        }
+        Relationships: []
+      }
       voice_jobs: {
         Row: {
           bytes: number | null
