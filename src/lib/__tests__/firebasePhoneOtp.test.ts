@@ -203,14 +203,32 @@ describe("firebaseErrorDetail — what the next failure has to tell us", () => {
     expect(firebaseErrorDetail(err)).toContain("APP_CHECK_TOKEN_INVALID");
   });
 
-  it("falls back to the code when there is no server response", () => {
-    expect(firebaseErrorDetail({ code: "auth/captcha-check-failed", message: "Firebase: nope." }))
-      .toBe("Firebase: nope. [auth/captcha-check-failed]");
+  it("says NO-SERVER-RESPONSE when Google never rejected anything", () => {
+    // THIS TEST IS THE FIX FOR A BUG IN ITS OWN PREDECESSOR. The first version
+    // asserted that the code is appended only when the message does not
+    // already contain it — which reads sensibly and is useless, because
+    // Firebase formats EVERY message as "Firebase: Error (<code>)." So the
+    // guard was always true, the fallback never fired, and on a real handset
+    // the "unwrapped" toast came back byte-identical to the raw one. A test
+    // that blesses a diagnostic which cannot fire is worse than no test.
+    //
+    // The absence of a server response is a real finding: it means the call
+    // never reached Google, so the fault is in the browser, not the project.
+    const out = firebaseErrorDetail({
+      code: "auth/internal-error",
+      message: "Firebase: Error (auth/internal-error).",
+    });
+    expect(out).toContain("no-server-response");
+    expect(out).not.toBe("Firebase: Error (auth/internal-error).");
   });
 
-  it("never repeats itself when the message already carries the detail", () => {
-    const err = { code: "auth/internal-error", message: "boom auth/internal-error" };
-    expect(firebaseErrorDetail(err)).toBe("boom auth/internal-error");
+  it("dumps whatever other properties the error carries", () => {
+    const out = firebaseErrorDetail({
+      code: "auth/internal-error",
+      message: "Firebase: Error (auth/internal-error).",
+      customData: { appName: "[DEFAULT]" },
+    });
+    expect(out).toContain("appName");
   });
 
   it("keeps a whole unrecognised object rather than dropping it", () => {
@@ -222,10 +240,13 @@ describe("firebaseErrorDetail — what the next failure has to tell us", () => {
     for (const bad of [null, undefined, "", 0, [], new Error("plain"), { code: 5 }]) {
       expect(() => firebaseErrorDetail(bad)).not.toThrow();
     }
-    expect(firebaseErrorDetail(new Error("plain"))).toBe("plain");
+    // A plain Error genuinely has no server response, so it is labelled as
+    // one. Slightly noisy, and the noise is the honest reading: nothing came
+    // back from Google because nothing was asked of Google.
+    expect(firebaseErrorDetail(new Error("plain"))).toBe("plain [no-server-response]");
     // Nullish becomes "unknown error", not the string "null" — a toast reading
     // "null" tells the person in front of it strictly less than nothing.
-    expect(firebaseErrorDetail(null)).toBe("unknown error");
-    expect(firebaseErrorDetail(undefined)).toBe("unknown error");
+    expect(firebaseErrorDetail(null)).toContain("unknown error");
+    expect(firebaseErrorDetail(undefined)).toContain("unknown error");
   });
 });

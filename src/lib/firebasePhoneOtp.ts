@@ -81,10 +81,32 @@ export function firebaseErrorDetail(err: unknown): string {
     server = typeof m === "string" ? m : JSON.stringify(raw);
   }
 
-  // Only append when it adds something — repeating the code helps nobody.
   if (server && !base.includes(server)) return `${base} [${server}]`;
-  if (!server && code && !base.includes(code)) return `${base} [${code}]`;
-  return base;
+
+  // NO SERVER RESPONSE IS ITSELF THE ANSWER, and the first version of this
+  // function threw that away. It appended the code only when the message did
+  // not already contain it — but Firebase formats every message as
+  // "Firebase: Error (auth/internal-error).", so the code is ALWAYS in the
+  // message and the fallback never fired. Measured on a handset 2026-09-06:
+  // the toast came back byte-identical to the un-unwrapped one, and a
+  // diagnostic that silently changes nothing is worse than none, because it
+  // reads as "we looked and there was nothing wrong".
+  //
+  // So when there is no serverResponse, say so and dump what the error DOES
+  // carry. An error with no server response never reached Google — it failed
+  // in the browser, which is a different fault with a different owner.
+  const own: string[] = [];
+  try {
+    for (const k of Object.keys(Object(err))) {
+      if (k === "message" || k === "stack") continue;
+      const v = (err as Record<string, unknown>)[k];
+      own.push(`${k}=${typeof v === "object" ? JSON.stringify(v) : String(v)}`);
+    }
+  } catch {
+    /* an exotic error object is not worth failing the report over */
+  }
+  const bits = [code && `code=${code}`, "no-server-response", ...own].filter(Boolean);
+  return `${base} [${bits.join(" ")}]`;
 }
 
 export type FirebasePhoneDeps = {
@@ -203,7 +225,11 @@ export async function firebasePhoneSurface(
     },
     {
       getAuth: (app: unknown) => unknown;
-      RecaptchaVerifier: new (auth: unknown, id: string, opts: unknown) => { clear: () => void };
+      RecaptchaVerifier: new (
+        auth: unknown,
+        id: string,
+        opts: unknown,
+      ) => { clear: () => void; verify: () => Promise<string> };
       signInWithPhoneNumber: (
         auth: unknown,
         phone: string,
@@ -218,7 +244,24 @@ export async function firebasePhoneSurface(
   // on a retry or a remount.
   const app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(config);
   const auth = authMod.getAuth(app);
-  let verifier: { clear: () => void } | null = null;
+  let verifier: { clear: () => void; verify: () => Promise<string> } | null = null;
+
+  /**
+   * Run one step and label any failure with WHICH step it was.
+   *
+   * `signInWithPhoneNumber` solves the reCAPTCHA and sends the code inside one
+   * call, so a single catch around it cannot distinguish "the browser could
+   * not produce an attestation" from "Google refused the send" — and those
+   * have different causes and different fixes. Splitting them is the whole
+   * diagnostic.
+   */
+  const step = async <T>(name: string, fn: () => Promise<T> | T): Promise<T> => {
+    try {
+      return await fn();
+    } catch (err) {
+      throw new Error(`${name}: ${firebaseErrorDetail(err)}`);
+    }
+  };
 
   return {
     send: async (e164: string) => {
@@ -238,23 +281,46 @@ export async function firebasePhoneSurface(
       // reCAPTCHA and Google's SMS — so the reasoning is written down rather
       // than left for the next reader to rediscover from a bug report.
       verifier?.clear();
-      verifier = new authMod.RecaptchaVerifier(auth, containerId, { size: "invisible" });
-      const confirmation = await authMod
-        .signInWithPhoneNumber(auth, e164, verifier)
-        // Rethrow with the server's own words attached — see firebaseErrorDetail.
-        // A failed send leaves the verifier spent, so clear it here too rather
-        // than leaving a dead widget in the container for the next attempt.
-        .catch((err: unknown) => {
-          verifier?.clear();
-          verifier = null;
-          throw new Error(firebaseErrorDetail(err));
-        });
-      return {
-        confirm: async (code: string) => {
-          const cred = await confirmation.confirm(code);
-          return await cred.user.getIdToken();
-        },
-      };
+      try {
+        // THREE NAMED STEPS, because "auth/internal-error" alone is compatible
+        // with all three and they are three different faults:
+        //
+        //   recaptcha-init    the container is missing, or the SDK cannot build
+        //                     a verifier at all
+        //   recaptcha-verify  the browser could not produce an attestation.
+        //                     This is the one an embedded WebView breaks, and
+        //                     it never reaches Google — so the error carries no
+        //                     server response, which is why the unwrapper says
+        //                     "no-server-response" rather than staying silent
+        //   send-code         Google itself refused, and the server's message
+        //                     comes back attached
+        //
+        // Verifying explicitly before the send is deliberate: an invisible
+        // reCAPTCHA caches its token until it is spent, so `signInWithPhoneNumber`
+        // reuses this one rather than solving a second challenge.
+        verifier = await step(
+          "recaptcha-init",
+          () => new authMod.RecaptchaVerifier(auth, containerId, { size: "invisible" }),
+        );
+        const token = await step("recaptcha-verify", () => verifier!.verify());
+        if (!token) throw new Error("recaptcha-verify: resolved with an empty token");
+        const confirmation = await step("send-code", () =>
+          authMod.signInWithPhoneNumber(auth, e164, verifier),
+        );
+        return {
+          confirm: async (code: string) => {
+            const cred = await confirmation.confirm(code);
+            return await cred.user.getIdToken();
+          },
+        };
+      } catch (err) {
+        // Whichever step failed, the verifier is spent or half-built. Drop it
+        // so the next attempt constructs a clean one instead of hitting
+        // "container already contains an element".
+        verifier?.clear();
+        verifier = null;
+        throw err;
+      }
     },
   };
 }
