@@ -1333,6 +1333,33 @@ QR's bytes — whether it carries `sign`, what its `mode` is, whether it already
 carries `am` — were never known, and each implies a different defect. Reading
 harder does not produce a byte you do not have. Build the thing that reads it.
 
+**LIVE AND VERIFIED, 2026-09-06.** `main` at `08ae2202`, deployed, and the
+served route chunk checked — not the entry bundle, because all four markers
+live in the route chunk and greping `index-*.js` would come back clean and read
+as a stale deploy:
+
+    https://oniqhub.com
+      entry      assets/index-BMVJve5D.js
+      upi chunk  app.upi-iNnQI_Db.js   25,668 bytes  (was app.upi-BkvMbkaj.js)
+      upi-diag-launch-raw   1     upi-diagnostic-toggle  1
+      upi-diag-scheme-only  1     upi-confirm-any        1
+
+The chunk's hash CHANGING is half the evidence — an unchanged one would mean the
+markers were already there and the deploy did nothing.
+
+**AND `oniq-sparkle-pay.lovable.app` NO LONGER SERVES ITS OWN HTML.** It answers
+302 to `https://oniqhub.com/app/upi`, so the two-host check recorded for the
+MSG91 removal above ("both hosts serve the identical `assets/auth-CKqjXNGa.js`")
+is no longer available as a check — there is one host now, and a `lovable.app`
+grep returns empty for a perfectly healthy deploy. Read an empty result there as
+"this host does not serve", never as "the deploy is stale".
+
+**THE WORKAROUND ALREADY SHIPS, if the scheme is the fault.** The confirm sheet's
+"Any UPI app" button (`upi-confirm-any`) calls `confirmPay(null)`, and
+`retargetUpiUri(base, null)` returns the base untouched — so on this repro it
+sends bytes IDENTICAL to the diagnostic's Test 1. Two routes to the same control,
+one of them in the ordinary UI.
+
 **DO NOT DECLARE THIS FIXED** until ONIQ -> scan that QR -> PhonePe -> ₹3,300
 succeeds on the real handset. Rail A (Razorpay) is untouched by any of this and
 must stay that way; `sign` is never weakened, regenerated or stripped.
