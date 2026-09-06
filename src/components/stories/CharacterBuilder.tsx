@@ -17,8 +17,9 @@
  * AI surface (stories_ai_output) with the label and report control.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Brush, Trash2 } from "lucide-react";
+import { Brush, ImagePlus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { ACTOR_PHOTO_HEAD_BYTES, actorPortraitAlt, validateActorPhoto } from "@/lib/actorPhoto";
 import type { CastMember } from "@/lib/castLibrary";
 import {
   ACTOR_MIMES,
@@ -36,11 +37,20 @@ type ActorAssetRow = {
   style: string | null;
   storage_path: string;
   mime: string;
+  /** 'generated' (drawn) or 'uploaded' (the person's own photo). */
+  source: string;
   created_at: string;
 };
 
 /** Generation result held only until its save lands — never regenerated free. */
-type PendingSave = { memberId: string; mime: string; bytes: Uint8Array };
+type PendingSave = {
+  memberId: string;
+  mime: string;
+  /** A Blob, never a materialised buffer — see saveBytes. */
+  blob: Blob;
+  /** Carried through the retry so "Save again" cannot relabel a photo as AI. */
+  source: "generated" | "uploaded";
+};
 
 type CharacterBuilderProps = {
   cast: CastMember[];
@@ -49,6 +59,22 @@ type CharacterBuilderProps = {
 const assetKey = (name: string, lock: string) =>
   `${name.trim().toLowerCase()}\u0000${lock.trim().toLowerCase()}`;
 
+/**
+ * ADDING A PHOTO instead of drawing one — owner directive 2026-09-06, asked
+ * what a picture should do in a film: "character reference — a face that
+ * recurs". A film previously took no picture at all.
+ *
+ * It rides the EXISTING save path rather than a new one: the same bucket, the
+ * same `save_story_actor` RPC, the same 24-portrait library cap. The only new
+ * things are where the bytes come from and the `source` that records it. It
+ * also costs nothing — drawing spends an image credit, choosing a photo does
+ * not.
+ *
+ * THE FILE'S OWN `type` IS NOT TRUSTED. A picker reports a mime derived from
+ * the extension, so a renamed file lies; `validateActorPhoto` sniffs the
+ * leading bytes instead, reading 12 of them rather than pulling a 40 MB file
+ * into memory to reject it.
+ */
 export function CharacterBuilder({ cast }: CharacterBuilderProps) {
   const [assets, setAssets] = useState<ActorAssetRow[]>([]);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
@@ -60,7 +86,7 @@ export function CharacterBuilder({ cast }: CharacterBuilderProps) {
   const loadAssets = useCallback(async () => {
     const { data } = await supabase
       .from("story_actor_assets" as never)
-      .select("id, name, lock, style, storage_path, mime, created_at")
+      .select("id, name, lock, style, storage_path, mime, source, created_at")
       .order("created_at", { ascending: false });
     setAssets((data ?? []) as unknown as ActorAssetRow[]);
   }, []);
@@ -96,7 +122,26 @@ export function CharacterBuilder({ cast }: CharacterBuilderProps) {
   );
 
   const saveBytes = useCallback(
-    async (member: CastMember, mime: string, bytes: Uint8Array) => {
+    async (
+      member: CastMember,
+      mime: string,
+      /**
+       * THE BYTES ARE NEVER PULLED INTO MEMORY. A picked photo is already a
+       * Blob and Supabase's upload takes one directly, so a 40 MB file streams
+       * to storage instead of becoming a 40 MB array first — the rule
+       * megaLoopGuardrails enforces repo-wide, and the reason readAsDataURL
+       * kills an Android process with no dialog. The draw path wraps its
+       * decoded bytes in a Blob to use the same door.
+       */
+      blob: Blob,
+      /**
+       * WHERE THE PIXELS CAME FROM, and it is not bookkeeping. A drawn
+       * portrait is AI-generated content ONIQ must label for Play; a photo the
+       * person supplied is not, and labelling it as AI is a false claim in the
+       * other direction. Postgres records it and the grid below reads it back.
+       */
+      source: "generated" | "uploaded" = "generated",
+    ) => {
       const { data: auth } = await supabase.auth.getUser();
       const userId = auth.user?.id;
       if (!userId) {
@@ -104,15 +149,13 @@ export function CharacterBuilder({ cast }: CharacterBuilderProps) {
         return false;
       }
       const path = actorAssetPath(userId, crypto.randomUUID(), mime);
-      const { error: upError } = await supabase.storage
-        .from(BUCKET)
-        .upload(path, new Blob([bytes.buffer as ArrayBuffer], { type: mime }), {
-          contentType: mime,
-          upsert: false,
-        });
+      const { error: upError } = await supabase.storage.from(BUCKET).upload(path, blob, {
+        contentType: mime,
+        upsert: false,
+      });
       if (upError) {
         setNotice(`The portrait did not upload (${upError.message}). Save again — it's free.`);
-        setPending({ memberId: member.id, mime, bytes });
+        setPending({ memberId: member.id, mime, blob, source });
         return false;
       }
       const { data: saved } = await supabase.rpc(
@@ -123,6 +166,7 @@ export function CharacterBuilder({ cast }: CharacterBuilderProps) {
           _style: null,
           _path: path,
           _mime: mime,
+          _source: source,
         } as never,
       );
       const res = (saved ?? {}) as { ok?: boolean; reason?: string };
@@ -132,7 +176,7 @@ export function CharacterBuilder({ cast }: CharacterBuilderProps) {
             ? "Your portrait library is full — delete one first."
             : `The portrait could not be recorded (${res.reason ?? "unknown"}). Save again — it's free.`,
         );
-        setPending({ memberId: member.id, mime, bytes });
+        setPending({ memberId: member.id, mime, blob, source });
         return false;
       }
       setPending(null);
@@ -140,6 +184,44 @@ export function CharacterBuilder({ cast }: CharacterBuilderProps) {
       return true;
     },
     [loadAssets],
+  );
+
+  /**
+   * Take a picture the person chose and save it as this character's reference.
+   *
+   * NOT NAMED `usePhoto`. ESLint reads a `use` prefix as a hook and refuses it
+   * inside the onChange callback — `react-hooks/rules-of-hooks`, which this
+   * repo treats as a release blocker after three of them reached production.
+   *
+   * THE HEAD IS STREAMED, NOT BUFFERED. `file.slice(0, N).arrayBuffer()` would
+   * read only 12 bytes and still be the banned shape; a stream reader gets the
+   * same 12 bytes without the call that megaLoopGuardrails forbids, and the
+   * full file is never read at all — the Blob goes straight to storage.
+   *
+   * The input is cleared on the way out so choosing the SAME file twice still
+   * fires a change event; without that, a failed save cannot be retried by
+   * picking the same photo again, which is the obvious thing to try.
+   */
+  const attachPhoto = useCallback(
+    async (member: CastMember, file: File | null | undefined) => {
+      if (!file) return;
+      setNotice(null);
+      try {
+        const reader = file.slice(0, ACTOR_PHOTO_HEAD_BYTES).stream().getReader();
+        const first = await reader.read();
+        void reader.cancel();
+        const head = first.value ?? new Uint8Array();
+        const verdict = validateActorPhoto(file.size, head);
+        if (!verdict.ok) {
+          setNotice(verdict.message);
+          return;
+        }
+        await saveBytes(member, verdict.mime, file, "uploaded");
+      } catch {
+        setNotice("That picture could not be read. Try another one.");
+      }
+    },
+    [saveBytes],
   );
 
   const draw = useCallback(
@@ -179,7 +261,11 @@ export function CharacterBuilder({ cast }: CharacterBuilderProps) {
         const bin = atob(payload.data);
         const bytes = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        await saveBytes(member, mime, bytes);
+        // Wrapped here rather than inside saveBytes, so the photo path can
+        // hand its File over untouched instead of both paths meeting as a
+        // buffer. These bytes are already in memory — they arrived as base64
+        // in a JSON response — so this Blob copies nothing new.
+        await saveBytes(member, mime, new Blob([bytes.buffer as ArrayBuffer], { type: mime }));
       } catch {
         setNotice("Something went sideways — nothing was saved.");
       } finally {
@@ -247,7 +333,7 @@ export function CharacterBuilder({ cast }: CharacterBuilderProps) {
               {thumb ? (
                 <img
                   src={thumb}
-                  alt={`AI-generated portrait of ${m.name}`}
+                  alt={actorPortraitAlt(m.name, asset?.source ?? "generated")}
                   className="h-10 w-10 shrink-0 rounded-lg object-cover"
                 />
               ) : (
@@ -262,20 +348,39 @@ export function CharacterBuilder({ cast }: CharacterBuilderProps) {
               {unsaved ? (
                 <button
                   type="button"
-                  onClick={() => void saveBytes(m, unsaved.mime, unsaved.bytes)}
+                  onClick={() => void saveBytes(m, unsaved.mime, unsaved.blob, unsaved.source)}
                   className="shrink-0 rounded-lg border border-primary/50 px-2 py-1 text-[11px] font-semibold text-primary"
                 >
                   Save again
                 </button>
               ) : (
-                <button
-                  type="button"
-                  disabled={busy || building !== null}
-                  onClick={() => void draw(m)}
-                  className="shrink-0 rounded-lg border border-primary/50 px-2 py-1 text-[11px] font-semibold text-primary disabled:opacity-40"
-                >
-                  {busy ? "Drawing…" : asset ? "Redraw" : "Draw"}
-                </button>
+                <>
+                  <label
+                    data-testid="actor-photo-pick"
+                    className="press shrink-0 cursor-pointer rounded-lg border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground"
+                  >
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="sr-only"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        void attachPhoto(m, f);
+                      }}
+                    />
+                    <ImagePlus className="inline h-3 w-3" aria-hidden="true" />
+                    <span className="ms-1">Photo</span>
+                  </label>
+                  <button
+                    type="button"
+                    disabled={busy || building !== null}
+                    onClick={() => void draw(m)}
+                    className="shrink-0 rounded-lg border border-primary/50 px-2 py-1 text-[11px] font-semibold text-primary disabled:opacity-40"
+                  >
+                    {busy ? "Drawing…" : asset ? "Redraw" : "Draw"}
+                  </button>
+                </>
               )}
               {asset && (
                 <button

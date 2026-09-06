@@ -1585,6 +1585,83 @@ assumed: an OLD deployed function receiving `action: "delete"` falls past
 `list`, past the gates, into validation, finds no prompt and returns 400. No
 generation, no spend; the button simply reports it could not delete.
 
+### Owner directive, 2026-09-06 — a picture in a film, and the Vertex 403
+
+Two reports: _"user can't create music in their own voice"_ and _"image not
+used in making video"_. Neither was a bug; both were things never built.
+
+**A FILM TOOK NO PICTURE AT ALL.** `StoryWriter` is a text box, and
+`OniqAttachImage` appears in exactly two files — Music and Image. Asked what a
+picture should DO, the owner chose **character reference — a face that
+recurs**, so a photo now becomes a saved character's reference portrait.
+
+It rides the EXISTING save path: same bucket, same `save_story_actor`, same
+24-portrait cap. It also costs LESS than the feature beside it — drawing spends
+an image credit, choosing a photo spends nothing.
+
+**THE COLUMN WAS ALREADY THERE, SHUT.** `story_actor_assets.source` was created
+2026-08-27 as `default 'generated' check (source = 'generated')` — someone saw
+this coming and left the shape without opening it. So the migration widens a
+check rather than adding a concept, and it DROPS the 5-argument
+`save_story_actor` when adding the 6th: a defaulted parameter makes a second
+signature, and a 5-argument call would then be ambiguous — failing in
+production at call time rather than at deploy.
+
+**THE LABEL FOLLOWS THE ORIGIN, and this is the part that matters for Play.** A
+drawn portrait is AI-generated content ONIQ must label; a photo the person took
+is NOT, and calling it "AI-generated" is a false claim pointing the other way.
+The alt text reads the column, an unknown source is treated as AI (over-label,
+never under-label), and the "Save again" retry carries the origin so it cannot
+quietly relabel a photo.
+
+**TWO REPO GUARDS CAUGHT REAL FAULTS IN THE FIRST DRAFT**, and both were right:
+
+- `react-hooks/rules-of-hooks` refused `usePhoto` — a `use` prefix reads as a
+  hook and cannot be called from an onChange. Renamed `attachPhoto`.
+- `megaLoopGuardrails` refused `.arrayBuffer()`: whole-file reads are banned on
+  upload paths with a frozen tail of exactly five, and nothing may join it. The
+  fix was better than the rule required — a picked photo is already a Blob and
+  Supabase's upload takes one, so the bytes stream to storage and are never
+  materialised. Only a 12-byte head is read, through a stream reader, because
+  `slice(0,12).arrayBuffer()` is bounded and still the banned shape.
+
+**AND A SOURCE-READING ASSERTION MATCHED PROSE FOR THE THIRD TIME TODAY.** The
+UPI decline test counted an ownership filter its own comment quoted; the delete
+test found a spend gate by a phrase in a file header; this one banned
+`.arrayBuffer()` while the comment explaining why it was avoided says
+`.arrayBuffer()`. The pattern is structural, not careless: good comments quote
+the code they discuss, so any grep strict enough to be useful will hit them.
+**Where a test reads source structurally, strip the comments first.**
+
+### 2026-09-06 — the voice-clone blocker MOVED, measured on the owner's route
+
+Owner, asked how to handle singing in your own voice: _"Use vertex api through
+firebase"_ — which is already the configured route (directive 2026-09-04e).
+So it was measured rather than argued, with the Firebase service account:
+
+    GET aiplatform.googleapis.com/v1beta1/projects/oniq-309bd/locations/global/voices
+        Authorization: Bearer <OAuth2 from FIREBASE_SERVICE_ACCOUNT>
+    -> HTTP 403 PERMISSION_DENIED
+       aiplatform.voices.list denied on projects/oniq-309bd/locations/global
+
+**THE ERROR ADVANCED, which is the signal.** It was `401 UNAUTHENTICATED /
+CREDENTIALS_MISSING` on 2026-09-04. A 403 naming a specific IAM permission
+means the credential is now ACCEPTED and the block is authorization — the same
+shape as the SMS region policy, where reading only the status code would have
+missed the change.
+
+`aiplatform.voices.list` is an IAM permission, so the likeliest next step is
+granting the service account a Vertex AI role on `oniq-309bd` — an owner action
+in the Cloud console, not a preview form. That is a HYPOTHESIS: an allowlist
+refusal can also surface as 403, and only re-running the probe after the grant
+distinguishes them.
+
+**AND "ADMISSION IS THE ONLY THING LEFT" WAS ALREADY WRONG** — corrected in the
+capability row the same day. No deployed function imports
+`_shared/voiceReplication.ts` (grep returns 0) and `voice-generate` can only
+ask for `prebuiltVoiceConfig.voiceName`. Built and unit-tested is not
+reachable.
+
 ## ONIQ Study and the Google mapping — what is built, what cannot be
 
 The owner mapped ONIQ Study onto thirteen Google capabilities, 2026-09-05.
