@@ -1039,6 +1039,60 @@ CANDIDATES, none measured, in the order worth checking:
 two-host publish were all green at the moment it broke. The gate is a code
 arriving on a handset.
 
+### 2026-09-06 — DIAGNOSED: reCAPTCHA cannot run in the Capacitor WebView
+
+Six candidates, five killed by measurement, and the sixth confirmed by naming
+the step. The instrumented error, verbatim from the handset:
+
+    recaptcha-verify: Firebase: Error (auth/internal-error).
+      [code=auth/internal-error no-server-response
+       code=auth/internal-error customData={} name=FirebaseError]
+
+**`recaptcha-verify` is the step, and `no-server-response` with `customData={}`
+is the proof of where.** `verifier.verify()` fails — the browser cannot produce
+an attestation — so nothing is ever sent. Google did not refuse ONIQ; Google was
+never asked. Every project-side theory was therefore doomed from the start, and
+the ones already dead are dead for the right reason:
+
+    App Check              identitytoolkit -> UNENFORCED
+    API key restrictions   an evil.example.com Referer control returned the
+                           SAME error as the real host, so the key is unrestricted
+    authorized domain      the WebView loads https://oniqhub.com (androidScheme
+                           https), and www 302s to the apex
+    authDomain helper      /__/auth/iframe.js -> 200, 288 KB, provisioned
+    the server chain       proven end to end with a test number, to a session
+
+**THIS REPO ALREADY KNEW.** `auth.tsx` opens a Chrome Custom Tab for Google
+sign-in with the comment "Google blocks OAuth inside embedded WebViews
+(disallowed_useragent)". Phone auth hits the same wall from a different
+direction — reCAPTCHA is a browser attestation, and an embedded WebView is not
+a browser as far as Google is concerned. The precedent was three hundred lines
+above the code being written and was not consulted.
+
+**AND PLAY INTEGRITY IS THE OTHER HALF OF THE SAME FACT.** Native Firebase
+phone auth does not use reCAPTCHA at all: it attests with Play Integrity, which
+is why the SHA-256 the owner was asked for exists. So the SHA was never
+irrelevant — it was irrelevant *to the web SDK*, which is what ONIQ runs. Under
+the native route it becomes required. Saying "the SHA is not on the code path"
+was true and incomplete, and the incompleteness read as dismissal.
+
+TWO WAYS OUT, both real work, and the choice is the owner's:
+
+1. **Custom Tab**, reusing the pattern already in this file for Google OAuth.
+   `@capacitor/browser` is already a dependency and `/auth-native-callback` plus
+   the `com.oniqhub.app://auth-callback` scheme are already registered in the
+   manifest. No Play release: it is web code plus deep links that already exist.
+   DEPENDS ON reCAPTCHA working in mobile Chrome, which is NOT yet measured.
+2. **Native phone auth** via a Capacitor Firebase plugin — attests with Play
+   Integrity, no reCAPTCHA anywhere. Needs a new dependency (Lovable's to add),
+   the SHA-256 registered on the Firebase Android app, and a Play release to
+   reach users. Slower, and the one Google actually designs for.
+
+**THE TEST THAT PICKS BETWEEN THEM COSTS ONE MINUTE**: open
+`https://oniqhub.com/auth` in Chrome on the same handset. Working there means a
+Custom Tab works, because a Custom Tab IS Chrome. Failing there kills option 1
+outright and leaves only the native route.
+
 ## ONIQ Study and the Google mapping — what is built, what cannot be
 
 The owner mapped ONIQ Study onto thirteen Google capabilities, 2026-09-05.
