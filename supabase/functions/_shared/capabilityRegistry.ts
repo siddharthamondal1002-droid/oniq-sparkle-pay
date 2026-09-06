@@ -166,10 +166,25 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
       "things stand between here and a working feature, not one: (a) Google " +
       "admitting ONIQ to the preview, which only the owner can request, and " +
       "(b) an endpoint that actually mints a key and passes it as `voice`. " +
-      "(b) is ONIQ's work and is not started; doing it before (a) would ship " +
-      "a path that 401s. The lesson is the recurring one in this repo: a " +
-      "claim about what remains has a shelf life, and 'built and " +
-      "unit-tested' is not 'reachable'.",
+      "(b) IS BUILT, 2026-09-06, on the day the owner asked what the problem " +
+      "actually was: supabase/functions/voice-clone mints a key with " +
+      "replicationKeyBody and speaks with replicatedSpeechBody, both " +
+      "recordings validated before the billable call, admin-only because " +
+      "Vertex replication spends the METERED Google key and the caps and " +
+      "price are the owner's to set. AND THE PROBE VERB WAS WRONG THE WHOLE " +
+      "TIME. Every measurement of this blocker was a GET of " +
+      ".../locations/global/voices — a LIST — refused as 'aiplatform.voices" +
+      ".list denied'. Minting is a POST to that same path and needs a " +
+      "different permission, so not one probe ever tested the call the " +
+      "feature makes. This repo's own first rule is that a catalogue says " +
+      "what exists and only a POST says what this key may call, and the " +
+      "voice work spent days ignoring it. So what remains is (a) alone, and " +
+      "it is ANSWERABLE now rather than assumed: the first real POST returns " +
+      "Google's own words, and a missing IAM role, an allowlist refusal and " +
+      "a disabled API all arrive as 403 with only the text to separate them. " +
+      "The lesson is the recurring one in this repo: a claim about what " +
+      "remains has a shelf life, and 'built and unit-tested' is not " +
+      "'reachable'.",
   },
   "voice.realtime": {
     id: "voice.realtime",

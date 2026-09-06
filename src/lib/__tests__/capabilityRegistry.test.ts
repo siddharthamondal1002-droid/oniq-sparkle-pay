@@ -171,25 +171,83 @@ describe("what the music reference claims about itself", () => {
  *
  * `voice.clone`'s evidence used to end "admission is now the ONLY thing
  * between here and a working feature". Measured 2026-09-06, that was wrong by
- * one: no deployed function imports `voiceReplication.ts` at all, and
- * `voice-generate`'s only voice field is `prebuiltVoiceConfig.voiceName` — a
- * built-in voice, with no branch that could carry a minted key. The helpers
- * are pure and nothing calls them.
+ * one: no deployed function imported `voiceReplication.ts` at all, so the
+ * helpers were pure and nothing called them.
  *
- * These assertions fail the day someone wires it up, which is exactly when the
- * evidence needs rewriting — a GATED capability whose blockers have changed is
- * the single most misleading row this registry can hold.
+ * THE ASSERTION BELOW IS NOW THE INVERSE OF WHAT IT WAS, and that is the guard
+ * doing its job rather than being edited around. It pinned the GAP, and it
+ * went red the moment `voice-clone` was written — which is exactly when the
+ * evidence needed rewriting, because a GATED capability whose blockers have
+ * changed is the single most misleading row this registry can hold.
+ *
+ * AND IT FIRST WENT RED FOR THE WRONG REASON. `grep -rl voiceReplication` over
+ * raw source also matched `firebase-provisioning`, whose only mention of it is
+ * a COMMENT saying nothing imports it. That is the fourth prose match in this
+ * repo in two days — good comments quote the code they discuss, so any grep
+ * strict enough to be useful will hit them. The search is over IMPORT
+ * STATEMENTS now, not over text.
  */
-describe("voice.clone: the wiring gap is recorded, not just the allowlist", () => {
+describe("voice.clone: the wiring is pinned, not just the allowlist", () => {
   const FN_DIR = join(ROOT, "supabase/functions");
 
-  it("no deployed function imports voiceReplication", () => {
-    const { execSync } = require("node:child_process") as typeof import("node:child_process");
-    const hits = execSync(
-      `grep -rl voiceReplication ${JSON.stringify(FN_DIR)} --include=index.ts || true`,
-      { encoding: "utf8" },
-    ).trim();
-    expect(hits, "voiceReplication is now wired — update the voice.clone evidence").toBe("");
+  it("exactly one deployed function imports voiceReplication", () => {
+    const { readdirSync, statSync } = require("node:fs") as typeof import("node:fs");
+    const walk = (dir: string, out: string[] = []): string[] => {
+      for (const name of readdirSync(dir)) {
+        const full = join(dir, name);
+        if (statSync(full).isDirectory()) walk(full, out);
+        else if (name === "index.ts") out.push(full);
+      }
+      return out;
+    };
+    const importers = walk(FN_DIR)
+      .filter((f) =>
+        /^\s*import[\s\S]*?from\s+["'][^"']*voiceReplication\.ts["']/m.test(
+          readFileSync(f, "utf8"),
+        ),
+      )
+      .map((f) => f.slice(ROOT.length + 1))
+      .sort();
+    expect(importers, "the replication helpers lost their caller").toEqual([
+      "supabase/functions/voice-clone/index.ts",
+    ]);
+  });
+
+  it("the minting call is a POST, which is the verb nobody used", () => {
+    // Every measurement of this blocker was a GET of .../locations/global
+    // /voices — a LIST. Minting is a POST to the same path and needs a
+    // different permission, so months of "aiplatform.voices.list denied"
+    // never tested the call the feature makes. This repo's own first rule is
+    // that a catalogue says what exists and only a POST says what this key
+    // may call; the voice work spent days ignoring it.
+    const fn = read("supabase/functions/voice-clone/index.ts");
+    const codeOnly = fn.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+    expect(codeOnly).toContain("voicesUrl(projectId)");
+    expect(codeOnly, "the mint stopped being a POST").toMatch(/method:\s*["']POST["']/);
+  });
+
+  it("minting is gated on is_admin, because it spends the metered Google key", () => {
+    // Vertex replication bills the owner's Google account, not Lovable
+    // credits. Who may mint, how many a day and at what price are the owner's
+    // to set, so until they do the gate is is_admin — and the gate sits ABOVE
+    // the first line that can spend.
+    const fn = read("supabase/functions/voice-clone/index.ts");
+    const codeOnly = fn.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+    const gate = codeOnly.indexOf("is_admin");
+    const spend = codeOnly.indexOf("googleAccessToken()");
+    expect(gate, "the admin gate went missing").toBeGreaterThan(-1);
+    expect(gate, "the admin gate sank below the credential").toBeLessThan(spend);
+  });
+
+  it("delete marks the row instead of removing it, so the cap cannot be reset", () => {
+    // voice_clones IS the rolling-24h ledger and the counts do not filter on
+    // status, so a hard DELETE would buy unmetered mints on the owner's key
+    // for the price of a delete — the same hole image_jobs, music_jobs and
+    // voice_jobs each carry a comment about.
+    const fn = read("supabase/functions/voice-clone/index.ts");
+    const codeOnly = fn.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+    expect(codeOnly).toContain('status: "deleted", voice_key: null');
+    expect(codeOnly, "voice-clone gained a hard delete").not.toMatch(/\.delete\(\)/);
   });
 
   it("voice-generate can only ask for a BUILT-IN voice", () => {
