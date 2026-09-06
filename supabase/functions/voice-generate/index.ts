@@ -140,6 +140,8 @@ Deno.serve(async (req) => {
 
   let body: {
     action?: string;
+    /** The row to remove. Read only by the `delete` action. */
+    id?: string;
     text?: string;
     voice?: string;
     requestId?: string;
@@ -179,6 +181,68 @@ Deno.serve(async (req) => {
       });
     }
     return json(200, { clips });
+  }
+
+  // ---- deleting is free, and sits with `list` ABOVE every spend gate -------
+  //
+  // Above them deliberately. Deleting costs nothing, and a person who has hit
+  // their daily cap must still be able to remove what they already made —
+  // below the gates this would mean "you are out of generations, so you may
+  // not tidy up", which is absurd.
+  //
+  // THE ROW SURVIVES. ONLY THE BYTES GO. That is not squeamishness, it is the
+  // spend guard: voice_jobs IS the daily-cap ledger. Both counts further down
+  // — the house cap and the per-user cap — are `count` over rows in this
+  // table across a rolling 24h, and NEITHER filters on `status`. A hard
+  // DELETE would therefore let anyone reset their own cap, and the HOUSE cap,
+  // by deleting their voice clips in a loop: unlimited generation on the
+  // owner's metered key for the price of a delete. The table's own comment
+  // already said it — "a failed attempt that cost money is still recorded
+  // rather than vanishing" — and `delete_story_job` reached the same
+  // conclusion for films ("that could DELETE rows there could delete the
+  // record of what it was charged").
+  //
+  // `status = "deleted"` needs no migration and hides it everywhere for free,
+  // because the `list` action above already filters `.eq("status", "done")`.
+  // The path is nulled in the same statement so nothing can later sign a URL
+  // to bytes that are being removed.
+  if (body.action === "delete") {
+    const id = typeof body.id === "string" ? body.id.trim() : "";
+    if (!id) return json(400, { error: "Which clip?" });
+
+    // Read first, scoped to the caller — this both AUTHORIZES and yields the
+    // path. `admin` is the service role and bypasses RLS, so
+    // `.eq("user_id", user.id)` is the entire ownership boundary here; drop
+    // it and any signed-in person could delete anyone's clip by id.
+    const { data: mine, error: readErr } = await admin
+      .from("voice_jobs")
+      .select("stored_path")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (readErr) return json(500, { error: "Couldn't delete that clip" });
+    // The same answer for "not yours" and "not there", so this cannot be used
+    // to ask whether an id exists.
+    if (!mine) return json(404, { error: "That clip is not there" });
+
+    const { error: markErr } = await admin
+      .from("voice_jobs")
+      .update({ status: "deleted", stored_path: null })
+      .eq("id", id)
+      .eq("user_id", user.id);
+    if (markErr) return json(500, { error: "Couldn't delete that clip" });
+
+    // Bytes last, best effort. If this fails the object is orphaned in a
+    // PRIVATE bucket — unreachable without a signed URL that nothing will now
+    // mint — costing a little storage and showing nobody anything. The
+    // reverse order risks the opposite: bytes gone while the row still lists,
+    // a visible item that 404s. Orphaned-and-invisible beats listed-and-broken.
+    const path = (mine as { stored_path: string | null }).stored_path;
+    if (path) {
+      const { error: rmErr } = await admin.storage.from(BUCKET).remove([path]);
+      if (rmErr) console.warn("[voice-generate] delete left an orphan", path, rmErr.message);
+    }
+    return json(200, { deleted: id });
   }
 
   // ---- TRANSCRIBE: an attached recording, turned into text -----------------

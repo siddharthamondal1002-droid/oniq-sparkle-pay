@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Clapperboard, ImageIcon, Mic, Music4 } from "lucide-react";
+import { Clapperboard, ImageIcon, Loader2, Mic, Music4, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { isWatchable, listStories, type StoryJobRow } from "@/components/stories/storyJobsClient";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
+import { deleteCreation, type CreationKind } from "@/lib/deleteCreation";
 import {
   OniqCanvas,
   OniqCard,
@@ -54,6 +55,80 @@ const FILTERS: Array<{ id: Filter; label: string }> = [
   { id: "clip", label: "Voice" },
 ];
 
+/**
+ * The delete control, one definition for all four kinds.
+ *
+ * TWO TAPS, NO DIALOG. The first names what will happen ("Delete this
+ * picture?") and the second does it; Cancel is always the wider target. This
+ * is the same shape YourVideos already uses for films, kept deliberately
+ * rather than replaced with a modal, so the two screens do not teach two
+ * different gestures for the same irreversible act.
+ *
+ * It is rendered inside each card rather than passed as a prop to a shared
+ * card, because the three cards genuinely differ — an image, an audio player,
+ * a link out — and a component that took all three shapes would be a worse
+ * abstraction than one small button repeated.
+ */
+function DeleteControl({
+  kind,
+  id,
+  armed,
+  busy,
+  onArm,
+  onCancel,
+  onConfirm,
+  testId,
+}: {
+  kind: CreationKind;
+  id: string;
+  armed: boolean;
+  busy: boolean;
+  onArm: () => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+  testId: string;
+}) {
+  const noun = kind === "clip" ? "voice clip" : kind;
+  if (!armed) {
+    return (
+      <button
+        type="button"
+        data-testid={testId}
+        onClick={onArm}
+        aria-label={`Delete this ${noun}`}
+        className="press ms-auto inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-destructive"
+      >
+        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+        Delete
+      </button>
+    );
+  }
+  return (
+    <div className="ms-auto flex shrink-0 items-center gap-1.5">
+      <span className="text-[11px] text-muted-foreground">Delete this {noun}?</span>
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={busy}
+        className="press rounded-lg px-2 py-1 text-[11px] font-semibold text-muted-foreground"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        data-testid={`${testId}-confirm`}
+        onClick={onConfirm}
+        disabled={busy}
+        className="press inline-flex items-center gap-1 rounded-lg bg-destructive px-2 py-1 text-[11px] font-semibold text-destructive-foreground disabled:opacity-60"
+      >
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : null}
+        {busy ? "Deleting" : "Delete"}
+      </button>
+      <span className="sr-only">{id}</span>
+    </div>
+  );
+}
+
 function CreationsScreen() {
   const [films, setFilms] = useState<StoryJobRow[] | null>(null);
   const [songs, setSongs] = useState<Made[] | null>(null);
@@ -64,6 +139,41 @@ function CreationsScreen() {
   const [voices, setVoices] = useState<Made[] | null>(null);
   const [voicesFailed, setVoicesFailed] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
+
+  /**
+   * DELETING, and the three pieces of state it needs.
+   *
+   * `confirmId` rather than window.confirm: a native dialog is unstyled, is
+   * suppressible by the browser, and inside the Android WebView it has bitten
+   * this app before. Tapping Delete arms the card; tapping again commits.
+   *
+   * `goneIds` rather than mutating the four source lists. The items array is
+   * rebuilt from films/songs/pictures/voices on every render, so removing an
+   * item would mean reaching into whichever of the four owns it — four
+   * branches that must each stay correct. Filtering one id set at the end is
+   * the same effect in one place, and it survives a refetch putting the row
+   * back (it will not: the server stops listing it).
+   */
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [goneIds, setGoneIds] = useState<Set<string>>(() => new Set());
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const remove = async (kind: CreationKind, id: string) => {
+    setDeletingId(id);
+    setDeleteError(null);
+    const res = await deleteCreation(kind, id);
+    setDeletingId(null);
+    if (!res.ok) {
+      setDeleteError(res.message);
+      setConfirmId(null);
+      return;
+    }
+    // Optimistic, and safe: the server has already answered ok, so the row is
+    // marked and will not come back in a later list.
+    setGoneIds((cur) => new Set(cur).add(id));
+    setConfirmId(null);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -151,7 +261,8 @@ function CreationsScreen() {
     })),
   ].sort((a, b) => (a.at < b.at ? 1 : -1));
 
-  const shown = filter === "all" ? items : items.filter((i) => i.kind === filter);
+  const visible = items.filter((i) => !goneIds.has(i.id));
+  const shown = filter === "all" ? visible : visible.filter((i) => i.kind === filter);
   // Said only when something is missing, and it names WHICH part — a person
   // looking at a short list deserves to know it is short for a reason. Built
   // from the list rather than nested ternaries, because a third source made
@@ -199,6 +310,12 @@ function CreationsScreen() {
           </p>
         ) : null}
 
+        {deleteError ? (
+          <p role="alert" className="mt-3 text-[12px] text-destructive">
+            {deleteError}
+          </p>
+        ) : null}
+
         <p className="mt-3 text-[11px] text-muted-foreground">🤖 {AI_OUTPUT_LABEL}</p>
         <AiOutputReport surface="creations_ai_output" targetId="my-creations" />
       </div>
@@ -222,6 +339,19 @@ function CreationsScreen() {
                     <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
                       {item.title}
                     </span>
+                    <DeleteControl
+                      kind={"picture"}
+                      id={item.id}
+                      testId="creation-picture-delete"
+                      armed={confirmId === item.id}
+                      busy={deletingId === item.id}
+                      onArm={() => {
+                        setConfirmId(item.id);
+                        setDeleteError(null);
+                      }}
+                      onCancel={() => setConfirmId(null)}
+                      onConfirm={() => void remove("picture", item.id)}
+                    />
                   </div>
                   {item.url ? (
                     <img
@@ -253,6 +383,19 @@ function CreationsScreen() {
                     <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
                       {item.title}
                     </span>
+                    <DeleteControl
+                      kind={item.kind}
+                      id={item.id}
+                      testId="creation-audio-delete"
+                      armed={confirmId === item.id}
+                      busy={deletingId === item.id}
+                      onArm={() => {
+                        setConfirmId(item.id);
+                        setDeleteError(null);
+                      }}
+                      onCancel={() => setConfirmId(null)}
+                      onConfirm={() => void remove(item.kind, item.id)}
+                    />
                   </div>
                   {item.url ? (
                     <audio controls preload="none" src={item.url} className="mt-2 w-full">
@@ -276,6 +419,19 @@ function CreationsScreen() {
                     <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
                       {item.title}
                     </span>
+                    <DeleteControl
+                      kind={"film"}
+                      id={item.id}
+                      testId="creation-film-delete"
+                      armed={confirmId === item.id}
+                      busy={deletingId === item.id}
+                      onArm={() => {
+                        setConfirmId(item.id);
+                        setDeleteError(null);
+                      }}
+                      onCancel={() => setConfirmId(null)}
+                      onConfirm={() => void remove("film", item.id)}
+                    />
                   </div>
                   <p className="mt-1 text-[11px] text-muted-foreground">
                     {/* The job's own word for where it is. A film still rendering

@@ -1524,6 +1524,67 @@ mutation — with the flag pushed back to offset 1,867 the test still passes.
 
 **Where a test reads source by offset, a comment is executable.**
 
+### Owner directive, 2026-09-06 — "give delete option in create across all four"
+
+Films already had one (`delete_story_job`, with a confirm, in `YourVideos`).
+Pictures, songs and voice clips did not. All four now have it on
+`/app/creations`, through one client helper, `src/lib/deleteCreation.ts`.
+
+**THE OBVIOUS IMPLEMENTATION IS A SPEND HOLE, and it is not visible from the
+delete code.** `image_jobs`, `music_jobs` and `voice_jobs` ARE the daily-cap
+ledgers. Each generate function counts rows in its own table over a rolling
+24h TWICE — once for the house cap, once per user — and **neither count
+filters on `status`**. So a hard `DELETE` would let any signed-in person reset
+their own cap AND THE HOUSE CAP by deleting in a loop: unmetered generation on
+the owner's metered Google key, for the price of a delete.
+
+Both halves of the answer were already written down by people who had hit it:
+each table's own comment says _"a failed attempt that cost money is still
+recorded rather than vanishing"_, and `delete_story_job` says a delete _"could
+delete the record of what it was charged"_. The row is a receipt.
+
+So delete MARKS and removes bytes:
+
+    status = "deleted", stored_path = null    the row, and the charge, stand
+    storage.remove([path])                    the content really goes
+
+`status = "deleted"` needs NO migration and hides it everywhere for free — the
+`list` action already filters `.eq("status", "done")`. Ordering is row-first:
+if the byte removal then fails the object is orphaned in a private bucket,
+invisible and unreachable, which beats the reverse failure of bytes gone while
+the row still lists a 404ing item.
+
+**THE OWNERSHIP FILTER IS THE WHOLE AUTHORIZATION.** These functions use the
+service-role `admin` client, which bypasses RLS, so `.eq("user_id", user.id)`
+on BOTH the read and the update is the only thing standing between a caller
+and anyone else's creation. "Not yours" and "not there" return the same 404 so
+the endpoint cannot be used to probe ids.
+
+**DELETE SITS ABOVE THE SPEND GATES**, with `list`. A person at their daily cap
+must still be able to remove what they made; below the gates it would mean
+"you are out of generations, so you may not tidy up".
+
+`src/lib/__tests__/deleteCreation.test.ts` pins all of it, mutation-checked
+four ways on the server (hard DELETE, dropped user filter, a cap count that
+starts filtering `status`, and byte removal removed — each fails) and two ways
+on the UI (audio card hard-coding "song", film card losing its control).
+
+**AND TWO OF ITS OWN ASSERTIONS FIRST MATCHED PROSE, NOT CODE.** Counting
+`.eq("user_id", user.id)` over raw source found three, because the block's
+comment EXPLAINS the filter by quoting it; and the gate-ordering check matched
+the phrase "daily cap" in the file's header comment, hundreds of lines above
+the real gate. Both now strip comments first, and the gate is located by its
+effect (`return json(429`) rather than by any wording. This is the second time
+in two days a source-reading assertion in this repo turned out to be asserting
+about the documentation.
+
+**ORDERING FOR THE SHIP, because edge functions do not deploy with a web
+publish.** The delete action is purely additive — no existing client sends it —
+so the functions go FIRST and the web publish second. Checked rather than
+assumed: an OLD deployed function receiving `action: "delete"` falls past
+`list`, past the gates, into validation, finds no prompt and returns 400. No
+generation, no spend; the button simply reports it could not delete.
+
 ## ONIQ Study and the Google mapping — what is built, what cannot be
 
 The owner mapped ONIQ Study onto thirteen Google capabilities, 2026-09-05.
