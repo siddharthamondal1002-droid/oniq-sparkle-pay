@@ -680,22 +680,49 @@ changed by changing who sends it. Firebase's TEST PHONE NUMBERS (Authentication
 a fixed code and send no SMS, so proving it costs nothing. Prove it there, then
 on one real handset, then flip.
 
-**AND DELETING SOURCE DOES NOT UNDEPLOY — and the undeploy is correctly
-BLOCKED, which turned out to be the interesting part.** Asked to delete the five,
-the Lovable agent refused, in its tooling's own words:
+**PUBLISHED AND VERIFIED, 2026-09-06.** `main` at `53354d53`, deployed, and the
+served bundle checked on BOTH hosts — `oniqhub.com` and
+`oniq-sparkle-pay.lovable.app` serve the identical `assets/auth-CKqjXNGa.js`
+(24,205 bytes) and `assets/index-BaLraXI0.js`:
+
+    in the AUTH chunk, both hosts:  firebase-recaptcha           present
+                                    oniq-309bd.firebaseapp.com   present
+                                    firebase-phone-session       present
+    in auth AND entry, both hosts:  verify.msg91.com             absent
+                                    initSendOTP                  absent
+                                    msg91-verify-session         absent
+                                    get-otp-config               absent
+                                    otp-provider.js              absent
+
+So phone sign-in is live and MSG91 is gone from the shipped app.
+
+**AND DELETING SOURCE DOES NOT UNDEPLOY — the undeploy is BLOCKED, and the
+guard's stated reason is now demonstrably not its real one.** Asked to delete
+the five, the Lovable agent refused, in its tooling's own words:
 
     Edge functions were not deleted. The migrated TanStack app is not published
     at the latest commit yet. Leave the deployed Supabase functions live as
     rollback coverage; publish and verify the app first, then delete them in a
     later turn.
 
-That guard caught a real ordering error, not a false positive. `claude/check-56jtg5`
-is 2 commits ahead of `origin/main`, so the PUBLISHED bundle still contains the
-MSG91 client code that calls `get-otp-config` and `msg91-verify-session`.
-Deleting them today would be deleting a dependency of the live app — harmless
-only because `OTP_LOGIN_ENABLED` gates it, which is luck, not design. **The order
-is merge -> publish -> verify the served chunks no longer name those functions ->
-then delete.** All five confirmed still live, and one probe is worth keeping:
+THE FIRST TIME, that guard caught a real ordering error rather than a false
+positive: the branch was 2 commits ahead of `origin/main`, so the PUBLISHED
+bundle still contained the MSG91 client code calling `get-otp-config` and
+`msg91-verify-session`. Deleting them then would have removed a dependency of
+the live app — harmless only because `OTP_LOGIN_ENABLED` gated it, which is
+luck, not design.
+
+THE SECOND TIME, after the merge, the publish, and the two-host verification
+above, it refused with the IDENTICAL text. The app is published at the latest
+commit; the guard says it is not. **So whatever it is keyed on, it is not what
+its message describes** — and the message is the only thing anyone reading it
+has to go on. Do not read that refusal as a statement about the publish state.
+The agent holds the service role but no management PAT, and edge-function
+deletion is a control-plane operation, so `delete_edge_functions` is its only
+route and it will not bypass its own guard (correctly). **Deleting these five is
+therefore the OWNER's, from the Supabase dashboard.**
+
+All five confirmed still live, and one probe is worth keeping:
 
     send-otp              400 {"error":"invalid Indian phone number"}
     verify-otp            400 {"error":"invalid phone or otp"}
@@ -704,11 +731,37 @@ then delete.** All five confirmed still live, and one probe is worth keeping:
     check-user-exists     405 {"error":"method not allowed"}   (GET-only)
 
 `ready:false` is the owner's premise, measured: MSG91 never had working
-credentials. And **`check-user-exists` fails CLOSED** — `CHECK_USER_KEY` is
-unset, so it 401s every request. It was called "a live account-existence oracle"
-earlier in this session, including in the message asking for its deletion; that
-overstated it. It is hygiene to remove, not an open door. State the guard, then
-check whether the guard is armed.
+credentials.
+
+**`check-user-exists` FAILS CLOSED — and the second-hand version of that claim
+was not good enough.** It was called "a live account-existence oracle" earlier
+in this session, including in the message asking for its deletion, which
+overstated it. But the correction was itself only source-read: the function
+401s when `CHECK_USER_KEY` is unset, and an audit file said it was unset. **This
+file's own rule is that a checked-in file is a catalogue, not a probe** — and
+the deployed function's ENV had never been measured. The POST probe above says
+nothing either: it is GET-only, so 405 is about the method, not the auth.
+
+Measured properly 2026-09-06, with the verb the endpoint actually takes:
+
+    GET /functions/v1/check-user-exists?identifier=probe@example.invalid
+    -> 401 {"error":"unauthorized"}
+
+So it is genuinely inert, and removing it is hygiene rather than urgency. State
+the guard, then check whether the guard is armed — and check it with the verb
+the guard actually sees.
+
+**WHY THE DELETE GUARD PROBABLY WILL NOT CLEAR, as a hypothesis and labelled
+one.** Asked what it keys on, the Lovable agent said honestly that it can see
+only its own rule text — "do not use this tool during a Classic-to-TanStack
+migration before the migrated app is published at the latest commit" — and has
+no visibility into the signal evaluated. Its lead: there is a migration
+lifecycle on its side with explicit complete/halt states, and if this project
+carries an open Classic-to-TanStack record never marked complete, the guard
+would be keyed on THAT rather than on anything deployed, which would explain a
+refusal that survives any publish. Treat as a hypothesis. The practical answer
+is unchanged either way: the five are inert and nothing in the shipped bundle
+references them, so the owner can delete them from the Supabase dashboard.
 
 ### 2026-09-06 — the phone path, PROVEN, for zero money
 
