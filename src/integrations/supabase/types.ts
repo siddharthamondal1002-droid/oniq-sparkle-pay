@@ -6921,6 +6921,7 @@ export type Database = {
           _mime: string
           _name: string
           _path: string
+          _source?: string
           _style: string
         }
         Returns: Json
