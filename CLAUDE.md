@@ -1062,12 +1062,34 @@ the ones already dead are dead for the right reason:
     authDomain helper      /__/auth/iframe.js -> 200, 288 KB, provisioned
     the server chain       proven end to end with a test number, to a session
 
-**THIS REPO ALREADY KNEW.** `auth.tsx` opens a Chrome Custom Tab for Google
-sign-in with the comment "Google blocks OAuth inside embedded WebViews
-(disallowed_useragent)". Phone auth hits the same wall from a different
-direction — reCAPTCHA is a browser attestation, and an embedded WebView is not
-a browser as far as Google is concerned. The precedent was three hundred lines
-above the code being written and was not consulted.
+**AND THE CAUSE WAS OURS. It was the CSP.** `src/lib/securityHeaders.ts` named
+`googletagmanager`, `youtube`, `s.ytimg` and `checkout.razorpay` in `script-src`,
+and `accounts.google.com` plus the players in `frame-src`. reCAPTCHA needs
+`www.google.com` for `recaptcha/api.js`, `www.gstatic.com` for its assets, and
+`www.google.com` again to frame the challenge; the SDK also frames its helper on
+`oniq-309bd.firebaseapp.com`. **Not one of those was allowed.** The browser
+blocked the attestation before a request could be made — which is precisely what
+`no-server-response` with an empty `customData` was saying.
+
+So it was never the WebView. It would have failed in Chrome, on a laptop, and in
+the Custom Tab that was about to be built to "fix" it. The fix is four origins.
+
+WHY IT TOOK SIX ROUNDS, worth recording because the shape recurs:
+
+- **A first-party header is not where you look when a Google flow fails.** Every
+  hypothesis was about Google's configuration — App Check, key restrictions,
+  authorized domains, the authDomain helper. The one thing under ONIQ's own
+  control was never suspected *because* it is ONIQ's.
+- **A familiar precedent made the wrong answer feel confirmed.** `auth.tsx`
+  carries a real "Google blocks OAuth inside embedded WebViews" lesson for
+  Custom Tabs, so "embedded WebView breaks Google attestation" arrived
+  pre-believed and stopped the search one step early.
+- **`accounts.google.com` in `frame-src` made the policy look covered.** It is
+  OAuth's origin, not reCAPTCHA's. Skim-reading a directive for "google" is not
+  reading it.
+- The evidence was right all along: `no-server-response` says the failure is
+  local. That was surfaced, printed on the owner's screen, and still read as a
+  statement about Google rather than about us.
 
 **AND PLAY INTEGRITY IS THE OTHER HALF OF THE SAME FACT.** Native Firebase
 phone auth does not use reCAPTCHA at all: it attests with Play Integrity, which
@@ -1076,7 +1098,15 @@ irrelevant — it was irrelevant *to the web SDK*, which is what ONIQ runs. Unde
 the native route it becomes required. Saying "the SHA is not on the code path"
 was true and incomplete, and the incompleteness read as dismissal.
 
-TWO WAYS OUT, both real work, and the choice is the owner's:
+FIXED by adding the four origins, with
+`src/lib/__tests__/securityHeaders.test.ts` asserting each and mutation-checked
+(removing them fails two tests). `public/_headers` is regenerated from the same
+source by `scripts/gen-headers.ts`, so the static and runtime policies cannot
+drift.
+
+The two architectural routes below were costed while the diagnosis was still
+wrong. **Neither is needed.** They are kept only because a future native phone
+auth would still want the second, and the SHA-256 belongs to it:
 
 1. **Custom Tab**, reusing the pattern already in this file for Google OAuth.
    `@capacitor/browser` is already a dependency and `/auth-native-callback` plus

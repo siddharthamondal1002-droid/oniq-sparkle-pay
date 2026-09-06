@@ -210,3 +210,45 @@ describe("public/_headers is a copy of the module, not a second policy", () => {
     }
   });
 });
+
+describe("Firebase phone sign-in needs four origins, and omitting them broke it", () => {
+  /**
+   * MEASURED 2026-09-06. Phone sign-in failed on a handset with
+   *
+   *     recaptcha-verify: Firebase: Error (auth/internal-error).
+   *       [no-server-response customData={} name=FirebaseError]
+   *
+   * `no-server-response` was the tell: nothing left the phone. It was not
+   * Google refusing ONIQ, it was ONIQ refusing itself — reCAPTCHA's script,
+   * its assets and its challenge iframe were all absent from this policy, so
+   * the browser blocked the attestation before any request could be made.
+   *
+   * The bug survived five other hypotheses (App Check, API-key restrictions,
+   * authorized domains, the authDomain helper, the whole server chain) because
+   * a first-party header is not where you look when a Google flow fails. These
+   * assertions exist so the next person who trims this list has to mean it.
+   */
+  const csp = contentSecurityPolicy("production");
+
+  it("lets reCAPTCHA's script and its assets load", () => {
+    const scripts = directive(csp, "script-src");
+    expect(scripts).toContain("https://www.google.com");
+    expect(scripts).toContain("https://www.gstatic.com");
+  });
+
+  it("lets the challenge and the SDK's auth helper be framed", () => {
+    const frames = directive(csp, "frame-src");
+    expect(frames).toContain("https://www.google.com");
+    // Distinct from accounts.google.com, which is OAuth and was already here —
+    // its presence is exactly why this looked covered at a glance.
+    expect(frames).toContain("https://oniq-309bd.firebaseapp.com");
+  });
+
+  it("does not confuse accounts.google.com with www.google.com", () => {
+    // A wildcard would have hidden the bug and widened the policy. These are
+    // two different origins doing two different jobs; both are named in full.
+    const frames = directive(csp, "frame-src");
+    expect(frames).toContain("https://accounts.google.com");
+    expect(frames.some((h) => h.includes("*.google.com"))).toBe(false);
+  });
+});

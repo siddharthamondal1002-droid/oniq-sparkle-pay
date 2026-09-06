@@ -65,6 +65,39 @@ export const PREVIEW_FRAME_ANCESTORS: readonly string[] = [
 // Redirect targets included — see EMBED_FRAME_HOSTS for the Dailymotion case.
 const PLAYER_ORIGINS = EMBED_FRAME_HOSTS.map((h) => `https://${h}`);
 
+/**
+ * Firebase phone sign-in needs three origins, and OMITTING THEM IS WHAT BROKE
+ * IT — measured 2026-09-06, after five other theories were killed first.
+ *
+ * The instrumented failure on a handset was:
+ *
+ *     recaptcha-verify: Firebase: Error (auth/internal-error).
+ *       [no-server-response customData={} name=FirebaseError]
+ *
+ * `no-server-response` was the tell: nothing ever left the phone. Not Google
+ * refusing ONIQ — ONIQ refusing itself. `RecaptchaVerifier.verify()` loads
+ * `google.com/recaptcha/api.js`, which pulls its assets from `gstatic.com` and
+ * renders a challenge iframe back on `google.com`; and the Firebase SDK frames
+ * its auth helper on the project's authDomain. Not one of those four was in
+ * script-src or frame-src, so the browser blocked the attestation before a
+ * request could be made.
+ *
+ * IT WOULD HAVE FAILED IN EVERY BROWSER, not just the Android WebView. The
+ * WebView was the leading suspect for hours because this repo already carries
+ * a real "Google blocks embedded WebViews" lesson for OAuth in `auth.tsx`, and
+ * a familiar precedent made the wrong answer feel confirmed. A first-party
+ * header was never suspected because it is ours. Check your own policy before
+ * concluding the platform is at fault.
+ */
+const FIREBASE_PHONE_SCRIPT = ["https://www.google.com", "https://www.gstatic.com"];
+const FIREBASE_PHONE_FRAME = [
+  "https://www.google.com",
+  // The SDK's own iframe, served from authDomain. /__/auth/iframe.js is
+  // provisioned and returns 200 — measured — but a 200 it may not frame is
+  // still a blocked iframe.
+  "https://oniq-309bd.firebaseapp.com",
+];
+
 export const CSP_DIRECTIVES: Readonly<Record<string, readonly string[]>> = {
   "default-src": ["'self'"],
   "script-src": [
@@ -76,6 +109,7 @@ export const CSP_DIRECTIVES: Readonly<Record<string, readonly string[]>> = {
     "https://www.youtube.com",
     "https://s.ytimg.com",
     "https://checkout.razorpay.com",
+    ...FIREBASE_PHONE_SCRIPT,
   ],
   "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
   "font-src": ["'self'", "data:", "https:"],
@@ -89,6 +123,7 @@ export const CSP_DIRECTIVES: Readonly<Record<string, readonly string[]>> = {
     ...PLAYER_ORIGINS,
     "https://api.razorpay.com",
     "https://checkout.razorpay.com",
+    ...FIREBASE_PHONE_FRAME,
     "blob:",
   ],
   "worker-src": ["'self'", "blob:"],
