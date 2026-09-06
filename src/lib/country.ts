@@ -15,7 +15,18 @@
 import { useEffect, useState } from "react";
 import type { CountryCode } from "@/lib/miniapps";
 
-const KEY = "oniq.country";
+// BUMPED 2026-09-06, and the bump IS the fix for everyone already affected.
+// `getCountry()` CACHES whatever it infers, so every device that had already
+// been told "you are in the US" by the old maximize()-based inference would go
+// on reading US back forever — the corrected inference below would never run
+// for exactly the users it was written for. A new key retires those values.
+//
+// Nothing a person actually CHOSE is lost: `setCountry` mirrors the choice to
+// the profile via persistHomeToProfile, and `useCountry` reads the profile back
+// on login and overwrites this cache. So a deliberate Home country returns by
+// itself; only a guess we made on their behalf is discarded, which is the whole
+// point.
+const KEY = "oniq.country.v2";
 const EVENT = "oniq:country-changed";
 /**
  * Digital-age-of-consent threshold per country. India's DPDP Act treats
@@ -54,10 +65,41 @@ function isCode(v: string | null | undefined): v is CountryCode {
   return !!v && COUNTRIES.some((c) => c.code === v);
 }
 
-/** One-time inference from the device locale region; IN when unknown. */
+/**
+ * One-time inference from the device locale, IN when the device does not say.
+ *
+ * NEVER `maximize()`. That is what this used to do, and it is why 111 of 126
+ * production profiles ended up with no usable country and Indian users lost
+ * every India-only tile — UPI, Earn and Watch — on a device that had told us
+ * nothing about where it was. Measured 2026-09-06:
+ *
+ *     new Intl.Locale("en").maximize().region      -> "US"
+ *     new Intl.Locale("en-US").maximize().region   -> "US"
+ *     new Intl.Locale("bn").maximize().region      -> "BD"
+ *     new Intl.Locale("en-IN").maximize().region   -> "IN"
+ *
+ * `maximize()` is doing its job: CLDR's likely-subtags says the most probable
+ * region for bare English is the United States. But that is a statement about
+ * the LANGUAGE, not about the person holding the phone. "English" is the
+ * factory default on most Android handsets sold in India, so the common case —
+ * an Indian user who never changed their phone language — was being assigned
+ * the United States and silently losing the features this app exists for. A
+ * Bengali speaker was assigned Bangladesh.
+ *
+ * So: read the region ONLY when the locale string actually carries one. A tag
+ * with no region is the device declining to answer, and the honest response to
+ * that is ONIQ's own default, not a guess dressed up as data.
+ *
+ * This is inference of last resort either way. The profile is the source of
+ * truth (`useCountry` overwrites this from `get_my_profile_meta` on login) and
+ * the person can set Home explicitly; this only decides what a brand-new
+ * device shows before either of those arrives.
+ */
 function inferCountry(): CountryCode {
   try {
-    const region = new Intl.Locale(navigator.language).maximize().region;
+    // .region is undefined unless the tag itself names one — "en-IN" yes,
+    // "en" no. That absence is the signal; do not fill it in.
+    const region = new Intl.Locale(navigator.language).region;
     if (isCode(region)) return region;
   } catch {
     /* noop */
