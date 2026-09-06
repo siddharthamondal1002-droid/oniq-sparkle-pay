@@ -165,3 +165,44 @@ describe("what the music reference claims about itself", () => {
     );
   });
 });
+
+/**
+ * "BUILT AND UNIT-TESTED" IS NOT "REACHABLE", and this pins the difference.
+ *
+ * `voice.clone`'s evidence used to end "admission is now the ONLY thing
+ * between here and a working feature". Measured 2026-09-06, that was wrong by
+ * one: no deployed function imports `voiceReplication.ts` at all, and
+ * `voice-generate`'s only voice field is `prebuiltVoiceConfig.voiceName` — a
+ * built-in voice, with no branch that could carry a minted key. The helpers
+ * are pure and nothing calls them.
+ *
+ * These assertions fail the day someone wires it up, which is exactly when the
+ * evidence needs rewriting — a GATED capability whose blockers have changed is
+ * the single most misleading row this registry can hold.
+ */
+describe("voice.clone: the wiring gap is recorded, not just the allowlist", () => {
+  const FN_DIR = join(ROOT, "supabase/functions");
+
+  it("no deployed function imports voiceReplication", () => {
+    const { execSync } = require("node:child_process") as typeof import("node:child_process");
+    const hits = execSync(
+      `grep -rl voiceReplication ${JSON.stringify(FN_DIR)} --include=index.ts || true`,
+      { encoding: "utf8" },
+    ).trim();
+    expect(hits, "voiceReplication is now wired — update the voice.clone evidence").toBe("");
+  });
+
+  it("voice-generate can only ask for a BUILT-IN voice", () => {
+    const fn = read("supabase/functions/voice-generate/index.ts");
+    expect(fn).toContain("prebuiltVoiceConfig");
+    // The replicated path passes a plain string called `voice` instead. Its
+    // appearance means the feature moved and this row is stale.
+    expect(fn).not.toMatch(/voice_config\s*:\s*\{\s*voice\s*:/);
+  });
+
+  it("the evidence says BOTH blockers, so nobody reads it as one", () => {
+    const ev = CAPABILITIES["voice.clone"].evidence;
+    expect(ev).toMatch(/TWO things stand between here and a working feature/i);
+    expect(ev).toMatch(/only the owner can request/i);
+  });
+});

@@ -154,8 +154,22 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
       "door one is open. (2) THE ALLOWLIST is still shut: replication is a " +
       "preview requested through a Google form, and only the owner can " +
       "submit it. The flow itself is built and unit-tested in " +
-      "_shared/voiceReplication.ts, so admission is now the ONLY thing " +
-      "between here and a working feature.",
+      "_shared/voiceReplication.ts. " +
+      "BUT 'ADMISSION IS THE ONLY THING LEFT' WAS WRONG, and it is corrected " +
+      "here rather than quietly dropped — measured 2026-09-06, on the day an " +
+      "owner asked why a person still cannot sing in their own voice. NO " +
+      "DEPLOYED FUNCTION IMPORTS voiceReplication.ts: a grep for it across " +
+      "supabase/functions/*/index.ts returns 0, and voice-generate's only " +
+      "voice field is speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName " +
+      "— a BUILT-IN voice, with no branch that could carry a minted key. So " +
+      "the helpers are pure and unit-tested and nothing calls them. TWO " +
+      "things stand between here and a working feature, not one: (a) Google " +
+      "admitting ONIQ to the preview, which only the owner can request, and " +
+      "(b) an endpoint that actually mints a key and passes it as `voice`. " +
+      "(b) is ONIQ's work and is not started; doing it before (a) would ship " +
+      "a path that 401s. The lesson is the recurring one in this repo: a " +
+      "claim about what remains has a shelf life, and 'built and " +
+      "unit-tested' is not 'reachable'.",
   },
   "voice.realtime": {
     id: "voice.realtime",
