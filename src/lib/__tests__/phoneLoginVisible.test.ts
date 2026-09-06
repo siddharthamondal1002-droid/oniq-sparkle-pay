@@ -1,73 +1,91 @@
 /**
  * The canary that decides whether the phone tab renders.
  *
- * It exists to break a deadlock: SMS delivery can only be proven on a real
+ * It was built to break a deadlock: SMS delivery can only be proven on a real
  * handset on the live site, and while `OTP_LOGIN_ENABLED` is false the tab
- * never renders, so there is nothing to prove it against. `?phone=1` opts one
- * browser in for the price of one SMS instead of shipping an unproven,
- * SMS-spending path to all 125 users.
+ * never renders, so there is nothing to prove it against. The owner chose to
+ * turn the flag on for everyone rather than prove it through the canary first
+ * (2026-09-06), which makes `?phone=1` the ROLLBACK path: set the flag back to
+ * false and one browser can still reach the flow to diagnose it.
  *
- * WHAT THESE TESTS ARE FOR. Not the happy path — that is one line. They pin the
- * two ways a query-string check gets quietly wrong: matching a DIFFERENT
- * parameter that merely contains the name, and treating any present value as
- * truthy so `?phone=0` turns it on. Both are the kind of bug that only shows up
- * as "why is the phone tab visible in production".
+ * WHY THE PARAMETER TESTS TARGET `phoneOptInParam` AND NOT `phoneLoginVisible`.
+ * The first version of this file tested the parameter through the combined
+ * function — and every one of those assertions became vacuous the moment the
+ * flag went true, because the flag short-circuits and the function then returns
+ * true for every input. They did not fail; they just stopped testing anything,
+ * which is worse. Splitting the parse out keeps the rollback path covered
+ * whichever way the flag is set.
+ *
+ * The cases below are the two ways a query-string check goes quietly wrong:
+ * matching a DIFFERENT parameter that merely contains the name, and treating
+ * any present value as truthy so `?phone=0` reads as on.
  */
 import { describe, expect, it } from "vitest";
-import { OTP_LOGIN_ENABLED, phoneLoginVisible } from "../flags";
+import { OTP_LOGIN_ENABLED, phoneLoginVisible, phoneOptInParam } from "../flags";
 
-describe("phoneLoginVisible", () => {
+describe("phoneOptInParam — the rollback opt-in, independent of the flag", () => {
   it("is off with no query string at all", () => {
-    expect(phoneLoginVisible(undefined)).toBe(false);
-    expect(phoneLoginVisible("")).toBe(false);
-    expect(phoneLoginVisible("?")).toBe(false);
+    expect(phoneOptInParam(undefined)).toBe(false);
+    expect(phoneOptInParam("")).toBe(false);
+    expect(phoneOptInParam("?")).toBe(false);
   });
 
   it("opts in on ?phone=1, with or without the leading question mark", () => {
-    expect(phoneLoginVisible("?phone=1")).toBe(true);
-    expect(phoneLoginVisible("phone=1")).toBe(true);
-    expect(phoneLoginVisible("?mode=signin&phone=1&x=2")).toBe(true);
+    expect(phoneOptInParam("?phone=1")).toBe(true);
+    expect(phoneOptInParam("phone=1")).toBe(true);
+    expect(phoneOptInParam("?mode=signin&phone=1&x=2")).toBe(true);
   });
 
   it("wants the value 1 exactly — a present parameter is not a true one", () => {
     // `?phone=0` reads as "off" to a human, so it had better not read as "on".
     for (const s of ["?phone=0", "?phone", "?phone=", "?phone=true", "?phone=yes"]) {
-      expect(phoneLoginVisible(s)).toBe(false);
+      expect(phoneOptInParam(s)).toBe(false);
     }
   });
 
   it("does not match a different parameter that merely contains the name", () => {
     for (const s of ["?telephone=1", "?phone_hint=1", "?myphone=1", "?xphone=1"]) {
-      expect(phoneLoginVisible(s)).toBe(false);
+      expect(phoneOptInParam(s)).toBe(false);
     }
   });
 
   it("survives a malformed query string instead of throwing", () => {
     // URLSearchParams is lenient by design; the point is that the auth screen
     // renders rather than white-screening on a URL someone pasted badly.
-    expect(() => phoneLoginVisible("?%%%&&&=")).not.toThrow();
-    expect(phoneLoginVisible("?%%%&&&=")).toBe(false);
-    expect(phoneLoginVisible("?phone=1&&&")).toBe(true);
+    expect(() => phoneOptInParam("?%%%&&&=")).not.toThrow();
+    expect(phoneOptInParam("?%%%&&&=")).toBe(false);
+    expect(phoneOptInParam("?phone=1&&&")).toBe(true);
+  });
+});
+
+describe("phoneLoginVisible — flag OR opt-in", () => {
+  it("follows the flag for every input the parameter would refuse", () => {
+    // Flag on  -> true regardless, so the canary never gates the shipped tab.
+    // Flag off -> the parameter is the only way in.
+    // Asserting against the flag itself keeps this meaningful either way.
+    for (const s of [undefined, "", "?phone=0", "?telephone=1"]) {
+      expect(phoneLoginVisible(s)).toBe(OTP_LOGIN_ENABLED);
+    }
   });
 
-  it("the flag short-circuits the parameter, so the flip makes it redundant", () => {
-    // When OTP_LOGIN_ENABLED goes true this must return true for EVERY input —
-    // otherwise the canary would start gating the shipped feature.
-    if (!OTP_LOGIN_ENABLED) {
-      expect(phoneLoginVisible("?phone=0")).toBe(false);
-      return;
-    }
-    for (const s of [undefined, "", "?phone=0", "?telephone=1"]) {
-      expect(phoneLoginVisible(s)).toBe(true);
-    }
+  it("is always true for ?phone=1", () => {
+    expect(phoneLoginVisible("?phone=1")).toBe(true);
   });
 });
 
 describe("the flag itself", () => {
-  it("is still off — flipping it is a delivered SMS, not a green build", () => {
-    // This is a TRIPWIRE, not a requirement. If you are turning phone sign-in
-    // on, you are meant to delete this test in the same commit — deliberately,
-    // having read flags.ts, having watched a code arrive on a real handset.
-    expect(OTP_LOGIN_ENABLED).toBe(false);
+  it("is ON — owner directive, 2026-09-06", () => {
+    // This replaced a tripwire that asserted `false` and was written to be
+    // deleted deliberately by whoever turned phone sign-in on. It was: the
+    // owner was shown the measured evidence and the two things still unproven
+    // (reCAPTCHA on oniqhub.com, and an SMS actually arriving), was offered the
+    // ?phone=1 canary to prove them on one handset first, and chose to turn it
+    // on for everyone instead.
+    //
+    // It stays as an assertion rather than being dropped because the value is
+    // now load-bearing in the other direction: `phoneLoginVisible` short-
+    // circuits on it, so a silent flip back to false would hide the tab from
+    // every user and only this line would say so.
+    expect(OTP_LOGIN_ENABLED).toBe(true);
   });
 });

@@ -753,16 +753,49 @@ number requires in a real browser on `oniqhub.com`, and whether an SMS actually
 ARRIVES. Test numbers skip the attestation step — that is what makes them free,
 and it is precisely the step production depends on.
 
-**THE DEADLOCK, AND THE CANARY THAT BREAKS IT.** Both remaining facts need a real
-handset on the live site; while the flag is off the tab never renders, so there
-is nothing to test against. Flipping the flag to find out would ship an unproven,
-SMS-spending path to all 125 users. So `phoneLoginVisible()` in `flags.ts` opts
-ONE browser in with `/auth?phone=1` — pinned by
-`src/lib/__tests__/phoneLoginVisible.test.ts`, which tests the two ways a
-query-string check goes quietly wrong (`?telephone=1` matching, `?phone=0`
-reading as true) rather than the one-line happy path. It is not a security
-boundary and must not become one: it decides who SEES the tab, and Firebase's
-reCAPTCHA guards the send either way.
+**THE DEADLOCK.** Both remaining facts need a real handset on the live site;
+while the flag is off the tab never renders, so there is nothing to test
+against. `phoneLoginVisible()` in `flags.ts` was built to break it — `/auth?phone=1`
+opts ONE browser in, so delivery could be proven for the price of one SMS
+before the tab went live for everyone. It is not a security boundary and must
+not become one: it decides who SEES the tab, and Firebase's reCAPTCHA guards
+the send either way.
+
+### Owner directive, 2026-09-06 — `OTP_LOGIN_ENABLED = true`
+
+Asked to choose, with the evidence above and the two unproven facts stated
+plainly, and with the one-handset canary offered as the alternative, the owner
+chose **"Merge and publish, and flip the flag too."** Recorded as given. Phone
+sign-in is live for all 125 users with reCAPTCHA-on-`oniqhub.com` and actual SMS
+delivery unproven; **the first real sign-in is the test.**
+
+That inverts what the canary is for: it is now the ROLLBACK path, not the
+rollout one. Setting `OTP_LOGIN_ENABLED` back to false is a one-word change that
+needs nothing else, and `?phone=1` immediately puts it back into one-browser
+mode so whatever failed can be diagnosed without the tab being live. Which
+symptom means what is written beside the flag — "couldn't send the code" on
+every attempt is reCAPTCHA (check `oniqhub.com` is still authorized, and that
+nothing is serving from `www.oniqhub.com`, which is NOT); the code box appearing
+with no SMS is delivery, which is Google's side and lands on the Blaze bill.
+
+**A TEST CAN STOP TESTING WITHOUT FAILING, and this flip is how that gets
+found.** `phoneLoginVisible` short-circuits on the flag, so every parameter
+assertion written against it became vacuous the moment the flag went true —
+`?phone=0`, `?telephone=1`, all of them returned true and all of them passed,
+because the function no longer looked at the string. Nothing went red. The parse
+is now a separate export, `phoneOptInParam`, and that is what
+`src/lib/__tests__/phoneLoginVisible.test.ts` targets; mutation-checked with the
+flag ON, breaking the parse still fails. Where a test's subject can be
+short-circuited by a flag, test the part the flag cannot reach.
+
+**AND THE BUILD CANNOT BE PROVEN IN THIS CONTAINER.** `npm run build` emits 423
+chunks and then fails on one line —
+`Rolldown failed to resolve import "@firebase/app"` — because every
+`node_modules/@firebase/*` package is EMPTY here: 0 entries, against 20 proxy
+denials to `europe-west1-npm.pkg.dev`, Lovable's Artifact Registry mirror. That
+is the environment, not the code, and it means a green local build is not
+available as evidence for anything touching the Firebase SDK. Have the Lovable
+agent build before publishing rather than discovering it from a failed deploy.
 
 **MEASURED THE SAME DAY, and one correction.** `getProjectConfig` on the public
 key now returns `authorizedDomains: ['localhost', 'oniq-309bd.firebaseapp.com',
