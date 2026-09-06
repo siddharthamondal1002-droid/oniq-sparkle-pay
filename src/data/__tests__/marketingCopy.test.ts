@@ -58,20 +58,25 @@ describe("every live card maps to a surface that exists", () => {
     }
   });
 
-  it("advertises no Scan & Pay or Receive card at all", () => {
-    // Owner directive, 2026-08-17: every pay-by-QR entry point is hidden.
-    //
-    // ABSENT rather than "soon". A deferred card still tells a reader the
-    // feature is coming, and WORLDS_LIVE counts from this array — so a card
-    // left behind in any status keeps advertising a surface the app now offers
-    // no way into. The route still resolves for deep links; that is not
-    // something to put on a marketing deck.
-    for (const title of ["Scan & Pay", "Receive"]) {
-      expect(
-        FEATURE_CARDS.find((c) => c.title === title),
-        `${title} is back on the deck — check appRegistry oniq-upi agrees`,
-      ).toBeFalsy();
-    }
+  it("advertises Scan & Pay, but still no Receive card", () => {
+    // Owner directive, 2026-09-06: "Make upi active again", reversing
+    // 2026-08-17. Scan & Pay is back and LIVE — the surface exists and the app
+    // offers a way in, which is the only status this deck permits.
+    const scan = FEATURE_CARDS.find((c) => c.title === "Scan & Pay");
+    expect(scan, "Scan & Pay is missing — check appRegistry oniq-upi agrees").toBeTruthy();
+    expect(scan?.status).toBe("live");
+    expect(scan?.route).toBe("/app/upi");
+
+    // RECEIVE DID NOT COME BACK WITH IT, and that asymmetry is the assertion.
+    // There is no receive route — src/routes/_authenticated/ holds app.upi.tsx
+    // and app.scan.tsx and nothing else — so a Receive card would promise a
+    // screen that does not exist. That is the failure this whole file exists
+    // to catch, and it would be easy to reintroduce by pattern-matching the
+    // pair that went out together in August.
+    expect(
+      FEATURE_CARDS.find((c) => c.title === "Receive"),
+      "Receive is on the deck but no receive route exists",
+    ).toBeFalsy();
   });
 
   it("keeps the site and the app agreeing about payments", () => {

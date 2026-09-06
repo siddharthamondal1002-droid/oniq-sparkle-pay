@@ -65,18 +65,22 @@ describe("app registry integrity", () => {
       true,
     );
     expect(APP_REGISTRY.some((a) => a.id === "blusmart" && a.status === "shutdown")).toBe(true);
-    // oniq-upi is HIDDEN AGAIN — owner directive, 2026-08-17, hiding Scan &
-    // Pay and every pay-by-QR entry point. This flag has now flipped three
-    // times (hidden → visible for the Razorpay work → hidden), and each flip
-    // has to be made in step with marketingCopy or the site advertises a
-    // surface the app will not open. That pairing is asserted in
-    // marketingCopy.test.ts; this half just pins the flag.
+    // oniq-upi is VISIBLE — owner directive, 2026-09-06 "Make upi active
+    // again", reversing 2026-08-17. Four flips now (hidden → visible for the
+    // Razorpay work → hidden → visible), and each one has to move in step with
+    // marketingCopy and playCompliance or the site and the Play listing
+    // advertise a surface the app will not open, or the reverse. The site
+    // pairing is asserted in marketingCopy.test.ts; this half pins the flag.
     //
-    // Hidden, not removed: the entry still carries the country and launch
-    // shape, so bringing it back is one flag rather than a rewrite.
+    // The assertion is kept pointing at the CURRENT truth rather than deleted,
+    // because its value is that a fifth flip has to be deliberate: whoever
+    // changes the flag has to come here and say so.
     const upi = APP_REGISTRY.find((a) => a.id === "oniq-upi");
     expect(upi, "oniq-upi is missing from the registry").toBeTruthy();
-    expect(upi?.hidden ?? false, "oniq-upi is visible again — update marketingCopy too").toBe(true);
+    expect(
+      upi?.hidden ?? false,
+      "oniq-upi is hidden again — marketingCopy and playCompliance must follow",
+    ).toBe(false);
     expect(upi?.countries).toEqual(["IN"]);
     expect(upi?.launchType).toBe("webOnly");
   });

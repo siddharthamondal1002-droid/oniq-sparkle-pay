@@ -504,26 +504,28 @@ export const APP_REGISTRY: AppEntry[] = [
     emoji: "🧺",
   },
   // ---------- Payments ----------
-  // ONIQ's own UPI hand-off. HIDDEN AGAIN — owner directive, 2026-08-17: hide
-  // Scan & Pay and every pay-by-QR tab and button.
+  // ONIQ's own UPI hand-off. VISIBLE AGAIN — owner directive, 2026-09-06:
+  // "Make upi active again." This reverses the 2026-08-17 directive that hid
+  // Scan & Pay and every pay-by-QR tab and button. The flag has now moved four
+  // times; the date above is what is true today.
   //
-  // Hidden, not deleted, which is what "hide the entry points" means here:
-  // /app/upi and /app/scan still resolve, so a deep link, a chat attachment
-  // or a saved shortcut keeps working with its anti-fraud UX intact. Nothing
-  // in the app points at them any more.
+  // THREE FILES MOVE TOGETHER OR NONE DO, and tests enforce it rather than
+  // trusting anyone to remember:
+  //   this entry                     the app's own entry point (SHOW_UPI_SHORTCUT
+  //                                  in app.miniapps.tsx reads exactly this)
+  //   marketingCopy.ts               the site's Scan & Pay card
+  //   playCompliance.ts              what ONIQ tells Play it can do
+  // `marketingCopy.test.ts` fails if the site and the app disagree in EITHER
+  // direction, which is why unhiding is not a one-line change however much the
+  // previous comment here promised it was.
   //
-  // This flag is the single switch the miniapps grid reads
-  // (SHOW_UPI_SHORTCUT), so flipping it back is one line — the same one line
-  // the previous comment promised when payments were resurfaced for the
-  // Razorpay work.
-  //
-  // The functional caveat that outlived the last unhiding, recorded because it
-  // will matter if this is ever reversed: PhonePe and GPay block third-party
-  // P2P intents, so paying a PERSON from here can be refused by the receiving
-  // app. Scanning a merchant QR was unaffected.
+  // THE FUNCTIONAL CAVEAT SURVIVES EVERY FLIP, so it is repeated rather than
+  // moved: PhonePe and GPay block third-party P2P intents, so paying a PERSON
+  // from here can be refused by the receiving app. Scanning a merchant QR is
+  // unaffected. Nothing in this change fixes that — it is the payment apps'
+  // policy, not ONIQ's code.
   {
     id: "oniq-upi",
-    hidden: true,
     name: "Pay via UPI",
     tagline: "GPay · PhonePe · Paytm",
     category: "payments",

@@ -37,18 +37,22 @@ export const NATIVE_CAPABILITIES = [
   // resurfacing, a time-budgeted queue, collections, threads, moments,
   // notes, rights metadata and search, all row-level-secured per user.
   "Watch library: cross-provider saved references with resume positions, an inbox, an explainable resurface engine, a time-budgeted smart queue, collections, threads, saved moments, notes, Internet Archive rights metadata and library search — ONIQ's own organisation layer, not a player.",
-  // NO UPI ENTRY HERE — owner directive, 2026-08-17: Scan & Pay and every
-  // pay-by-QR tab and button are hidden.
+  // BACK, WITH THE UI, IN THE SAME COMMIT — owner directive, 2026-09-06: "Make
+  // upi active again", reversing 2026-08-17. The previous comment here promised
+  // exactly this line would return if the surfaces did; it has.
   //
-  // Removed together WITH the UI in the same commit, deliberately. This list
-  // is what the app tells Play it can do, and a reviewer who cannot find a
-  // declared capability is the exact mismatch that draws questions. The route
-  // still resolves for deep links, but nothing in the app points at it, so it
-  // is no longer something a reviewer can be expected to reach — and a
-  // capability nobody can navigate to is not one worth claiming.
+  // The pairing is the discipline. This list is what ONIQ tells Play it can do,
+  // so a declared capability a reviewer cannot navigate to draws questions, and
+  // a reachable capability that is NOT declared is the same mismatch pointing
+  // the other way. Whichever direction the entry points move, this line moves
+  // with them in the same commit.
   //
-  // If the surfaces come back, this line comes back with them:
-  //   "UPI scan-and-pay through the user's own payment apps."
+  // NOTE FOR THE DATA SAFETY FORM, which is a different question and easy to
+  // conflate: this capability does NOT make "Financial info" declarable. The
+  // hand-off builds a UPI intent URL and passes it to the user's own payment
+  // app; the payment happens there, and no VPA, amount or transaction record
+  // reaches ONIQ. See the rule in marketingCopy.ts.
+  "UPI scan-and-pay through the user's own payment apps.",
   // Card and netbanking checkout for FOOD ORDERS, via Razorpay. Physical goods
   // and services only — Play permits a third-party processor for those and
   // requires Play Billing for digital content, so this is deliberately wired

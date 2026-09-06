@@ -64,8 +64,13 @@ export const COUNTRIES_SUPPORTED = 7;
 
 /**
  * Counted from the registry, minus entries that are present in data but never
- * rendered (oniq-upi is hidden). The site said "25+" while the registry held
- * far more — an understatement is still an uncounted number.
+ * rendered. The site said "25+" while the registry held far more — an
+ * understatement is still an uncounted number.
+ *
+ * This count moves on its own when a `hidden` flag flips, which is the whole
+ * design: unhiding `oniq-upi` on 2026-09-06 raised it by one without anybody
+ * editing a number. The previous version of this comment named oniq-upi as the
+ * hidden entry and went stale the moment that changed — so it names none now.
  */
 export const MINI_APPS_LIVE = APP_REGISTRY.filter((a) => !a.hidden).length;
 
@@ -183,15 +188,27 @@ export const FEATURE_CARDS: FeatureCard[] = [
     adultOnly: true,
   },
 
+  // SCAN & PAY IS BACK, AND IT BELONGS IN THE LIVE BLOCK — owner directive,
+  // 2026-09-06: "Make upi active again." It reverses 2026-08-17. `live` is the
+  // honest status: the surface exists and the app offers a way in again
+  // (appRegistry `oniq-upi` is no longer hidden), and `marketingCopy.test.ts`
+  // fails if those two ever disagree in either direction.
+  {
+    title: "Scan & Pay",
+    copy: "Scan any UPI QR and pay from your own GPay, PhonePe or Paytm.",
+    status: "live",
+    route: "/app/upi",
+  },
+
   // ---- Coming soon --------------------------------------------------------
   // These must LOOK different — dimmed, badged, not clickable. A card that
   // looks live and isn't is worse than no card, and worst of all for payments.
   //
-  // NO Scan & Pay OR Receive CARD — owner directive, 2026-08-17: every
-  // pay-by-QR tab and button is hidden. The cards are removed rather than
-  // flipped to a non-live status, because WORLDS_LIVE counts from this array
-  // and a dimmed card still advertises a surface the app no longer offers a
-  // way into.
+  // STILL NO "Receive" CARD, and that is not an oversight. There is no receive
+  // route — `src/routes/_authenticated/` holds `app.upi.tsx` and `app.scan.tsx`
+  // and nothing else — and a card for a screen that does not exist is exactly
+  // what this file exists to catch. It went out alongside Scan & Pay in August
+  // and does not come back with it.
 ];
 
 /** Counted from the cards, so the stat can never outlive the feature. */
@@ -305,7 +322,7 @@ ONIQ is not affiliated with, endorsed by, or sponsored by any third-party app, b
   screenshotChecklist: [
     "No Watch player, channel grid or library screenshot — Watch is India-only and not advertised; a screenshot of another platform's player in ONIQ reads as ONIQ offering that platform's video.",
     "No Glance card — the surface is gone.",
-    "No Scan & Pay, Receive or payment tile — owner directive 2026-08-17 hid every pay-by-QR entry point, so a screenshot showing one advertises a surface a reviewer cannot navigate to. This rule has now flipped twice; check src/data/appRegistry.ts (oniq-upi hidden) for what is actually true on the day.",
+    "Scan & Pay may be screenshotted again — owner directive 2026-09-06 made UPI active, reversing 2026-08-17. Still NO Receive tile: there is no receive route, so a screenshot of one advertises a surface that does not exist. This rule has now flipped three times; check src/data/appRegistry.ts (whether oniq-upi carries hidden) for what is true on the day rather than trusting this sentence.",
     "Any checkout screenshot showing a card or netbanking payment is Razorpay against a real-world order. Do not screenshot a payment for anything digital — Play requires Play Billing for that.",
     "No live-TV or streaming wording in any caption or feature graphic.",
     "Category is not Entertainment or Video Players & Editors.",
@@ -322,7 +339,7 @@ ONIQ is not affiliated with, endorsed by, or sponsored by any third-party app, b
    */
   consoleChecklist: [
     "Data deletion: the account-deletion URL must be https://oniqhub.com/delete-account. On 2026-08-05 the store page showed only Play's generic 'developers can provide ways to remove data' boilerplate, which is what renders when no URL is declared — while the route existed and returned 200.",
-    "Data safety must NOT declare Financial info. Nothing in this repo collects payment info or purchase history: there is no billing SDK, no Stripe, no Razorpay, no Play Billing, and the UPI surface is hidden. Over-declaring it puts the listing in Play's payments bucket and contradicts the withheld Scan & Pay position.",
+    "Data safety must NOT declare Financial info, and UPI coming back does not change that — which is the point worth understanding rather than re-deriving. ONIQ COLLECTS nothing financial: the UPI hand-off builds an intent URL and gives it to the user's own GPay/PhonePe/Paytm, so the payment happens entirely inside that app and no card number, VPA balance or purchase history ever reaches ONIQ. Razorpay for food orders is likewise a hosted checkout in its own frame. Declaring Financial info would put the listing in Play's payments bucket for data ONIQ does not hold. If a future change ever stores a VPA, an amount or a transaction record, this line stops being true and Data safety must be updated first.",
     "Security practices: the form asks exactly two questions — encryption in transit, and whether users can request deletion. There is NO 'encrypted at rest' option; an earlier version of this checklist said to tick one, and it does not exist. Answering YES to the deletion question is what both surfaces the 'You can request that data be deleted' line on the listing and prompts for the deletion URL above, so that item and this one are the same form field, not two.",
     "Full description in Console must be pasted from PLAY_LISTING.fullDescription. The live one was older copy and read 'moments,clips' with no space.",
   ],
