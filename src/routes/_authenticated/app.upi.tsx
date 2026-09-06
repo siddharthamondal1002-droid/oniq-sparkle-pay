@@ -50,9 +50,7 @@ function UpiScreen() {
   // strip below is what changes it, and `?tab=` still seeds the initial value
   // so the deep links that kept working through the hidden period still land
   // on the view they name.
-  const [tab, setTab] = useState<"pay" | "receive">(
-    prefill.tab === "receive" ? "receive" : "pay",
-  );
+  const [tab, setTab] = useState<"pay" | "receive">(prefill.tab === "receive" ? "receive" : "pay");
 
   return (
     <div className="px-5 pt-12 pb-6">
@@ -232,8 +230,7 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
     // would hand the app a signature that no longer matches — which is what a
     // PSP refuses "for security reasons". Launch it exactly as scanned and SAY
     // SO, rather than dropping the typed amount silently.
-    const signedImmutable =
-      !!prefill.raw && upiAmendability(prefill.raw) === "signed-immutable";
+    const signedImmutable = !!prefill.raw && upiAmendability(prefill.raw) === "signed-immutable";
     if (signedImmutable && amount.trim() && amount.trim() !== (prefill.am ?? "")) {
       toast("Enter ₹" + amount.trim() + " in your UPI app — this QR has a fixed, signed payload", {
         duration: 7000,
@@ -367,23 +364,25 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
           data-testid="upi-declined-help"
           className="mt-4 rounded-2xl border border-amber-500/40 bg-card p-4 text-xs text-muted-foreground"
         >
-          <p className="text-sm font-semibold text-foreground">
-            declined "for security reasons"? 🛡️
-          </p>
+          <p className="text-sm font-semibold text-foreground">Payment declined? 🛡️</p>
           <p className="mt-1.5">
-            GPay &amp; PhonePe block person-to-person payments started from other apps — an
-            anti-fraud rule on their side, not a problem with your bank or this payee. This way
-            always works:
+            A UPI app can refuse a payment that another app started — including shop and society
+            QRs. It is not your bank, not this payee, and not the amount: the same payment goes
+            through when you start it yourself. Either of these works:
           </p>
           <ol className="mt-2 list-decimal space-y-1 pl-4">
             <li>
-              tap <span className="font-semibold text-foreground">Copy UPI ID</span> below
+              <span className="font-semibold text-foreground">Point your UPI app at the QR.</span>{" "}
+              Open GPay / PhonePe / Paytm, use its own scanner on the same code. This is the one
+              that was tested and worked.
             </li>
             <li>
-              open GPay / PhonePe yourself →{" "}
-              <span className="font-semibold text-foreground">"Pay to UPI ID"</span>
+              No QR in front of you? Tap{" "}
+              <span className="font-semibold text-foreground">Copy UPI ID</span> below, then in your
+              UPI app choose{" "}
+              <span className="font-semibold text-foreground">&ldquo;Pay to UPI ID&rdquo;</span>,
+              paste, enter the amount and pay ✅
             </li>
-            <li>paste, enter the amount, pay ✅</li>
           </ol>
           <button
             type="button"
@@ -392,9 +391,15 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
           >
             <AtSign className="h-3.5 w-3.5" /> Copy UPI ID
           </button>
+          {/* WHAT THIS LINE USED TO SAY WAS DISPROVEN BY THE OWNER'S OWN TEST.
+              It read "Shop QRs scanned with ONIQ and your own receive QR are
+              unaffected — this only hits person-to-person sends", and a shop QR
+              is precisely what was declined on 2026-09-06, twice, once as its
+              own untransformed bytes. Telling someone the panel does not apply
+              to them, on the screen where it does, is worse than no panel. */}
           <p className="mt-2 text-[11px]">
-            Shop QRs scanned with ONIQ and your own receive QR are unaffected — this only hits
-            person-to-person sends handed to another app.
+            Your own receive QR is unaffected — receiving never needs a hand-off, and your UPI PIN
+            is only ever used to SEND.
           </p>
         </div>
       )}
@@ -450,12 +455,14 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
                   there
                 </li>
               )}
-              {!rawIntact && (
-                <li>
-                  • if it declines "for security reasons": GPay &amp; PhonePe block sends started
-                  from other apps — copy the UPI ID instead and pay inside your app
-                </li>
-              )}
+              {/* THIS USED TO BE GATED ON !rawIntact — hidden in exactly the case
+                  measured to fail. An untouched merchant scan is the shape that
+                  was declined on 2026-09-06, so the warning it needed was the
+                  one it could not show. */}
+              <li>
+                • if it declines, that is the hand-off being refused, not your bank — scanning the
+                same QR inside your UPI app goes through. Steps are on the next screen.
+              </li>
               <li>• double-check the name and UPI ID above match who you meant to pay</li>
               <li>• your UPI PIN is only ever needed to SEND money — never to receive it</li>
               <li>• "pay ₹1 to verify", refund and cashback requests are scams</li>

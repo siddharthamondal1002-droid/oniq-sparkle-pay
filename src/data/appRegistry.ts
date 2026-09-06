@@ -520,10 +520,14 @@ export const APP_REGISTRY: AppEntry[] = [
   // previous comment here promised it was.
   //
   // THE FUNCTIONAL CAVEAT SURVIVES EVERY FLIP, so it is repeated rather than
-  // moved: PhonePe and GPay block third-party P2P intents, so paying a PERSON
-  // from here can be refused by the receiving app. Scanning a merchant QR is
-  // unaffected. Nothing in this change fixes that — it is the payment apps'
-  // policy, not ONIQ's code.
+  // moved — and it is WIDER than this comment used to say. Measured through
+  // ONIQ 2026-09-06: a society's merchant collection QR, handed over as its
+  // own scanned bytes with no transformation, was DECLINED by PhonePe, and the
+  // same QR scanned inside PhonePe succeeded. So "scanning a merchant QR is
+  // unaffected" was false; the hand-off itself is what gets refused, for
+  // merchant QRs as well as person-to-person sends. Nothing in ONIQ's code
+  // fixes that — see upiPayeeLink in src/lib/miniapps.ts for the full run.
+  // (PhonePe only, one handset; GPay and Paytm untested through ONIQ.)
   {
     id: "oniq-upi",
     name: "Pay via UPI",

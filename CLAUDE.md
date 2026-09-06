@@ -1360,6 +1360,65 @@ grep returns empty for a perfectly healthy deploy. Read an empty result there as
 sends bytes IDENTICAL to the diagnostic's Test 1. Two routes to the same control,
 one of them in the ordinary UI.
 
+### 2026-09-06 (same evening) — ANSWERED. Both tests failed, and that is the result
+
+Owner: _"both failed"_, then _"transaction declined when retried inside phonepe
+was successful"_. So the experiment ran and returned the OTHER branch:
+
+    ONIQ -> Test 1, the raw scanned bytes, ZERO transformation -> PhonePe -> DECLINED
+    ONIQ -> Test 2, the ordinary Pay button                    -> PhonePe -> DECLINED
+    the same QR scanned inside PhonePe itself                  -> SUCCEEDED
+
+**THE SCHEME HYPOTHESIS IS DEAD, AND SO IS EVERY STRING HYPOTHESIS.** Test 1 is
+the QR's own bytes handed to `App.openUrl`, so there is nothing ONIQ could have
+built differently. PhonePe OPENED and showed the payment, then refused it — so
+the payload arrived intact and **what is refused is the HAND-OFF, not the
+payment**. Two days of auditing `amendUpiUri`, `retargetUpiUri`, the router
+round trip and the payee-only fallback were auditing a payload that was never
+wrong. The last gap in the round-trip proof was closed on the way past: an
+alphanumeric `sign` fixture had never exercised `+`, `/`, `=`, `#`, a literal
+space or `&` — all six round-trip byte-identical.
+
+**THE COMMENT THAT SENT THIS DOWN THE WRONG ROAD SAID "MERCHANT INTENTS ARE
+UNAFFECTED".** It was in `miniapps.ts` beside `upiPayeeLink`, in
+`appRegistry.ts` beside the `oniq-upi` entry, and shipped to users as the last
+line of the decline panel. It was inferred from the ₹1 P2P refusal — a link
+tapped OUTSIDE ONIQ — and the same comment honestly labelled itself "NOT
+MEASURED THROUGH ONIQ" and said to treat a send through ONIQ as
+expected-to-decline until one was tried. Nobody read that far. A caveat inside
+the paragraph does not survive the sentence being quoted; all three copies are
+corrected now, and `src/lib/__tests__/upiDeclineHelpWiring.test.ts` fails if the
+claim returns.
+
+**AND THE ONE ACCURATE WARNING WAS HIDDEN IN THE CASE THAT FAILS.** The
+confirm-sheet bullet naming this exact refusal was gated on `!rawIntact` — true
+only when the scan had been EDITED. The measured failure is an UNTOUCHED
+merchant scan, so the advice was suppressed precisely where it was needed. The
+decline panel below it was worse than absent: it explained the problem as
+person-to-person only and closed with "Shop QRs scanned with ONIQ … are
+unaffected", which tells the person the panel does not apply on the one screen
+where it does, and sends them away from the route that works.
+
+**THE MUTATION TEST CAUGHT ITS OWN TEST NOT TESTING.** The first assertion
+against re-gating passed while the gate was mutated back in — it compared the
+wrong slice. Rewritten to find the `<li>` the decline text lives in and assert
+what precedes that tag does not end in `&& (`, which is the exact shape of the
+bug; both mutations now fail. This is the third time in two days a green
+assertion in this repo turned out to be asserting nothing.
+
+WHAT IS NOW TRUE, stated as measured and no wider: **PhonePe, one handset, one
+merchant QR.** GPay and Paytm have NOT been tried through ONIQ, and no claim is
+made about them. Whether this is a policy, an allowlist or something about this
+merchant cannot be established from here — only that the hand-off declined and
+the native scan did not.
+
+**WHAT THIS MEANS FOR RAIL B IS THE OWNER'S CALL, NOT AN ENGINEERING ONE.**
+`marketingCopy.ts` promises "Scan any UPI QR and pay from your own GPay, PhonePe
+or Paytm", and on the one merchant QR anyone has tested that is false. Changing
+what ONIQ advertises is a user-visible policy change, so it is asked rather than
+edited. What WAS done needs no permission under any answer: the failure path now
+leads with the step that was measured to work.
+
 **DO NOT DECLARE THIS FIXED** until ONIQ -> scan that QR -> PhonePe -> ₹3,300
 succeeds on the real handset. Rail A (Razorpay) is untouched by any of this and
 must stay that way; `sign` is never weakened, regenerated or stripped.

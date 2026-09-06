@@ -129,10 +129,16 @@ async function tryWebAppScheme(scheme: string): Promise<boolean> {
       if (done) return;
       done = true;
       document.removeEventListener("visibilitychange", onVis);
-      try { iframe.remove(); } catch { /* ignore */ }
+      try {
+        iframe.remove();
+      } catch {
+        /* ignore */
+      }
       resolve(opened);
     };
-    const onVis = () => { if (document.hidden) finish(true); };
+    const onVis = () => {
+      if (document.hidden) finish(true);
+    };
     document.addEventListener("visibilitychange", onVis);
     const iframe = document.createElement("iframe");
     iframe.style.cssText = "position:fixed;left:-10000px;width:1px;height:1px;border:0;";
@@ -192,12 +198,16 @@ export async function launchMiniApp(app: {
     try {
       const { toast } = await import(/* @vite-ignore */ "sonner");
       toast("couldn't open that one 🤔 opening web instead");
-    } catch { /* ignore */ }
-    try { await openInApp(app.url); } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
+    try {
+      await openInApp(app.url);
+    } catch {
+      /* ignore */
+    }
   }
 }
-
-
 
 /**
  * Registry-driven launcher — the one three-tier fallback for every AppEntry:
@@ -317,7 +327,9 @@ export async function launchUpiIntent(url: string): Promise<void> {
         try {
           const { toast } = await import(/* @vite-ignore */ "sonner");
           toast.error("No UPI app installed — try Google Pay, PhonePe, or Paytm");
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
         console.warn("[upi] openUrl failed", err);
         return;
       }
@@ -326,10 +338,13 @@ export async function launchUpiIntent(url: string): Promise<void> {
     window.location.href = url;
   } catch (err) {
     console.warn("[upi] launch failed", err);
-    try { window.location.href = url; } catch { /* ignore */ }
+    try {
+      window.location.href = url;
+    } catch {
+      /* ignore */
+    }
   }
 }
-
 
 // ---------------- UPI (NPCI standard intent) ----------------
 
@@ -365,21 +380,40 @@ export function upiLink(p: UpiParams) {
  * a mobile number, UPI ID, or QR code."
  *
  * So the rule these apps enforce is broader than "don't pre-fill": GPay and
- * PhonePe decline PERSON-TO-PERSON payments initiated from any third-party
- * app, amount or no amount. "Try using a mobile number, UPI ID, or QR code"
- * is them saying use OUR entry points. Merchant intents are unaffected —
- * that is how every payment gateway on the platform works, and it is why the
- * rawIntact path preserves mc/tr/sign rather than rebuilding the URI.
+ * PhonePe decline payments initiated from a third-party app, amount or no
+ * amount. "Try using a mobile number, UPI ID, or QR code" is them saying use
+ * OUR entry points.
+ *
+ * "MERCHANT INTENTS ARE UNAFFECTED" WAS WRITTEN HERE AND IS FALSE. Measured
+ * 2026-09-06 on the owner's handset, through ONIQ, on a society's SBI
+ * collection QR carrying `mc`:
+ *
+ *     ONIQ -> raw scanned bytes, ZERO transformation -> PhonePe -> DECLINED
+ *     ONIQ -> the ordinary Pay button                -> PhonePe -> DECLINED
+ *     the same QR scanned inside PhonePe itself      -> SUCCEEDED
+ *
+ * The first line is what makes it conclusive: that intent is the QR's own
+ * bytes, so there is no string ONIQ could have built differently. The payload
+ * reached PhonePe — it opened and showed the payment — and PhonePe refused the
+ * HAND-OFF, not the payment.
+ *
+ * Stated as measured rather than as a theory about anyone's policy: this is
+ * PhonePe, one handset, one merchant. GPay and Paytm have NOT been tried
+ * through ONIQ, and no claim is made about them here.
+ *
+ * Preserving mc/tr/sign on the rawIntact path is still right — a mangled
+ * merchant payload would be a second, independent failure — it just is not
+ * sufficient, and was never the thing standing in the way.
  *
  * Dropping the amount is still right: it removes one refusal reason and costs
  * nothing, since the payer types it in their own app either way. It just is
  * not sufficient, and no string ONIQ can build will make a P2P intent land.
  * The honest mitigation is the copy-the-UPI-ID path the screen already offers.
  *
- * NOT MEASURED THROUGH ONIQ. The observation came from a link tapped
- * elsewhere, so it is strong evidence about the UPI apps and not a test of
- * this function. Treat a P2P send through ONIQ as expected-to-decline until
- * one is actually tried.
+ * THE P2P HALF IS STILL NOT MEASURED THROUGH ONIQ — that observation came
+ * from a link tapped elsewhere. The MERCHANT half now has been, above, and it
+ * declined, so "expected to decline until one is actually tried" has stopped
+ * being a caveat and become the finding.
  */
 export function upiPayeeLink({ vpa, name }: Pick<UpiParams, "vpa" | "name">) {
   const q = new URLSearchParams();
@@ -391,10 +425,33 @@ export function upiPayeeLink({ vpa, name }: Pick<UpiParams, "vpa" | "name">) {
 
 /** App-targeted UPI intents. */
 export const UPI_APPS = [
-  { id: "any", name: "Any UPI app", scheme: (p: UpiParams) => `upi://pay?${upiQuery(p)}`, color: "#00D4B8" },
-  { id: "gpay", name: "Google Pay", scheme: (p: UpiParams) => `tez://upi/pay?${upiQuery(p)}`, color: "#4285F4", emoji: "💳" },
-  { id: "phonepe", name: "PhonePe", scheme: (p: UpiParams) => `phonepe://pay?${upiQuery(p)}`, color: "#5F259F", emoji: "📲" },
-  { id: "paytm", name: "Paytm", scheme: (p: UpiParams) => `paytmmp://pay?${upiQuery(p)}`, color: "#00BAF2", emoji: "💰" },
+  {
+    id: "any",
+    name: "Any UPI app",
+    scheme: (p: UpiParams) => `upi://pay?${upiQuery(p)}`,
+    color: "#00D4B8",
+  },
+  {
+    id: "gpay",
+    name: "Google Pay",
+    scheme: (p: UpiParams) => `tez://upi/pay?${upiQuery(p)}`,
+    color: "#4285F4",
+    emoji: "💳",
+  },
+  {
+    id: "phonepe",
+    name: "PhonePe",
+    scheme: (p: UpiParams) => `phonepe://pay?${upiQuery(p)}`,
+    color: "#5F259F",
+    emoji: "📲",
+  },
+  {
+    id: "paytm",
+    name: "Paytm",
+    scheme: (p: UpiParams) => `paytmmp://pay?${upiQuery(p)}`,
+    color: "#00BAF2",
+    emoji: "💰",
+  },
 ] as const;
 
 export function isValidVpa(vpa: string) {
@@ -410,7 +467,8 @@ export type RidePoint = { lat: number; lon: number; label: string };
  * (supported natively via pickup=my_location per Uber's deep link docs).
  */
 export function uberLink(drop: RidePoint, pickup?: RidePoint) {
-  if (!Number.isFinite(drop.lat) || !Number.isFinite(drop.lon)) throw new Error("Invalid destination");
+  if (!Number.isFinite(drop.lat) || !Number.isFinite(drop.lon))
+    throw new Error("Invalid destination");
   const q = new URLSearchParams();
   q.set("action", "setPickup");
   if (pickup) {
@@ -427,7 +485,8 @@ export function uberLink(drop: RidePoint, pickup?: RidePoint) {
 }
 
 export function olaLink(drop: RidePoint, pickup?: RidePoint) {
-  if (!Number.isFinite(drop.lat) || !Number.isFinite(drop.lon)) throw new Error("Invalid destination");
+  if (!Number.isFinite(drop.lat) || !Number.isFinite(drop.lon))
+    throw new Error("Invalid destination");
   const q = new URLSearchParams();
   q.set("serviceType", "p2p");
   q.set("utm_source", "oniq");
@@ -444,11 +503,20 @@ export function olaLink(drop: RidePoint, pickup?: RidePoint) {
 
 export type GeoResult = { lat: number; lon: number; label: string };
 
-async function invokeMappls(payload: { op: "geocode" | "reverse" | "autosuggest"; query?: string; lat?: number; lon?: number; near?: string }): Promise<any | null> {
+async function invokeMappls(payload: {
+  op: "geocode" | "reverse" | "autosuggest";
+  query?: string;
+  lat?: number;
+  lon?: number;
+  near?: string;
+}): Promise<any | null> {
   try {
     const { supabase } = await import(/* @vite-ignore */ "@/integrations/supabase/client");
     const { data, error } = await supabase.functions.invoke("mappls-geo", { body: payload });
-    if (error) { console.warn("[mappls-geo] invoke error", error?.message ?? error); return null; }
+    if (error) {
+      console.warn("[mappls-geo] invoke error", error?.message ?? error);
+      return null;
+    }
     return data;
   } catch (e) {
     console.warn("[mappls-geo] invoke threw", e);
@@ -484,7 +552,10 @@ export async function geocode(query: string): Promise<GeoResult[]> {
  * Mappls autosuggest — exported for future UI wiring. Silently falls back to
  * Nominatim forward search so callers always get something usable.
  */
-export async function autosuggest(query: string, near?: { lat: number; lon: number }): Promise<GeoResult[]> {
+export async function autosuggest(
+  query: string,
+  near?: { lat: number; lon: number },
+): Promise<GeoResult[]> {
   const data = await invokeMappls({ op: "autosuggest", query, lat: near?.lat, lon: near?.lon });
   if (data?.source === "mappls" && Array.isArray(data.results) && data.results.length > 0) {
     return data.results as GeoResult[];
@@ -538,10 +609,34 @@ export function estimateRides(km: number, mins: number): RideOption[] {
     color: string;
     base: number;
   }> = [
-    { providerId: "uber", providerName: "Uber", vehicle: "Uber Go", color: "#000000", base: 50 + 15 * km + 1.5 * mins },
-    { providerId: "ola", providerName: "Ola", vehicle: "Ola Mini", color: "#3b7d0e", base: 55 + 14 * km + 1.5 * mins },
-    { providerId: "rapido-bike", providerName: "Rapido", vehicle: "Bike", color: "#A67C00", base: 20 + 8 * km + 1.0 * mins },
-    { providerId: "rapido-auto", providerName: "Rapido", vehicle: "Auto", color: "#A67C00", base: 30 + 11 * km + 1.25 * mins },
+    {
+      providerId: "uber",
+      providerName: "Uber",
+      vehicle: "Uber Go",
+      color: "#000000",
+      base: 50 + 15 * km + 1.5 * mins,
+    },
+    {
+      providerId: "ola",
+      providerName: "Ola",
+      vehicle: "Ola Mini",
+      color: "#3b7d0e",
+      base: 55 + 14 * km + 1.5 * mins,
+    },
+    {
+      providerId: "rapido-bike",
+      providerName: "Rapido",
+      vehicle: "Bike",
+      color: "#A67C00",
+      base: 20 + 8 * km + 1.0 * mins,
+    },
+    {
+      providerId: "rapido-auto",
+      providerName: "Rapido",
+      vehicle: "Auto",
+      color: "#A67C00",
+      base: 30 + 11 * km + 1.25 * mins,
+    },
   ];
   return models
     .map((m) => ({
@@ -568,7 +663,10 @@ export async function getCurrentLocation(): Promise<{ lat: number; lon: number }
       } catch {
         // ignore — getCurrentPosition will surface a real failure
       }
-      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
+      const pos = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 10000,
+      });
       const lat = pos?.coords?.latitude;
       const lon = pos?.coords?.longitude;
       if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
@@ -615,7 +713,11 @@ export async function reverseGeocode(lat: number, lon: number): Promise<string> 
 export function relativeLuminance(hex: string): number {
   if (typeof hex !== "string") return 0;
   let h = hex.trim().replace(/^#/, "");
-  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  if (h.length === 3)
+    h = h
+      .split("")
+      .map((c) => c + c)
+      .join("");
   if (h.length !== 6 || /[^0-9a-fA-F]/.test(h)) return 0;
   const r = parseInt(h.slice(0, 2), 16) / 255;
   const g = parseInt(h.slice(2, 4), 16) / 255;
