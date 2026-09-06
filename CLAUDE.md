@@ -974,6 +974,71 @@ project holds ZERO users.** The only account in it was one this session created
 by probing `accounts:signUp`, since deleted. ONIQ's identity is entirely
 Supabase, exactly as the final directive says.
 
+### 2026-09-06 — the first real sign-in FAILED, and the flag is off again
+
+`OTP_LOGIN_ENABLED` went true, and minutes later the owner tapped "get otp" for
+a real +91 number on a real handset in the Android app. The entire diagnostic
+was:
+
+    Firebase: Error (auth/internal-error).
+
+So the unproven half is DISPROVEN. Rolled back to false the same hour — the tab
+rendered for all 125 users and errored for every one of them, and
+`phoneLoginVisible` returns it to `/auth?phone=1` so it stays reachable while
+being fixed.
+
+**THE ROLLBACK WORKED AS DESIGNED, WHICH IS THE ONE GOOD RESULT HERE.** One
+word, no other change, and the canary immediately became the diagnosis path
+instead of the rollout path. Build a flag with its own retreat and the bad day
+costs a line.
+
+WHAT IS RULED OUT, by measurement rather than by reasoning — worth keeping,
+because each of these was a plausible headline and each is now dead:
+
+    the web config        the tab RENDERED, so FIREBASE_WEB.configured is true
+                          and all six VITE_FIREBASE_* inlined
+    the authorized domain capacitor.config.json loads https://oniqhub.com with
+                          androidScheme https, so the WebView origin IS the
+                          apex, which IS on authorizedDomains
+    the www host          www.oniqhub.com 302s to the apex before any Firebase
+                          call runs — measured, and note this had been written
+                          off with an unverified caveat ("only matters if
+                          anything serves from www") when www in fact resolves
+                          to the SAME Cloudflare IPs. Right conclusion, wrong
+                          reasoning, caught only because the owner asked where
+                          the claim came from
+    region and provider   a server-side sendVerificationCode still reaches
+                          MISSING_CLIENT_IDENTIFIER, i.e. past both checks
+    the server chain      proven end to end with a test number, through to a
+                          real Supabase session
+
+**`auth/internal-error` IS NOT A DIAGNOSIS.** It is the SDK's catch-all for an
+unexpected Identity Toolkit response, so one string covers a blocked API key,
+App Check enforcement, an unsolved reCAPTCHA and a Google outage — four faults,
+three different owners. The real text sits on `customData.serverResponse` and
+the SDK hides it. `firebaseErrorDetail` in `firebasePhoneOtp.ts` now unwraps it
+and the send path rethrows with it attached, so the NEXT attempt names the
+fault. Both `serverResponse` spellings are read, because pinning one is how a
+diagnostic silently reverts to useless after a dependency bump.
+
+CANDIDATES, none measured, in the order worth checking:
+
+1. **API key restrictions.** A server call carries no `Referer` and succeeds; a
+   browser call sends one. An HTTP-referrer restriction on the web key that
+   omits `oniqhub.com` would break exactly the browser and nothing else — which
+   is precisely the observed split.
+2. **App Check.** The console pass on 2026-09-05 visited App Check and Play
+   Integrity. Nothing in this codebase registers an App Check provider, so if
+   enforcement was turned on for Authentication every client call is unattested.
+3. **The WebView.** reCAPTCHA runs in an iframe on the authDomain and can fail
+   under an embedded WebView's storage rules. Opening the same page in Chrome
+   on the phone separates this from 1 and 2 for free, and is the cheapest next
+   move.
+
+**DO NOT RE-ENABLE ON A GREEN BUILD.** tsc, lint, 4753 tests and a verified
+two-host publish were all green at the moment it broke. The gate is a code
+arriving on a handset.
+
 ## ONIQ Study and the Google mapping — what is built, what cannot be
 
 The owner mapped ONIQ Study onto thirteen Google capabilities, 2026-09-05.

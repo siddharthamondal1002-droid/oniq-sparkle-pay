@@ -12,11 +12,49 @@ export const CALLS_ENABLED = true;
 // appears if Firebase's web config is present in the bundle, so users never
 // see a dead-end path.
 //
-// OWNER DIRECTIVE, 2026-09-06 — ON. The owner was shown the full measured
-// evidence below, was told plainly which two things remain unproven and that
-// turning this on ships them to all 125 users, was offered a canary that would
-// have proven delivery on one handset first, and chose to turn it on. Recorded
-// as given; the risk is stated, not hidden.
+// OFF AGAIN, 2026-09-06 — THE FIRST REAL SIGN-IN FAILED, and that was the test.
+//
+// The owner turned this ON having been shown the measured evidence and told
+// plainly which two things were still unproven. Minutes later, on a real
+// handset in the Android app, tapping "get otp" for a real +91 number gave:
+//
+//     Firebase: Error (auth/internal-error).
+//
+// So the unproven half is now DISPROVEN, and this is back to false until it
+// works. Rolled back rather than left live because the phone tab renders for
+// all 125 users and errors for every one of them; `phoneLoginVisible` returns
+// it to `/auth?phone=1` so it stays reachable for diagnosis. Flipping it back
+// is one word once a code actually arrives.
+//
+// WHAT THE FAILURE IS NOT, ruled out by measurement rather than by guessing:
+//
+//   the web config          the phone tab RENDERED, so FIREBASE_WEB.configured
+//                           is true and all six VITE_FIREBASE_* inlined
+//   the authorized domain   capacitor.config.json loads https://oniqhub.com
+//                           with androidScheme https, so the WebView origin IS
+//                           the apex, which IS on authorizedDomains
+//   the www host            www.oniqhub.com 302s to the apex before any
+//                           Firebase call runs (measured, not assumed)
+//   the region or provider  a server-side sendVerificationCode still reaches
+//                           MISSING_CLIENT_IDENTIFIER, i.e. past both checks
+//   the server chain        proven end to end with a test number, right down
+//                           to a real Supabase session
+//
+// `auth/internal-error` is the SDK's catch-all for an unexpected response from
+// Identity Toolkit, so the cause is in the server response the SDK swallowed.
+// `firebaseErrorDetail` in firebasePhoneOtp.ts now unwraps and surfaces it, so
+// the NEXT attempt names the fault instead of repeating "internal error".
+//
+// Leading candidates, none yet measured, in the order worth checking:
+//   1. API key restrictions. A server call carries no Referer and succeeds; a
+//      browser call sends one. An HTTP-referrer restriction on the web key that
+//      omits oniqhub.com would break exactly the browser and nothing else.
+//   2. App Check. If it was enforced for Authentication during the console
+//      pass, nothing here registers an App Check provider, so every call from
+//      the client is unattested.
+//   3. The WebView itself — reCAPTCHA runs in an iframe on the authDomain and
+//      can fail under an embedded WebView's storage rules. Trying the same
+//      page in Chrome on the phone separates this from 1 and 2 for free.
 //
 // It was off before this for the same reason it was off under MSG91: no code
 // had ever been observed to arrive. The MSG91 path was removed the same day
@@ -55,16 +93,10 @@ export const CALLS_ENABLED = true;
 // attestation step — that is what makes them free, and it is exactly the step
 // production depends on.
 //
-// SO THE FIRST REAL SIGN-IN IS THE TEST. If a code does not arrive, or
-// reCAPTCHA refuses on oniqhub.com, set this back to false — that is a
-// one-word rollback needing no other change, and `phoneLoginVisible` below
-// then puts it straight back into canary mode so the fix can be proven on one
-// handset. Symptoms to expect: "couldn't send the code" on every attempt means
-// reCAPTCHA (check that oniqhub.com is still an authorized domain and that the
-// page is not being served from www.oniqhub.com, which is NOT one); the code
-// box appearing but no SMS ever landing means delivery, which is Google's
-// side and shows up on the Blaze bill.
-export const OTP_LOGIN_ENABLED = true;
+// THE FIRST REAL SIGN-IN WAS THE TEST, and it failed — see the top of this
+// comment. Do not set this back to true on a green build, a passing test suite
+// or a successful publish. Set it back when a code has ARRIVED on a handset.
+export const OTP_LOGIN_ENABLED = false;
 
 /**
  * Should the phone tab render?

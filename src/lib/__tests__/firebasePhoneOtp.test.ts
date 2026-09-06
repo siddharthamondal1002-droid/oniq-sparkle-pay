@@ -12,6 +12,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createFirebasePhoneProviders,
   exchangeFirebaseIdToken,
+  firebaseErrorDetail,
   isE164,
   type PhoneAuthSurface,
 } from "../firebasePhoneOtp";
@@ -169,5 +170,62 @@ describe("the SDK import must survive the build", () => {
     // Static `import ... from "firebase/..."` would pull ~hundreds of KB into
     // the bundle every session, for a path most sessions never take.
     expect(SRC).not.toMatch(/^import\s[^\n]*from\s+["']firebase\//m);
+  });
+});
+
+describe("firebaseErrorDetail — what the next failure has to tell us", () => {
+  /**
+   * MEASURED 2026-09-06 on a real handset: the whole diagnostic was the string
+   * "Firebase: Error (auth/internal-error)." That code is the SDK's catch-all
+   * for an unexpected Identity Toolkit response, so it is compatible with a
+   * blocked API key, App Check enforcement, an unsolved reCAPTCHA and a Google
+   * outage — four faults, three different owners, one message. The real text
+   * is on customData.serverResponse, and these tests exist so it survives.
+   */
+  it("appends the Identity Toolkit message hiding on customData", () => {
+    const err = {
+      code: "auth/internal-error",
+      message: "Firebase: Error (auth/internal-error).",
+      customData: { serverResponse: { error: { message: "API_KEY_HTTP_REFERRER_BLOCKED" } } },
+    };
+    expect(firebaseErrorDetail(err)).toBe(
+      "Firebase: Error (auth/internal-error). [API_KEY_HTTP_REFERRER_BLOCKED]",
+    );
+  });
+
+  it("reads the underscore-prefixed field too", () => {
+    // The SDK has shipped both spellings; pinning only one is how a diagnostic
+    // silently reverts to useless after a dependency bump.
+    const err = {
+      message: "Firebase: Error (auth/internal-error).",
+      customData: { _serverResponse: { error: { message: "APP_CHECK_TOKEN_INVALID" } } },
+    };
+    expect(firebaseErrorDetail(err)).toContain("APP_CHECK_TOKEN_INVALID");
+  });
+
+  it("falls back to the code when there is no server response", () => {
+    expect(firebaseErrorDetail({ code: "auth/captcha-check-failed", message: "Firebase: nope." }))
+      .toBe("Firebase: nope. [auth/captcha-check-failed]");
+  });
+
+  it("never repeats itself when the message already carries the detail", () => {
+    const err = { code: "auth/internal-error", message: "boom auth/internal-error" };
+    expect(firebaseErrorDetail(err)).toBe("boom auth/internal-error");
+  });
+
+  it("keeps a whole unrecognised object rather than dropping it", () => {
+    const err = { message: "x", customData: { serverResponse: { weird: 1 } } };
+    expect(firebaseErrorDetail(err)).toBe('x [{"weird":1}]');
+  });
+
+  it("is total — never throws, whatever it is handed", () => {
+    for (const bad of [null, undefined, "", 0, [], new Error("plain"), { code: 5 }]) {
+      expect(() => firebaseErrorDetail(bad)).not.toThrow();
+    }
+    expect(firebaseErrorDetail(new Error("plain"))).toBe("plain");
+    // Nullish becomes "unknown error", not the string "null" — a toast reading
+    // "null" tells the person in front of it strictly less than nothing.
+    expect(firebaseErrorDetail(null)).toBe("unknown error");
+    expect(firebaseErrorDetail(undefined)).toBe("unknown error");
   });
 });

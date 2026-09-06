@@ -47,6 +47,46 @@ export function isE164(s: string): boolean {
   return /^\+[1-9]\d{6,17}$/.test(s);
 }
 
+/**
+ * Pull the real reason out of a Firebase error.
+ *
+ * MEASURED 2026-09-06, on a real handset: tapping "get otp" produced
+ * `Firebase: Error (auth/internal-error).` and nothing else. `auth/internal-error`
+ * is the SDK's catch-all — it is what you get when Identity Toolkit returns a
+ * shape the SDK did not expect, so the actual server message is the only thing
+ * that identifies the fault, and the SDK hides it on `customData.serverResponse`.
+ *
+ * A toast reading "internal error" is indistinguishable between a blocked API
+ * key, App Check enforcement, a reCAPTCHA that never solved, and a genuine
+ * Google outage. Those have four different fixes and three different owners, so
+ * surfacing the raw text is the difference between a diagnosis and a guess.
+ *
+ * Pure and total: it never throws, and falls back to the message it was given.
+ */
+export function firebaseErrorDetail(err: unknown): string {
+  const e = err as {
+    code?: unknown;
+    message?: unknown;
+    customData?: { serverResponse?: unknown; _serverResponse?: unknown };
+  };
+  const code = typeof e?.code === "string" ? e.code : "";
+  const base = typeof e?.message === "string" ? e.message : String(err ?? "unknown error");
+
+  const raw = e?.customData?.serverResponse ?? e?.customData?._serverResponse;
+  let server = "";
+  if (typeof raw === "string") server = raw;
+  else if (raw && typeof raw === "object") {
+    // Identity Toolkit shape: { error: { message, status } }.
+    const m = (raw as { error?: { message?: unknown } }).error?.message;
+    server = typeof m === "string" ? m : JSON.stringify(raw);
+  }
+
+  // Only append when it adds something — repeating the code helps nobody.
+  if (server && !base.includes(server)) return `${base} [${server}]`;
+  if (!server && code && !base.includes(code)) return `${base} [${code}]`;
+  return base;
+}
+
 export type FirebasePhoneDeps = {
   surface: PhoneAuthSurface;
   /** POST the ID token to firebase-phone-session; resolves with its token_hash. */
@@ -199,7 +239,16 @@ export async function firebasePhoneSurface(
       // than left for the next reader to rediscover from a bug report.
       verifier?.clear();
       verifier = new authMod.RecaptchaVerifier(auth, containerId, { size: "invisible" });
-      const confirmation = await authMod.signInWithPhoneNumber(auth, e164, verifier);
+      const confirmation = await authMod
+        .signInWithPhoneNumber(auth, e164, verifier)
+        // Rethrow with the server's own words attached — see firebaseErrorDetail.
+        // A failed send leaves the verifier spent, so clear it here too rather
+        // than leaving a dead widget in the container for the next attempt.
+        .catch((err: unknown) => {
+          verifier?.clear();
+          verifier = null;
+          throw new Error(firebaseErrorDetail(err));
+        });
       return {
         confirm: async (code: string) => {
           const cred = await confirmation.confirm(code);

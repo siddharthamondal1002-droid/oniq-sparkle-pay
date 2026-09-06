@@ -74,18 +74,18 @@ describe("phoneLoginVisible — flag OR opt-in", () => {
 });
 
 describe("the flag itself", () => {
-  it("is ON — owner directive, 2026-09-06", () => {
-    // This replaced a tripwire that asserted `false` and was written to be
-    // deleted deliberately by whoever turned phone sign-in on. It was: the
-    // owner was shown the measured evidence and the two things still unproven
-    // (reCAPTCHA on oniqhub.com, and an SMS actually arriving), was offered the
-    // ?phone=1 canary to prove them on one handset first, and chose to turn it
-    // on for everyone instead.
+  it("is OFF — the first real sign-in failed, 2026-09-06", () => {
+    // This assertion has now been flipped twice in one day, which is the point
+    // of having it. It said `false` while phone sign-in was unproven; the owner
+    // turned it on knowing two things were unproven; the first real attempt on
+    // a handset returned `Firebase: Error (auth/internal-error)`; it is off
+    // again. Each flip was a deliberate edit to this line, which is exactly the
+    // friction a flag that ships SMS spend to 125 users should have.
     //
-    // It stays as an assertion rather than being dropped because the value is
-    // now load-bearing in the other direction: `phoneLoginVisible` short-
-    // circuits on it, so a silent flip back to false would hide the tab from
-    // every user and only this line would say so.
-    expect(OTP_LOGIN_ENABLED).toBe(true);
+    // Turning it back on is NOT gated on a green build, a passing suite, or a
+    // successful publish — all three were true when it broke. It is gated on a
+    // code arriving on a real handset. See flags.ts for what has been ruled
+    // out by measurement and what is still only a candidate.
+    expect(OTP_LOGIN_ENABLED).toBe(false);
   });
 });
