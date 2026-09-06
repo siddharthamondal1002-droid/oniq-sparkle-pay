@@ -40,6 +40,7 @@ import {
   Tv,
   Video,
   Wallet,
+  IndianRupee,
 } from "lucide-react";
 import type { Tint } from "@/components/oniq/OniqIconBadge";
 import type { TileKey } from "@/lib/i18n/tileLabel";
@@ -56,6 +57,7 @@ export const WORLD_ICON: Partial<Record<TileKey, WorldIcon>> = {
   ting: { Icon: Sparkles, tint: "sky" },
   faith: { Icon: HandHeart, tint: "amber" },
   vitals: { Icon: HeartPulse, tint: "pink" },
+  upi: { Icon: IndianRupee, tint: "teal" },
   rides: { Icon: Car, tint: "green" },
   wander: { Icon: Plane, tint: "blue" },
   pulse: { Icon: Newspaper, tint: "red" },

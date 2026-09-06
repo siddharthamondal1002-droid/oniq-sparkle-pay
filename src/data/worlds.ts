@@ -92,6 +92,24 @@ export const WORLD_GROUPS: WorldGroup[] = [
     eyebrow: "get around",
     worlds: [
       {
+        // Owner directive, 2026-09-06: "make upi active again meaning
+        // everything regarding upi". Unhiding the registry entry only lit the
+        // shortcut BURIED INSIDE Plug, three taps down a directory of
+        // third-party apps; Home had no UPI tile at all and `worlds.test.ts`
+        // actively banned one. So the feature was "active" and unreachable,
+        // which is what "no tabs, no icons" reported. This is the door.
+        //
+        // `world: "plug"` rather than a new WorldId on purpose. The canvas
+        // pair is per-world CSS in styles.css and payments already sit under
+        // Plug; the TILE still reads as its own thing because the badge hue
+        // comes from WORLD_ICON["upi"], not from the world.
+        key: "upi",
+        to: "/app/upi",
+        world: "plug",
+        emoji: "💳",
+        hint: "Scan any UPI QR, pay from your own app",
+      },
+      {
         key: "rides",
         to: "/app/rides",
         world: "rides",

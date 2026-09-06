@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ALL_WORLDS, GREETING, WORLD_GROUPS, dayPartOf, groupsFor } from "@/data/worlds";
 import { TILE_LABELS } from "@/lib/i18n/tileLabel";
+import { WORLD_ICON } from "@/data/worldIcons";
 
 const ROUTES = join(process.cwd(), "src/routes/_authenticated");
 const routeFileFor = (to: string) =>
@@ -20,11 +21,31 @@ describe("worlds directory", () => {
     }
   });
 
-  it("has no UPI, no Food, no Scan and no debug screen", () => {
+  // UPI CAME BACK, 2026-09-06 — owner directive, "make upi active again
+  // meaning everything regarding upi". It had been banned here since the
+  // 2026-08-17 hide. Unhiding the registry entry alone was NOT enough and is
+  // the mistake worth recording: it lit only the shortcut buried inside Plug,
+  // three taps down a directory of third-party apps, while Home still had no
+  // tile and THIS TEST forbade adding one. The feature read as shipped and was
+  // unreachable — reported, exactly, as "no tabs, no icons".
+  //
+  // Food, Scan and the debug screen stay banned. Scan is not an oversight:
+  // /app/upi's own "Scan a QR instead" reaches the scanner, so it has a door
+  // and does not need a second one on Home.
+  it("carries UPI, and still no Food, no Scan and no debug screen", () => {
     const text = JSON.stringify(WORLD_GROUPS).toLowerCase();
-    for (const banned of ["/app/upi", "/app/food", "/app/scan", "/app/diag", "upi", "food"]) {
+    for (const banned of ["/app/food", "/app/scan", "/app/diag", "food"]) {
       expect(text).not.toContain(banned);
     }
+  });
+
+  it("puts UPI on Home, or the feature has no door", () => {
+    const upi = ALL_WORLDS.find((w) => w.to === "/app/upi");
+    expect(upi, "no world routes to /app/upi — UPI is unreachable from Home").toBeTruthy();
+    expect(upi!.key).toBe("upi");
+    // The badge is how a world is found without reading, so a tile with no
+    // icon entry renders as an anonymous blank.
+    expect(WORLD_ICON[upi!.key], "UPI tile has no icon").toBeTruthy();
   });
 
   it("lists each world once and every group has something in it", () => {
