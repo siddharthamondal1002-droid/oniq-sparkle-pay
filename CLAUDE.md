@@ -2288,6 +2288,20 @@ implementation is corrected, which is what happened; it now pins the PROPERTY
 (--vvh is always a MEASURED height, never a subtraction composed here) and
 leaves WHICH to the row-driven test.
 
+**LIVE, 2026-09-07.** `main` at `a04a37dd`, published, and the two markers
+checked in the two chunks that carry them — neither is in the entry:
+
+    entry   assets/index-UxYLFsmV.js
+    push chunk  push-BVhfzaNY.js                     5,647 bytes
+      push-register = 1        --vvh = 0
+    chat chunk  app.chat._conversationId--HTmalfo.js 96,328 bytes
+      push-register = 0        --vvh = 1
+
+`push-register` is the decisive one: a string literal that existed in NO earlier
+build, so a 1 cannot be left over from a previous deploy. The cross-zeros are
+the other half — each marker appears in its own chunk and not the other, so
+neither reading is a stray match somewhere else in the bundle.
+
 **STILL UNPROVEN, AND STATED AS UNPROVEN.** Nothing here has been on a handset.
 The probe stays, bounded at two per thread, and now reports `vvh` — what the
 module DECIDED — so the next row says which branch ran instead of leaving it to
