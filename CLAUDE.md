@@ -2156,6 +2156,71 @@ across all 45 pairs rather than inspected for the one file in question, which
 is what turned "the firebase screen is broken" into "these three are, and only
 these three".
 
+### 2026-09-07 — the first real POST to Vertex answered, and the probe ate the answer
+
+The owner tapped Voice replication. The first POST anyone has ever made to that
+endpoint returned:
+
+    {"project":"oniq-309bd","authMode":"service-account","status":404,
+     "detail":"http 404","verdict":"UNEXPECTED 404 — read the detail"}
+
+**"Read the detail", and the detail was the status restated.** The one thing
+that probe was built to deliver — Google's own words, because a bare status
+cannot separate a missing IAM role from an allowlist refusal from a disabled
+API — is the one thing it dropped.
+
+**WHY, measured the same hour with four unauthenticated curls and no credential
+at all.** `aiplatform` answers this endpoint with a JSON **ARRAY** wrapping the
+error object:
+
+    [{"error":{"code":401,"status":"UNAUTHENTICATED","message":"Request is
+      missing required authentication credential. …"}}]
+
+`vertexPost` read `parsed?.error`, which is `undefined` on an array. Both fields
+came back empty, the join produced `""`, and `|| \`http ${status}\``turned a
+real sentence into a placeholder.`firebase-provisioning`'s `get` had the
+identical blind spot and would have reported an error object holding two
+undefineds — so the probe this file tells you to reach for FIRST was equally
+blind.
+
+**AND THE SAME FREE RUN SETTLES WHAT THE 404 IS NOT**, which is worth more than
+the fix. Both wrong-path shapes were reproduced, and neither is JSON:
+
+    POST v1beta1 …/locations/global/voices        401  JSON, proper error shape
+    POST v1      …/locations/global/voices        404  EMPTY body
+    POST v1beta1 …/locations/global/models        404  Google's HTML page
+    POST us-central1 …/locations/us-central1/voices 401 JSON
+
+ONIQ's URL reaches the AUTH CHECK unauthenticated, so the route resolves and
+POST is a defined method on it — the URL is right. And a 404 whose body PARSED
+as JSON cannot be either wrong-path shape, because neither of those parses. So
+the 404 the service account met is an application-level refusal **with words
+attached**, and those words are what the next tap will print.
+
+**An unauthenticated request is a free path-existence probe: 401 means the route
+resolves, 404 means it does not.** No credential, no spend, and it distinguishes
+"wrong URL" from "refused" without asking anyone for anything. Reach for it
+before theorising about a 404.
+
+FIXED by `supabase/functions/_shared/vertexError.ts`, one reader used by both
+functions. It unwraps the array, accepts `error` as a bare string, and — the
+part that matters — **falls back to the RAW BODY, never to the status.** An
+unreadable sentence can still be read by a person; `http 404` cannot be read by
+anyone. `src/lib/__tests__/vertexErrorDetail.test.ts` runs the verbatim measured
+bodies, mutation-checked twice: the old inline reader fails the array case, and
+removing the raw-body fallback alone fails the unknown-shape case.
+
+**THE RULE: a diagnostic may never fall back to the thing it was built to
+explain.** That is the same failure as `auth/internal-error` hiding
+`customData.serverResponse`, three sections up — a catch-all standing in for the
+sentence underneath it — and it cost the same thing: a round trip that returned
+nothing.
+
+**DO NOT READ THE 404 AS AN ANSWER YET.** Whether Vertex voice replication is
+allowlisted for `oniq-309bd` is still unknown, and this file's rule holds: the
+first POST that returns a key is the measurement. What changed is that the next
+one will say why if it does not.
+
 ### 2026-09-07 — the errors inbox, read: the chat thread collapses to 20px
 
 The owner opened Moderation inbox -> errors and screenshotted it. Two surfaces,

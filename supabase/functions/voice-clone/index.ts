@@ -39,6 +39,7 @@
 // weather build paid for — but the payloads never appear.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/llm.ts";
+import { vertexErrorDetail } from "../_shared/vertexError.ts";
 import { googleAccessToken, vertexHeaders } from "../_shared/googleAuth.ts";
 import { needsWavHeader, rateOf, validateVoiceText, wrapPcmAsWav } from "../_shared/voiceCore.ts";
 import {
@@ -128,10 +129,14 @@ async function vertexPost(
       // rather than pretending it was JSON.
       return { ok: false, status: res.status, detail: `non-json: ${text.slice(0, 200)}` };
     }
-    const err = (parsed as { error?: { status?: string; message?: string } })?.error;
+    // The shape is read by _shared/vertexError.ts, which knows about the JSON
+    // ARRAY wrapper this endpoint uses and, failing every known shape, hands
+    // back the raw body. Reading `parsed.error` inline here is what turned the
+    // first real 404 into "http 404" — see that file's header.
+    const node = Array.isArray(parsed) ? parsed[0] : parsed;
+    const err = (node as { error?: unknown } | null | undefined)?.error;
     if (!res.ok || err) {
-      const detail = [err?.status, err?.message].filter(Boolean).join(": ").slice(0, 500);
-      return { ok: false, status: res.status, detail: detail || `http ${res.status}` };
+      return { ok: false, status: res.status, detail: vertexErrorDetail(parsed, text, res.status) };
     }
     return { ok: true, data: parsed };
   } catch (e) {

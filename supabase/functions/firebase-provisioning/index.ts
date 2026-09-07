@@ -46,6 +46,7 @@
 // fixable answer and a shrug. A summarised error would have cost a day.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/llm.ts";
+import { vertexErrorDetail } from "../_shared/vertexError.ts";
 import { googleAccessToken } from "../_shared/googleAuth.ts";
 import {
   FIREBASE_BUCKET,
@@ -86,12 +87,24 @@ async function get(url: string, token: string): Promise<Probe> {
       error: { status: "NON_JSON", message: text.slice(0, 200) },
     };
   }
-  const err = (body as { error?: { status?: string; message?: string } })?.error;
+  // THE ARRAY WRAPPER, and this probe had the same blind spot as voice-clone's.
+  // aiplatform answers `.../locations/global/voices` with a JSON ARRAY holding
+  // the error object, so reading `body.error` on it yields undefined twice and
+  // reports an error object with nothing in it — see _shared/vertexError.ts,
+  // which records the measured bodies.
+  const node = Array.isArray(body) ? body[0] : body;
+  const err = (node as { error?: unknown } | null | undefined)?.error;
   if (!res.ok || err) {
+    const shaped = err as { status?: string; message?: string } | undefined;
     return {
       ok: false,
       status: res.status,
-      error: { status: err?.status, message: err?.message?.slice(0, 400) },
+      error: {
+        status: typeof shaped?.status === "string" ? shaped.status : undefined,
+        // Never a bare status. Falls through to the raw body when no known
+        // shape matches, because an unreadable sentence still beats a number.
+        message: vertexErrorDetail(body, text, res.status).slice(0, 400),
+      },
     };
   }
   return { ok: true, status: res.status, data: body };
