@@ -2472,6 +2472,16 @@ WHAT IS SETTLED AND WHAT IS NOT:
     OPEN     which path the owner wants, because the second is a policy change:
              a retained voice, and a consent rule ONIQ cannot verify
 
+**PUBLISHED, 2026-09-07, NOT YET VERIFIED ON THE SERVED BUNDLE.** `main` at
+`94f3ce1e`; `get_project.latest_commit_sha` read as `94f3ce1e` BEFORE
+`deploy_project` — the first read after the push still said `3add29d6`, so the
+publish waited ninety seconds rather than rebuilding the previous commit.
+Deployment `d5a7eeab`, status `pending`. The served chunk was NOT checked:
+`oniqhub.com` answers the proxy's 403 CONNECT from this container, and asking
+the Lovable agent to fetch it costs a message under the owner's credit cap.
+Verification is one free look: open Create Voice, and the note under the voice
+list must read "needs access ONIQ does not have yet", not "has asked to join".
+
 ### 2026-09-07 — the errors inbox, read: the chat thread collapses to 20px
 
 The owner opened Moderation inbox -> errors and screenshotted it. Two surfaces,
