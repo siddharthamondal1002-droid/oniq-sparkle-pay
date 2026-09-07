@@ -2338,6 +2338,87 @@ records. The message was queued (`accepted` 17:09:46Z), `get_message` showed
 `running`, and it completed within three minutes. Resending would have doubled
 the spend and put two agents in the tree. Poll, never resend.
 
+### 2026-09-07 — the deploy verified by the owner's tap, and Google's sentence read
+
+The owner tapped Voice replication. `detail` now carries Google's words:
+
+    {"project":"oniq-309bd","authMode":"service-account","status":404,
+     "detail":"NOT_FOUND: Method not found.","verdict":"UNEXPECTED 404 — read the detail"}
+
+So `vertexErrorDetail` is live and the deploy is verified — by the thing it was
+built to deliver arriving, not by a deploy tool saying "success".
+
+**AND THE RULE WRITTEN THE DAY BEFORE IS WRONG, measured on the same URL.**
+"An unauthenticated request is a free path-existence probe: 401 means the route
+resolves" — the unauthenticated POST to `.../locations/global/voices` did
+answer 401, and that was read as "POST is a defined method on it". With a
+credential the identical URL answers `404 Method not found`. A 401 proves the
+PATH PATTERN reaches the service's auth layer; it says nothing about whether
+the VERB has a method bound. The free probe still separates a wrong host or
+version (HTML or empty 404) from a known resource, and that is all it
+separates.
+
+**"METHOD NOT FOUND" IS NOT A PERMISSION REFUSAL.** The GET of this path got
+`403 PERMISSION_DENIED aiplatform.voices.list` — IAM evaluated a named
+permission, so `list` is a bound method this project is merely not allowed to
+call. The POST reached no IAM check at all: nothing is bound to it. Google
+answers 404 for a method a caller is not entitled to SEE, which is how
+allowlisted previews are kept un-enumerable — so the text alone cannot separate
+"hidden from this project" from "not the endpoint".
+
+MEASURED against Google's own catalogue, free, no credential — the discovery
+documents for `aiplatform` v1beta1 and v1, revision 20260831:
+
+    methods whose path or name contains "voices"                0  (both versions)
+    strings matching aiplatform.voices.*                        0
+    schema GoogleCloudAiplatformV1beta1ReplicatedVoiceConfig    PRESENT
+      .voiceSampleAudio  string   "The sample of the custom voice."
+      .mimeType          string   audio/wav, 16-bit LE, 24 kHz
+    VoiceConfig.replicatedVoiceConfig   "This enables users to replicate a
+                                         voice from an audio sample."
+
+So the PUBLIC API replicates a voice in ONE step — the WAV sample travels
+inline in `generateContent`'s `speech_config.voice_config`, on the very URL
+`replicatedSynthesisUrl` already builds. There is no key, no mint, no
+seven-day expiry, and **no consent recording anywhere in the public schema**.
+The two-step flow ONIQ built — mint a key at `POST .../voices` from a source
+recording plus a word-matched consent recording, then speak with the key — is
+the shape of the document the owner supplied on 2026-09-04d, and that document
+described an allowlisted preview. Nothing in Google's public catalogue carries
+it.
+
+TWO READINGS, and this container cannot separate them:
+
+1. **The `voices` surface is the allowlisted preview, hidden per-method.**
+   `list` is visible enough to reach IAM, `create` is not. The fix is Google's
+   access form — an owner action — and the code is right as built.
+2. **The mint endpoint is not what this project's API serves**, and the
+   one-step inline-sample shape is the current design. The fix is code: no
+   mint, send the sample at speak time.
+
+What separates them costs ONE Lovable message. The agent holds the service
+account and has made authenticated Vertex calls before, so a single
+`generateContent` POST with `replicatedVoiceConfig` carrying a three-second
+synthetic 24 kHz WAV returns Google's sentence: audio, or a 400 about the
+sample, means the one-step path is OPEN to this project; a 403, or a 400
+naming a gate, means it is not. It is also separable by the owner saying
+whether Google's access form was ever submitted or granted.
+
+**READING 2 IS NOT AN ENGINEERING SWAP, which is why it is asked rather than
+built.** The one-step shape needs the person's voice sample at every speak, so
+ONIQ would have to RETAIN a recording — `voiceReplication.ts`'s header says in
+capitals that it retains none, and `voice_clones` has no column for one. And it
+carries no consent recording, so the word-for-word match this repo calls "the
+product safety control, not a formality" would have no Google-side
+counterpart: ONIQ could keep the consent step as its own policy but could not
+verify it. Retaining a voice, and the consent rule, are user-visible policy —
+the owner's line under this file's first rule.
+
+**DO NOT BUILD READING 2 UNTIL IT IS MEASURED OPEN, and do not request the
+allowlist for reading 1 on an agent's say-so.** Both are the owner's; the cheap
+measurement is the one message above, and it was not sent — the owner had just
+capped the credits, and a measurement that spends is asked for, not assumed.
+
 ### 2026-09-07 — the errors inbox, read: the chat thread collapses to 20px
 
 The owner opened Moderation inbox -> errors and screenshotted it. Two surfaces,

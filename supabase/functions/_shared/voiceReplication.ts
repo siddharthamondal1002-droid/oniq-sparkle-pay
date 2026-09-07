@@ -11,6 +11,17 @@
  *   Synthesis: POST .../locations/global/publishers/google
  *                   /models/gemini-3.1-flash-tts-preview:generateContent
  *
+ * MEASURED 2026-09-07, the first real POST to the Keys URL with the service
+ * account: `404 NOT_FOUND: Method not found.` — nothing is bound to POST
+ * there for oniq-309bd, while a GET IS bound (it 403s naming
+ * aiplatform.voices.list). Google's public discovery document, revision
+ * 20260831, lists no voices methods at all, but does publish
+ * ReplicatedVoiceConfig { voiceSampleAudio, mimeType } inline in
+ * generateContent — a ONE-step shape with no key and no consent field.
+ * Whether the Keys surface is hidden behind the allowlist or simply not what
+ * this project serves is undecided; read the 2026-09-07 entry in CLAUDE.md
+ * before changing voicesUrl or building the one-step shape.
+ *
  * That is VERTEX AI, not the Gemini API. It explains every failed probe: the
  * RPCs 404'd because they do not exist on that host, and the field is
  * `speech_config.voice_config.voice` — a plain string holding the key — not
