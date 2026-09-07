@@ -2221,6 +2221,39 @@ allowlisted for `oniq-309bd` is still unknown, and this file's rule holds: the
 first POST that returns a key is the measurement. What changed is that the next
 one will say why if it does not.
 
+#### Asking for a deploy "at commit X" is what stalled it
+
+The deploy of `voice-clone` and `firebase-provisioning` did not happen, and the
+first cause was the wording of the request, not the credits that closed behind
+it. Sent as "Deploy two edge functions at commit 95578c2e", the Lovable agent
+did exactly the right thing:
+
+    git rev-parse HEAD  ->  e29c2dfce27f2243feb3a5eaa77de91fc3465330
+    "HEAD mismatch — cannot deploy as requested. I am not allowed to run
+     git checkout to switch commits."
+
+It was correct twice over: stateful git is forbidden on its side, and it cannot
+know from a bare sha whether HEAD CONTAINS that commit. `e29c2dfc` is
+`95578c2e` plus fourteen lines of this file — the deploy was always safe — but
+nothing in the message said so.
+
+**NAME THE STATE, NOT THE COMMIT.** The other agent deploys its working tree; a
+sha it cannot check out is an instruction it can only refuse. Verify the
+containment here (`git merge-base --is-ancestor`, plus the diff being
+code-free), then ask for the tree it already has and give it a one-line check
+it can run itself — `grep -c vertexErrorDetail` on the two files, stop if zero.
+That turns a refusal into a deploy with the same safety.
+
+The round trip cost more than a round trip: the clarification was refused with
+`"Your workspace is out of credits"`, so the corrected instruction never
+arrived. **A wasted turn is not always recoverable — the window can shut.**
+
+**AND THE SUPABASE MCP IS NOT THE WAY AROUND IT.** It is the only other tool
+here with `deploy_edge_function`, and it points at `nzbthoecadcwdoqxhaok` —
+not production. Deploying there would put the function in a project nothing
+calls, which is the trap recorded in full further up this file. Blocked is
+blocked; the fix waits for credits.
+
 ### 2026-09-07 — the errors inbox, read: the chat thread collapses to 20px
 
 The owner opened Moderation inbox -> errors and screenshotted it. Two surfaces,
