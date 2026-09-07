@@ -2296,6 +2296,48 @@ admin-only; what is undeployed is `vertexErrorDetail`, a DIAGNOSTIC. The cost
 of waiting is that the next Voice replication tap prints `http 404` again
 instead of Google's sentence. Do not trade a control-plane credential for it.
 
+### Owner directive, 2026-09-07 — "deploy through lovable but hard cap the credits to lovable"
+
+DEPLOYED the same hour. One message, named by STATE rather than by commit,
+and it cost **0.7 credits**:
+
+    Lovable latest_commit_sha        4b03d417  == HEAD here, so "your current
+                                               working tree" was the state to name
+    grep -c vertexErrorDetail        voice-clone 2   firebase-provisioning 2
+    supabase--deploy_edge_functions  ["voice-clone","firebase-provisioning"]
+      -> Successfully deployed edge functions: voice-clone, firebase-provisioning
+    response.cost_credits            0.7       (period 244 / 2000, Aug 18 – Sep 18)
+
+**THE HARD CAP THIS SIDE CAN ENFORCE IS A MESSAGE COUNT, AND IT WAS ONE.**
+Lovable bills per agent turn, so every turn spent diagnosing is a turn the
+owner pays for — the CSP day above burned credits on six hypotheses. The cap
+is therefore procedural: verify everything verifiable HERE first (containment
+by `merge-base`, a code-free diff, the reader present in both files, the synced
+sha equal to HEAD), send ONE message with the ask first and the limits
+explicit, and never send a second to verify what a free action verifies. The
+functional check — the next Voice replication tap printing Google's sentence
+instead of `http 404` — costs zero credits, so it is the owner's tap, not a
+message.
+
+**THE PER-TURN COST IS ON THE MESSAGE OBJECT, NOT AVAILABLE TO THE AGENT.**
+Asked to state what the turn cost, the agent could reach only
+`credits--get_my_usage`, which is period-level, and said so rather than
+guessing. The number that answers the question is `response.cost_credits` on
+the `get_message` result — read it from here; asking the agent costs a turn
+and returns a period total.
+
+**A PLATFORM-ENFORCED CAP IS THE OWNER'S TO SET.** Lovable has a workspace
+spend limit that pauses the agent at `awaiting_input` (a "credit check-in")
+when reached; no MCP tool here sets it. And `get_workspace` returns plan and
+member count with NO credit balance, despite its own description promising
+one — so the balance is not readable from this side either. The agent's
+period figure above is the only reading.
+
+The 60-second client timeout fired on the send, exactly as `oniq-ship`
+records. The message was queued (`accepted` 17:09:46Z), `get_message` showed
+`running`, and it completed within three minutes. Resending would have doubled
+the spend and put two agents in the tree. Poll, never resend.
+
 ### 2026-09-07 — the errors inbox, read: the chat thread collapses to 20px
 
 The owner opened Moderation inbox -> errors and screenshotted it. Two surfaces,
