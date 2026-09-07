@@ -23,8 +23,35 @@
  *     height, the visual viewport is not, and the difference IS the keyboard.
  *     It gets subtracted exactly once, here.
  *
- * So the same expression is correct with the native padding present (the
- * currently installed build) and with it absent (the pending build).
+ * THAT SELF-CORRECTING PROPERTY IS FALSE ON REAL DEVICES, and the probe rows
+ * say so in arithmetic rather than in theory. 39 of them, 7 users, newest
+ * 2026-09-07 02:24. Two representative rows, every number measured:
+ *
+ *     screenH 832  docH 560  kb 272  vvTop 0   vvH 288
+ *                  832 - 560 = 272 = kb   AND   560 - 272 = 288 = vvH
+ *     screenH 851  docH 518  kb 316  vvTop 16  vvH 186
+ *                  851 - 518 = 333 ~ kb   AND   518 - 316 - 16 = 186 = vvH
+ *
+ * THE KEYBOARD APPEARS TWICE IN EVERY ROW. The layout viewport has already
+ * lost it — the WebView physically sits above the keyboard — and the visual
+ * viewport reports the SAME keyboard occluding what is left. So the
+ * difference is not ~0 in the "already shrunk" case; it is a full keyboard,
+ * and `--vvh` published a height a keyboard smaller than the space that
+ * actually exists. The chat column took it, and the message list came out at
+ * 20-115px with a keyboard-tall dead band below it.
+ *
+ * WHICH IS WHY THE DISCRIMINATOR CANNOT BE READ OFF ONE FRAME. Occlusion
+ * alone cannot tell "the keyboard is over the window" from "the window
+ * already moved and the keyboard is being reported anyway" — both give the
+ * same `docH - vvH - vvTop`. What separates them is whether the LAYOUT
+ * viewport itself shrank, and that needs the keyboard-down height to compare
+ * against. Hence `baseDocH`.
+ *
+ * `screen.height` looks like the same signal and is not: in split-screen or a
+ * freeform window it exceeds the window by far more than a keyboard with no
+ * keyboard present, and sizing to docH there would put the composer behind
+ * the IME. The observed baseline has no such failure — it is this window's
+ * own height, whatever the window manager did to it.
  *
  * Performance: `visualViewport` fires `resize` and `scroll` at animation
  * frequency while the IME animates, and the chat list is being virtualised in
@@ -54,6 +81,60 @@ const VVH = "--vvh";
 let published = -1;
 let publishedVvh = -1;
 
+/**
+ * Smaller than any IME and larger than any rounding wobble or URL bar.
+ *
+ * Used for two different questions — "is a keyboard occluding the visual
+ * viewport" and "did the layout viewport itself lose a keyboard" — because
+ * both are asking whether a gap is keyboard-sized. The measured keyboards
+ * across the probe rows run 272-372px; the largest non-keyboard gap seen is
+ * 16px of `vvTop`.
+ */
+const KEYBOARD_MIN = 100;
+
+/**
+ * The height that is genuinely visible, given one frame's measurements and
+ * the layout-viewport height last seen with no keyboard up.
+ *
+ * Pure so it can be tested against the recorded device rows rather than
+ * reasoned about — see keyboardVisibleHeight.test.ts, which runs every one of
+ * them. Returns 0 for "no trustworthy measurement", which makes consumers
+ * fall back to their static height.
+ */
+export function visibleHeight(m: {
+  docH: number;
+  vvH: number;
+  vvTop: number;
+  baseDocH: number;
+  zoomed: boolean;
+}): number {
+  if (m.zoomed || !(m.vvH > 0) || !(m.docH > 0)) return 0;
+  // How much of the LAYOUT viewport some layer below us already took. A
+  // keyboard's worth means the window itself moved above the IME.
+  const nativeTook = m.baseDocH > 0 ? Math.max(0, m.baseDocH - m.docH) : 0;
+  // The window is already above the keyboard, so the visual viewport's report
+  // of that same keyboard is the second subtraction. docH IS the visible area.
+  if (nativeTook > KEYBOARD_MIN) return Math.round(m.docH);
+  // Nothing below us moved: the keyboard really is over the window, and
+  // vv.height is what is left of it. Subtracted exactly once, here.
+  return Math.round(m.vvH);
+}
+
+/**
+ * The layout viewport's height with nothing occluding it, for THIS window.
+ *
+ * Re-read on every unoccluded frame rather than latched, so a rotation, a
+ * split-screen drag or a foldable unfolding replaces it for free — each of
+ * those changes docH while no keyboard is up.
+ *
+ * 0 until the first such frame. Chat mounts with the keyboard down, so that
+ * is the mount frame in the ordinary flow; a mount that somehow starts with
+ * the IME already up falls through to `vv.height`, which is exactly today's
+ * behaviour. Never worse than before, and self-corrects the moment the
+ * keyboard is dismissed once.
+ */
+let baseDocH = 0;
+
 function measure(): { inset: number; vvh: number } {
   const vv = typeof window !== "undefined" ? window.visualViewport : undefined;
   // No API (older WebViews, SSR, tests) means no keyboard term at all. The
@@ -73,12 +154,15 @@ function measure(): { inset: number; vvh: number } {
   // tenths is a measurement failure wearing a keyboard's clothes.
   const plausible = usable && raw < docH * 0.9;
   const inset = zoomed || !plausible ? 0 : Math.round(raw);
-  // 0 means "no trustworthy measurement" and makes consumers fall back to
-  // their static height.
-  const vvh = zoomed || !usable ? 0 : Math.round(vv.height);
+
+  // Nothing is occluding the visual viewport, so whatever the layout viewport
+  // is right now IS this window's full height. Only trustworthy readings
+  // update it — a degenerate frame must not poison the baseline.
+  if (usable && !zoomed && raw <= KEYBOARD_MIN) baseDocH = docH;
+
+  const vvh = visibleHeight({ docH, vvH: vv.height, vvTop: vv.offsetTop, baseDocH, zoomed });
   return { inset, vvh };
 }
-
 
 /**
  * Start publishing `--kb-inset` on the document element. Returns a cleanup
@@ -107,7 +191,6 @@ export function startKeyboardInsetTracking(): () => void {
     }
   };
 
-
   const schedule = () => {
     if (!raf) raf = requestAnimationFrame(apply);
   };
@@ -125,8 +208,11 @@ export function startKeyboardInsetTracking(): () => void {
     raf = 0;
     published = -1;
     publishedVvh = -1;
+    // The baseline belongs to a window configuration, not to the app. Keeping
+    // it across an unmount would compare the next mount's docH against a
+    // height measured in some other window.
+    baseDocH = 0;
     root.style.removeProperty(VAR);
     root.style.removeProperty(VVH);
   };
-
 }

@@ -123,15 +123,37 @@ async function upsertToken(token: string) {
     if (error) {
       // The common cause: the row still belongs to the PREVIOUS account on
       // this device, and RLS blocks user B from updating user A's row. The
-      // fix for that path is removePushToken() before sign-out; this log is
-      // so the failure is at least visible instead of a silent void.
+      // fix for that path is removePushToken() before sign-out.
       // eslint-disable-next-line no-console
       console.warn("device_tokens upsert failed:", error.message);
+      /*
+       * A CONSOLE LINE IS NOT VISIBILITY ON A PHONE, and this is the half
+       * that was missing. `initPush()` runs on every authenticated mount, so
+       * a device reaching here has permission AND a token and still ends up
+       * with no push address — which is indistinguishable, from the outside,
+       * from a person who declined notifications. Measured 2026-09-07: 40
+       * "accepted but sent 0" reports, and the recipients on every one of
+       * them had ZERO rows in device_tokens.
+       *
+       * `send-push` learned to say `unaddressed` in August so the SENDER's
+       * report names registration as the fault. This is the other end of that
+       * sentence: it says which device could not register, and why.
+       *
+       * THE TOKEN ITSELF IS NEVER REPORTED. It is the address a push is
+       * delivered to; the error message and the platform are what a fix needs.
+       */
+      reportClientError("push-register", "device token upsert failed", {
+        platform: "android",
+        reason: error.message,
+      });
       return;
     }
     boundUserId = user.id;
-  } catch {
-    // swallow — push is best-effort
+  } catch (e) {
+    // Push is best-effort and must never break sign-in — but "best-effort"
+    // was being read as "unobserved". A throw here leaves the account with no
+    // push address for the life of the install and said so nowhere.
+    reportClientError("push-register", "device token upsert threw", String(e));
   }
 }
 

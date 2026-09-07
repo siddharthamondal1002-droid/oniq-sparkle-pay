@@ -26,9 +26,32 @@ describe("the measured keyboard inset", () => {
     // AMENDED 2026-08-19: a composed `dvh - inset` height double-subtracted on
     // a real device. --vvh is the visible height rather than a subtraction, so
     // it cannot.
+    //
+    // AMENDED AGAIN 2026-09-07, and this assertion is why the amendment is
+    // recorded rather than quietly made. It used to require the literal
+    // `Math.round(vv.height)`, pinning --vvh to ONE of the two answers — and
+    // 39 production probe rows then showed that answer is wrong on every
+    // device whose window shrinks for the IME, because the visual viewport
+    // reports a keyboard the layout viewport has already removed. A test that
+    // pins an implementation goes red when the implementation is corrected,
+    // which is exactly what happened; the fix is to pin the PROPERTY instead.
+    //
+    // The property: --vvh is a height that was MEASURED, never a subtraction
+    // composed here. Both branches return one of the two measured heights.
+    // keyboardVisibleHeight.test.ts is what checks WHICH, against the rows.
     expect(SRC).toContain('const VVH = "--vvh"');
-    expect(SRC).toContain("Math.round(vv.height)");
+    expect(SRC).toContain("export function visibleHeight");
+    expect(SRC).toContain("Math.round(m.vvH)");
+    expect(SRC).toContain("Math.round(m.docH)");
     expect(SRC).toContain("removeProperty(VVH)");
+    // Still not a composition. `docH - kb` in any spelling is the shape that
+    // double-subtracted three times; the module only ever RETURNS a measured
+    // height, and `raw` stays confined to --kb-inset.
+    const decide = SRC.slice(
+      SRC.indexOf("export function visibleHeight"),
+      SRC.indexOf("let baseDocH"),
+    );
+    expect(decide, "--vvh became a subtraction again").not.toMatch(/vvH\s*-|docH\s*-\s*(?!m\.)/);
   });
 
   it("ignores a pinch-zoomed or degenerate reading", () => {
@@ -46,7 +69,6 @@ describe("the measured keyboard inset", () => {
       /setProperty[\s\S]*getBoundingClientRect|setProperty[\s\S]*clientHeight/,
     );
   });
-
 
   it("listens to both resize and scroll, and cleans the variable up", () => {
     expect(SRC).toContain('addEventListener("resize"');

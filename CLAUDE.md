@@ -2156,6 +2156,118 @@ across all 45 pairs rather than inspected for the one file in question, which
 is what turned "the firebase screen is broken" into "these three are, and only
 these three".
 
+### 2026-09-07 — the errors inbox, read: the chat thread collapses to 20px
+
+The owner opened Moderation inbox -> errors and screenshotted it. Two surfaces,
+79 of the 101 rows in fourteen days, and they are different problems:
+
+    chat-viewport   keyboard layout probe   39 rows  7 users  newest 09-07 02:24
+    send-push       accepted but sent 0     40 rows  6 users  newest 09-05 16:00
+
+**THE PROBE HAD ALREADY ANSWERED ITS OWN QUESTION, and nobody had read it.**
+It was added 2026-08-24 with a comment naming the one number that settles the
+layout — `innerH` against `screenH` — and it has been writing that number ever
+since. Read at last:
+
+    screenH 832  docH 560  kb 272   832 - 560 = 272 = kb    vvH 288 = 560 - 272
+    screenH 851  docH 518  kb 316   851 - 518 = 333 ~ kb    vvH 186 = 518-316-16
+
+**THE KEYBOARD IS IN EVERY ROW TWICE.** The window is already a keyboard
+shorter than the screen — it sits above the IME — and the visual viewport then
+reports the SAME keyboard occluding what is left. `--vvh` published the
+doubly-subtracted number, the chat column took it, and the message list came
+out at 20-115px with a keyboard-tall dead band beneath it. Open the keyboard to
+type and the conversation is gone.
+
+    scrollerH  20  28  60  115  118  172  ...  and 365 on the one healthy row
+
+That last row is the control and it is what makes this a fix rather than a
+fifth guess: same device, ten seconds earlier, `docH 850` on an 851px screen —
+the layout viewport had NOT shrunk, the keyboard really was over the window,
+and `vvH 548` was correct. **A blanket "prefer docH" would have wrecked it and
+put the composer behind the keyboard.**
+
+**`keyboardInset.ts`'s SELF-CORRECTING PROPERTY WAS FALSE, in its own words.**
+Its header promised that if a lower layer already shrank the layout viewport
+"this difference is ~0. Nothing is subtracted a second time." On these devices
+the difference is a full keyboard. The promise was reasoned; the rows are
+measured.
+
+FIXED with a discriminator that needs the keyboard-DOWN height, because one
+frame cannot carry it: occlusion alone reads identically for "the keyboard is
+over the window" and "the window already moved and the keyboard is reported
+anyway". `visibleHeight()` is pure and exported; `baseDocH` is the layout
+viewport last seen unoccluded, re-read every such frame so rotation and
+split-screen replace it for free.
+
+    nativeTook > 100  ->  docH is visible   (the window moved; vv is echoing)
+    otherwise         ->  vv.height         (unchanged: today's behaviour)
+
+**`screen.height` LOOKS LIKE THE SAME SIGNAL AND IS NOT.** In split-screen it
+exceeds the window by far more than a keyboard with no keyboard present, and
+sizing to `docH` there puts the composer behind the IME. The observed baseline
+has no such failure — it is this window's own height, whatever the window
+manager did to it. Both are asserted.
+
+`src/lib/__tests__/keyboardVisibleHeight.test.ts` runs the REAL ROWS, not
+fixtures — this repo has the receipt for what invented fixtures cost, in the
+UPI entry four sections up. Mutation-checked both directions, which is the
+whole point: reverting to `vv.height` fails the two broken rows, and blanket
+`docH` fails the control and the split-screen case. Predicted 20 -> 352 and
+115 -> 387.
+
+**AND ONE OLD TEST WENT RED FOR THE RIGHT REASON.** `keyboardInset.test.ts`
+required the literal `Math.round(vv.height)` — it pinned one of the two answers
+as the implementation. A test that pins an implementation goes red when the
+implementation is corrected, which is what happened; it now pins the PROPERTY
+(--vvh is always a MEASURED height, never a subtraction composed here) and
+leaves WHICH to the row-driven test.
+
+**STILL UNPROVEN, AND STATED AS UNPROVEN.** Nothing here has been on a handset.
+The probe stays, bounded at two per thread, and now reports `vvh` — what the
+module DECIDED — so the next row says which branch ran instead of leaving it to
+be inferred. **The gate is a thread you can read with the keyboard up, not a
+green build.** Every green build in the four previous attempts was green while
+this was broken.
+
+#### The other surface: "accepted but sent 0" is not a send bug
+
+Measured before touching anything, and it settles it:
+
+    for every sender in those 40 reports, joined to their conversation partners
+    -> the RECIPIENT had ZERO rows in device_tokens, on almost every pair
+
+So nothing failed to send; there was no address to send to. `send-push` has
+returned `unaddressed: <count>` since 2026-08-22 and `push.ts` started
+RECORDING it at 03:30 today, so the next such report names registration as the
+fault by itself. **Both halves are already live — no action needed there, and
+checking beat assuming: the field looked missing from the rows only because
+every row predates the client that reports it.**
+
+**THE REAL DEFECT IS AT THE OTHER END, and it was silent.** `initPush()` runs on
+every authenticated mount, so those accounts had the code run and still ended
+up unreachable. `upsertToken` swallowed an RLS conflict into a `console.warn` —
+the documented case is a token row still owned by the PREVIOUS account on a
+shared device — and a throw went into a bare `catch` under a comment saying
+push is best-effort. Neither reaches a phone's console. The outcome is an
+account with no push address for the life of the install, recorded nowhere.
+Both now report to the same inbox the owner was reading.
+
+**THE TOKEN IS NEVER REPORTED.** It is the address a push is delivered to;
+`platform` and the provider's `reason` are what a fix needs.
+`pushRegisterVisible.test.ts` pins that, mutation-checked three ways (the
+report removed, the throw re-swallowed, the token leaked into the detail).
+
+**AND THAT GUARD MADE THE PROSE MISTAKE TWICE IN ONE FILE**, one level apart,
+which is worth more than the guard. First it used `executableText`, which
+blanks string CONTENTS as well as comments — so `"push-register"` became `""`
+and four assertions failed against correct source; `stripComments` is the right
+tool, because the strings ARE the subject here. Then, banning `/token/` across
+the whole call matched the MESSAGE, `"device token upsert failed"` — a name for
+the problem, not a leak of anyone's address. The window is the third argument
+alone. **Strip exactly what you are confusing yourself with, and no more, and
+scope a ban to the thing that actually travels.**
+
 ### 2026-09-07 — "download option not working", and two verification mistakes on the way
 
 **THE BUG WAS A SILENT NO-OP, and the file that explains it was already in the

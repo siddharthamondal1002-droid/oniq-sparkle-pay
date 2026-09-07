@@ -1139,6 +1139,13 @@ function ChatThread() {
           kb: inset,
           safeTop,
           appVh: shell ? getComputedStyle(shell).getPropertyValue("--app-vh").trim() : null,
+          // WHAT THE MODULE DECIDED, not just what it was given. From
+          // 2026-09-07 keyboardInset.ts publishes docH when the layout
+          // viewport has already lost the keyboard and vv.height when it has
+          // not, so this one value says which branch ran — and the fix is
+          // confirmed by `vvh` matching `docH` on a device whose window
+          // shrank, rather than by reasoning about the other numbers.
+          vvh: document.documentElement.style.getPropertyValue("--vvh").trim() || null,
           colH: col ? Math.round(col.height) : null,
           colTop: col ? Math.round(col.top) : null,
           scrollerH: el ? Math.round(el.getBoundingClientRect().height) : null,
@@ -2148,8 +2155,6 @@ function ChatThread() {
        * behaviour, unchanged.
        */
       style={{ height: "calc(var(--vvh, var(--app-vh, 100dvh)) - env(safe-area-inset-top))" }}
-
-
     >
       {/* relative z-40: backdrop-blur makes the header its own stacking
           context at z-auto, which let animated message bubbles paint OVER the
