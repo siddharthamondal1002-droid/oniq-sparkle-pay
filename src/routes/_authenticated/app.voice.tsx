@@ -330,7 +330,9 @@ function VoiceScreen() {
             would be false and would make a person stop asking; the registry
             carries the exact sentence and the measured evidence behind it. It
             is a note, not a button: a control that cannot work is worse than
-            no control. */}
+            no control. And it must not imply the form was filled: the owner
+            confirmed 2026-09-07 that it NEVER was, after this copy had read
+            "a preview ONIQ has asked to join" for three days. */}
         <div
           data-testid="voice-clone-gate"
           className="mt-3 flex items-start gap-2 rounded-2xl bg-tint-soft p-3"
@@ -342,8 +344,8 @@ function VoiceScreen() {
               {unavailableMessage("voice.clone")}
             </p>
             <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-              Speaking in your own voice is a preview ONIQ has asked to join. Until it is granted,
-              every voice here is one of the built-in ones.
+              Speaking in your own voice is a Google preview that needs access ONIQ does not have
+              yet. Until it is granted, every voice here is one of the built-in ones.
             </p>
           </div>
         </div>

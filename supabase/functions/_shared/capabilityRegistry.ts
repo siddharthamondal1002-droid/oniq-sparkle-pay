@@ -184,7 +184,21 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
       "a disabled API all arrive as 403 with only the text to separate them. " +
       "The lesson is the recurring one in this repo: a claim about what " +
       "remains has a shelf life, and 'built and unit-tested' is not " +
-      "'reachable'.",
+      "'reachable'. " +
+      "MEASURED 2026-09-07, THE FIRST REAL POST, with the service account: " +
+      "404 NOT_FOUND 'Method not found.' Not a 403 — so not an IAM or " +
+      "allowlist REFUSAL but a method this project cannot SEE, which is how " +
+      "Google keeps allowlisted previews un-enumerable. The owner confirmed " +
+      "the same day that the access form was NEVER submitted, so a hidden " +
+      "method is the expected state, not an anomaly. Google's public " +
+      "discovery document (rev 20260831) lists NO voices methods at all, but " +
+      "publishes ReplicatedVoiceConfig { voiceSampleAudio, mimeType } inline " +
+      "in generateContent — a ONE-step shape with no key and no consent " +
+      "field, on Vertex only (the Gemini API publishes prebuiltVoiceConfig " +
+      "alone). Whether that one-step path is admitted for oniq-309bd is " +
+      "UNMEASURED; one service-account POST answers it. Retaining a voice " +
+      "sample and dropping the word-matched consent are policy, so the " +
+      "one-step path is the owner's to choose, not an engineering swap.",
   },
   "voice.realtime": {
     id: "voice.realtime",

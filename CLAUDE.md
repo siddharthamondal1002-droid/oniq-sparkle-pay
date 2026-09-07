@@ -2419,6 +2419,59 @@ allowlist for reading 1 on an agent's say-so.** Both are the owner's; the cheap
 measurement is the one message above, and it was not sent — the owner had just
 capped the credits, and a measurement that spends is asked for, not assumed.
 
+### 2026-09-07 — "never": the form was not submitted, and the app said it was
+
+Asked whether Google's access form was ever submitted for `oniq-309bd`:
+_"never. no form was visible in the app also for user to declare."_
+
+**THAT SETTLES THE ANOMALY.** A project that never asked for the allowlist is
+exactly the project Google hides an allowlisted method from, so
+`404 Method not found` on `POST .../voices` is the EXPECTED state under
+reading 1, not a mystery — and reading 1 now needs no second assumption.
+Reading 2 (the endpoint moved) is not excluded, only unnecessary.
+
+**AND THE VOICE SCREEN HAD CLAIMED THE OPPOSITE SINCE 2026-09-04c.** The gate
+under Create Voice read: _"Speaking in your own voice is a preview ONIQ has
+asked to join."_ ONIQ had not asked. The registry evidence beneath it was
+accurate the whole time — "only the owner can submit it" — and the screen
+paraphrased it into a claim the evidence never made. Corrected to "a Google
+preview that needs access ONIQ does not have yet", which is true under every
+state of the form, and pinned: `capabilityRegistry.test.ts` fails if "asked to
+join", "applied" or "requested access" reappears in the gate block, comments
+stripped. **The owner's second clause is what caught it**: there is no form in
+the app, and the copy implied one had been filled.
+
+MEASURED, free, before any of this was written:
+
+    client code reaching voice-clone    ONLY the admin probe (action "probe").
+                                        No screen sends script, create or
+                                        speak; no consent screen exists.
+    Gemini API discovery, rev 20260904  VoiceConfig carries prebuiltVoiceConfig
+                                        ONLY. The one-step replicatedVoiceConfig
+                                        is VERTEX-ONLY — service account, not
+                                        the API key ONIQ holds.
+    cloud.google.com                    proxy 403. The access-form link cannot
+                                        be fetched from here; the owner holds
+                                        the 2026-09-04d document that has it.
+
+So the consent flow — the script, the two recordings, the word-for-word match —
+has never been reachable by anyone: "built and unit-tested is not reachable",
+for the third time in this one feature. That is CORRECT while the door is shut
+(a control that cannot work is worse than none), and it means that whichever
+path is chosen, the user-facing half is unbuilt and stays unbuilt until a path
+is measured open.
+
+WHAT IS SETTLED AND WHAT IS NOT:
+
+    settled  the two-step code is built against an allowlisted preview ONIQ
+             never applied to; its door is Google's form, an owner action
+    settled  the one-step public shape exists only on Vertex, needs the sample
+             retained, and has no consent field
+    OPEN     whether the one-step path is admitted for oniq-309bd — one
+             service-account POST answers it, at the cost of one Lovable message
+    OPEN     which path the owner wants, because the second is a policy change:
+             a retained voice, and a consent rule ONIQ cannot verify
+
 ### 2026-09-07 — the errors inbox, read: the chat thread collapses to 20px
 
 The owner opened Moderation inbox -> errors and screenshotted it. Two surfaces,

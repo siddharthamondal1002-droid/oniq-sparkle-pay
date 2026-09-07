@@ -17,6 +17,7 @@
  * evidence is an opinion, and this file is the cure for opinions hardening
  * into architecture.
  */
+import { stripComments } from "@/test/sourceText";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -127,6 +128,18 @@ describe("the sentence reaches a person", () => {
     expect(at).toBeGreaterThan(-1);
     const block = VOICE.slice(at, at + 900);
     expect(block).not.toMatch(/<button|onClick=/);
+  });
+
+  it("does not claim ONIQ asked for access it never asked for", () => {
+    // Shipped 2026-09-04c as "a preview ONIQ has asked to join". The owner
+    // confirmed 2026-09-07 that the form was NEVER submitted. The evidence
+    // beneath it never made that claim; the screen paraphrased it into one.
+    // Pinned as the PHRASES an editor reaches for, on the gate block alone,
+    // comments stripped so the note explaining the mistake cannot trip it.
+    const at = VOICE.indexOf("voice-clone-gate");
+    const block = stripComments(VOICE.slice(at, at + 900));
+    expect(block).not.toMatch(/asked to join|has applied|have applied|requested access/i);
+    expect(block).toMatch(/does not have\s+yet/);
   });
 });
 
@@ -274,5 +287,16 @@ describe("voice.clone: the wiring is pinned, not just the allowlist", () => {
     const ev = CAPABILITIES["voice.clone"].evidence;
     expect(ev).toMatch(/TWO things stand between here and a working feature/i);
     expect(ev).toMatch(/only the owner can request/i);
+  });
+
+  it("carries the first real POST's answer, and the form's real state", () => {
+    // 2026-09-07: the probe finally delivered Google's words, and the owner
+    // answered the form question. Both go in the evidence or the next reader
+    // re-derives "admission is all that remains" from the older half.
+    const ev = CAPABILITIES["voice.clone"].evidence;
+    expect(ev).toMatch(/Method not found/);
+    expect(ev).toMatch(/NEVER submitted/);
+    expect(ev).toMatch(/ONE-step/);
+    expect(ev).toMatch(/UNMEASURED/);
   });
 });
