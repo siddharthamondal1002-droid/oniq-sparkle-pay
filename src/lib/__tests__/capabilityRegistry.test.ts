@@ -301,5 +301,8 @@ describe("voice.clone: the wiring is pinned, not just the allowlist", () => {
     // 2026-09-07b: the control that made the one-step measurement readable.
     expect(ev).toMatch(/aiplatform\.endpoints\.predict/);
     expect(ev).toMatch(/NO Vertex AI role/);
+    // 2026-09-07c: the role granted, the control succeeding, and Google's own
+    // sentence for the one-step refusal — the gate this row's state rests on.
+    expect(ev).toMatch(/not allowed for the requested model/);
   });
 });

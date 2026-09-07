@@ -2605,6 +2605,60 @@ Voice replication tap measures. A queued message is a request, not a
 delivery — confirm by the artifact (the tap's `speech` block appearing),
 never by the queue accepting.
 
+### 2026-09-07 — unpaused, deployed, tapped: BOTH replication routes are shut, in Google's words
+
+The owner unpaused the queue; the deploy ran on its own (grep 2 and 1,
+"Successfully deployed edge functions: voice-clone", **0.4 credits** — the
+day's Lovable total is 3.4). Then the tap, verbatim:
+
+    voices POST          404  "NOT_FOUND: Method not found."          (unchanged)
+    speech.control       200  audioBase64Chars 135680                 <- NEW
+    speech.replicated    403  "PERMISSION_DENIED: Voice replication is not
+                               allowed for the requested model."       <- NEW
+    verdict              "TTS works; replicated is GATED (403) — read the detail"
+
+**BLOCKER 1 IS CLEARED, and the control proved three things at once.** A 200
+with ~135 KB of base64 audio for "Hello from ONIQ." means the Vertex AI User
+role landed on the right principal, `gemini-3.1-flash-tts-preview` IS served
+at `global` (the "(or it may not exist)" hedge is resolved), and the service
+account can synthesise built-in voices on Vertex — the first successful Vertex
+call in this entire saga, on the fourth day of probing it.
+
+**AND THE ONE-STEP PATH IS REFUSED BY NAME.** Not a 400 about the sample —
+which would have meant the path was open and the sine merely unconvincing —
+but a 403 whose sentence is the gate: _"Voice replication is not allowed for
+the requested model."_ Reading 2 is dead as a workaround: the public schema
+publishes the field, and the model refuses it for this project.
+
+SO BOTH ROUTES END AT THE SAME DOOR:
+
+    two-step mint   POST .../voices          404 Method not found   (hidden)
+    one-step        replicatedVoiceConfig    403 not allowed for the model
+
+Both are Google's access decision for voice replication, and ONIQ never asked
+(2026-09-07, "never"). **The form is the single remaining action, it is the
+owner's, and this container cannot fetch its link** — `cloud.google.com` is
+proxy-blocked; the owner's 2026-09-04d document carries it.
+
+ONE AMBIGUITY, stated as unresolved: "for the requested model" can mean the
+project is not allowlisted, or that replication is not offered on this model id
+at all. The owner's document named this id for replication, which favours the
+first reading, but nothing here can separate them, and **guessing other model
+ids by POST is spend chasing a hypothesis** — the CSP day's bill. If it is ever
+wanted, `GET .../publishers/google/models` on the now-working credential is the
+free CATALOGUE of ids; and a catalogue is not a POST.
+
+WHAT A TAP COSTS NOW, measured: one control synthesis (~2 s of speech, a few
+paise) and nothing for the refused leg. Admin-only. Do not tap in a loop.
+
+**THE SIDE RESULT IS REAL AND SEPARATE.** ONIQ can now run prebuilt-voice TTS
+on Vertex with the service account. Whether it SHOULD — the 2026-09-04 mapping
+routes voice through the API key — is a provider-and-billing choice, the
+owner's under this file's first rule. Recorded, not acted on.
+
+The capability row stays GATED; its evidence carries this measurement and the
+test pins the gate's own sentence.
+
 ### 2026-09-07 — the errors inbox, read: the chat thread collapses to 20px
 
 The owner opened Moderation inbox -> errors and screenshotted it. Two surfaces,

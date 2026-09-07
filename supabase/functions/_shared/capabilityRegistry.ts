@@ -208,7 +208,15 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
       "NO Vertex call works today — speak included. The grant " +
       "(roles/aiplatform.user) is the owner's and clears that door only; " +
       "the voices POST stays unbound regardless. The one-step path is still " +
-      "UNMEASURED behind the grant.",
+      "UNMEASURED behind the grant. " +
+      "MEASURED 2026-09-07c, after the owner granted Vertex AI User, through " +
+      "the admin probe: control 200 WITH AUDIO — the role landed, the model " +
+      "id is served at global, and the service account can synthesise " +
+      "built-in voices on Vertex; replicated 403 'Voice replication is not " +
+      "allowed for the requested model.' So BOTH routes — the hidden voices " +
+      "POST and the public one-step shape — end at Google's access decision " +
+      "for voice replication, which ONIQ has never requested. The form is " +
+      "the single remaining door, and it is the owner's.",
   },
   "voice.realtime": {
     id: "voice.realtime",
