@@ -2004,3 +2004,59 @@ closed tab, a dropped request, an early throw — no push exists and nothing
 anywhere records that it did not happen, because `push.ts` writes a row only on
 FAILURE. A server-side trigger on `messages` insert is the robust shape, and it
 is a bigger change than this one.
+
+### 2026-09-07 — "I asked you to give delete options in image, voice, and music. You didn't."
+
+The owner was right, and on both halves.
+
+**HALF ONE: THE CONTROL WAS BUILT ON A SCREEN NOTHING LINKS TO.** The delete
+went on `/app/creations`. Its only inbound reference in the entire app is a
+"back" link on a not-found page — measured, `grep -rn "app/creations"` returns
+`routeTree.gen.ts` and `app.made.$kind.$id.tsx` and nothing else. So the control
+existed, worked, was tested, and could not be reached by anyone who had not
+typed the URL. The owner asked for delete "in image, voice and music" and got it
+somewhere else.
+
+**This is `upiDoors` again, from the other side.** That entry says a feature is
+where its doors are, and the morning it records shipped "active and unreachable"
+— reported as _"no tabs, no icons"_. The same mistake was made three weeks later
+by the agent that wrote it down. **Reading a lesson is not applying it: before
+calling a UI change done, grep for what LINKS to the screen it lives on.**
+
+All three Create screens already list what you made — `app.image`, `app.music`
+and `app.voice` each call `action: "list"` and render a card per row — so the
+delete belongs on those cards, beside the Open link. `OniqDeleteCreation` is one
+component owning its own arm/confirm/busy/error state; the `/app/creations`
+version threaded four pieces of parent state per card, and repeating that three
+more times is four places for the confirm step to drift. The row leaves the list
+only when the server agrees — an optimistic removal would show the thing gone
+while it is still there and reappearing on the next load.
+
+**HALF TWO: THE EDGE FUNCTIONS WERE NEVER DEPLOYED.** The `action: "delete"`
+branch went onto `main` with this file's own ordering note beside it — "edge
+functions do not deploy with a web publish, so the functions go FIRST and the
+web publish second" — and then only `firebase-provisioning` and `voice-clone`
+were deployed. `image-generate`, `music-generate` and `voice-generate` were not.
+So the buttons on `/app/creations` were live in the shipped bundle with nothing
+behind them: every tap would fall past `list`, past the gates, into validation,
+find no prompt and return 400. **The ordering note was written and then not
+followed in the same session.**
+
+LIVE AND VERIFIED, `main` at `51ccd0a5`:
+
+    supabase--deploy_edge_functions ["image-generate","music-generate","voice-generate"]
+      -> deployed
+
+    entry  assets/index-DIaw4enL.js        (was index-BV-CTaHT.js)
+      app.image-u7aQwg-z.js  7,466  image-picture-delete = 1
+      app.music-Bg5NwiOx.js  6,976  music-song-delete    = 1
+      app.voice-ByHXgRk9.js  7,955  voice-clip-delete    = 1
+      app.creations-CYLfx3Du.js (was CWDj6v_G) all three markers = 1
+
+Each marker lives in its OWN route chunk and none in the entry — learned from a
+local build first, so the production check discovered each chunk from the entry
+rather than guessing a name.
+
+`src/lib/__tests__/createScreenDelete.test.ts` fails if any of the three screens
+stops listing or loses its delete control, and pins that the row is removed only
+on `res.ok`. Mutation-checked both ways.
