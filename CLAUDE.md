@@ -2254,6 +2254,48 @@ not production. Deploying there would put the function in a project nothing
 calls, which is the trap recorded in full further up this file. Blocked is
 blocked; the fix waits for credits.
 
+**AND NEITHER IS GITHUB — the blocker is credential OWNERSHIP, not tooling.**
+Asked whether the deploy could go through CI instead, and measured rather than
+reasoned, because the mechanism plainly exists: `supabase/setup-cli` plus
+`supabase functions deploy <name> --project-ref bqwttemnnoexadpwifcj` is an
+ordinary workflow. What it needs is `SUPABASE_ACCESS_TOKEN`, an `sbp_`
+MANAGEMENT PAT, because edge-function deploy is a CONTROL-plane call to
+`api.supabase.com` — the same plane that answered the service role
+`401 {"message":"JWT failed verification"}` further up this file. A service
+role cannot deploy a function, and a service role is what GitHub holds.
+
+Measured 2026-09-07 on the OWNER'S OWN Supabase credential, which is the fact
+this file had recorded and never verified:
+
+    list_organizations -> 1   xupsgjbkmjqftljaokhh  "siddharthamondal1002-droid's Org"
+    list_projects      -> 1   nzbthoecadcwdoqxhaok  "oniq-sparkle-pay"  ap-northeast-2
+
+**Production `bqwttemnnoexadpwifcj` is not in that list.** A PAT is minted per
+ACCOUNT and inherits that account's org membership, so a PAT the owner creates
+reaches exactly one project — the WRONG one. A CI deploy built on it would
+succeed, go green, and put `voice-clone` in a project nothing calls: the
+two-projects trap, with a passing workflow on top of it.
+
+**AND THAT TRAP HAS ALREADY BITTEN THIS REPO IN GITHUB ACTIONS.** The comment
+beside `SUPABASE_URL` in `story-worker.yml` records it in its own words —
+_"every dispatch died on a gateway 404 because this secret named a different
+project"_ — which is why the dispatch payload now carries the address and the
+repository secret is only a fallback. The workflow's own design note is
+_"no Supabase key ever reaches GitHub"_, and `SUPABASE_SERVICE_ROLE_KEY` is
+expected ABSENT. Adding an account-wide PAT to that repo would reverse a
+deliberate choice, not extend one.
+
+So GitHub RELOCATES the blocker rather than clearing it. Two things clear it,
+cheapest first: top up Lovable credits and send one message naming the STATE
+(above); or be added to the Supabase organisation that actually holds
+`bqwttemnnoexadpwifcj`, which is Lovable's, not the owner's — and that is a
+business decision, since a PAT is account-wide and can delete projects.
+
+**Nothing user-facing is waiting on this.** `voice-clone` is deployed and
+admin-only; what is undeployed is `vertexErrorDetail`, a DIAGNOSTIC. The cost
+of waiting is that the next Voice replication tap prints `http 404` again
+instead of Google's sentence. Do not trade a control-plane credential for it.
+
 ### 2026-09-07 — the errors inbox, read: the chat thread collapses to 20px
 
 The owner opened Moderation inbox -> errors and screenshotted it. Two surfaces,
