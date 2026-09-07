@@ -1912,3 +1912,95 @@ is an allowlisted preview, and a missing IAM role, an allowlist refusal and a
 disabled API all arrive as **403 with only the text to separate them** — so the
 mint passes Google's own words straight back to the caller. **The first real
 POST is the measurement.** Do not record it as working until one returns a key.
+
+### 2026-09-07 — "msg notification not coming when closed": measured, and one half fixed
+
+Measured on production before touching anything, because the report has two
+completely different causes depending on which direction the message went:
+
+    device_tokens   android 46 rows / 25 users   web 2 rows / 2 users
+    users signed in in the last 30 days: 37      (NOT 126 — that includes
+                                                  dormant accounts, and the
+                                                  first framing of this as
+                                                  "25 of 126" was wrong)
+    client_error_reports, surface='send-push', 30d
+      "accepted but sent 0"  44   newest 2026-09-05 16:00
+    8 of 19 active conversations have ZERO members with a token
+
+**THE OWNER WAS THE RECIPIENT, NOT THE SENDER**, which inverted the search. The
+only message in either of their recent conversations in three days:
+
+    2026-09-06 19:31:38+00   sender: shrakes93
+
+and the owner HAS a fresh token — android, registered 16:59 the same day, two
+and a half hours earlier. So the "recipient has no push address" story, true of
+8 conversations and of `shrakes93` themselves, is NOT the story here.
+
+WHAT WAS RULED OUT BY READING, each of which was a plausible headline:
+
+    the caller       7 sendPush call sites in the chat route — text, sticker,
+                     media, location. It is wired.
+    the payload      send-push attaches a `notification` block for
+                     kind="message" (data-only is calls only), which is exactly
+                     what the system tray needs when the app is killed
+    the channel      MainActivity DOES create oniq_messages at startup — the
+                     "created lazily in a foreground-only handler" theory was
+                     checked before it was said, and it was wrong
+
+**AND THE ONE REAL DEFECT FOUND: THE MESSAGE CHANNEL NEVER PEEKS.**
+
+    oniq_calls     IMPORTANCE_HIGH     heads-up banner
+    oniq_messages  IMPORTANCE_DEFAULT  shade only, no banner
+
+A call pops up on screen and a message does not. To anyone who does not pull
+the shade down that is indistinguishable from no notification.
+
+**THE ONE-LINE VERSION OF THIS FIX DOES NOTHING, and that is the part worth
+keeping.** Android LOCKS a channel's importance at creation — the app can never
+raise it afterwards, and deleting the channel does not reset it, because
+Android remembers a deleted channel's settings and restores them for the same
+id. So editing `IMPORTANCE_DEFAULT` to `IMPORTANCE_HIGH` in place would have
+compiled, shipped, passed review and left every existing install exactly as
+quiet. A NEW ID is the only way to get a new importance. Hence
+`oniq_messages_v2`, with the old one deleted so it does not sit in system
+settings as a second dead "Messages" row.
+
+`setPriority(PRIORITY_HIGH)` went on both message builders too: `minSdkVersion`
+is 24 and channels only exist from 26, so on API 24-25 the channel importance
+is ignored entirely and the builder priority is the only thing that produces a
+heads-up. The group SUMMARY needs it as well — that is what a grouped pre-O
+notification actually displays, so giving it only to the child would have left
+the one notification an old phone shows as the silent one.
+
+`src/lib/__tests__/pushChannel.test.ts` pins the three-way agreement —
+MANIFEST `default_notification_channel_id` = `MainActivity.MSG_CHANNEL_ID` =
+`OniqMessagingService.MSG_CHANNEL_ID` — because the app-is-closed route reads
+the manifest and the foreground route reads the constant, so renaming one alone
+breaks only the route you did not touch, in production, only for people whose
+app is shut. Six assertions, all mutation-checked (manifest drift, the legacy
+id coming back, the delete removed, either creation site back to DEFAULT, the
+summary losing its priority). Comments stripped first — every one of them
+quotes `IMPORTANCE_DEFAULT` and `oniq_messages`, which is the fifth prose match
+in this repo in three days.
+
+**THIS IS NATIVE CODE. IT NEEDS A PLAY RELEASE**, not a web publish — the
+Capacitor shell is what holds the channel, so nothing reaches a handset until a
+build ships.
+
+**AND IT IS HALF AN ANSWER, STATED AS HALF.** It fixes "the notification never
+pops up". It does NOT fix "no notification arrives at all", and which of those
+happened on 2026-09-06 is still unmeasured: whether anything appeared in the
+shade is a thing only the handset can say. `send-push`'s own edge logs came back
+EMPTY for the whole window, which — by this file's oldest rule — answers
+identically for "never invoked" and "not retained", so it is not evidence
+either way. The controlled version costs one message: send one, then re-fetch
+the logs immediately. If a line appears, logging works and the 19:31 send
+genuinely never happened; if none does, the log pipeline is blind and cannot be
+used as evidence at all.
+
+**THE STRUCTURAL RISK BEHIND ALL OF IT, recorded and not acted on:** `sendPush`
+is invoked from the SENDER's client. If that client never runs the line — a
+closed tab, a dropped request, an early throw — no push exists and nothing
+anywhere records that it did not happen, because `push.ts` writes a row only on
+FAILURE. A server-side trigger on `messages` insert is the robust shape, and it
+is a bigger change than this one.

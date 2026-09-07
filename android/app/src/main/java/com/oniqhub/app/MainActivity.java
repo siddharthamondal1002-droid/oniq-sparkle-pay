@@ -109,19 +109,51 @@ public class MainActivity extends BridgeActivity {
     /**
      * Create both notification channels at startup. Message pushes carry an
      * FCM notification block rendered by the SYSTEM on the channel named in
-     * the manifest meta-data ("oniq_messages") — if that channel doesn't
-     * exist yet, FCM quietly falls back to its own "Miscellaneous" channel
-     * with whatever defaults the OEM ships. The service creates channels
-     * lazily, but only on code paths IT renders; the system-rendered path
-     * needs them to exist before the first push ever arrives.
+     * the manifest meta-data — if that channel doesn't exist yet, FCM quietly
+     * falls back to its own "Miscellaneous" channel with whatever defaults the
+     * OEM ships. The service creates channels lazily, but only on code paths
+     * IT renders; the system-rendered path needs them to exist before the
+     * first push ever arrives.
+     *
+     * THE MESSAGE CHANNEL IS "_v2", AND THE SUFFIX IS THE WHOLE FIX.
+     * "oniq_messages" was created at IMPORTANCE_DEFAULT, which shows a message
+     * in the shade and NEVER pops it up on screen — while "oniq_calls" is
+     * IMPORTANCE_HIGH and does. So a call peeked and a message did not, which
+     * is indistinguishable from "no notification" to anyone who does not pull
+     * the shade down.
+     *
+     * ANDROID LOCKS A CHANNEL'S IMPORTANCE THE MOMENT IT IS CREATED. The app
+     * cannot raise it afterwards; only the person can, in system settings. And
+     * deleting a channel does not reset it — Android remembers the settings of
+     * a deleted channel and restores them if the same id comes back. So simply
+     * changing IMPORTANCE_DEFAULT to IMPORTANCE_HIGH here would have compiled,
+     * shipped, and changed NOTHING for every existing install: exactly the
+     * shape of fix that looks done and is not. A new id is the only way to get
+     * a new importance, and the old one is deleted so it does not sit in
+     * system settings as a dead duplicate.
      */
+    /** Must match AndroidManifest default_notification_channel_id AND
+     *  OniqMessagingService.MSG_CHANNEL_ID — pinned by pushChannel.test.ts. */
+    static final String MSG_CHANNEL_ID = "oniq_messages_v2";
+    /** The IMPORTANCE_DEFAULT channel this replaces. See the comment above. */
+    static final String LEGACY_MSG_CHANNEL_ID = "oniq_messages";
+
     private void ensureNotificationChannels() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         android.app.NotificationManager nm = getSystemService(android.app.NotificationManager.class);
         if (nm == null) return;
-        if (nm.getNotificationChannel("oniq_messages") == null) {
-            nm.createNotificationChannel(new android.app.NotificationChannel(
-                "oniq_messages", "Messages", android.app.NotificationManager.IMPORTANCE_DEFAULT));
+        if (nm.getNotificationChannel(MSG_CHANNEL_ID) == null) {
+            android.app.NotificationChannel msgs = new android.app.NotificationChannel(
+                MSG_CHANNEL_ID, "Messages", android.app.NotificationManager.IMPORTANCE_HIGH);
+            msgs.setDescription("New chat messages.");
+            msgs.enableVibration(true);
+            msgs.setLockscreenVisibility(android.app.Notification.VISIBILITY_PRIVATE);
+            nm.createNotificationChannel(msgs);
+        }
+        // The retired DEFAULT-importance channel. Deleting it stops it sitting
+        // in system settings as a second "Messages" row nobody can explain.
+        if (nm.getNotificationChannel(LEGACY_MSG_CHANNEL_ID) != null) {
+            nm.deleteNotificationChannel(LEGACY_MSG_CHANNEL_ID);
         }
         if (nm.getNotificationChannel("oniq_calls") == null) {
             android.app.NotificationChannel calls = new android.app.NotificationChannel(

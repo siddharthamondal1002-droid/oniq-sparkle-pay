@@ -24,7 +24,9 @@ import java.util.Map;
  */
 public class OniqMessagingService extends FirebaseMessagingService {
     private static final String CALL_CHANNEL_ID = "oniq_calls";
-    private static final String MSG_CHANNEL_ID = "oniq_messages";
+    // Kept identical to MainActivity.MSG_CHANNEL_ID and the manifest's
+    // default_notification_channel_id; pushChannel.test.ts fails if they drift.
+    private static final String MSG_CHANNEL_ID = "oniq_messages_v2";
     private static final int CALL_NOTIFICATION_ID = 4242;
     /** Group key + summary id for stacked conversation notifications. */
     private static final String MSG_GROUP = "oniq_messages_group";
@@ -185,8 +187,12 @@ public class OniqMessagingService extends FirebaseMessagingService {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
             && nm.getNotificationChannel(MSG_CHANNEL_ID) == null) {
+            // HIGH, matching MainActivity. If this path ever creates the
+            // channel first, it decides the importance forever — the two must
+            // not disagree, or which one runs first would decide whether
+            // messages pop up.
             NotificationChannel ch = new NotificationChannel(
-                MSG_CHANNEL_ID, "Messages", NotificationManager.IMPORTANCE_DEFAULT);
+                MSG_CHANNEL_ID, "Messages", NotificationManager.IMPORTANCE_HIGH);
             nm.createNotificationChannel(ch);
         }
 
@@ -261,6 +267,13 @@ public class OniqMessagingService extends FirebaseMessagingService {
             // Ranking and filtering hint. The call path has always set its
             // category; this one never did, so Android had nothing to go on.
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            // minSdkVersion is 24, and channels only exist from 26. On API 24
+            // and 25 the CHANNEL importance is ignored entirely and this is
+            // the only thing that produces a heads-up — so raising the channel
+            // without this would fix new phones and leave old ones exactly as
+            // quiet as before. On 26+ the channel wins and this is inert,
+            // which is the correct way round.
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             // EXPLICIT, though it matches the effective default. A private
             // message must not put its text on a locked screen, and leaving
             // that to a default nobody has written down is how it changes by
@@ -287,6 +300,10 @@ public class OniqMessagingService extends FirebaseMessagingService {
         Notification summary = new NotificationCompat.Builder(ctx, MSG_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_oniq)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            // The summary is what pre-O actually DISPLAYS for a group, so it
+            // needs the priority too — giving it only to the child would mean
+            // the one notification an API-24 phone shows is the silent one.
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setColor(BRAND_TEAL)
             .setGroup(MSG_GROUP)
