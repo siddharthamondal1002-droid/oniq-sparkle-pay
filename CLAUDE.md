@@ -2060,3 +2060,63 @@ rather than guessing a name.
 `src/lib/__tests__/createScreenDelete.test.ts` fails if any of the three screens
 stops listing or loses its delete control, and pins that the row is removed only
 on `res.ok`. Mutation-checked both ways.
+
+### 2026-09-07 — "download option not working", and two verification mistakes on the way
+
+**THE BUG WAS A SILENT NO-OP, and the file that explains it was already in the
+repo.** `MediaSaverPlugin.java` records what an `<a download>` does inside a
+Capacitor WebView, in its own words: _"no DownloadListener is attached, so the
+click is swallowed silently"_. That plugin exists because the behaviour once
+destroyed a film — the web layer reported success and told the server to purge
+the only copy.
+
+`deliverFile` and `shareFile` in `src/lib/saveFile.ts` kept that dead anchor as
+their fallback for everything ELSE. So on Android, whenever the native share
+path was unavailable or threw, the Download button on `/app/made/…` ran the
+no-op, `webDeliver` returned `"downloaded"`, and `OniqResultActions` showed no
+error. A button that does nothing and says nothing, for pictures, songs and
+voice clips. **Films were never affected** — `storyJobsClient` streams to disk,
+checks the file is non-empty, throws on failure, and hands to `MediaSaver`.
+
+Fixed native-only: share sheet -> the signed URL to the system browser
+(`@capacitor/browser`, already a dependency, so no native code and no Play
+release) -> a THROW so the existing "Couldn't download that one" toast fires.
+The web path is untouched, because there the anchor works.
+
+`saveFileNative.test.ts` reads the source rather than running it, deliberately:
+`Capacitor.isNativePlatform()` is false in vitest, so a behavioural test would
+exercise the WEB path and pass whatever the native branch did — the same trap
+as `phoneLoginVisible` short-circuiting on a flag.
+
+**MISTAKE ONE: PUBLISHED BEFORE THE SYNC, having talked myself out of the
+check.** `oniq-ship` says in as many words to read `latest_commit_sha` BEFORE
+`deploy_project`. It was skipped to avoid one expensive read, on the reasoning
+that the marker check afterwards would catch a stale build anyway. It did —
+which is the only reason this is a footnote rather than a false "it's live":
+
+    entry index-DIaw4enL.js   IDENTICAL to the previous publish
+    saveFile-DkG8AEgs.js      native-delivery-unavailable = 0
+
+`get_project` then showed `aeeda001` synced, and the republish carried it:
+
+    entry index-DMXXSEBe.js   saveFile-Da2r9IhH.js  3,196 bytes (was 2,591)
+      native delivery unavailable = 1
+
+The reasoning was wrong even though the safety net held. Checking the sha costs
+one read; a publish that silently rebuilds the previous commit costs a
+verification round trip AND the chance of claiming something is live when it is
+not. Do the check.
+
+**MISTAKE TWO: A MARKER THAT THE BUNDLER ERASES IS A FALSE NEGATIVE.** The same
+check asked for `capacitor/browser` and got 0 on production, which reads exactly
+like a missing feature. It is not: the LOCAL build, whose source is known
+correct, also returns 0 — Rolldown rewrites `import("@capacitor/browser")` into
+a chunk reference and the literal path does not survive minification, while
+`Browser` does.
+
+`oniq-ship` already says to learn WHICH CHUNK carries a marker from a local
+build first. This adds the other half: **check the marker SURVIVES that build at
+all.** A string that exists in source and not in the bundle will read as a
+stale deploy forever, and the natural response — republish — never fixes it.
+Prefer a plain string literal the code actually emits (an error message, a
+`data-testid`) over an import path or an identifier.
