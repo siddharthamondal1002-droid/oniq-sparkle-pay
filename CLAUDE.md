@@ -2127,6 +2127,25 @@ very file it exists to catch. **That is the sixth prose match in this repo in
 four days.** Mutation-checked both ways: re-nesting one file fails two
 assertions, and a prose `<Outlet />` in the parent does not rescue it.
 
+**LIVE AND VERIFIED, 2026-09-07.** `main` at `f287b7dc`, published, and the
+served chunk checked:
+
+    https://oniqhub.com
+      entry   assets/index-DQzpV2Jn.js            (was index-qEkxEdxv.js)
+      chunk   app.admin_.firebase-BEJXK6Vz.js     2,997 bytes
+        voice-clone-probe   1     Voice replication          1
+        firebase-provisioning-run 1
+
+**THE FILENAME IS THE EVIDENCE HERE, and that is better than any grep.** The
+underscore in `app.admin_.firebase-*.js` IS the route id, so a chunk that
+carries it cannot be the nested build. Compare the marker counts: identical to
+the ones recorded for `app.admin.firebase-NkQwgG4l.js` on 2026-09-06, at the
+identical 2,997 bytes — the component source never changed, so every content
+grep answers the same before and after. Only the NAME distinguishes the broken
+build from the fixed one, and only the hash moving (`NkQwgG4l` -> `BEJXK6Vz`)
+proves the module id changed at all. **When a fix changes structure rather than
+source, pick a marker that structure moves.**
+
 **THE SEQUENCE THAT FOUND IT IS THE REUSABLE PART.** The owner said the tab
 "opens to nothing". Before touching anything, the DATABASE was measured —
 `profiles.is_admin` true for the owner, `public.is_admin` SECURITY DEFINER with
