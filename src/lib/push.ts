@@ -53,7 +53,23 @@ export function sendPush(payload: {
         }
         // invoke() resolves rather than rejects on a non-2xx, so the function's
         // own refusal arrives as data, not as error.
-        const d = data as { sent?: number; failed?: number; error?: string } | null;
+        // `unaddressed` IS READ, and its absence from this type was the bug in
+        // the witness. send-push has two ways to answer sent:0 and they are
+        // different faults — nobody had a push address (it returns
+        // `unaddressed: N` and never reaches FCM), or it did reach FCM and
+        // every send came back nothing. On 2026-09-07 that question was put to
+        // the 44 recorded rows and could not be answered: the report below
+        // built its detail from three named fields, so `unaddressed` was
+        // dropped before it was ever written. An absent field then reads as
+        // evidence of the OTHER branch, and it is not evidence of anything.
+        // A witness that discards the one field separating two faults is not
+        // a witness.
+        const d = data as {
+          sent?: number;
+          failed?: number;
+          error?: string;
+          unaddressed?: number;
+        } | null;
         if (d?.error) {
           reportClientError("send-push", `refused: ${d.error}`, { kind: payload.kind });
         } else if ((d?.sent ?? 0) === 0) {
@@ -62,6 +78,12 @@ export function sendPush(payload: {
             kind: payload.kind,
             sent: d?.sent ?? null,
             failed: d?.failed ?? null,
+            // The discriminator. A NUMBER means that many recipients had no
+            // push address at all, so nothing was ever dispatched and the
+            // fault is registration. NULL means send-push did address
+            // somebody and still delivered nothing, which is a transport
+            // fault — a different problem with a different owner.
+            unaddressed: d?.unaddressed ?? null,
           });
         }
       })
