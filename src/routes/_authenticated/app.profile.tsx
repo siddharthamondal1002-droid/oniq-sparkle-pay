@@ -440,12 +440,33 @@ function SafetySection() {
           </Link>
         </div>
         {isAdmin && (
-          <Link
-            to="/app/admin"
-            className="press block rounded-2xl border border-world bg-world-soft p-3 text-center text-sm font-semibold text-world"
-          >
-            Moderation inbox
-          </Link>
+          <div className="grid gap-2">
+            <Link
+              to="/app/admin"
+              className="press block rounded-2xl border border-world bg-world-soft p-3 text-center text-sm font-semibold text-world"
+            >
+              Moderation inbox
+            </Link>
+            {/* THE OTHER THREE ADMIN TOOLS, which had no link anywhere in the
+                app. Each route existed, each was gated correctly server-side
+                on is_admin, and each could only be reached by typing its URL
+                — reported as "admin features not showing in id", because this
+                block is where an admin looks and only the inbox was here.
+                Same failure as /app/creations and as the UPI doors: a feature
+                is where its doors are. adminDoors.test.ts now fails if any
+                app.admin.* route loses its link. */}
+            <div className="grid grid-cols-3 gap-2">
+              <Link to="/app/admin/firebase" className={linkClass}>
+                Firebase
+              </Link>
+              <Link to="/app/admin/video" className={linkClass}>
+                Video
+              </Link>
+              <Link to="/app/admin/gpu-video" className={linkClass}>
+                GPU video
+              </Link>
+            </div>
+          </div>
         )}
         <OniqCard>
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
