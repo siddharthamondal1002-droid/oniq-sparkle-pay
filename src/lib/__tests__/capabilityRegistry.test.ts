@@ -298,5 +298,8 @@ describe("voice.clone: the wiring is pinned, not just the allowlist", () => {
     expect(ev).toMatch(/NEVER submitted/);
     expect(ev).toMatch(/ONE-step/);
     expect(ev).toMatch(/UNMEASURED/);
+    // 2026-09-07b: the control that made the one-step measurement readable.
+    expect(ev).toMatch(/aiplatform\.endpoints\.predict/);
+    expect(ev).toMatch(/NO Vertex AI role/);
   });
 });

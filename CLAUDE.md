@@ -2482,6 +2482,75 @@ the Lovable agent to fetch it costs a message under the owner's credit cap.
 Verification is one free look: open Create Voice, and the note under the voice
 list must read "needs access ONIQ does not have yet", not "has asked to join".
 
+### 2026-09-07 — "2": the one-step path measured, and the CONTROL is what answered
+
+The owner chose the measurement. ONE Lovable message, **2.3 credits** — more
+than the deploy's 0.7, because the agent had to write and run a script rather
+than call a tool — carrying a CONTROL (a built-in voice) and the EXPERIMENT
+(the one-step `replicatedVoiceConfig` with a 3 s synthetic 220 Hz sine, so no
+real voice was anywhere in the test), both to `replicatedSynthesisUrl`, both
+with the service account:
+
+    POST A  prebuiltVoiceConfig Kore          403 IAM_PERMISSION_DENIED
+    POST B  replicatedVoiceConfig, sine WAV   403 IAM_PERMISSION_DENIED
+      permission  aiplatform.endpoints.predict
+      resource    projects/oniq-309bd/locations/global/publishers/google/
+                  models/gemini-3.1-flash-tts-preview   "(or it may not exist)"
+
+**THE CONTROL FAILED IDENTICALLY, SO THE EXPERIMENT SAYS NOTHING ABOUT
+REPLICATION** — and that is the control doing its job. Without it, B's 403
+would have read as "replicated voice refused" and been written down as such.
+What the pair DOES establish is narrower and harder: **the Firebase service
+account holds NO Vertex AI role on `oniq-309bd`.** `aiplatform.endpoints.predict`
+is the permission every `generateContent` on Vertex needs, built-in voices
+included; `aiplatform.voices.list` was refused the same way on 2026-09-06. Two
+named permissions, both denied, both carried by `roles/aiplatform.user`
+(Vertex AI User). The 2026-09-06 entry called that grant "a HYPOTHESIS"; it is
+now the measured next step.
+
+**SO THERE ARE TWO INDEPENDENT BLOCKERS, NOT ONE, and they are different doors:**
+
+    1  the service account has no Vertex AI role      blocks EVERY Vertex call:
+       (roles/aiplatform.user on oniq-309bd)           speak, the one-step path,
+                                                       the built-in voices
+    2  POST .../voices is unbound for this project    blocks the two-step mint
+       (allowlisted preview, never applied for)       only
+
+Blocker 1 is the owner's, in the Google Cloud console: IAM & Admin, grant the
+Firebase Admin SDK service account the **Vertex AI User** role on `oniq-309bd`.
+Google's error carries a troubleshooter URL naming the principal and the
+missing permission; it is in the Lovable thread at 18:59. **Granting it does
+not touch blocker 2**: a role cannot make a hidden method appear, and the
+`voices` POST never reached IAM at all.
+
+**AND `voice-clone`'s `speak` HAS THE SAME 403 WAITING FOR IT.** It POSTs the
+same URL with the same credential, so even a minted key could not be spoken
+today. "Admission is the only thing left" is wrong for the third time, in a
+third way.
+
+"(or it may not exist)" is Google's standard hedge: IAM refuses before
+existence is revealed, so **the model id `gemini-3.1-flash-tts-preview` on
+Vertex `global` is still unverified**. After the grant the control answers that
+too — a 404 there is a wrong id, a 200 is audio.
+
+WHAT THE NEXT MEASUREMENT COSTS, and the choice it raises. Re-running the pair
+through the agent is ~2.3 credits every time. Extending `voice-clone`'s `probe`
+to make these two POSTs itself — the synthetic sample generated inside the
+function, never a real voice — costs ONE deploy message (~0.7) and then every
+re-measure is a free tap on the admin screen: grant the role, tap, read
+Google's sentence, no round trip through anyone. It would also spend a few
+paise on the metered key whenever the control succeeds, which is why it is
+offered rather than built.
+
+**THE CLASSIFIER BLOCKED THE FIRST SEND, and the reason is worth keeping.** The
+first draft of the message included a step-by-step recipe for minting the
+OAuth token — sign a JWT with the service account's `private_key`, exchange it
+— and the auto-mode classifier refused to send it. The recipe was a
+convenience; the agent had made that call before and did not need it. The
+resend without the recipe went through and the agent wrote the same recipe
+itself. **Do not put credential-handling instructions in a message to another
+agent when it already knows the route; say which prior call to repeat.**
+
 ### 2026-09-07 — the errors inbox, read: the chat thread collapses to 20px
 
 The owner opened Moderation inbox -> errors and screenshotted it. Two surfaces,

@@ -198,7 +198,17 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityEntry> = {
       "alone). Whether that one-step path is admitted for oniq-309bd is " +
       "UNMEASURED; one service-account POST answers it. Retaining a voice " +
       "sample and dropping the word-matched consent are policy, so the " +
-      "one-step path is the owner's to choose, not an engineering swap.",
+      "one-step path is the owner's to choose, not an engineering swap. " +
+      "MEASURED 2026-09-07b, with a CONTROL: the one-step generateContent " +
+      "with replicatedVoiceConfig (synthetic sine, no real voice) AND a " +
+      "built-in-voice control both answered 403 IAM_PERMISSION_DENIED on " +
+      "aiplatform.endpoints.predict. The control failing identically means " +
+      "the experiment says nothing about replication yet; what it proves is " +
+      "that the service account holds NO Vertex AI role on oniq-309bd, so " +
+      "NO Vertex call works today — speak included. The grant " +
+      "(roles/aiplatform.user) is the owner's and clears that door only; " +
+      "the voices POST stays unbound regardless. The one-step path is still " +
+      "UNMEASURED behind the grant.",
   },
   "voice.realtime": {
     id: "voice.realtime",
