@@ -325,3 +325,116 @@ export function keyExpired(expiresAt: string, nowMs: number = Date.now()): boole
   // person cannot act on, and re-minting is cheap next to that.
   return t - nowMs < 60_000;
 }
+
+// ---------------------------------------------------------------------------
+// THE PROBE'S SPEECH LEGS — 2026-09-07. Measured that day through the Lovable
+// agent (one message, 2.3 credits): a built-in-voice CONTROL and the one-step
+// replicatedVoiceConfig EXPERIMENT both answered 403 IAM_PERMISSION_DENIED on
+// aiplatform.endpoints.predict, which proved only that the service account had
+// no Vertex AI role. The pair lives in the admin probe now, so every
+// re-measure is a free tap rather than a paid agent turn.
+//
+// WHY A CONTROL. An experiment that fails alone reads as "replication refused"
+// when it may be "nothing on Vertex works for this credential"; the control
+// separates the two. It is also the only leg that can bill — a few paise of
+// synthesised speech when it succeeds — which is why the probe stays
+// admin-only. THE SAMPLE IS SYNTHETIC: a sine wave generated in memory, never
+// a recording of anyone, so nothing in this path can reconstruct a voice.
+//
+// The one-step body is the shape Google's PUBLIC discovery document (revision
+// 20260831) publishes — VoiceConfig.replicatedVoiceConfig { voiceSampleAudio,
+// mimeType } — and NOT the two-step key flow replicatedSpeechBody sends. Both
+// are kept: which one this project may use is exactly what the probe measures.
+// ---------------------------------------------------------------------------
+
+export const PROBE_TEXT = "Hello from ONIQ.";
+export const PROBE_CONTROL_VOICE = "Kore";
+
+/** A valid 16-bit mono PCM WAV of a pure tone: a 44-byte header and samples. */
+export function syntheticSineWav(seconds = 3, hz = 220, rate = REQUIRED_SAMPLE_RATE): Uint8Array {
+  const n = Math.max(0, Math.round(seconds * rate));
+  const buf = new ArrayBuffer(44 + n * 2);
+  const v = new DataView(buf);
+  const ascii = (at: number, text: string) => {
+    for (let i = 0; i < text.length; i++) v.setUint8(at + i, text.charCodeAt(i));
+  };
+  ascii(0, "RIFF");
+  v.setUint32(4, 36 + n * 2, true);
+  ascii(8, "WAVE");
+  ascii(12, "fmt ");
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true);
+  v.setUint32(28, rate * 2, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true);
+  ascii(36, "data");
+  v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) {
+    v.setInt16(44 + i * 2, Math.round(Math.sin((2 * Math.PI * hz * i) / rate) * 12000), true);
+  }
+  return new Uint8Array(buf);
+}
+
+/** The control: a built-in voice, the request shape voice-generate proves live. */
+export function prebuiltSpeechBody(text: string, voiceName: string): Record<string, unknown> {
+  return {
+    contents: [{ role: "user", parts: [{ text }] }],
+    generationConfig: {
+      responseModalities: ["AUDIO"],
+      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
+    },
+  };
+}
+
+/** The experiment: Google's PUBLIC one-step shape — the sample inline, no key. */
+export function oneStepSpeechBody(text: string, sampleB64: string): Record<string, unknown> {
+  return {
+    contents: [{ role: "user", parts: [{ text }] }],
+    generationConfig: {
+      responseModalities: ["AUDIO"],
+      speechConfig: {
+        voiceConfig: {
+          replicatedVoiceConfig: { voiceSampleAudio: sampleB64, mimeType: "audio/wav" },
+        },
+      },
+    },
+  };
+}
+
+/** How many base64 characters of audio a generateContent success carried, or null. */
+export function audioBytesOf(data: unknown): number | null {
+  const parts = (
+    data as { candidates?: { content?: { parts?: { inlineData?: { data?: string } }[] } }[] } | null
+  )?.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts)) return null;
+  for (const part of parts) {
+    const d = part?.inlineData?.data;
+    if (typeof d === "string" && d.length) return d.length;
+  }
+  return null;
+}
+
+export type ProbeLeg = { ok: true } | { ok: false; status: number };
+
+/** Reads the pair the way the 2026-09-07 measurement had to be read: control first. */
+export function speechVerdict(control: ProbeLeg, replicated: ProbeLeg): string {
+  if (!control.ok) {
+    return (
+      `CONTROL FAILED ${control.status} — the replicated result is uninterpretable; ` +
+      "read control.detail (403 = still no Vertex AI role, 404 = this model id is not served here)"
+    );
+  }
+  if (replicated.ok) {
+    return "ONE-STEP REPLICATION OPEN — Google accepted a synthetic sample and returned audio";
+  }
+  if (replicated.status === 400) {
+    return (
+      "TTS works; replicated answered 400 — read the detail: a complaint about the SAMPLE " +
+      "means the path is open, a named gate means it is not"
+    );
+  }
+  if (replicated.status === 403) return "TTS works; replicated is GATED (403) — read the detail";
+  return `TTS works; replicated answered ${replicated.status} — read the detail`;
+}

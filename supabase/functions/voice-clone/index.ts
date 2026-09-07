@@ -43,14 +43,21 @@ import { vertexErrorDetail } from "../_shared/vertexError.ts";
 import { googleAccessToken, vertexHeaders } from "../_shared/googleAuth.ts";
 import { needsWavHeader, rateOf, validateVoiceText, wrapPcmAsWav } from "../_shared/voiceCore.ts";
 import {
+  audioBytesOf,
   consentScript,
   CONSENT_SCRIPTS_WITHHELD,
   keyExpired,
+  oneStepSpeechBody,
+  prebuiltSpeechBody,
+  PROBE_CONTROL_VOICE,
+  PROBE_TEXT,
   readReplicationKey,
   replicatedSpeechBody,
   replicatedSynthesisUrl,
   replicationKeyBody,
   REPLICATION_MODEL,
+  speechVerdict,
+  syntheticSineWav,
   validateReplicationAudio,
   voicesUrl,
 } from "../_shared/voiceReplication.ts";
@@ -289,6 +296,35 @@ Deno.serve(async (req) => {
   // measures is not a diagnostic.
   if (action === "probe") {
     const probed = await vertexPost(voicesUrl(projectId), auth.token, projectId, {});
+
+    // ---- and can it SPEAK at all? A control, then the one-step experiment --
+    // 2026-09-07: this exact pair went through the Lovable agent (2.3 credits)
+    // and both legs answered 403 aiplatform.endpoints.predict — proof only that
+    // the service account had no Vertex AI role. It lives here now so a tap
+    // re-measures for free. The control is the leg that can bill (a few paise
+    // of synthesised speech when it succeeds) and the one that makes the
+    // replicated leg readable at all; the sample is a sine wave built in
+    // memory, so no recording of anyone exists on this path. Admin-only, like
+    // everything below the gate.
+    const speechUrl = replicatedSynthesisUrl(projectId);
+    const sample = b64Of(syntheticSineWav());
+    const control = await vertexPost(
+      speechUrl,
+      auth.token,
+      projectId,
+      prebuiltSpeechBody(PROBE_TEXT, PROBE_CONTROL_VOICE),
+    );
+    const replicated = await vertexPost(
+      speechUrl,
+      auth.token,
+      projectId,
+      oneStepSpeechBody(PROBE_TEXT, sample),
+    );
+    const leg = (r: Awaited<ReturnType<typeof vertexPost>>) =>
+      r.ok
+        ? { status: 200, audioBase64Chars: audioBytesOf(r.data) }
+        : { status: r.status, detail: r.detail };
+
     return json(200, {
       project: projectId,
       url: voicesUrl(projectId),
@@ -302,6 +338,14 @@ Deno.serve(async (req) => {
           : probed.status === 403
             ? "STILL SHUT — read the detail; an IAM role, an allowlist and a disabled API all give 403"
             : `UNEXPECTED ${probed.status} — read the detail`,
+      speech: {
+        url: speechUrl,
+        model: REPLICATION_MODEL,
+        sample: "synthetic 220 Hz sine, 3 s, 24 kHz mono 16-bit — never a real voice",
+        control: leg(control),
+        replicated: leg(replicated),
+        verdict: speechVerdict(control, replicated),
+      },
     });
   }
 

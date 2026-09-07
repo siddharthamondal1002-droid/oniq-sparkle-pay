@@ -2551,6 +2551,44 @@ resend without the recipe went through and the agent wrote the same recipe
 itself. **Do not put credential-handling instructions in a message to another
 agent when it already knows the route; say which prior call to repeat.**
 
+### 2026-09-07 — "1 done": the role is granted, and the probe now measures for free
+
+The owner granted the Vertex AI User role. Rather than spend ~2.3 credits per
+re-measure through the agent, the pair moved INTO `voice-clone`'s `probe`:
+after the empty `POST .../voices` it now POSTs the built-in-voice CONTROL and
+the one-step `replicatedVoiceConfig` EXPERIMENT to `replicatedSynthesisUrl`,
+with a 3 s 220 Hz sine WAV generated in memory — `syntheticSineWav` in
+`voiceReplication.ts`, never a recording of anyone — and returns both legs
+under `speech`, with a verdict that reads the control FIRST. One deploy
+message, then every tap is a free measurement in Google's own words.
+
+What a tap costs now: the control synthesises "Hello from ONIQ." whenever it
+succeeds — a few paise on the metered key, admin-only. The replicated leg
+bills only if Google accepts the sample, which is the answer being sought.
+
+`src/lib/__tests__/voiceProbeSpeech.test.ts` runs the pure halves (the WAV
+passes the same `validateReplicationAudio` rules a real recording must; the
+one-step body carries no `voice` key and no consent field; the verdict is
+uninterpretable when the control fails) and reads the wiring with comments
+stripped — the seventh prose match, since the comment beside the probe quotes
+every function it calls. Mutation-checked: swapping the replicated leg for a
+second control fails the guard.
+
+READING THE NEXT TAP:
+
+    speech.control 200 + audioBase64Chars      the role landed AND the model id
+                                               is real on Vertex global
+    speech.control 403 endpoints.predict       the grant has not propagated, or
+                                               landed on the wrong principal
+    speech.control 404                         the model id is not served at
+                                               global; replication still unknown
+    speech.replicated 200                      ONE-STEP OPEN — the retention and
+                                               consent questions become live
+    speech.replicated 400 about the sample     open; a sine refused as "not a
+                                               voice" is the path answering
+    speech.replicated 403, or 400 naming a gate  the public shape is ALSO gated
+                                               for this project
+
 ### 2026-09-07 — the errors inbox, read: the chat thread collapses to 20px
 
 The owner opened Moderation inbox -> errors and screenshotted it. Two surfaces,
