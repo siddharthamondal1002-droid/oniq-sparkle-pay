@@ -79,8 +79,11 @@ export function OniqResultActions({
       const res = await fetch(url);
       if (!res.ok) throw new Error(`http ${res.status}`);
       const blob = await res.blob();
-      if (which === "share") await shareFile(filename, mime, blob, { title });
-      else await deliverFile(filename, mime, blob);
+      // The signed URL travels with the bytes: on native it is the second
+      // chance (Chrome downloads it) when the share sheet is unavailable, and
+      // without it a failed native delivery has nowhere to go.
+      if (which === "share") await shareFile(filename, mime, blob, { title }, url);
+      else await deliverFile(filename, mime, blob, url);
     } catch (e) {
       // A dismissed share sheet is not a failure and must not be reported as
       // one — the person chose to stop.

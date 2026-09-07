@@ -96,21 +96,61 @@ async function nativeDeliver(
 }
 
 /**
+ * Last resort on NATIVE: hand the signed URL to the system browser so Chrome's
+ * own downloader saves it into Downloads.
+ *
+ * WHY THIS EXISTS AT ALL, and it is the whole bug. The web fallback below ends
+ * in `<a download>` + a blob URL, and MediaSaverPlugin.java already records
+ * what that does inside a Capacitor WebView: "no DownloadListener is attached,
+ * so the click is swallowed silently". It is not a weak fallback, it is a
+ * NO-OP — and webDeliver returns "downloaded" afterwards, so the caller shows
+ * no error and the person sees a Download button that does nothing at all.
+ * That exact behaviour once destroyed a film: the web layer reported success
+ * and told the server to purge it.
+ *
+ * `@capacitor/browser` is already a dependency and needs no new native code,
+ * so the URL goes to Chrome, which can genuinely download it.
+ */
+async function nativeBrowserDownload(url: string | undefined): Promise<boolean> {
+  if (!url || !Capacitor.isNativePlatform()) return false;
+  try {
+    const { Browser } = await import("@capacitor/browser");
+    await Browser.open({ url });
+    return true;
+  } catch (e) {
+    console.warn("[saveFile] browser download failed", e);
+    return false;
+  }
+}
+
+/**
  * Hand a file to the OS.
  *
- * Native: cache write + system share/save sheet (an <a download> cannot save
- * anything inside a Capacitor WebView). Falls back to the web path if the
- * native plugins are unavailable or fail.
+ * Native: cache write + system share/save sheet, then the system browser on
+ * the signed URL. It NEVER falls through to the web path, because an
+ * <a download> inside a Capacitor WebView is a silent no-op — see
+ * nativeBrowserDownload above. When both native routes fail this THROWS, so
+ * the caller shows "Couldn't download that one" instead of a button that
+ * quietly does nothing.
  *
- * Web: the ordinary anchor download.
+ * Web: the ordinary anchor download, which works.
+ *
+ * `sourceUrl` is optional only so existing callers keep compiling; on native
+ * without it there is no second chance, which is why every caller should pass
+ * it — pinned in saveFileNative.test.ts.
  */
 export async function deliverFile(
   filename: string,
   mime: string,
   blob: Blob,
+  sourceUrl?: string,
 ): Promise<"shared" | "downloaded"> {
   const native = await nativeDeliver(filename, mime, blob, "Save or share file");
   if (native) return native;
+  if (Capacitor.isNativePlatform()) {
+    if (await nativeBrowserDownload(sourceUrl)) return "downloaded";
+    throw new Error("native delivery unavailable");
+  }
   return webDeliver(filename, mime, blob);
 }
 
@@ -125,9 +165,16 @@ export async function shareFile(
   mime: string,
   blob: Blob,
   opts?: { title?: string; text?: string },
+  sourceUrl?: string,
 ): Promise<"shared" | "downloaded"> {
   const native = await nativeDeliver(filename, mime, blob, opts?.title ?? filename);
   if (native) return native;
+  // Same rule as deliverFile: on native the anchor cannot save anything, so
+  // the browser gets the URL and a total failure is reported rather than
+  // silently swallowed.
+  if (Capacitor.isNativePlatform()) {
+    if (await nativeBrowserDownload(sourceUrl)) return "downloaded";
+    throw new Error("native delivery unavailable");
+  }
   return webDeliver(filename, mime, blob, opts, true);
 }
-
