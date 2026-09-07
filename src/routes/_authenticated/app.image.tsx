@@ -11,6 +11,7 @@ import {
   OniqChip,
   OniqEmpty,
   OniqHeader,
+  OniqDeleteCreation,
   OniqMadeLink,
   OniqSectionHeader,
   OniqSkeletonRows,
@@ -510,7 +511,17 @@ function ImageScreen() {
                     This one could not be loaded.
                   </p>
                 )}
-                <OniqMadeLink kind="image" id={p.id} testId="image-open" />
+                <div className="mt-2 flex items-center gap-2">
+                  <OniqMadeLink kind="image" id={p.id} testId="image-open" className="mt-0" />
+                  <OniqDeleteCreation
+                    kind="picture"
+                    id={p.id}
+                    testId="image-picture-delete"
+                    onDeleted={() =>
+                      setPictures((prev) => (prev ?? []).filter((x) => x.id !== p.id))
+                    }
+                  />
+                </div>
               </OniqCard>
             ))}
           </div>

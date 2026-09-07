@@ -11,6 +11,7 @@ import {
   OniqChip,
   OniqEmpty,
   OniqHeader,
+  OniqDeleteCreation,
   OniqMadeLink,
   OniqSectionHeader,
   OniqSkeletonRows,
@@ -88,7 +89,7 @@ type Song = {
  * out, and the browser can read that from the file. So the half of "duration"
  * ONIQ can be honest about is shown, and the half it cannot is not faked.
  */
-function SongCard({ song: s }: { song: Song }) {
+function SongCard({ song: s, onDeleted }: { song: Song; onDeleted: () => void }) {
   const [length, setLength] = useState<string | null>(null);
 
   return (
@@ -143,7 +144,15 @@ function SongCard({ song: s }: { song: Song }) {
       ) : (
         <p className="mt-2 text-[11px] text-muted-foreground">This one could not be loaded.</p>
       )}
-      <OniqMadeLink kind="music" id={s.id} testId="music-open" />
+      <div className="mt-2 flex items-center gap-2">
+        <OniqMadeLink kind="music" id={s.id} testId="music-open" className="mt-0" />
+        <OniqDeleteCreation
+          kind="song"
+          id={s.id}
+          testId="music-song-delete"
+          onDeleted={onDeleted}
+        />
+      </div>
     </OniqCard>
   );
 }
@@ -355,7 +364,11 @@ function MusicScreen() {
         ) : (
           <div className="mt-3 grid gap-2">
             {songs.map((s) => (
-              <SongCard key={s.id} song={s} />
+              <SongCard
+                key={s.id}
+                song={s}
+                onDeleted={() => setSongs((prev) => (prev ?? []).filter((x) => x.id !== s.id))}
+              />
             ))}
           </div>
         )}

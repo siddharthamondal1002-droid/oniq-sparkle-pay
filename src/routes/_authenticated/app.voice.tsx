@@ -11,6 +11,7 @@ import {
   OniqChip,
   OniqEmpty,
   OniqHeader,
+  OniqDeleteCreation,
   OniqMadeLink,
   OniqSectionHeader,
   OniqSkeletonRows,
@@ -387,7 +388,15 @@ function VoiceScreen() {
                     This one could not be loaded.
                   </p>
                 )}
-                <OniqMadeLink kind="voice" id={c.id} testId="voice-open" />
+                <div className="mt-2 flex items-center gap-2">
+                  <OniqMadeLink kind="voice" id={c.id} testId="voice-open" className="mt-0" />
+                  <OniqDeleteCreation
+                    kind="clip"
+                    id={c.id}
+                    testId="voice-clip-delete"
+                    onDeleted={() => setClips((prev) => (prev ?? []).filter((x) => x.id !== c.id))}
+                  />
+                </div>
               </OniqCard>
             ))}
           </div>
