@@ -33,7 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeError";
 import { firebaseBridge } from "@/lib/firebaseBridge.functions";
 
-export const Route = createFileRoute("/_authenticated/app/admin/firebase")({
+export const Route = createFileRoute("/_authenticated/app/admin_/firebase")({
   head: () => ({
     meta: [{ title: "Firebase provisioning" }, { name: "robots", content: "noindex, nofollow" }],
   }),

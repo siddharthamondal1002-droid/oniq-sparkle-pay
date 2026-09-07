@@ -254,7 +254,7 @@ describe("voice.clone: the wiring is pinned, not just the allowlist", () => {
     // voice-clone exists because voiceReplication.ts had no caller for two
     // days while the blocker was reported as Google's. Shipping a probe that
     // nothing invokes would repeat exactly that, one level up.
-    const screen = read("src/routes/_authenticated/app.admin.firebase.tsx");
+    const screen = read("src/routes/_authenticated/app.admin_.firebase.tsx");
     expect(screen).toContain('invoke("voice-clone"');
     expect(screen).toContain('action: "probe"');
     expect(screen, "the button's marker moved away from its handler").toContain(

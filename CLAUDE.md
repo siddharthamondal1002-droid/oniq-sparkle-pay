@@ -2061,6 +2061,82 @@ rather than guessing a name.
 stops listing or loses its delete control, and pins that the row is removed only
 on `res.ok`. Mutation-checked both ways.
 
+### 2026-09-07 — "firebase tab opens to nothing". The three admin tools had never rendered.
+
+Reported the morning after their links shipped. The link worked, the route file
+was correct, the chunk was served, the edge function was deployed — and the
+screen had never once appeared, for anyone, since the day each was written.
+
+**TanStack's flat file convention NESTS BY DOTS, and a child renders only
+inside its parent's `<Outlet />`.** `app.admin.firebase.tsx` was a CHILD of
+`app.admin.tsx`. `app.admin.tsx` is the Moderation inbox — a leaf screen with
+no Outlet. So `/app/admin/firebase` mounted the INBOX and dropped the tool
+silently. All three tools, the same way:
+
+    app.admin.firebase     -> parent app.admin   NO OUTLET
+    app.admin.gpu-video    -> parent app.admin   NO OUTLET
+    app.admin.video        -> parent app.admin   NO OUTLET
+    42 other nested pairs  -> parent has Outlet  fine
+
+Forty-two other pairs pass, so this is not a heuristic firing on everything —
+it is three files, and they are exactly the three that were reported broken.
+
+**THE CHUNK CHECK IS THE ONE THAT LIED, AND IT IS THE ONE THIS FILE
+PRESCRIBES.** Recorded above, 2026-09-05, in these words: _"The SCREEN is live
+too, which is a separate fact from the function being deployed and from the
+code being on `main` — verified against the shipped bundle."_ That verification
+found the route path in the entry chunk and the button's marker in its own
+route chunk, and concluded the screen was live. **A route chunk ships whether
+or not anything mounts it.** `oniq-ship` names three claims — the asset is
+reachable, the bundle references it, the page renders it — and says none
+implies the next. This conflated the first two with the third and then wrote
+the conclusion down, where two later sessions read it as settled.
+
+Nothing else could have caught it either, and that is worth listing because
+each of these felt like coverage:
+
+    tsc                       clean — a route typechecks either way
+    4,900 tests               green
+    adminDoors.test.ts        green — it asserts a LINK EXISTS, which it did
+    the served chunk grep     green — the chunk is fetched and parsed; the
+                                      component is simply never called
+    POST the edge function    401  — the server was always fine
+
+**AND IT MADE THE PREVIOUS DAY'S DIAGNOSIS WRONG IN THE OTHER DIRECTION.**
+"admin features not showing in id" was read as three routes with no doors, and
+links were shipped. The links were genuinely missing and are genuinely needed —
+but the report was about the tools not working, and adding a door to a room
+that cannot be entered does not open it. Both halves were real; only the second
+one was the complaint.
+
+FIXED by opting the three out of nesting — `app.admin_.firebase.tsx`, the
+trailing underscore on the PARENT segment, which changes the route id and
+leaves the URL alone. `/app/admin/firebase` still resolves; it is now a child
+of `app` (which has an Outlet) rather than of `app.admin` (which does not).
+Giving `app.admin.tsx` an Outlet instead would have drawn the whole Moderation
+inbox above every tool, so the underscore is the right half of the fix rather
+than the lazy one. The filename is load-bearing and says so where it is read
+from — `playCompliance.ts` names two of these files by path.
+
+`src/lib/__tests__/routeNesting.test.ts` is the guard, and it is APP-WIDE
+rather than a fourth admin special case: for every route file whose dot-parent
+exists as a file, that parent must render an `<Outlet />`. Comments are
+stripped first — `app.admin.tsx` may one day explain in prose why it has no
+Outlet, and a guard that read the explanation as the code would pass on the
+very file it exists to catch. **That is the sixth prose match in this repo in
+four days.** Mutation-checked both ways: re-nesting one file fails two
+assertions, and a prose `<Outlet />` in the parent does not rescue it.
+
+**THE SEQUENCE THAT FOUND IT IS THE REUSABLE PART.** The owner said the tab
+"opens to nothing". Before touching anything, the DATABASE was measured —
+`profiles.is_admin` true for the owner, `public.is_admin` SECURITY DEFINER with
+`authenticated` holding EXECUTE, and the function run as `role=authenticated`
+with that user's JWT claims returning **true**. That killed every server-side
+theory in one query and left only the client. Then the nesting was ENUMERATED
+across all 45 pairs rather than inspected for the one file in question, which
+is what turned "the firebase screen is broken" into "these three are, and only
+these three".
+
 ### 2026-09-07 — "download option not working", and two verification mistakes on the way
 
 **THE BUG WAS A SILENT NO-OP, and the file that explains it was already in the

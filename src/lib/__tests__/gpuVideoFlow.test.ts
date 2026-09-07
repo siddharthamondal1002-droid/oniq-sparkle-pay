@@ -36,7 +36,7 @@ const ROOT = process.cwd();
 const SERVER_SRC = readFileSync(join(ROOT, "src/lib/gpuVideo.server.ts"), "utf8");
 const FUNCTIONS_SRC = readFileSync(join(ROOT, "src/lib/gpuVideo.functions.ts"), "utf8");
 const ROUTE_SRC = readFileSync(
-  join(ROOT, "src/routes/_authenticated/app.admin.gpu-video.tsx"),
+  join(ROOT, "src/routes/_authenticated/app.admin_.gpu-video.tsx"),
   "utf8",
 );
 const MIGRATION_SQL = readFileSync(
@@ -545,7 +545,12 @@ describe("client cannot override budget or runtime", () => {
     });
     // A card too small for the model is still refused.
     expect(
-      admitGpuJob({ ...off, gpuType: "NVIDIA RTX A5000", pricePerHourUsd: 0.27, requiredVramGb: 80 }),
+      admitGpuJob({
+        ...off,
+        gpuType: "NVIDIA RTX A5000",
+        pricePerHourUsd: 0.27,
+        requiredVramGb: 80,
+      }),
     ).toEqual({ ok: false, reason: "insufficient-vram" });
     // The runtime ceiling still holds — and with no price cap it is now the
     // thing that bounds what one job can cost.

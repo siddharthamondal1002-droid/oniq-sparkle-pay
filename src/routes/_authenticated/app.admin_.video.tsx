@@ -21,7 +21,7 @@ import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputRep
 import { MAX_STILL_BYTES, validateStillName } from "@/lib/stillValidation";
 import { ORIGINALS, SEASON_DURATION, SEASON_RATIO, findScene } from "@/data/originals";
 
-export const Route = createFileRoute("/_authenticated/app/admin/video")({
+export const Route = createFileRoute("/_authenticated/app/admin_/video")({
   head: () => ({
     meta: [{ title: "Internal video tool" }, { name: "robots", content: "noindex, nofollow" }],
   }),

@@ -172,9 +172,14 @@ export const AI_SURFACES = [
   {
     // The standalone route remains as a fallback surface for the same tool;
     // it renders the identical label + report control.
+    //
+    // THE UNDERSCORE IN THE FILENAME IS LOAD-BEARING, not a typo. It opts the
+    // route out of nesting under app.admin.tsx, which has no <Outlet /> and so
+    // swallowed all three admin tools whole — see routeNesting.test.ts. The
+    // URL is unchanged; only the route id moves.
     id: "gpu_video_ai_output",
     screen: "Admin — in-house GPU video tool (standalone fallback page)",
-    file: "src/routes/_authenticated/app.admin.gpu-video.tsx",
+    file: "src/routes/_authenticated/app.admin_.gpu-video.tsx",
   },
   {
     // "Your videos" — the library where a finished Story is watched and saved.
@@ -189,7 +194,7 @@ export const AI_SURFACES = [
   {
     id: "runway_admin_output",
     screen: "Admin — Runway video tool (internal)",
-    file: "src/routes/_authenticated/app.admin.video.tsx",
+    file: "src/routes/_authenticated/app.admin_.video.tsx",
   },
   {
     // The Watch library's "Ask ONIQ about this video" (owner mission,

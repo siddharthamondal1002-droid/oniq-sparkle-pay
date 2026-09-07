@@ -69,9 +69,9 @@ import { Route as AuthenticatedAppVoiceRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppWatchRouteImport } from './routes/_authenticated/app.watch'
 import { Route as AuthenticatedAppWeatherRouteImport } from './routes/_authenticated/app.weather'
 import { Route as ApiPublicMediaSweepRouteImport } from './routes/api/public/media-sweep'
-import { Route as AuthenticatedAppAdminFirebaseRouteImport } from './routes/_authenticated/app.admin.firebase'
-import { Route as AuthenticatedAppAdminGpuVideoRouteImport } from './routes/_authenticated/app.admin.gpu-video'
-import { Route as AuthenticatedAppAdminVideoRouteImport } from './routes/_authenticated/app.admin.video'
+import { Route as AuthenticatedAppAdminFirebaseRouteImport } from './routes/_authenticated/app.admin_.firebase'
+import { Route as AuthenticatedAppAdminGpuVideoRouteImport } from './routes/_authenticated/app.admin_.gpu-video'
+import { Route as AuthenticatedAppAdminVideoRouteImport } from './routes/_authenticated/app.admin_.video'
 import { Route as AuthenticatedAppChatIndexRouteImport } from './routes/_authenticated/app.chat.index'
 import { Route as AuthenticatedAppChatConversationIdRouteImport } from './routes/_authenticated/app.chat.$conversationId'
 import { Route as AuthenticatedAppChatCallsRouteImport } from './routes/_authenticated/app.chat.calls'
@@ -402,21 +402,21 @@ const ApiPublicMediaSweepRoute = ApiPublicMediaSweepRouteImport.update({
 } as any)
 const AuthenticatedAppAdminFirebaseRoute =
   AuthenticatedAppAdminFirebaseRouteImport.update({
-    id: '/firebase',
-    path: '/firebase',
-    getParentRoute: () => AuthenticatedAppAdminRoute,
+    id: '/admin_/firebase',
+    path: '/admin/firebase',
+    getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 const AuthenticatedAppAdminGpuVideoRoute =
   AuthenticatedAppAdminGpuVideoRouteImport.update({
-    id: '/gpu-video',
-    path: '/gpu-video',
-    getParentRoute: () => AuthenticatedAppAdminRoute,
+    id: '/admin_/gpu-video',
+    path: '/admin/gpu-video',
+    getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 const AuthenticatedAppAdminVideoRoute =
   AuthenticatedAppAdminVideoRouteImport.update({
-    id: '/video',
-    path: '/video',
-    getParentRoute: () => AuthenticatedAppAdminRoute,
+    id: '/admin_/video',
+    path: '/admin/video',
+    getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 const AuthenticatedAppChatIndexRoute =
   AuthenticatedAppChatIndexRouteImport.update({
@@ -542,7 +542,7 @@ export interface FileRoutesByFullPath {
   '/u/$userId': typeof UUserIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
-  '/app/admin': typeof AuthenticatedAppAdminRouteWithChildren
+  '/app/admin': typeof AuthenticatedAppAdminRoute
   '/app/ai': typeof AuthenticatedAppAiRoute
   '/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
@@ -622,7 +622,7 @@ export interface FileRoutesByTo {
   '/u/$userId': typeof UUserIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
-  '/app/admin': typeof AuthenticatedAppAdminRouteWithChildren
+  '/app/admin': typeof AuthenticatedAppAdminRoute
   '/app/ai': typeof AuthenticatedAppAiRoute
   '/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/app/clips': typeof AuthenticatedAppClipsRoute
@@ -704,7 +704,7 @@ export interface FileRoutesById {
   '/u/$userId': typeof UUserIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
-  '/_authenticated/app/admin': typeof AuthenticatedAppAdminRouteWithChildren
+  '/_authenticated/app/admin': typeof AuthenticatedAppAdminRoute
   '/_authenticated/app/ai': typeof AuthenticatedAppAiRoute
   '/_authenticated/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/_authenticated/app/chat': typeof AuthenticatedAppChatRouteWithChildren
@@ -740,9 +740,9 @@ export interface FileRoutesById {
   '/_authenticated/app/weather': typeof AuthenticatedAppWeatherRoute
   '/api/public/media-sweep': typeof ApiPublicMediaSweepRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
-  '/_authenticated/app/admin/firebase': typeof AuthenticatedAppAdminFirebaseRoute
-  '/_authenticated/app/admin/gpu-video': typeof AuthenticatedAppAdminGpuVideoRoute
-  '/_authenticated/app/admin/video': typeof AuthenticatedAppAdminVideoRoute
+  '/_authenticated/app/admin_/firebase': typeof AuthenticatedAppAdminFirebaseRoute
+  '/_authenticated/app/admin_/gpu-video': typeof AuthenticatedAppAdminGpuVideoRoute
+  '/_authenticated/app/admin_/video': typeof AuthenticatedAppAdminVideoRoute
   '/_authenticated/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/_authenticated/app/chat/calls': typeof AuthenticatedAppChatCallsRoute
   '/_authenticated/app/chat/me': typeof AuthenticatedAppChatMeRoute
@@ -984,9 +984,9 @@ export interface FileRouteTypes {
     | '/_authenticated/app/weather'
     | '/api/public/media-sweep'
     | '/_authenticated/app/'
-    | '/_authenticated/app/admin/firebase'
-    | '/_authenticated/app/admin/gpu-video'
-    | '/_authenticated/app/admin/video'
+    | '/_authenticated/app/admin_/firebase'
+    | '/_authenticated/app/admin_/gpu-video'
+    | '/_authenticated/app/admin_/video'
     | '/_authenticated/app/chat/$conversationId'
     | '/_authenticated/app/chat/calls'
     | '/_authenticated/app/chat/me'
@@ -1456,26 +1456,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMediaSweepRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/app/admin/firebase': {
-      id: '/_authenticated/app/admin/firebase'
-      path: '/firebase'
+    '/_authenticated/app/admin_/firebase': {
+      id: '/_authenticated/app/admin_/firebase'
+      path: '/admin/firebase'
       fullPath: '/app/admin/firebase'
       preLoaderRoute: typeof AuthenticatedAppAdminFirebaseRouteImport
-      parentRoute: typeof AuthenticatedAppAdminRoute
+      parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/admin/gpu-video': {
-      id: '/_authenticated/app/admin/gpu-video'
-      path: '/gpu-video'
+    '/_authenticated/app/admin_/gpu-video': {
+      id: '/_authenticated/app/admin_/gpu-video'
+      path: '/admin/gpu-video'
       fullPath: '/app/admin/gpu-video'
       preLoaderRoute: typeof AuthenticatedAppAdminGpuVideoRouteImport
-      parentRoute: typeof AuthenticatedAppAdminRoute
+      parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/admin/video': {
-      id: '/_authenticated/app/admin/video'
-      path: '/video'
+    '/_authenticated/app/admin_/video': {
+      id: '/_authenticated/app/admin_/video'
+      path: '/admin/video'
       fullPath: '/app/admin/video'
       preLoaderRoute: typeof AuthenticatedAppAdminVideoRouteImport
-      parentRoute: typeof AuthenticatedAppAdminRoute
+      parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/chat/': {
       id: '/_authenticated/app/chat/'
@@ -1599,23 +1599,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AuthenticatedAppAdminRouteChildren {
-  AuthenticatedAppAdminFirebaseRoute: typeof AuthenticatedAppAdminFirebaseRoute
-  AuthenticatedAppAdminGpuVideoRoute: typeof AuthenticatedAppAdminGpuVideoRoute
-  AuthenticatedAppAdminVideoRoute: typeof AuthenticatedAppAdminVideoRoute
-}
-
-const AuthenticatedAppAdminRouteChildren: AuthenticatedAppAdminRouteChildren = {
-  AuthenticatedAppAdminFirebaseRoute: AuthenticatedAppAdminFirebaseRoute,
-  AuthenticatedAppAdminGpuVideoRoute: AuthenticatedAppAdminGpuVideoRoute,
-  AuthenticatedAppAdminVideoRoute: AuthenticatedAppAdminVideoRoute,
-}
-
-const AuthenticatedAppAdminRouteWithChildren =
-  AuthenticatedAppAdminRoute._addFileChildren(
-    AuthenticatedAppAdminRouteChildren,
-  )
-
 interface AuthenticatedAppChatRouteChildren {
   AuthenticatedAppChatConversationIdRoute: typeof AuthenticatedAppChatConversationIdRoute
   AuthenticatedAppChatCallsRoute: typeof AuthenticatedAppChatCallsRoute
@@ -1641,7 +1624,7 @@ const AuthenticatedAppChatRouteWithChildren =
   AuthenticatedAppChatRoute._addFileChildren(AuthenticatedAppChatRouteChildren)
 
 interface AuthenticatedAppRouteChildren {
-  AuthenticatedAppAdminRoute: typeof AuthenticatedAppAdminRouteWithChildren
+  AuthenticatedAppAdminRoute: typeof AuthenticatedAppAdminRoute
   AuthenticatedAppAiRoute: typeof AuthenticatedAppAiRoute
   AuthenticatedAppAttributionsRoute: typeof AuthenticatedAppAttributionsRoute
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRouteWithChildren
@@ -1676,6 +1659,9 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppWatchRoute: typeof AuthenticatedAppWatchRoute
   AuthenticatedAppWeatherRoute: typeof AuthenticatedAppWeatherRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
+  AuthenticatedAppAdminFirebaseRoute: typeof AuthenticatedAppAdminFirebaseRoute
+  AuthenticatedAppAdminGpuVideoRoute: typeof AuthenticatedAppAdminGpuVideoRoute
+  AuthenticatedAppAdminVideoRoute: typeof AuthenticatedAppAdminVideoRoute
   AuthenticatedAppFoodIdRoute: typeof AuthenticatedAppFoodIdRoute
   AuthenticatedAppPrivacyDataRightsRoute: typeof AuthenticatedAppPrivacyDataRightsRoute
   AuthenticatedAppPrivacyGrievanceRoute: typeof AuthenticatedAppPrivacyGrievanceRoute
@@ -1688,7 +1674,7 @@ interface AuthenticatedAppRouteChildren {
 }
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
-  AuthenticatedAppAdminRoute: AuthenticatedAppAdminRouteWithChildren,
+  AuthenticatedAppAdminRoute: AuthenticatedAppAdminRoute,
   AuthenticatedAppAiRoute: AuthenticatedAppAiRoute,
   AuthenticatedAppAttributionsRoute: AuthenticatedAppAttributionsRoute,
   AuthenticatedAppChatRoute: AuthenticatedAppChatRouteWithChildren,
@@ -1723,6 +1709,9 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppWatchRoute: AuthenticatedAppWatchRoute,
   AuthenticatedAppWeatherRoute: AuthenticatedAppWeatherRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
+  AuthenticatedAppAdminFirebaseRoute: AuthenticatedAppAdminFirebaseRoute,
+  AuthenticatedAppAdminGpuVideoRoute: AuthenticatedAppAdminGpuVideoRoute,
+  AuthenticatedAppAdminVideoRoute: AuthenticatedAppAdminVideoRoute,
   AuthenticatedAppFoodIdRoute: AuthenticatedAppFoodIdRoute,
   AuthenticatedAppPrivacyDataRightsRoute:
     AuthenticatedAppPrivacyDataRightsRoute,
@@ -1781,13 +1770,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

@@ -27,7 +27,7 @@ import {
 } from "@/lib/gpuVideoFlow";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 
-export const Route = createFileRoute("/_authenticated/app/admin/gpu-video")({
+export const Route = createFileRoute("/_authenticated/app/admin_/gpu-video")({
   head: () => ({
     meta: [
       { title: "Generate video (in-house GPU)" },

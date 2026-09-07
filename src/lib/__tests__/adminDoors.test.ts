@@ -37,13 +37,23 @@ import { describe, expect, it } from "vitest";
 const ROOT = process.cwd();
 const ROUTES = join(ROOT, "src/routes/_authenticated");
 
-/** `app.admin.gpu-video.tsx` -> `/app/admin/gpu-video` */
+/**
+ * `app.admin.gpu-video.tsx` -> `/app/admin/gpu-video`, and
+ * `app.admin_.gpu-video.tsx` -> the SAME path.
+ *
+ * The trailing underscore is TanStack's opt-out from nesting: it changes the
+ * route id, never the URL. Stripping it here is not cosmetic — the three
+ * admin tools carry it precisely so they do not nest (see
+ * routeNesting.test.ts), and a routePath that kept it would look for links to
+ * `/app/admin_/firebase`, find none, and fail on correctly-linked routes.
+ */
 function routePath(file: string): string {
   return (
     "/" +
     file
       .replace(/\.tsx$/, "")
       .split(".")
+      .map((seg) => seg.replace(/_$/, ""))
       .join("/")
   );
 }
