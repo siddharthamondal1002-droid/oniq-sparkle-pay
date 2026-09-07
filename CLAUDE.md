@@ -2589,6 +2589,22 @@ READING THE NEXT TAP:
     speech.replicated 403, or 400 naming a gate  the public shape is ALSO gated
                                                for this project
 
+**THE DEPLOY MESSAGE IS QUEUED BEHIND A PAUSED QUEUE, 2026-09-07 20:33Z.**
+`get_project.latest_commit_sha` read `f435b04a` == HEAD, the deploy message
+was sent, and `send_message` answered:
+
+    status "error"   message_id umsg_01m1ys45whedpbkx66cwfczs2e   position 1
+    "the queue is paused (reason: stop). Unpause the queue in the Lovable
+     editor, or use wait=false to return immediately."
+
+So the message is IN the queue, unrun and unspent, and nothing on this side
+can unpause it — no MCP tool touches the queue. **Do not resend**: a second
+copy would run too once the owner unpauses, and deploy twice. The owner
+unpauses in the Lovable editor; the deploy then runs on its own, and the
+Voice replication tap measures. A queued message is a request, not a
+delivery — confirm by the artifact (the tap's `speech` block appearing),
+never by the queue accepting.
+
 ### 2026-09-07 — the errors inbox, read: the chat thread collapses to 20px
 
 The owner opened Moderation inbox -> errors and screenshotted it. Two surfaces,
