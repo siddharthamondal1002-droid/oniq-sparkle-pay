@@ -2659,6 +2659,59 @@ owner's under this file's first rule. Recorded, not acted on.
 The capability row stays GATED; its evidence carries this measurement and the
 test pins the gate's own sentence.
 
+### 2026-09-08 — "where is the form link": the repo never had it, and Google's docs are unreachable from here
+
+The owner asked for the access-form link, and the honest answer starts with a
+correction: **"it is in the document you supplied on 2026-09-04" was an
+assumption.** That document was summarised into `voiceReplication.ts`'s header
+and the capability row, and its URL was never recorded — a grep for any form,
+allowlist or access-request link across the repo returns nothing.
+
+WHAT WAS FOUND, by web search — snippets of Google's own page, since the page
+itself is on a host this container cannot reach:
+
+    page    docs.cloud.google.com/text-to-speech/docs/
+            gemini-3.1-flash-tts-voice-replication-eap
+    title   "Gemini-TTS 3.1 Flash voice replication (EAP)"  — an Early Access
+            Program, documented under CLOUD TEXT-TO-SPEECH, not Vertex
+    access  "fill out the Gemini-TTS Voice Replication Allowlist form",
+            linked FROM that page; the form's own URL is not in any snippet
+    flow    two-step: source_audio + consent_audio -> "the service verifies
+            ownership and generates an encrypted, signed voice replication
+            key"; the consent phrase read WORD-FOR-WORD from a per-language
+            "Supported Languages and Consent Scripts" table
+
+**THAT CONFIRMS THE CODE'S SHAPE FROM GOOGLE'S SIDE.** The two-step flow ONIQ
+built — `replicationKeyBody` with `source_audio` and `consent_audio`, the
+consent scripts, the signed key — IS the documented EAP flow. Reading 1 stands
+on Google's own page now, not only on the 404: the door is the EAP allowlist,
+and the one-step `replicatedVoiceConfig` in the discovery document is a
+separate surface that is ALSO refused for this project.
+
+WHAT COULD NOT BE REACHED, so nobody retries it: `docs.cloud.google.com`,
+`ai.google.dev` and `discuss.ai.google.dev` are egress-blocked for WebFetch as
+well as curl; `cloud.google.com` answers only a 301 onto the blocked host;
+`web.archive.org` is refused by the fetch tool. The launch blog post on
+`cloud.google.com/blog` IS reachable and does not mention replication or a
+form. **The page is the owner's to open; it will open in any browser.**
+
+ONE THING TO CHECK ON THAT PAGE, because the snippets raise it: the EAP is
+documented under the Cloud Text-to-Speech product, so the "Voices API" that
+mints the key may live on `texttospeech.googleapis.com` rather than the
+`aiplatform.googleapis.com` URL ONIQ carries from the 2026-09-04d document. If
+it does, `404 Method not found` on aiplatform was a HOST mismatch as much as an
+allowlist, and the fix is one constant in `voiceReplication.ts`. Probed free
+and unauthenticated from here, 2026-09-08 — 401 means the path pattern reaches
+that host's auth layer, 404 means the host does not know it, and by the
+2026-09-07 correction a 401 says nothing about whether POST is bound:
+
+    404  POST texttospeech.googleapis.com/v1beta1/projects/oniq-309bd/locations/global/voices
+          <!DOCTYPE html> <html lang=en>   <meta charset=utf-8>   <meta name=viewport content="initial-scale=1, minimum-scale=1, width=device-width">   <title>Error 404 (Not Found)!!1</title>   <style>     *{margin:0;padding:0}htm
+    404  POST texttospeech.googleapis.com/v1/projects/oniq-309bd/locations/global/voices
+          <!DOCTYPE html> <html lang=en>   <meta charset=utf-8>   <meta name=viewport content="initial-scale=1, minimum-scale=1, width=device-width">   <title>Error 404 (Not Found)!!1</title>   <style>     *{margin:0;padding:0}htm
+    401  POST aiplatform.googleapis.com/v1beta1/projects/oniq-309bd/locations/global/voices
+          [{   "error": {     "code": 401,     "message": "Request is missing required authentication credential. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.
+
 ### 2026-09-07 — the errors inbox, read: the chat thread collapses to 20px
 
 The owner opened Moderation inbox -> errors and screenshotted it. Two surfaces,
