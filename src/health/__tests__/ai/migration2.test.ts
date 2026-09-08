@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { stripSqlComments } from "@/test/sourceText";
 import { AI_REFUSAL_REASONS, AI_TASKS, CONTRACT_REFUSAL_CODES, PROVIDER_IDS } from "../../ai/types";
 import { DISCLOSED_RECIPIENTS_BY_TERMS } from "../../consent";
-import { AUDIT_ACTIONS, RECORD_STATUSES } from "../../domain";
+import { AUDIT_ACTIONS, AUDIT_OBJECT_TYPES, RECORD_STATUSES } from "../../domain";
 import { HEALTH_FLAG_COLUMNS } from "../../flagNames";
 
 const ROOT = join(__dirname, "..", "..", "..", "..");
@@ -180,6 +180,42 @@ describe("records, documents, consents, audit", () => {
   it("audit: the widened action list equals the domain list", () => {
     expect(listIn("add constraint health_audit_action_check\n  check (action in (")).toEqual(
       [...AUDIT_ACTIONS].sort(),
+    );
+  });
+});
+
+describe("every change to the AI controls is audited, whatever the path (owner directive 2026-09-08)", () => {
+  it("widens object_type to config by a named constraint equal to the domain list", () => {
+    expect(
+      listIn("add constraint health_audit_object_type_check\n  check (object_type in ("),
+    ).toEqual([...AUDIT_OBJECT_TYPES].sort());
+  });
+
+  it("a row trigger appends config.changed on any change to the five AI-control columns, as a system row", () => {
+    const start = SQL.indexOf(
+      "create or replace function public.health_config_audit_ai_controls()",
+    );
+    expect(start).toBeGreaterThan(-1);
+    const fn = SQL.slice(start, SQL.indexOf("$$;", start));
+    expect(fn).toContain("security definer");
+    for (const col of [
+      "ai_daily_cap_house",
+      "ai_daily_caps",
+      "ai_kill_switch",
+      "ai_enabled",
+      "ai_admin_verification_enabled",
+    ]) {
+      expect(fn, col).toContain(`new.${col} is distinct from old.${col}`);
+    }
+    expect(fn).toContain("perform public.health_append_audit(");
+    expect(fn).toContain("'config.changed', 'config'");
+    expect(fn).toContain("null::uuid, current_user::text");
+    expect(fn).toContain("gen_random_uuid(), 'ok'");
+    expect(SQL).toContain(
+      "create trigger health_config_audit_ai_controls\n  after update on public.health_config\n  for each row execute function public.health_config_audit_ai_controls()",
+    );
+    expect(SQL).toContain(
+      "revoke all on function public.health_config_audit_ai_controls() from public, anon, authenticated",
     );
   });
 });

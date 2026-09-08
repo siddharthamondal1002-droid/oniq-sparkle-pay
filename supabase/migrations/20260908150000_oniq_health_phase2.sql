@@ -104,7 +104,49 @@ alter table public.health_audit add constraint health_audit_action_check
     'documents.register','documents.confirm','documents.read','documents.delete',
     'documents.classify','documents.extract',
     'consents.grant','consents.revoke','ai.request','ai.refused','export','purge',
-    'config.ai_kill'));
+    'config.ai_kill','config.ai_caps','config.changed'));
+alter table public.health_audit drop constraint if exists health_audit_object_type_check;
+alter table public.health_audit add constraint health_audit_object_type_check
+  check (object_type in ('record','document','consent','account','config'));
+
+-- 5b. EVERY CHANGE TO THE AI CONTROLS IS AUDITED (owner directive 2026-09-08) ------
+-- Whatever path changes the row — health-api's admin actions, a SQL UPDATE run
+-- by the Lovable agent, the dashboard — the change lands in the hash chain.
+-- health-api's own rows (config.ai_kill, config.ai_caps) say WHO asked, with
+-- the admin as actor and their request id; this row says WHAT changed, with the
+-- values after the change, and its actor is the database role that ran the
+-- statement (the service role for every path ONIQ has). user_id is null: a
+-- system row, readable by admins under the audit policy, purged by nobody's
+-- account deletion.
+create or replace function public.health_config_audit_ai_controls()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.ai_daily_cap_house is distinct from old.ai_daily_cap_house
+     or new.ai_daily_caps is distinct from old.ai_daily_caps
+     or new.ai_kill_switch is distinct from old.ai_kill_switch
+     or new.ai_enabled is distinct from old.ai_enabled
+     or new.ai_admin_verification_enabled is distinct from old.ai_admin_verification_enabled then
+    perform public.health_append_audit(
+      null::uuid, current_user::text, 'config.changed', 'config', null::uuid,
+      null::text, null::uuid, gen_random_uuid(), 'ok',
+      jsonb_build_object(
+        'house', new.ai_daily_cap_house,
+        'caps', new.ai_daily_caps,
+        'switch', case when new.ai_kill_switch then 'on' else 'off' end,
+        'ai_enabled', new.ai_enabled,
+        'admin_verification', new.ai_admin_verification_enabled));
+  end if;
+  return new;
+end $$;
+revoke all on function public.health_config_audit_ai_controls() from public, anon, authenticated;
+drop trigger if exists health_config_audit_ai_controls on public.health_config;
+create trigger health_config_audit_ai_controls
+  after update on public.health_config
+  for each row execute function public.health_config_audit_ai_controls();
 
 -- 6. RECEIPTS ---------------------------------------------------------------------
 create table if not exists public.health_ai_requests (

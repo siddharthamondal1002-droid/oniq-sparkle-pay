@@ -41,6 +41,7 @@ const MUTATING = [
   "actExport",
   "actPurge",
   "actAdminAiKill",
+  "actAdminAiCaps",
 ];
 
 describe("gate order in Deno.serve", () => {
@@ -175,7 +176,7 @@ describe("every mutation is audited; every read is scoped", () => {
     expect(update).toBeGreaterThan(gate);
     expect(body).toContain('reason: "forbidden"');
     expect(
-      body.match(/await audit\(ctx, "config\.ai_kill", "account", "(refused|ok)"/g)?.length,
+      body.match(/await audit\(ctx, "config\.ai_kill", "config", "(refused|ok)"/g)?.length,
     ).toBe(2);
     expect(body).toContain('.from("health_config")');
     expect(body).toContain('.eq("id", true)');
@@ -183,6 +184,39 @@ describe("every mutation is audited; every read is scoped", () => {
     expect(SRC).toContain('"admin.ai_kill": actAdminAiKill');
     // Status reports the switch's position, read from the row, never from a client.
     expect(fnBody("actStatus")).toContain("aiKillSwitch: ctx.config?.ai_kill_switch === true");
+  });
+
+  it("the caps are set through one admin-gated, audited action: validate, gate, update, one row per value", () => {
+    // Owner directive 2026-09-08 (later): the house cap approved at 500 as a
+    // SYSTEM-WIDE ceiling, the per-task caps the tighter control, configurable
+    // without a migration, every change audited, 0 never meaning unlimited.
+    const body = fnBody("actAdminAiCaps");
+    const validate = body.indexOf("capInput(body.house)");
+    const gate = body.indexOf('rpc("is_admin", { _uid: ctx.userId })');
+    const update = body.indexOf('.from("health_config").update(patch).eq("id", true)');
+    expect(validate).toBeGreaterThan(-1);
+    expect(gate).toBeGreaterThan(validate);
+    expect(update).toBeGreaterThan(gate);
+    expect(SRC).toMatch(/const CAP_MAX = 100_000;/);
+    expect(SRC).toMatch(/Number\.isInteger\(v\) && v >= 0 && v <= CAP_MAX/);
+    expect(body).toContain("(AI_TASKS as readonly string[]).includes(key)");
+    expect(body).toContain('reason: "bad_input"');
+    expect(body).toContain('reason: "forbidden"');
+    expect(body).toContain('audit(ctx, "config.ai_caps", "config", "refused"');
+    expect(body).toContain('audit(ctx, "config.ai_caps", "config", "ok", { detail: { house } })');
+    expect(body).toContain(
+      'audit(ctx, "config.ai_caps", "config", "ok", { detail: { task, count } })',
+    );
+    // The patch carries only what was sent, merged over the row's JSON — and
+    // never the switches: those have their own doors.
+    expect(body).toContain("patch.ai_daily_caps = { ...base, ...tasks }");
+    expect(body).not.toContain("ai_enabled");
+    expect(body).not.toContain("ai_kill_switch");
+    expect(SRC).toContain('"admin.ai_caps": actAdminAiCaps');
+    // Status reports the caps the server reads (0 = refuse), never a client's idea of them.
+    expect(fnBody("actStatus")).toContain("aiCaps: capsOut(ctx.config ?? {})");
+    expect(fnBody("capsOut")).toContain("capForTask(row.ai_daily_caps, task)");
+    expect(fnBody("capsOut")).toContain("capFrom(row.ai_daily_cap_house)");
   });
 
   it("export carries the receipts, so a person can see what AI was asked about them", () => {

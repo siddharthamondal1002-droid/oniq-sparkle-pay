@@ -66,6 +66,15 @@ three health AI screens (the label; the admin door's two-tap emergency stop),
 `src/data/__tests__/playCompliance.test.ts`; tests `flags`, `wiring`, `i18n`,
 `ai/{policy,gateway,wiring,migration2,surfaces,redteamAuthz}`, `ai/fakeStore`.
 
+House-cap pass (2026-09-08, later; the owner's 500 and its conditions):
+`health-api` (`admin.ai_caps`, `capsOut`, `status.aiCaps`, config object type on
+the kill switch's rows), the migration (`health_audit_object_type_check` +
+`config`, actions `config.ai_caps` / `config.changed`, the
+`health_config_audit_ai_controls` trigger), `_shared/health/{domain,redact}.ts`
+(+ mirrors), `src/health/api.ts` (`AiCaps`, `status.aiCaps`), the admin screen
+(Daily caps: house + per task, two taps), tests `wiring`,
+`ai/{migration2,redteamAuthz,surfaces,gateway}`.
+
 ## Database changes
 
 One new migration, applied AFTER Phase 1's, every constraint named:
@@ -78,8 +87,12 @@ candidate index; `health_documents` `classification`, `extraction_status`,
 `text_chars`; `health_consents` `jurisdiction`, terms-discloses-recipient CHECK;
 `health_audit` six new actions; **`health_ai_requests`** (receipts: `user_id →
 auth.users ON DELETE SET NULL`, RLS select-only, closed-code CHECKs,
-`purged_at`); retention row `ai_requests` (365-day PLACEHOLDER) and the sweep.
-Nothing deletes user health data.
+`purged_at`); retention row `ai_requests` (365-day PLACEHOLDER) and the sweep;
+`health_audit` object type `config` and the actions `config.ai_kill`,
+`config.ai_caps`, `config.changed`; a row trigger on `health_config`
+(`health_config_audit_ai_controls`, SECURITY DEFINER) that appends
+`config.changed` on any change to the five AI-control columns, whatever path
+changed them. Nothing deletes user health data.
 
 ## External services
 
@@ -175,9 +188,9 @@ message was sent).
 ## Owner actions (none needed to merge; all needed to verify)
 
 1. Apply the migration; deploy `health-api` + `health-ai` in one message; publish (04 §A-2, steps 1–3).
-2. Set the house cap `ai_daily_cap_house` (B11 — the per-task caps arrive with the migration), then `ai_admin_verification_enabled`, then `ai_enabled`.
-3. Grant the AI consent on the Health tab as the admin; tap through `/app/admin/health-ai`.
-4. ~~Decide the AI label wording question (B12)~~ — decided 2026-09-08: "AI-assisted", built.
+2. Set `enabled = true` on the row (the master switch; nothing user-visible changes while the client constant is false), then the house cap **500** from `/app/admin/health-ai` → Daily caps (two taps, audited), then `ai_admin_verification_enabled = true`.
+3. Verify the kill switch both ways (two taps each), a non-admin's refusal (403 `forbidden`, audited), and the `config.*` audit rows.
+4. `ai_enabled` stays OFF (owner directive 2026-09-08, later): the synthetic-answer verification waits with it, behind the Phase 3 authorization and legal gate. B12 is decided ("AI-assisted") and built.
 
 ## Legal actions
 
@@ -215,6 +228,12 @@ message was sent).
   because nothing exists to enforce them on.
 - The emergency stop is read on every request and stops the NEXT one; it
   does not interrupt a request already past the gate (milliseconds).
+- The `health_config_audit_ai_controls` trigger is read from source by its
+  test; no test runs SQL. Its first real fire is the owner's first cap change
+  after the migration applies — read `health_audit` for `config.changed` then.
+- An API-driven config change leaves two audit rows (the action's, with the
+  admin as actor; the trigger's, with the database role); a raw `UPDATE`
+  leaves one. Both are in the hash chain.
 
 ## How to verify the publish (oniq-ship: learn the chunk from a local build first)
 
@@ -228,7 +247,8 @@ entry, so grep production for these files, not for `index-*.js`:
 | `health-consent-ai-toggle`               | `app.health.consent-*.js`                                                                                                                                          |
 | `health-ai-admin-result`                 | `app.admin_.health-ai-*.js` (the underscore IS the route id)                                                                                                       |
 | `health-ai-refusal`                      | `app.health.index-*.js` — a literal that existed in NO earlier build, so a 1 cannot be left over from a previous deploy; the decisive marker for the red-team pass |
-| `health-ai-admin-kill`                   | `app.admin_.health-ai-*.js` — the emergency stop; existed in no build before the B11/B12 pass, so it is the decisive marker for THAT publish                       |
+| `health-ai-admin-kill`                   | `app.admin_.health-ai-*.js` — the emergency stop; existed in no build before the B11/B12 pass                                                                      |
+| `health-ai-admin-caps-save`              | `app.admin_.health-ai-*.js` — the caps control; existed in no build before the house-cap pass, so it is the decisive marker for THIS publish                       |
 
 Re-measured after the red-team pass (2026-09-08, 429 chunks): every marker
 still in its route chunk, none in the entry.
@@ -240,6 +260,11 @@ chunks): `health-ai-admin-kill` and `admin.ai_kill` → `app.admin_.health-ai-*.
 by**: it lands in `labels-*.js` AND in the entry (the i18n strings register at
 start), so a grep for it says nothing about which build is served — use the
 `data-testid` literals above.
+
+Re-measured after the house-cap pass (2026-09-08, 302 chunks):
+`app.admin_.health-ai-*.js` is 6,585 bytes (was 4,533) and carries
+`health-ai-admin-caps-save`, `health-ai-admin-house-cap`, `health-ai-admin-kill`
+and `admin.ai_caps`; the entry carries none of them.
 
 `signInWithPhoneNumber` in the entry: 0 — the Firebase SDK stays in its own
 chunk, unchanged by this phase. The functions are verified separately: a POST

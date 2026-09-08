@@ -941,13 +941,17 @@ describe("F. health-api and health-ai, read from source with comments stripped",
     let configWrites = 0;
     for (const q of qs) {
       if (q.table === "health_retention_policies") continue;
-      // The shared policy row has no owner. Its ONE write in this function is
-      // the emergency stop (owner directive 2026-09-08), admitted here only
-      // because it sits behind the server-side is_admin gate — wiring.test.ts
-      // pins gate-before-update. A second health_config chain must earn its
-      // own line; it does not inherit this one.
+      // The shared policy row has no owner. Its writes in this function are the
+      // emergency stop and the caps (owner directive 2026-09-08), admitted here
+      // only because both sit behind the server-side is_admin gate —
+      // wiring.test.ts pins gate-before-update for each. Exactly these two; a
+      // third health_config chain must earn its own line.
       if (q.table === "health_config") {
-        expect(q.text).toContain(".update({ ai_kill_switch: on })");
+        expect(
+          q.text.includes(".update({ ai_kill_switch: on })") || q.text.includes(".update(patch)"),
+          q.text.slice(0, 120),
+        ).toBe(true);
+        expect(q.text).toContain('.eq("id", true)');
         configWrites++;
         continue;
       }
@@ -956,7 +960,7 @@ describe("F. health-api and health-ai, read from source with comments stripped",
         `${q.table}: ${q.text.slice(0, 120)}`,
       ).toBe(true);
     }
-    expect(configWrites).toBe(1);
+    expect(configWrites).toBe(2);
     // The status counts go through a helper that applies the filter itself.
     expect(API).toContain('await q.eq("user_id", ctx.userId)');
   });

@@ -143,6 +143,22 @@ describe("the admin door", () => {
   });
 });
 
+describe("the admin door — the caps", () => {
+  it("carries the caps control: house and per-task inputs, one audited action, two taps, the server decides", () => {
+    const src = read("app.admin_.health-ai.tsx");
+    expect(src).toContain('healthApi<AiCaps>("admin.ai_caps"');
+    expect(src).toContain('data-testid="health-ai-admin-house-cap"');
+    expect(src).toContain("data-testid={`health-ai-admin-cap-${task}`}");
+    expect(src).toContain('data-testid="health-ai-admin-caps-save"');
+    expect(src).toContain("AI_TASKS.map((task) =>");
+    expect(src).toMatch(/if \(!capsArmed\) \{\s*setCapsArmed\(true\);\s*return;\s*\}/);
+    // A blank field travels nowhere: it must never become 0 (= refuse) by accident.
+    expect(src).toContain("house.trim() ? { house: Number(house) } : {}");
+    expect(src).toContain("tasks[task] = Number(taskCaps[task])");
+    expect(src).not.toMatch(/is_admin|isAdmin/);
+  });
+});
+
 describe("the consent tab", () => {
   it("offers the AI switch to ONIQ only", () => {
     const src = read("app.health.consent.tsx");

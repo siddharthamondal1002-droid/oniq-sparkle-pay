@@ -93,10 +93,34 @@ function on its next read, so the first line above answers `ai_disabled`
 everywhere — `status.aiAvailable` included, because it IS `checkGate` —
 within seconds, with no SQL and no deploy. An admin flips it from
 `/app/admin/health-ai` (two taps); `health-api`'s `admin.ai_kill` re-derives
-`is_admin` from the JWT, audits both outcomes as `config.ai_kill`, and is the
-one write to the shared policy row that function makes (the authz red-team
-guard admits exactly that chain and no other). Only the boolean `true` counts,
-like every other column.
+`is_admin` from the JWT, audits both outcomes as `config.ai_kill`, and is one
+of the two writes to the shared policy row that function makes — the other is
+`admin.ai_caps` — and the authz red-team guard admits exactly those two chains
+and no other. Only the boolean `true` counts, like every other column.
+
+**The hierarchy the owner set** (2026-09-08, later the same day, with the
+house cap approved at 500), as the gate enforces it:
+
+```
+ai_kill_switch = true            forces the AI flags off (flagsFromRow)
+  → health.ai.enabled             the server row, else ai_disabled
+    → house cap > 0        ┐      caps_unset if either is 0 — never "unlimited"
+    → this task's cap > 0  ┘
+      → house count this 24h < house cap          quota_house
+        → this person's count of THIS task < cap   quota_user
+          → the gateway
+```
+
+The house cap is a SYSTEM-WIDE safety ceiling, not a person's allowance; the
+per-task caps are the tighter control; both are enforced, house first, so the
+effective cap is the tighter of the two (`gateway.test.ts` pins it). Both are
+set from `/app/admin/health-ai` → Daily caps through `admin.ai_caps` —
+integers in `[0, 100000]`, only known tasks, admin re-derived, one audit row
+per changed value (`config.ai_caps`, detail `{ house }` or `{ task, count }`)
+— or by `UPDATE`; either way the row trigger `health_config_audit_ai_controls`
+appends a `config.changed` row with the values after the change, so every
+change is audited whatever path made it. Nothing is configurable by a client,
+and nothing needs a migration.
 
 ## 4. Minimum-data context and the manifest
 
@@ -233,8 +257,15 @@ per minute.
 
 `ai.request` (ok) / `ai.refused`, `documents.classify`, `documents.extract`,
 `records.confirm`, `records.reject`, through `auditDetail()` — whose whitelist
-gained exactly `task, provider, model, method, code`. Every refusal detail is
-a code.
+gained `task, provider, model, method, code`, then `switch` and `house` for the
+config actions. Every refusal detail is a code.
+
+The config actions audit under object type `config`: `config.ai_kill` and
+`config.ai_caps` are health-api's rows — WHO asked, the admin as actor and
+user, `ok` or `refused`; `config.changed` is the row trigger's — WHAT changed,
+the values after the change, actor the database role, `user_id` null (a system
+row, readable by admins under the audit policy). An API-driven change therefore
+leaves two rows; a raw `UPDATE` leaves one. The hash chain covers all of them.
 
 ## 10. Database — `20260908150000_oniq_health_phase2.sql` (not applied)
 
@@ -302,7 +333,10 @@ rendered under `health.ai.refusal.<code>` in three languages, and the answer's
 Documents tab lists "Suggested records" whenever candidates exist (rollback
 cannot strand them) and offers extraction on the same two conditions. The
 Consent tab has the AI switch (recipient ONIQ). `/app/admin/health-ai` is the
-verification door, linked from Profile. All three files are in `AI_SURFACES`,
+verification door, linked from Profile; it also carries the two admin controls
+— the emergency stop and the daily caps (house and per task), each two taps,
+each an admin-gated, audited `health-api` action, with Status showing the
+values the server reads (`aiKillSwitch`, `aiCaps`). All three files are in `AI_SURFACES`,
 and none passes content to a report. Under every answer the disclosure is the
 owner's sentence, `health.ai.disclosure` in three languages — the gateway's
 `AI_DISCLAIMER_KEY`; the Health shell's general footer `health.disclaimer` is
@@ -320,9 +354,12 @@ server refuses everyone but a verifying admin.
 Server: `health_config.enabled AND ai_enabled AND NOT ai_kill_switch`,
 `ai_daily_caps[task] > 0`, `ai_daily_cap_house > 0`, and for production
 verification `ai_admin_verification_enabled`. Client:
-`HEALTH_FLAGS["health.ai.enabled"]`. Off on either side is off. Rollback is
-the flag — or the emergency stop on the admin screen (§3), which needs no SQL;
-candidates stay reachable
+`HEALTH_FLAGS["health.ai.enabled"]`. Off on either side is off. The house cap is 500 by owner directive
+(2026-09-08, later the same day), set from the admin screen AFTER the deploy —
+the migration ships 0 so the deploy lands fail-closed — and `ai_enabled` stays
+off behind the Phase 3 authorization and legal gate. Rollback is the flag — or
+the emergency stop on the admin screen (§3), which needs no SQL; candidates
+stay reachable
 (reject is above the gate), receipts and audit rows stay. Phase 3 replaces
 nothing: it adds a provider whose recipient is not ONIQ, which is refused until
 `health.provider_sharing.enabled` is on, the consent pair and a NEW terms

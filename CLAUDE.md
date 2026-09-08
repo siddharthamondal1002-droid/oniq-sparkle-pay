@@ -3205,3 +3205,57 @@ kill button.
 its shape and `docs/health/04 §A-2a` carries the ONE Lovable message — to be
 sent after the merge to `main`, never before, and it applies only the Phase 2
 branch, keeps the privacy sentence, and connects no provider.
+
+### Owner directive, 2026-09-08 (later) — the house cap is 500, as a ceiling; every change audited; merge, deploy, stop before AI
+
+The owner read the B11/B12 report and approved the house cap, with the
+conditions in their own words: _"500 is a system-wide safety ceiling, not a
+user allowance. The per-operation caps remain the tighter control. The server
+must enforce min(operation_cap, house_cap) or equivalent. 0 should continue to
+mean AI unavailable, not unlimited. Make the house cap configurable without a
+migration. Every change to the house cap should be audited. The kill switch
+remains an independent emergency control."_ Then the sequence: merge, let
+Lovable sync, send the three-step message, **stop** — and _"ai_enabled should
+remain OFF until the Phase 3 authorization/legal gate is satisfied, because
+turning it on is no longer merely a technical Phase 2 operation."_
+
+**THE GATE ALREADY ENFORCED "MIN OR EQUIVALENT"; WHAT WAS MISSING WAS THE
+AUDIT.** House count before person count, both refused independently, 0 on
+either side `caps_unset` — `gateway.test.ts` now pins "the tighter of the two"
+by name. The gap was that a raw `UPDATE` of `ai_daily_cap_house` left no trace.
+Closed twice over: `admin.ai_caps` on `health-api` (integers in `[0, 100000]`,
+only known tasks, `is_admin` re-derived, one audit row per changed value, the
+switches untouchable from it) and a `health_config` row trigger,
+`health_config_audit_ai_controls`, that appends `config.changed` with the
+values after ANY change to the five AI-control columns, whatever path made it.
+An API change therefore leaves two rows — who asked, then what changed — and a
+SQL change leaves one. `health_audit.object_type` gained `config`, by the same
+named-constraint pattern the action list uses.
+
+**THE DEPLOY LANDS FAIL-CLOSED ON PURPOSE.** The migration ships
+`ai_daily_cap_house = 0`; the owner sets 500 from `/app/admin/health-ai` →
+Daily caps AFTER the deploy (or by `UPDATE` — audited either way). Nothing was
+hard-coded to 500, because the value is the owner's to set and to change, and
+a default in a migration is exactly the kind of number this file says an
+agent must not pick.
+
+**`ai_enabled` OFF MEANS THE SYNTHETIC VERIFICATION WAITS TOO**, stated so it
+is not discovered as a surprise: `health-ai` answers `ai_disabled` before
+identity while the flag is off, so Summarise / Ask / Extract cannot be
+exercised even by the admin. What CAN be verified after the deploy with the
+flag off: the kill switch both ways, the caps, a non-admin's 403 with its
+`refused` audit row, and the `config.*` rows in the chain — and the master
+switch `enabled` must be true first, or `health-api` answers 503 to everyone
+(nothing user-visible changes while the client constant is false).
+
+Mutation-checked, ten ways, every one red then restored: the caps gate
+removed; the upper bound dropped; the per-task audit row removed; the action
+made to flip `ai_enabled`; the trigger no longer watching the house cap;
+`config` dropped from the object-type check; the trigger removed; a third
+`health_config` write; a blank house field sending 0; the caps button losing
+its two taps. The seven isolation escapes still caught; tsc, lint:ci,
+Prettier, `deno check` of both functions, 35 health files / 903 tests and the
+full suite green (the one unrelated ARAP timing flake passes alone). The admin
+route chunk grew from 4,533 to 6,585 bytes and carries
+`health-ai-admin-caps-save`, which existed in no earlier build — the marker
+for this publish; `AI-assisted` is in the entry and proves nothing.

@@ -382,10 +382,12 @@ export const AUDIT_ACTIONS = [
   "export",
   "purge",
   "config.ai_kill",
+  "config.ai_caps",
+  "config.changed",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
-export const AUDIT_OBJECT_TYPES = ["record", "document", "consent", "account"] as const;
+export const AUDIT_OBJECT_TYPES = ["record", "document", "consent", "account", "config"] as const;
 export type AuditObjectType = (typeof AUDIT_OBJECT_TYPES)[number];
 
 /* ---------------------------------------------------------- magic bytes -- */

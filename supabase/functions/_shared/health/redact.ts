@@ -30,6 +30,7 @@ export const AUDIT_DETAIL_KEYS = [
   "method",
   "code",
   "switch",
+  "house",
 ] as const;
 
 /** Keys a log line may carry. */

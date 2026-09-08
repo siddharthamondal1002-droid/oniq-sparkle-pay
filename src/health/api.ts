@@ -36,7 +36,8 @@ export type HealthAction =
   | "consents.revoke"
   | "export"
   | "purge"
-  | "admin.ai_kill";
+  | "admin.ai_kill"
+  | "admin.ai_caps";
 
 export type HealthOk<T> = { ok: true; data: T; requestId: string | null };
 export type HealthErr = {
@@ -48,6 +49,9 @@ export type HealthErr = {
   requestId: string | null;
 };
 export type HealthResult<T> = HealthOk<T> | HealthErr;
+
+/** The caps as the server reads them: the house ceiling and each task's per-person number; 0 = refuse. */
+export type AiCaps = { house: number; tasks: Record<string, number> };
 
 export type HealthStatus = {
   flags: Record<string, boolean>;
@@ -63,6 +67,8 @@ export type HealthStatus = {
   aiAvailable: boolean;
   /** The emergency stop's position; shown on the admin screen, forces aiAvailable false when on. */
   aiKillSwitch?: boolean;
+  /** Owner directive 2026-09-08: the house cap is a system-wide ceiling, the per-task caps the tighter control. */
+  aiCaps?: AiCaps;
 };
 
 export type TimelineRow = {

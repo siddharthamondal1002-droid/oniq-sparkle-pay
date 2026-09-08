@@ -359,6 +359,46 @@ describe("caps", () => {
     expect(house).toMatchObject({ ok: false, reason: "quota_house" });
   });
 
+  it("the effective cap is the tighter of the two (owner directive B11): house first, both enforced, 0 never unlimited", async () => {
+    // House 3, task 10: the fourth request in the house — anyone's — refuses quota_house.
+    const a = new FakeStore(users(), ALICE);
+    a.priorReceipts = Array.from({ length: 3 }, () => ({
+      userId: BOB,
+      createdAt: NOW,
+      status: "ok",
+    }));
+    expect(
+      await runHealthAi(deps(a), config({ capPerUser: 10, capHouse: 3 }), actor, {
+        task: "summarize_timeline",
+      }),
+    ).toMatchObject({ ok: false, reason: "quota_house" });
+    // House 500, task 3: the fourth of THIS person's summaries refuses quota_user.
+    const b = new FakeStore(users(), ALICE);
+    b.priorReceipts = Array.from({ length: 3 }, () => ({
+      userId: ALICE,
+      createdAt: NOW,
+      status: "ok",
+      task: "summarize_timeline",
+    }));
+    expect(
+      await runHealthAi(deps(b), config({ capPerUser: 3, capHouse: 500 }), actor, {
+        task: "summarize_timeline",
+      }),
+    ).toMatchObject({ ok: false, reason: "quota_user" });
+    // 0 on either side is caps_unset — never unlimited — before any count is read.
+    for (const caps of [
+      { capPerUser: 0, capHouse: 500 },
+      { capPerUser: 10, capHouse: 0 },
+    ]) {
+      const s = new FakeStore(users(), ALICE);
+      expect(
+        await runHealthAi(deps(s), config(caps), actor, { task: "summarize_timeline" }),
+      ).toMatchObject({ ok: false, reason: "caps_unset" });
+      expect(s.log).not.toContain("countHouseSince");
+      expect(s.log).not.toContain("countUserSince");
+    }
+  });
+
   it("a zero cap is caps_unset, before any row is read", async () => {
     const store = new FakeStore(users(), ALICE);
     const r = await runHealthAi(deps(store), config({ capHouse: 0 }), actor, {

@@ -34,7 +34,12 @@ import {
   type ConsentPurpose,
   type DataCategory,
 } from "../_shared/health/domain.ts";
-import { RECIPIENT_FOR_PROVIDER, type ProviderId } from "../_shared/health/ai/types.ts";
+import {
+  AI_TASKS,
+  RECIPIENT_FOR_PROVIDER,
+  type AiTask,
+  type ProviderId,
+} from "../_shared/health/ai/types.ts";
 import { isProviderId } from "../_shared/health/ai/provider.ts";
 import { capForTask, checkGate, resolveEnvironment } from "../_shared/health/ai/policy.ts";
 import { findCovering, nextVersion } from "../_shared/health/consent.ts";
@@ -301,7 +306,7 @@ async function actAdminAiKill(ctx: Ctx, body: Record<string, unknown>): Promise<
   const position = on ? "on" : "off";
   const { data: isAdmin } = await ctx.admin.rpc("is_admin", { _uid: ctx.userId });
   if (isAdmin !== true) {
-    await audit(ctx, "config.ai_kill", "account", "refused", {
+    await audit(ctx, "config.ai_kill", "config", "refused", {
       detail: { switch: position, reason: "forbidden" },
     });
     return refuse(ctx, { status: 403, reason: "forbidden" });
@@ -311,8 +316,77 @@ async function actAdminAiKill(ctx: Ctx, body: Record<string, unknown>): Promise<
     .update({ ai_kill_switch: on })
     .eq("id", true);
   if (error) return refuse(ctx, { status: 500, reason: "failed" });
-  await audit(ctx, "config.ai_kill", "account", "ok", { detail: { switch: position } });
+  await audit(ctx, "config.ai_kill", "config", "ok", { detail: { switch: position } });
   return ok(ctx, { aiKillSwitch: on });
+}
+
+/**
+ * THE CAPS, from the app (owner directive 2026-09-08, later the same day —
+ * the house cap approved at 500): the house cap and the per-task caps are
+ * configurable without a migration, and every change is audited. `house` is
+ * a SYSTEM-WIDE safety ceiling — every task, every person, per rolling 24h —
+ * never a person's allowance; the per-task caps stay the tighter control, and
+ * the gateway enforces both, house before person. 0 keeps meaning "refuse"
+ * (caps_unset), never "unlimited". Admin re-derived from the JWT; each changed
+ * value gets its own audit row saying WHO asked, and the row trigger
+ * health_config_audit_ai_controls writes WHAT changed whatever the path.
+ * Anything absent from the body is left alone.
+ */
+const CAP_MAX = 100_000;
+
+function capInput(v: unknown): number | null {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= CAP_MAX ? v : null;
+}
+
+function capsOut(row: Record<string, unknown>) {
+  const tasks: Record<string, number> = {};
+  for (const task of AI_TASKS) tasks[task] = capForTask(row.ai_daily_caps, task);
+  return { house: capFrom(row.ai_daily_cap_house), tasks };
+}
+
+async function actAdminAiCaps(ctx: Ctx, body: Record<string, unknown>): Promise<Response> {
+  const house = body.house === undefined ? undefined : capInput(body.house);
+  if (house === null) return refuse(ctx, { status: 400, reason: "bad_input" });
+  const tasks: Partial<Record<AiTask, number>> = {};
+  if (body.tasks !== undefined) {
+    const raw = body.tasks;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      return refuse(ctx, { status: 400, reason: "bad_input" });
+    }
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+      const n = capInput(value);
+      if (!(AI_TASKS as readonly string[]).includes(key) || n === null) {
+        return refuse(ctx, { status: 400, reason: "bad_input" });
+      }
+      tasks[key as AiTask] = n;
+    }
+  }
+  const changed = Object.entries(tasks) as Array<[AiTask, number]>;
+  if (house === undefined && changed.length === 0) {
+    return refuse(ctx, { status: 400, reason: "bad_input" });
+  }
+  const { data: isAdmin } = await ctx.admin.rpc("is_admin", { _uid: ctx.userId });
+  if (isAdmin !== true) {
+    await audit(ctx, "config.ai_caps", "config", "refused", { detail: { reason: "forbidden" } });
+    return refuse(ctx, { status: 403, reason: "forbidden" });
+  }
+  const current = ctx.config?.ai_daily_caps;
+  const base =
+    current && typeof current === "object" && !Array.isArray(current)
+      ? (current as Record<string, unknown>)
+      : {};
+  const patch: Record<string, unknown> = {};
+  if (house !== undefined) patch.ai_daily_cap_house = house;
+  if (changed.length > 0) patch.ai_daily_caps = { ...base, ...tasks };
+  const { error } = await ctx.admin.from("health_config").update(patch).eq("id", true);
+  if (error) return refuse(ctx, { status: 500, reason: "failed" });
+  if (house !== undefined) {
+    await audit(ctx, "config.ai_caps", "config", "ok", { detail: { house } });
+  }
+  for (const [task, count] of changed) {
+    await audit(ctx, "config.ai_caps", "config", "ok", { detail: { task, count } });
+  }
+  return ok(ctx, capsOut({ ...(ctx.config ?? {}), ...patch }));
 }
 
 async function actStatus(ctx: Ctx): Promise<Response> {
@@ -341,6 +415,7 @@ async function actStatus(ctx: Ctx): Promise<Response> {
     aiConsent: { active: !!aiConsent, categories: aiConsent?.data_categories ?? [] },
     aiAvailable: ai.aiAvailable,
     aiKillSwitch: ctx.config?.ai_kill_switch === true,
+    aiCaps: capsOut(ctx.config ?? {}),
   });
 }
 
@@ -1033,6 +1108,7 @@ const ACTIONS: Record<string, Handler> = {
   export: (ctx) => actExport(ctx),
   purge: (ctx) => actPurge(ctx),
   "admin.ai_kill": actAdminAiKill,
+  "admin.ai_caps": actAdminAiCaps,
 };
 
 Deno.serve(async (req: Request) => {

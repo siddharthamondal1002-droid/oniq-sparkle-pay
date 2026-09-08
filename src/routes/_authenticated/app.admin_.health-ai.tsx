@@ -26,13 +26,21 @@
 // re-derived from the JWT, audited); every function reads it on its next
 // request and every AI flag reads false — seconds, no SQL, no deploy. Two
 // taps, so a stray touch cannot flip it either way.
+//
+// AND THE CAPS (owner directive, later the same day — the house cap approved
+// at 500). The house cap is a system-wide ceiling, every operation, everyone;
+// the per-operation caps are the tighter, per-person control. Both are set
+// here through health-api (admin.ai_caps): configurable without a migration,
+// admin re-derived on the server, every change audited — and a row trigger
+// audits the change again whatever path made it. 0 refuses; nothing is ever
+// "unlimited". Blank fields leave that cap alone; Status fills them in.
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AiOutputReport } from "@/components/safety/AiOutputReport";
-import { healthApi, type CandidateRow, type HealthStatus } from "@/health/api";
+import { healthApi, type AiCaps, type CandidateRow, type HealthStatus } from "@/health/api";
 import { HEALTH_AI_LABEL } from "@/health/labels";
 import { healthAi } from "@/health/ai/client";
-import type { AiTask } from "@/health/ai/types";
+import { AI_TASKS, type AiTask } from "@/health/ai/types";
 
 export const Route = createFileRoute("/_authenticated/app/admin_/health-ai")({
   head: () => ({
@@ -49,12 +57,22 @@ function HealthAiVerificationTool() {
   const [documentId, setDocumentId] = useState("");
   const [question, setQuestion] = useState("");
   const [armed, setArmed] = useState<"on" | "off" | null>(null);
+  const [house, setHouse] = useState("");
+  const [taskCaps, setTaskCaps] = useState<Record<string, string>>({});
+  const [capsArmed, setCapsArmed] = useState(false);
 
   const show = (v: unknown) => setResult(JSON.stringify(v, null, 2));
 
+  const fillCaps = (c: AiCaps) => {
+    setHouse(String(c.house));
+    setTaskCaps(Object.fromEntries(Object.entries(c.tasks).map(([k, v]) => [k, String(v)])));
+  };
+
   const status = async () => {
     setBusy("status");
-    show(await healthApi<HealthStatus>("status"));
+    const res = await healthApi<HealthStatus>("status");
+    if (res.ok && res.data.aiCaps) fillCaps(res.data.aiCaps);
+    show(res);
     setBusy(null);
   };
 
@@ -86,6 +104,25 @@ function HealthAiVerificationTool() {
     setArmed(null);
     setBusy(`kill-${position}`);
     show(await healthApi<{ aiKillSwitch: boolean }>("admin.ai_kill", { on }));
+    setBusy(null);
+  };
+
+  const saveCaps = async () => {
+    if (!capsArmed) {
+      setCapsArmed(true);
+      return;
+    }
+    setCapsArmed(false);
+    setBusy("caps");
+    // Only what the admin filled in travels; a blank field leaves that cap alone.
+    const tasks: Record<string, number> = {};
+    for (const task of AI_TASKS) if (taskCaps[task]?.trim()) tasks[task] = Number(taskCaps[task]);
+    const res = await healthApi<AiCaps>("admin.ai_caps", {
+      ...(house.trim() ? { house: Number(house) } : {}),
+      ...(Object.keys(tasks).length > 0 ? { tasks } : {}),
+    });
+    if (res.ok) fillCaps(res.data);
+    show(res);
     setBusy(null);
   };
 
@@ -146,6 +183,56 @@ function HealthAiVerificationTool() {
         Extract answers no_text in Phase 2: no text source is registered, and the audit row for that
         refusal is the proof the pipeline ran.
       </p>
+
+      <div className="mt-6 max-w-prose rounded-2xl border border-border p-3">
+        <h2 className="text-sm font-semibold">Daily caps</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          The house cap is a ceiling for everyone, every operation, per day; the per-operation caps
+          are the tighter, per-person control. 0 refuses. Every change is audited. Tap Status to
+          load the current values; blank fields are left alone. Tap Save twice.
+        </p>
+        <div className="mt-2 grid gap-2">
+          <label className="text-xs">
+            House cap (all operations, everyone, per day)
+            <input
+              aria-label="House cap"
+              data-testid="health-ai-admin-house-cap"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={100000}
+              className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+              value={house}
+              onChange={(e) => setHouse(e.target.value)}
+            />
+          </label>
+          {AI_TASKS.map((task) => (
+            <label key={task} className="text-xs">
+              {task} (per person, per day)
+              <input
+                aria-label={`Cap for ${task}`}
+                data-testid={`health-ai-admin-cap-${task}`}
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={100000}
+                className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                value={taskCaps[task] ?? ""}
+                onChange={(e) => setTaskCaps({ ...taskCaps, [task]: e.target.value })}
+              />
+            </label>
+          ))}
+          <button
+            type="button"
+            data-testid="health-ai-admin-caps-save"
+            onClick={() => void saveCaps()}
+            disabled={busy !== null}
+            className="press rounded-full border border-border px-4 py-2 text-sm font-semibold disabled:opacity-50"
+          >
+            {busy === "caps" ? "Saving…" : capsArmed ? "Tap again to save caps" : "Save caps"}
+          </button>
+        </div>
+      </div>
 
       <div className="mt-6 max-w-prose rounded-2xl border border-destructive/40 p-3">
         <h2 className="text-sm font-semibold">Emergency stop</h2>
