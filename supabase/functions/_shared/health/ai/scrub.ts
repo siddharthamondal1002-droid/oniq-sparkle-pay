@@ -4,9 +4,15 @@
  * ONE NORMALISER FOR EVERY PATTERN. `normalizeForMatch` runs before the
  * scrubber, the detector and the contract validator: NFKC, format characters
  * stripped (zero-width, soft hyphen, BOM, bidi marks), C0/C1 controls
- * stripped except newline, case-folded, whitespace collapsed, Devanagari,
- * Bengali and Arabic-Indic digits mapped to ASCII. A full-width "take", a
- * zero-width-joined "take" and a Bengali "500" all match the ASCII rule.
+ * stripped except newline, combining marks stripped off LATIN letters (a
+ * grapheme joiner, a variation selector or an accent inside "take" is not a
+ * different word — Indic matras are kept, they ARE the word), case-folded,
+ * whitespace collapsed, and the digits of every Indic script, Thai, Lao,
+ * Tibetan, Myanmar, Khmer and Arabic mapped to ASCII. A full-width "take",
+ * a zero-width-joined "take", "t\u00e1ke" and a Gujarati "500" all match
+ * the ASCII rule. Red-teamed 2026-09-08: the first version mapped four
+ * scripts and stripped no combining marks, so "ig\u034fnore" and "\u0aef\u0aef\u0aef"
+ * walked past every pattern.
  *
  * SCRUBBING IS A FLOOR, NOT A GUARANTEE. Emails, phones, 12-digit ids, PAN,
  * URLs and ABHA addresses are removed from every string field that enters a
@@ -28,21 +34,40 @@
  */
 import type { AiLanguage } from "./types.ts";
 
+/**
+ * The ZERO of every decimal-digit block a person in ONIQ's markets might
+ * type: Arabic-Indic, Extended Arabic-Indic, NKo, Devanagari, Bengali,
+ * Gurmukhi, Gujarati, Oriya, Tamil, Telugu, Kannada, Malayalam, Sinhala,
+ * Thai, Lao, Tibetan, Myanmar, Khmer, Mongolian. NFKC already folds the
+ * superscript, full-width, circled and mathematical forms.
+ */
+const DIGIT_ZEROS = [
+  0x0660, 0x06f0, 0x07c0, 0x0966, 0x09e6, 0x0a66, 0x0ae6, 0x0b66, 0x0be6, 0x0c66, 0x0ce6, 0x0d66,
+  0x0de6, 0x0e50, 0x0ed0, 0x0f20, 0x1040, 0x17e0, 0x1810,
+] as const;
 const DIGIT_MAP: Record<string, string> = {};
-for (const zero of [0x0966, 0x09e6, 0x0660, 0x06f0]) {
+for (const zero of DIGIT_ZEROS) {
   for (let i = 0; i < 10; i++) DIGIT_MAP[String.fromCharCode(zero + i)] = String(i);
 }
 
 /** Format characters and controls that hide text from a pattern. Newline is kept. */
 const FORMAT_CHARS = /[\p{Cf}\u0000-\u0008\u000B-\u001F\u007F-\u009F]/gu;
 const CONTROL_CHARS = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g;
-const NON_ASCII_DIGITS = /[\u0660-\u0669\u06F0-\u06F9\u0966-\u096F\u09E6-\u09EF]/g;
+const NON_ASCII_DIGITS = new RegExp(
+  `[${DIGIT_ZEROS.map((z) => `\\u${z.toString(16).padStart(4, "0")}-\\u${(z + 9).toString(16).padStart(4, "0")}`).join("")}]`,
+  "g",
+);
+/** A combining mark that follows a LATIN letter hides nothing but the letter. */
+const LATIN_MARKS = /(?<=\p{Script=Latin})\p{M}+/gu;
 
 export function normalizeForMatch(input: string | null | undefined): string {
   if (!input) return "";
   return input
     .normalize("NFKC")
     .replace(FORMAT_CHARS, "")
+    .normalize("NFD")
+    .replace(LATIN_MARKS, "")
+    .normalize("NFKC")
     .replace(NON_ASCII_DIGITS, (d) => DIGIT_MAP[d] ?? d)
     .toLowerCase()
     .replace(/[ \t\r\f\v]+/g, " ")
@@ -129,13 +154,42 @@ const EN: readonly InjectionGroup[] = [
   // type on a phone. English runs on every language, so these live here.
   {
     id: "override",
-    re: /\b(pichle|pichhle|purane|saare|sab|upar ke|ager|purono|agher)\b.{0,20}\b(instructions?|nirdesh|niyam|rules?|prompt)\b.{0,20}\b(ignore|bhool|bhul|bhule|bhulo|chhod|chod|bad de|baad de|chere dao)\b/,
+    re: /\b(pichle|pichhle|purane|saare|sab|upar ke|ager|aagey|aage|purono|agher)\b.{0,20}\b(instructions?|nirdesh|niyam|rules?|prompt)\b.{0,20}\b(ignore|bhool|bhul|bhule|bhulo|chhod|chod|bad de|baad de|chere dao)\b/,
   },
   {
     id: "override",
     re: /\b(ab se|ekhon theke)\s{1,3}(tum|aap|tumi|apni)\b|\b(tum|aap|tumi) (ab|ekhon)\b.{0,8}\b(ho|bano|hao|hobe)\b|\b(doctor|daktar)\b.{0,3}\b(ban ?jao|bano|ki tarah|hoye|hisebe)\b/,
   },
   { id: "steering", re: /\b(sirf|keval|shudhu|kebol)\b.{0,16}\b(jawab|uttar|reply|answer)\b/ },
+  {
+    id: "override",
+    re: /\bab (tum|aap|tu)\b.{0,12}\b(doctor|daktar)\b|\b(doctor|daktar)\b.{0,3}\b(ho|hai|ban ?jao|bano)\b/,
+  },
+];
+
+/**
+ * Scripts ONIQ does not answer in but a person can still type a record in —
+ * Tamil, Urdu, Gujarati, Marathi (Devanagari, so it rides the hi list's
+ * script but not its words). These run on EVERY language, like the English
+ * list, because a display's script is not the request's language.
+ */
+const SCRIPTS: readonly InjectionGroup[] = [
+  {
+    id: "override",
+    re: /(முந்தைய|முன்|மேலே).{0,12}(வழிமுறை|அறிவுறுத்தல்|விதி).{0,20}(புறக்கணி|மற|விடு)|(இப்போது|இனி) நீ.{0,8}(மருத்துவர்|டாக்டர்)/,
+  },
+  {
+    id: "override",
+    re: /(پچھلی|تمام|سابقہ|اوپر).{0,12}(ہدایات|ہدایت|احکامات|قواعد).{0,20}(نظر انداز|بھول|چھوڑ)|اب (آپ|تم).{0,8}(ڈاکٹر|معالج)/,
+  },
+  {
+    id: "override",
+    re: /(પાછલી|અગાઉની|ઉપરની|બધી).{0,12}(સૂચના|સૂચનાઓ|નિયમો).{0,20}(અવગણ|ભૂલી|છોડી)|હવે (તમે|તું).{0,8}(ડોક્ટર|ડૉક્ટર)/,
+  },
+  {
+    id: "override",
+    re: /(मागील|आधीच्या|वरील|सर्व).{0,12}(सूचना|आदेश|नियम).{0,20}(दुर्लक्ष|विसर|सोड)|आता (तू|तुम्ही).{0,8}(डॉक्टर|वैद्य)/,
+  },
 ];
 
 const HI: readonly InjectionGroup[] = [
@@ -158,8 +212,10 @@ function nfkc(groups: readonly InjectionGroup[]): readonly InjectionGroup[] {
   }));
 }
 
+const EVERY: readonly InjectionGroup[] = [...EN, ...nfkc(SCRIPTS)];
+
 export const INJECTION_PATTERNS: Record<AiLanguage, readonly InjectionGroup[]> = {
-  en: EN,
+  en: EVERY,
   hi: nfkc(HI),
   bn: nfkc(BN),
 };
@@ -174,7 +230,7 @@ export function detectInjection(
   if (!input) return { suspected: false, matched: [], obfuscation: false };
   const obfuscation = hasObfuscation(input);
   const text = normalizeForMatch(input);
-  const groups = language === "en" ? EN : [...EN, ...INJECTION_PATTERNS[language]];
+  const groups = language === "en" ? EVERY : [...EVERY, ...INJECTION_PATTERNS[language]];
   const matched = new Set<string>();
   for (const g of groups) if (g.re.test(text)) matched.add(g.id);
   if (obfuscation) matched.add("obfuscation");

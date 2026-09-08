@@ -204,7 +204,7 @@ describe("the happy path, in order", () => {
     });
     expect(r.ok).toBe(true);
     expect(store.log).toContain(`loadRecord:${u(12)}`);
-    expect(store.log).toContain(`loadActiveRecords:vital:${LIMITS.MAX_PRIOR_SAME_KIND * 2}`);
+    expect(store.log).toContain(`loadActiveRecords:vital:${LIMITS.MAX_RECORDS}`);
     expect(store.audits.at(-1)).toMatchObject({
       action: "ai.request",
       objectType: "record",

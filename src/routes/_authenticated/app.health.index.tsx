@@ -11,7 +11,7 @@ import {
 } from "@/components/oniq";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 import { useT } from "@/lib/i18n/LanguageProvider";
-import { HEALTH_ENABLED } from "@/health/flags";
+import { HEALTH_AI_ENABLED, HEALTH_ENABLED } from "@/health/flags";
 import { healthApi, type HealthStatus, type TimelineRow } from "@/health/api";
 import { healthAi, languageFor } from "@/health/ai/client";
 import type { ClientAiResponse } from "@/health/ai/types";
@@ -71,6 +71,8 @@ function HealthTimeline() {
   const [armed, setArmed] = useState<string | null>(null);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<ClientAiResponse | null>(null);
+  /** The receipt the answer came with — the content-free id a report is filed against. */
+  const [answerReceipt, setAnswerReceipt] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
 
   const status = useQuery({
@@ -94,9 +96,12 @@ function HealthTimeline() {
       if (!res.ok) throw new Error(reasonText(t, res));
       if (res.data.kind !== "response")
         throw new Error(t("health.error.generic", "Something went wrong."));
-      return res.data.response;
+      return { response: res.data.response, receiptId: res.receiptId };
     },
-    onSuccess: (response) => setAnswer(response),
+    onSuccess: ({ response, receiptId }) => {
+      setAnswer(response);
+      setAnswerReceipt(receiptId);
+    },
     onError: (e: Error) => setAiError(e.message),
   });
 
@@ -148,7 +153,10 @@ function HealthTimeline() {
   });
 
   const rows = timeline.data?.ok ? timeline.data.data : [];
-  const aiAvailable = status.data?.ok ? status.data.data.aiAvailable === true : false;
+  // Both halves gate the controls: the server's word on whether health-ai
+  // would answer, and the client constant that is the rollback (05 §13).
+  const aiAvailable =
+    HEALTH_AI_ENABLED && (status.data?.ok ? status.data.data.aiAvailable === true : false);
 
   return (
     <div className="space-y-4">
@@ -197,6 +205,15 @@ function HealthTimeline() {
                     <p className="mt-1 text-sm">{seg.text}</p>
                   </div>
                 ))}
+                {answer.refusals.map((code) => (
+                  <p
+                    key={code}
+                    className="text-xs text-muted-foreground"
+                    data-testid="health-ai-refusal"
+                  >
+                    {t(`health.ai.refusal.${code}`, code)}
+                  </p>
+                ))}
                 {answer.excluded.count > 0 ? (
                   <p className="text-xs text-muted-foreground">
                     {fill(
@@ -212,7 +229,7 @@ function HealthTimeline() {
                   {t(answer.disclaimerKey, "Information only — not a diagnosis. See a doctor.")}
                 </p>
                 <p className="text-[11px] text-muted-foreground">🤖 {AI_OUTPUT_LABEL}</p>
-                <AiOutputReport surface="health_ai_output" targetId="health-ai-answer" />
+                <AiOutputReport surface="health_ai_output" targetId={answerReceipt ?? "unsaved"} />
               </div>
             ) : null}
           </div>

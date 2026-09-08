@@ -144,6 +144,9 @@ const en: Dict = {
   "health.ai.class.general_info": "General information",
   "health.ai.class.ai_interpretation": "AI interpretation",
   "health.ai.class.unknown": "Not known",
+  "health.ai.refusal.no_matching_records": "None of your records match that question.",
+  "health.ai.refusal.insufficient_context": "There isn't enough in your records to answer that.",
+  "health.ai.refusal.out_of_scope": "That isn't something Health AI can answer.",
 };
 
 const hi: Dict = {
@@ -278,6 +281,11 @@ const hi: Dict = {
   "health.ai.class.general_info": "सामान्य जानकारी",
   "health.ai.class.ai_interpretation": "AI व्याख्या",
   "health.ai.class.unknown": "पता नहीं",
+  "health.ai.refusal.no_matching_records":
+    "आपके किसी रिकॉर्ड में इस सवाल से जुड़ी जानकारी नहीं है।",
+  "health.ai.refusal.insufficient_context":
+    "इसका जवाब देने के लिए आपके रिकॉर्ड में पर्याप्त जानकारी नहीं है।",
+  "health.ai.refusal.out_of_scope": "Health AI इसका जवाब नहीं दे सकता।",
 };
 
 const bn: Dict = {
@@ -408,6 +416,9 @@ const bn: Dict = {
   "health.ai.class.general_info": "সাধারণ তথ্য",
   "health.ai.class.ai_interpretation": "AI ব্যাখ্যা",
   "health.ai.class.unknown": "জানা নেই",
+  "health.ai.refusal.no_matching_records": "আপনার কোনো রেকর্ড এই প্রশ্নের সঙ্গে মেলে না।",
+  "health.ai.refusal.insufficient_context": "এর উত্তর দেওয়ার মতো যথেষ্ট তথ্য আপনার রেকর্ডে নেই।",
+  "health.ai.refusal.out_of_scope": "Health AI এর উত্তর দিতে পারে না।",
 };
 
 export const HEALTH_STRINGS: Record<"en" | "hi" | "bn", Dict> = { en, hi, bn };

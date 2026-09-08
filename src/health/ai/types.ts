@@ -288,7 +288,12 @@ export const AI_REFUSAL_REASONS = [
 ] as const;
 export type AiRefusalReason = (typeof AI_REFUSAL_REASONS)[number];
 
-/** Why the contract refused a provider's output. Closed; the only thing stored about a bad output. */
+/**
+ * Why the contract refused a provider's output. Closed; the only thing stored
+ * about a bad output. The last four cover the two non-response kinds: a
+ * classification is rebuilt from a closed shape, and every candidate must be
+ * an entry of the analyte table — a provider cannot store a word of its own.
+ */
 export const CONTRACT_REFUSAL_CODES = [
   "not_an_object",
   "schema_version",
@@ -329,6 +334,11 @@ export const CONTRACT_REFUSAL_CODES = [
   "unknown_has_number",
   "interpretation_without_source",
   "confidence_range",
+  "fact_advises_reader",
+  "classification_shape",
+  "extraction_shape",
+  "too_many_candidates",
+  "candidate_outside_table",
 ] as const;
 export type ContractRefusalCode = (typeof CONTRACT_REFUSAL_CODES)[number];
 

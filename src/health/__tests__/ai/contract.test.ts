@@ -192,7 +192,7 @@ describe("grounding and masking", () => {
   const check = (segments: AiResponse["segments"]) =>
     validateAiResponse({ ...base(), segments }, manifest, expectation("en"), context.records);
 
-  it("a fact may quote its record's value, unit, date, and the count of citations", () => {
+  it("a fact may quote its record's value, unit and date label — not a count, not a date component", () => {
     expect(
       check([
         {
@@ -206,11 +206,25 @@ describe("grounding and masking", () => {
       check([
         {
           class: "record_fact",
-          text: "Two HbA1c readings: 14 Mar 2026 and 1 Dec 2025.",
+          text: "HbA1c readings: 14 Mar 2026 and 1 Dec 2025.",
           sourceRefs: ["r1", "r2"],
         },
       ]),
     ).toEqual({ ok: true });
+    // The count of citations and the day of month are NOT values a fact may
+    // state (red-teamed 2026-09-08: "recorded as 14" passed on the 14th).
+    expect(
+      check([
+        {
+          class: "record_fact",
+          text: "Two HbA1c readings: 14 Mar 2026 and 1 Dec 2025.",
+          sourceRefs: ["r1", "r2"],
+        },
+      ]),
+    ).toEqual({ ok: false, code: "ungrounded_number" });
+    expect(
+      check([{ class: "record_fact", text: "HbA1c was recorded as 14.", sourceRefs: ["r1"] }]),
+    ).toEqual({ ok: false, code: "ungrounded_number" });
     expect(
       check([{ class: "record_fact", text: "HbA1c was 6.10 percent.", sourceRefs: ["r1"] }]),
     ).toEqual({ ok: true });

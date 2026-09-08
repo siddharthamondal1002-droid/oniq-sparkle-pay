@@ -16,15 +16,29 @@
  * gateway maps aliases back by position (`manifest.recordIds[i]` is r{i+1}).
  *
  * INJECTION: DROPPED FOR MODELS, FLAGGED FOR RULES. A record whose text
- * trips the detector leaves a model-bound context and is listed in
+ * trips the detector — display, note OR unit; the unit was the field the
+ * red team found unchecked — leaves a model-bound context and is listed in
  * `manifest.excluded`; document text bound for the rules-only extractor
- * proceeds with `injectionSuspected` set, because a regex cannot be
- * instructed and refusing would lose the person's report over a phrase.
+ * proceeds with `injectionSuspected` set and NO exclusion entry, because a
+ * regex cannot be instructed and refusing would lose the person's report
+ * over a phrase. THE MANIFEST DESCRIBES WHAT WAS SENT: an entry in
+ * `excluded` means the field is absent from the provider input, always —
+ * the first version listed classify/extract text as excluded while handing
+ * it over, and the receipt would have lied.
  *
- * OVER A CAP IS A REFUSAL, NOT A TRIM. A 600-character question is refused
- * as `text_too_long`, not cut to 500 — the person is told, and nothing is
- * silently lost. The one exception is the classification EXCERPT, which is a
- * prefix by definition and is recorded as `truncated`.
+ * OVER A CAP IS A REFUSAL, NOT A TRIM, and the cap is measured on the
+ * SCRUBBED text — scrubbing can grow a string ("a@b.cd" becomes
+ * "[email]"), and the cap bounds what the provider sees, not what was
+ * typed. A 600-character question is refused as `text_too_long`, not cut
+ * to 500 — the person is told, and nothing is silently lost. The one
+ * exception is the classification EXCERPT, which is a prefix by definition
+ * and is recorded as `truncated`.
+ *
+ * PRIORS ARE THE SAME ANALYTE. explain_record lends a target the value and
+ * date of earlier readings with the same kind AND the same (normalised)
+ * display — the same kind alone made an HbA1c row "an earlier Cholesterol
+ * reading". Excluded rows are BACKFILLED: the loop over loaded rows stops
+ * when the context is full, not at the first MAX_RECORDS rows.
  */
 import {
   CONTEXT_FIELDS,
@@ -39,7 +53,7 @@ import {
   type ContextRecord,
   type ExcludedItem,
 } from "./types.ts";
-import { cleanField, scrubText } from "./scrub.ts";
+import { cleanField, normalizeForMatch } from "./scrub.ts";
 import { estimateContextTokens } from "./cost.ts";
 import { CATEGORY_FOR_KIND, PROVENANCE_SOURCES, RECORD_KINDS, type RecordKind } from "../domain.ts";
 
@@ -63,6 +77,8 @@ export type DocRow = {
   size_bytes: number;
   captured_at: string | null;
   created_at: string;
+  /** When present, the gateway refuses anything but a stored/processing/ready document. */
+  status?: string;
 };
 
 export type ContextInput = {
@@ -183,15 +199,33 @@ export function pickRecord(
     valueText = note.text || null;
   }
   const num = row.value_num === null || row.value_num === undefined ? null : Number(row.value_num);
-  const unit = scrubText(row.value_unit ?? "");
-  redactions += unit.redactions;
+  let valueUnit: string | null = null;
+  if (fields.includes("valueUnit") && row.value_unit) {
+    const unit = cleanField(row.value_unit, LIMITS.MAX_UNIT_CHARS, language);
+    redactions += unit.redactions;
+    if (unit.injection.suspected || unit.tooLong) {
+      return {
+        record: null,
+        excluded: {
+          id: row.id,
+          field: "valueUnit",
+          reason: unit.tooLong
+            ? "over_limit"
+            : unit.injection.obfuscation
+              ? "obfuscation_suspected"
+              : "injection_suspected",
+        },
+        redactions,
+      };
+    }
+    valueUnit = unit.text || null;
+  }
   const record: ContextRecord = {
     ref,
     kind: fields.includes("kind") ? kind : "",
     display: display.text,
     valueNum: fields.includes("valueNum") && num !== null && Number.isFinite(num) ? num : null,
-    valueUnit:
-      fields.includes("valueUnit") && unit.text ? unit.text.slice(0, LIMITS.MAX_UNIT_CHARS) : null,
+    valueUnit,
     valueText,
     effectiveDay: fields.includes("effectiveDay") ? dayOf(row.effective_at) : "",
     dateLabel: fields.includes("dateLabel") ? dateLabel(row.effective_at) : "",
@@ -291,12 +325,22 @@ export function buildMinimumContext(input: ContextInput): ContextResult {
           detail: { field: excluded[0]?.field ?? "display" },
         };
       }
-      const prior = rows.filter((r) => r.kind === target.kind && r.id !== target.id);
-      for (const row of prior.slice(0, LIMITS.MAX_PRIOR_SAME_KIND)) add(row);
+      const analyte = normalizeForMatch(target.display);
+      const prior = rows.filter(
+        (r) =>
+          r.kind === target.kind && r.id !== target.id && normalizeForMatch(r.display) === analyte,
+      );
+      for (const row of prior) {
+        if (context.records.length > LIMITS.MAX_PRIOR_SAME_KIND) break;
+        add(row);
+      }
       break;
     }
     case "summarize_timeline": {
-      for (const row of rows.slice(0, LIMITS.MAX_RECORDS)) add(row);
+      for (const row of rows) {
+        if (context.records.length >= LIMITS.MAX_RECORDS) break;
+        add(row);
+      }
       break;
     }
     case "answer_question": {
@@ -304,6 +348,7 @@ export function buildMinimumContext(input: ContextInput): ContextResult {
       if (raw.length > LIMITS.MAX_QUESTION_CHARS) return { ok: false, reason: "text_too_long" };
       const q = cleanField(raw, LIMITS.MAX_QUESTION_CHARS, language);
       redactions += q.redactions;
+      if (q.tooLong) return { ok: false, reason: "text_too_long" };
       if (!q.text.trim())
         return { ok: false, reason: "question_rejected", detail: { field: "question" } };
       if (q.injection.suspected) {
@@ -322,7 +367,10 @@ export function buildMinimumContext(input: ContextInput): ContextResult {
         const hay = `${r.kind} ${r.display}`.toLowerCase();
         return words.some((w) => hay.includes(w));
       });
-      for (const row of matches.slice(0, LIMITS.MAX_QUESTION_MATCHES)) add(row);
+      for (const row of matches) {
+        if (context.records.length >= LIMITS.MAX_QUESTION_MATCHES) break;
+        add(row);
+      }
       break;
     }
     case "classify_document":
@@ -344,9 +392,15 @@ export function buildMinimumContext(input: ContextInput): ContextResult {
       if (excerpt.length < raw.length) truncated = true;
       const text = cleanField(excerpt, LIMITS.MAX_DOCUMENT_CHARS, language);
       redactions += text.redactions;
-      if (text.text && text.injection.suspected) {
-        excluded.push({ id: doc.id, field: "text", reason: "injection_suspected" });
+      if (task === "extract_document" && text.tooLong)
+        return { ok: false, reason: "text_too_long" };
+      let docText: string | null = text.text || null;
+      if (docText && text.injection.suspected) {
         injectionSuspected = true;
+        if (task === "classify_document") {
+          excluded.push({ id: doc.id, field: "text", reason: "injection_suspected" });
+          docText = null;
+        }
       }
       const entry: ContextDocument = {
         ref: "d1",
@@ -355,7 +409,7 @@ export function buildMinimumContext(input: ContextInput): ContextResult {
         mime: doc.mime,
         sizeBytes: doc.size_bytes,
         capturedDay: dayOf(doc.captured_at ?? doc.created_at) || dayOf(doc.created_at),
-        text: text.text || null,
+        text: docText,
       };
       context.documents.push(entry);
       ids.documents.push(doc.id);

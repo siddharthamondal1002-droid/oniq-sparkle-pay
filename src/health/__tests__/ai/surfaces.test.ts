@@ -46,13 +46,35 @@ describe("the timeline", () => {
     expect(src).not.toContain("✨");
   });
 
-  it("offers Explain, Summarise and Ask only on the server's aiAvailable, and renders the disclaimer by key", () => {
-    expect(src).toContain("status.data.data.aiAvailable === true");
+  it("offers Explain, Summarise and Ask on the server's aiAvailable AND the client flag, and renders the disclaimer by key", () => {
+    // Both halves: the server says whether health-ai would answer; the
+    // client constant is the rollback. Gating on the server field alone
+    // left every control visible after a client-only rollback, each tap
+    // refused locally — a door to a room you cannot enter.
+    expect(src).toContain(
+      "HEALTH_AI_ENABLED && (status.data?.ok ? status.data.data.aiAvailable === true : false)",
+    );
     expect(src).toMatch(/aiAvailable \? \(/);
+    expect(src).not.toMatch(/HEALTH_AI_ENABLED \?/);
     expect(src).toContain("healthAi(input.task");
     expect(src).toContain("answer.disclaimerKey");
     expect(src).toContain("health.ai.class.${seg.class}");
-    expect(src).not.toMatch(/HEALTH_AI_ENABLED \?/);
+  });
+
+  it("renders a provider's own refusals under their i18n keys, and reports the answer against its receipt", () => {
+    expect(src).toContain("health.ai.refusal.${code}");
+    expect(src).toContain('targetId={answerReceipt ?? "unsaved"}');
+    expect(src).toContain("setAnswerReceipt(");
+  });
+
+  it("passes no content to a report: the report carries an id, never a segment or a display", () => {
+    for (const f of [
+      "app.health.index.tsx",
+      "app.health.records.tsx",
+      "app.admin_.health-ai.tsx",
+    ]) {
+      expect(read(f), f).not.toMatch(/<AiOutputReport[^>]*context=/);
+    }
   });
 });
 
@@ -71,9 +93,12 @@ describe("the documents tab", () => {
     expect(section).toContain("health-candidate-reject");
   });
 
-  it("has a caller for extraction, shown only on aiAvailable", () => {
+  it("has a caller for extraction, shown only on aiAvailable AND the client flag", () => {
     expect(src).toContain('healthAi("extract_document", { documentId })');
     expect(src).toMatch(/aiAvailable \? \(/);
+    expect(src).toContain(
+      "HEALTH_AI_ENABLED && (status.data?.ok ? status.data.data.aiAvailable === true : false)",
+    );
   });
 
   it("keeps every hook above the uploads-off early return", () => {

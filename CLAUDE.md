@@ -3002,8 +3002,10 @@ pipeline and the bucket's deletion story. `parseAiRequest` refuses unknown
 keys; `TEXT_SOURCE_REGISTRY = { null }`; the test-only inline source lives
 under `__tests__/` and the function is asserted never to import one. The
 honest consequence is written on the screens: **Phase 2 extraction answers
-`no_text` for every production user**, and the receipt for that refusal is
-the proof the pipeline ran.
+`no_text` for every production user**, and the `ai.refused` audit row for
+that refusal is the proof the pipeline ran — a refusal before the receipt is
+audited, not receipted (the first draft of this sentence said "receipt"; the
+red team measured the code and the docs were the thing that was wrong).
 
 **PRODUCTION IS DECIDED BY THE PROJECT, NOT THE ROW.** `health_config.environment`
 already had a CHECK, which one review missed and another caught; what
@@ -3058,6 +3060,63 @@ Regex literals under `supabase/functions` carry `\x22`/`\x27` instead of raw
 quotes now; the guard's own header says this limit is accepted, and this is
 the case it describes.
 
-Numbers: health suite 28 files / 540 tests; whole suite 5,566 (one unrelated
-timing flake under load); tsc, lint:ci, Prettier and `deno check` of both
-functions green. $0 spent, no Lovable message sent.
+**RED-TEAMED A SECOND TIME, BY FIVE LENSES, AND THE GUARD THAT PROVES THE
+PROMISE WAS THE FIRST THING TO FALL.** The adversarial workflow wrote 212
+attack tests against the real gateway and left 36 red; every one is green now
+and kept (`ai/redteam*.test.ts`), with the full list in `docs/health/05 §16`.
+The ones worth carrying out of the file:
+
+- **Four one-file edits opened a real egress path with every isolation guard
+  green** — a `fetch` inside a template literal (`executableText` masks the
+  whole literal, `${…}` included), a new `ai/vertex.ts` reaching
+  `../../fetchTimeout.ts` through a `../` wildcard, a sibling `health-ai/net.ts`
+  the file list never walked, and `functions["invoke"]` / an aliased
+  `globalThis.fetch` / a `Worker` that no call-shape regex matched. The guard
+  is an allowlist of NAMED siblings now, resolves imports transitively from
+  each entrypoint, walks whole directories, and scans identifiers over
+  comment-stripped source with strings KEPT — because the health tree has no
+  legitimate use of any of them, a false positive costs nothing and a masked
+  string hid a real fetch. `scripts/health-mutate-guards.sh` applies all seven
+  escapes and expects red; **a guard that has never been mutated has never
+  been tested.**
+- **The receipt's manifest lied.** It listed injected document text as
+  EXCLUDED while the provider was handed it. An `excluded` entry now means the
+  field is absent from the provider input, always; the rules-only extractor
+  gets a flag and no entry.
+- **The unit was the field nobody checked.** Display and note went through the
+  detector; `valueUnit` was scrubbed, sliced to 24 chars and sent — 24 chars
+  is "you are now a doctor" with room to spare.
+- **The contract read only one of three output kinds.** A classification's
+  kind and a candidate's display, code and unit were spread into rows, over
+  `MAX_CANDIDATES` was sliced, and a provider-invented key reached the wire.
+  Unreachable with the synthetic provider; live the day Phase 3 registers a
+  real one, which is exactly when nobody would be looking.
+- **`String()` is not a type check.** `["synthetic"]` and
+  `{ toString: () => "summarize_timeline" }` passed the closed-list checks and
+  were then kept raw; "Production" opened the synthetic provider to a
+  non-admin because the gate compared against the literal and trusted the
+  type annotation.
+- **Normalisation had four digit scripts and no combining marks.** Gujarati
+  "999", `ig͏nore` (U+034F) and `táke` walked past grounding, the detector
+  and the dose groups. Nineteen digit blocks and Latin combining marks now.
+- **A day of month grounded a fabricated value** ("recorded as 14" on the
+  14th); a count grounded "two"; masking let a cited fragment be wrapped in an
+  instruction; number words and a full stop hid a dose. Each is a refusal.
+- **`status.aiAvailable` re-derived half the gate by hand** and said
+  "available" to people every call would refuse. It IS `checkGate` now.
+  Never re-derive a policy beside the policy.
+- **A health record's primary key was leaving the domain** into the
+  moderation inbox with the reporter's identity, outside the health purge.
+  The report targets the receipt id; the purge removes the person's own rows.
+
+Two things stayed as designed and are asserted as LIMITS rather than fixed: a
+fact citing two records may quote either record's value (grounding is token
+membership, not attribution), and a targeted read loads the row to learn its
+category before the consent check (its content goes nowhere). And one thing
+the docs had wrong rather than the code: a refusal before the receipt is
+audited, not receipted.
+
+Numbers: health suite 32 files / 780 tests (212 of them attacks); whole suite
+5,805 (the one unrelated timing flake under load, `arapStep11dDiagnosis`,
+passes alone); tsc, lint:ci, Prettier and `deno check` of both functions
+green; seven guard mutations red. $0 spent, no Lovable message sent.

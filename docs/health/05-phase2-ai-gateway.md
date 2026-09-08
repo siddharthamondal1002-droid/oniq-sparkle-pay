@@ -89,11 +89,25 @@ whatever `health_config.environment` says; unknown values are production too.
 (`pickRecord`), validates enums against their closed lists, scrubs every string
 a person or document wrote, aliases rows `r1…`/`d1` by position, and refuses —
 never trims — anything over a cap (`text_too_long`; the classification excerpt
-is the one recorded truncation). A field that trips the detector DROPS the row
-from a model-bound context and lists it in `manifest.excluded` with a field
-name and a closed reason; for the rules-only extractor it only raises
-`injectionSuspected`. The read is consent-driven: rows in a category without an
-AI consent are never loaded.
+is the one recorded truncation). **The cap is measured on the SCRUBBED text**:
+scrubbing can grow a string (`a@b.cd` → `[email]`), and the cap bounds what the
+provider sees, not what was typed. A field that trips the detector — display,
+note OR unit — DROPS the row from a model-bound context and lists it in
+`manifest.excluded` with a field name and a closed reason; for the rules-only
+extractor it only raises `injectionSuspected`, with NO exclusion entry. **The
+manifest describes what was sent**: an entry in `excluded` means the field is
+absent from the provider input, always (`classify_document` drops injected
+text and lists it; `extract_document` flags it and hands it to the regex).
+
+The read is consent-driven: the LIST reads derive their kinds from the
+consents before the query, so rows in a category without an AI consent are
+never loaded. A TARGETED read (`explain_record`, the document tasks) must
+load the row to learn its category; when that category is uncovered the
+refusal names it and the row's content reaches no provider, no manifest, no
+receipt and no audit row (`redteamAuthz.test.ts`). Priors for `explain_record`
+are the same ANALYTE — same kind and same normalised display — not merely the
+same kind; and excluded rows are BACKFILLED: the loop over loaded rows stops
+when the context is full, not at the first `MAX_RECORDS` rows.
 
 The manifest is ids and counts — `recordIds` (position i ↔ `r{i+1}`),
 `documentIds`, `categories`, `fields`, `charCount`, `estimatedInputTokens`,
@@ -112,26 +126,54 @@ provider speaks the request's language and never emits `ai_interpretation`
 
 `TEXT_SOURCE_REGISTRY = { null }`. Phase 2 ships no OCR and no model that reads
 a PDF, so **in production `extract_document` answers `no_text` for everyone**,
-and the receipt and audit row for that refusal are the proof the pipeline ran.
+and the audit row for that refusal (`ai.refused`, reason `no_text`) is the
+proof the pipeline ran. A refusal BEFORE the receipt — gate, consent, context,
+caps — is audited, not receipted: the receipt is written only once a request
+reaches the provider stage, and it is the cap ledger. (The first version of
+this sentence said "receipt"; the red team measured that no pre-provider
+refusal writes one, and the docs were wrong, not the code.)
 The deployed body is CLOSED (`parseAiRequest`: unknown keys → 400) and carries
 no text field — the first draft's inline-text path was killed in review (§14).
 
 ## 6. The response contract — refuse, never trim
 
-| Class               | Rule                                                                                                                                                                 |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `record_fact`       | cites ≥ 1 alias in the manifest; every number (digits, number words, Indic digits) is grounded in a cited record's value, unit, display, date, or the citation count |
-| `general_info`      | cites nothing; never addresses the reader (en/hi/bn second person)                                                                                                   |
-| `ai_interpretation` | cites ≥ 1; allowed only by the provider's class allowlist (synthetic: no)                                                                                            |
-| `unknown`           | cites nothing; carries no number                                                                                                                                     |
+| Class               | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `record_fact`       | cites ≥ 1 alias in the manifest; every number (digits, number words, every Indic/Thai/Arabic digit block) is grounded in a cited record's value or the digits of its display, unit or note; the date is quotable ONLY as the record's `dateLabel` (stripped before the numbers are read) — a day of month, a year or the citation count is not a value; never advises the reader (`fact_advises_reader`: "you should/must/need to…", en/hi/bn) |
+| `general_info`      | cites nothing; never addresses the reader (en/hi/bn second person, including `u`, `ur`, `thou`)                                                                                                                                                                                                                                                                                                                                                |
+| `ai_interpretation` | cites ≥ 1; allowed only by the provider's class allowlist (synthetic: no); never advises the reader                                                                                                                                                                                                                                                                                                                                            |
+| `unknown`           | cites nothing; carries no number                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 Then every segment and the JOINED response go through the forbidden groups on
-NFKC-normalised text with cited content masked: `forbidden_dose`,
-`forbidden_prescribe`, `forbidden_med_change`, `forbidden_diagnosis`,
-`forbidden_impersonation`, `forbidden_care_avoidance`, `forbidden_off_app`,
-plus `identifier_in_output`, `obfuscated_output`, `disclaimer_in_output` (the
-gateway attaches the disclaimer by i18n key; a provider may not write one),
-`language_unsupported`. Every refusal is one of 39 closed codes.
+normalised text (NFKC, format characters and Latin combining marks stripped,
+every digit block mapped to ASCII, number words digitised — "fifty mg" is
+"50 mg" — and sentence punctuation opened, so "500 mg. Twice a day" is one
+dose): `forbidden_dose`, `forbidden_prescribe`, `forbidden_med_change`,
+`forbidden_diagnosis`, `forbidden_impersonation`, `forbidden_care_avoidance`
+(modal negations too: "should not see a doctor", "no point in seeing"),
+`forbidden_off_app`, plus `identifier_in_output`, `obfuscated_output`,
+`disclaimer_in_output` (the gateway attaches the disclaimer by i18n key; a
+provider may not write one), `language_unsupported`.
+
+The groups run TWICE per segment: on the text with cited content MASKED (a
+fact quoting the person's own "Metformin 500 mg" is not a dose instruction),
+and then UNMASKED, where a hit is tolerated only when a cited record's own
+text — display, value with unit, note, as one string — trips the same group
+by itself. So the person's own record can be echoed back to them, and a
+provider cannot wrap a cited fragment in an instruction ("Take Metformin
+500 mg twice a day" citing "Metformin 500 mg" is refused). The joined pass
+is the same pair.
+
+The two non-response kinds have their own validators: `validateClassification`
+rebuilds `{kind ∈ DOCUMENT_KINDS, confidence ∈ [0,1], method}` and refuses
+`classification_shape` otherwise; `validateExtraction` admits a candidate only
+as an entry of `CANDIDATE_TABLE` (display, code and kind the table's, the unit
+one the table allows) and refuses `candidate_outside_table`,
+`extraction_shape`, or `too_many_candidates` (over `MAX_CANDIDATES` is a
+refusal, not a slice). Every output kind must match the task
+(`task_mismatch`), and the client response is built from named fields —
+nothing a provider writes reaches a row or the wire. Every refusal is one of
+44 closed codes.
 
 ## 7. Document intelligence
 
@@ -187,11 +229,23 @@ closed-code CHECKs; `purged_at`); retention row `ai_requests` and the sweep.
 1. `ai/isolation.test.ts` — registry keys `["synthetic"]`; `providerFor`
    throws for vertex/gemini/medgemma/…; zero-arity factory; every recipient is
    `oniq`; text-source registry `["null"]`.
-2. Egress ALLOWLIST (server): the health functions and `_shared/health/**`
-   import only health siblings and the Supabase client; executable text has no
-   `fetch`, `functions.invoke`, `import(`, WebSocket, EventSource,
-   XMLHttpRequest, sendBeacon, `Deno.connect/Command/run/listen`; `.rpc(` only
-   from `{health_append_audit, is_admin, is_adult_18, has_active_legal_hold}`.
+2. Egress ALLOWLIST (server): each function directory is exactly `index.ts`;
+   every file in the two function directories and the whole `_shared/health/**`
+   tree imports only the Supabase client or a NAMED health sibling (a file
+   under `ai/` reaches `../` only for the listed shared modules; `../../` is
+   refused everywhere); every module reachable from an entrypoint,
+   TRANSITIVELY, is inside `_shared/health`; the source with comments
+   stripped and strings KEPT carries no `fetch`, `.functions`, `functions[`,
+   `import(`, WebSocket, EventSource, XMLHttpRequest, sendBeacon, Worker,
+   globalThis, self, navigator, eval, `new Function`, or any `Deno.` but
+   `env`/`serve`; `.rpc(` only from `{health_append_audit, is_admin,
+is_adult_18, has_active_legal_hold}`. Mutation-checked 2026-09-08 against
+   the four escapes the red team found in the first version (a fetch inside a
+   template literal; a new `ai/vertex.ts` importing `../../fetchTimeout.ts`;
+   a new `health-ai/net.ts`; `functions["invoke"]`, an aliased
+   `globalThis.fetch` and a `Worker`) plus an import-only escape — all seven
+   red. The Phase 1 guard's model/host/fetch scan now covers the whole shared
+   tree, not only the two entrypoints.
 3. Egress allowlist (client): `src/health/**` and the health/admin screens
    invoke only `"health-api"`/`"health-ai"`, fetch nothing, import no SDK.
 4. The provider input, captured through the real gateway, carries no uuid, no
@@ -210,11 +264,21 @@ closed-code CHECKs; `purged_at`); retention row `ai_requests` and the sweep.
 `src/health/ai/client.ts` sends the closed body to `health-ai`. The timeline
 labels every AI-derived row (`needsAiLabel` → `AI_OUTPUT_LABEL` +
 `<AiOutputReport surface="health_ai_output" />`) and offers Explain /
-Summarise / Ask only when the server's `status.aiAvailable` is true. The
+Summarise / Ask only when BOTH the server's `status.aiAvailable` and the
+client constant `HEALTH_AI_ENABLED` are true — the server says whether
+health-ai would answer, the client constant is the rollback, and gating on the
+server field alone left every control visible after a client-only rollback
+with each tap refused locally. `status.aiAvailable` is computed by the SAME
+`checkGate` health-ai runs, on the same inputs (provider, model, caps,
+environment, region, admin bit, age), so it cannot say "available" to a person
+every call would refuse. A provider's own refusals (`response.refusals`) are
+rendered under `health.ai.refusal.<code>` in three languages, and the answer's
+"report bad output" control targets the receipt id, never a constant. The
 Documents tab lists "Suggested records" whenever candidates exist (rollback
-cannot strand them) and offers extraction on `aiAvailable`. The Consent tab has
-the AI switch (recipient ONIQ). `/app/admin/health-ai` is the verification
-door, linked from Profile. All three files are in `AI_SURFACES`.
+cannot strand them) and offers extraction on the same two conditions. The
+Consent tab has the AI switch (recipient ONIQ). `/app/admin/health-ai` is the
+verification door, linked from Profile. All three files are in `AI_SURFACES`,
+and none passes content to a report.
 
 **Phase 2 produces zero candidates and zero answers for any production user**:
 the client constant `health.ai.enabled` stays false, and even with it on the
@@ -263,25 +327,112 @@ the first design; every blocker and major became a requirement here:
 
 ## 15. Definition of Done (Phase 2) — each line is a test
 
-| Requirement                                                                      | Test                                                                                                            |
-| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Existing tests pass                                                              | the full suite                                                                                                  |
-| Health → AI direct path impossible                                               | `ai/isolation.test.ts`, `isolation.test.ts`                                                                     |
-| Policy engine: one input, one reason, in order; production by project            | `ai/policy.test.ts`                                                                                             |
-| Consent: recipient, terms disclosure, revocation, categories                     | `consent.test.ts`, `ai/policy.test.ts`, `ai/gateway.test.ts`                                                    |
-| Minimum data, aliases, quarantine, caps refuse                                   | `ai/context.test.ts`                                                                                            |
-| Injection detector vs corpus; scrubber                                           | `ai/scrub.test.ts`                                                                                              |
-| Contract: per-class, grounding, masking, en/hi/bn, closed codes                  | `ai/contract.test.ts`                                                                                           |
-| Classification, extraction (canonical names, dates, validation)                  | `ai/classify.test.ts`, `ai/extract.test.ts`                                                                     |
-| Price before spend; no default caps                                              | `ai/cost.test.ts`, `ai/policy.test.ts`                                                                          |
-| Receipt before provider; never left started; caps ignore status; two users       | `ai/gateway.test.ts`                                                                                            |
-| Nothing a person wrote lands in a receipt, audit or log                          | `ai/redaction.test.ts`                                                                                          |
-| health-ai wired: flags → JWT → closed body → actor; Store bound; house cap named | `ai/wiring.test.ts`                                                                                             |
-| health-api: confirm gated, reject above, purge marks, legal hold, export         | `wiring.test.ts`                                                                                                |
-| Migration equals the lists, named constraints, RLS, set null                     | `migration.test.ts`, `ai/migration2.test.ts`                                                                    |
-| Regex safety                                                                     | `ai/regexSafety.test.ts`                                                                                        |
-| Labelled where it renders; doors exist; hooks above returns                      | `ai/surfaces.test.ts`, `playCompliance.test.ts`, `adminDoors.test.ts`, `routeNesting.test.ts`, `routes.test.ts` |
-| Twelve flags, both sides, all off                                                | `flags.test.ts`                                                                                                 |
-| Mirrors identical, `ai/types` included                                           | `agreement.test.ts`                                                                                             |
-| en/hi/bn strings agree; every reason has three sentences                         | `i18n.test.ts`, `redact.test.ts`                                                                                |
-| Red-team attacks stay refused                                                    | `ai/redteam*.test.ts`                                                                                           |
+| Requirement                                                                       | Test                                                                                                            |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Existing tests pass                                                               | the full suite                                                                                                  |
+| Health → AI direct path impossible                                                | `ai/isolation.test.ts`, `isolation.test.ts`                                                                     |
+| Policy engine: one input, one reason, in order; production by project             | `ai/policy.test.ts`                                                                                             |
+| Consent: recipient, terms disclosure, revocation, categories                      | `consent.test.ts`, `ai/policy.test.ts`, `ai/gateway.test.ts`                                                    |
+| Minimum data, aliases, quarantine, caps refuse                                    | `ai/context.test.ts`                                                                                            |
+| Injection detector vs corpus; scrubber                                            | `ai/scrub.test.ts`                                                                                              |
+| Contract: per-class, grounding, masking, en/hi/bn, closed codes                   | `ai/contract.test.ts`                                                                                           |
+| Classification, extraction (canonical names, dates, validation)                   | `ai/classify.test.ts`, `ai/extract.test.ts`                                                                     |
+| Price before spend; no default caps                                               | `ai/cost.test.ts`, `ai/policy.test.ts`                                                                          |
+| Receipt before provider; never left started; caps ignore status; two users        | `ai/gateway.test.ts`                                                                                            |
+| Nothing a person wrote lands in a receipt, audit or log                           | `ai/redaction.test.ts`                                                                                          |
+| health-ai wired: flags → JWT → closed body → actor; Store bound; house cap named  | `ai/wiring.test.ts`                                                                                             |
+| health-api: confirm gated, reject above, purge marks, legal hold, export          | `wiring.test.ts`                                                                                                |
+| Migration equals the lists, named constraints, RLS, set null                      | `migration.test.ts`, `ai/migration2.test.ts`                                                                    |
+| Regex safety                                                                      | `ai/regexSafety.test.ts`                                                                                        |
+| Labelled where it renders; doors exist; hooks above returns                       | `ai/surfaces.test.ts`, `playCompliance.test.ts`, `adminDoors.test.ts`, `routeNesting.test.ts`, `routes.test.ts` |
+| Twelve flags, both sides, all off                                                 | `flags.test.ts`                                                                                                 |
+| Mirrors identical, `ai/types` included                                            | `agreement.test.ts`                                                                                             |
+| en/hi/bn strings agree; every reason has three sentences                          | `i18n.test.ts`, `redact.test.ts`                                                                                |
+| Red-team attacks stay refused                                                     | `ai/redteam*.test.ts`                                                                                           |
+| Non-response outputs validated and rebuilt; task/kind agree; named-field wire     | `ai/redteamExfil.test.ts`, `ai/gateway.test.ts`                                                                 |
+| Unit injection-checked; manifest says what was sent; scrubbed cap; analyte priors | `ai/context.test.ts`, `ai/redteamInjection.test.ts`, `ai/redteamSpend.test.ts`                                  |
+| Isolation guard survives the seven mutations                                      | `scripts/health-mutate-guards.sh` (run by hand; §11)                                                            |
+| `status.aiAvailable` is `checkGate`; purge fails closed; reports purged           | `ai/redteamAuthz.test.ts`, `wiring.test.ts`                                                                     |
+| Audit failure after a settled receipt propagates as `audit_failed`                | `ai/redteamSpend.test.ts`                                                                                       |
+
+## 16. Red team, second pass — what the attack files found and what changed
+
+The adversarial workflow (five lenses: injection, authorization, spend,
+server exfiltration, client exfiltration) wrote 212 attack tests against the
+real gateway and left 36 of them red. Eleven findings were confirmed by
+independent verifiers, the rest went unverified for want of session budget
+and were read and acted on here. Everything below is a test now; the four
+attack files are kept under `ai/redteam*.test.ts`.
+
+FIXED IN CODE:
+
+- **`valueUnit` was scrubbed but never injection-checked** — a 24-char
+  instruction reached the provider and was echoed. It goes through
+  `cleanField` like display and note, and excludes the row.
+- **The manifest listed document text as EXCLUDED while the provider was
+  handed it** (classify and extract). Classify drops the text and lists it;
+  extract flags it and lists nothing. The receipt now says what was sent.
+- **The cap was measured on the raw string**; scrubbing grew a 497-char
+  question to 568 and a 19,999-char document past 20,000. The cap is on the
+  scrubbed text and refuses.
+- **Combining marks and unmapped digit scripts** walked past every pattern
+  (`ig͏nore`, `táke`, Gujarati/Tamil/Thai digits). The normaliser
+  strips marks off Latin letters and maps nineteen digit blocks.
+- **Tamil, Urdu, Gujarati, Marathi and two Hinglish shapes** were invisible to
+  the detector; they run on every language now.
+- **Dose instructions in number words, or split by a full stop**, passed the
+  dose groups; a cited fragment could be **wrapped in an instruction**;
+  **modal care avoidance** ("you should not see a doctor") and **advice in a
+  fact** ("your HbA1c means you need to fast") passed; **`u`/`ur`/`thou`**
+  were not second person; **a day of month, a year or the citation count**
+  grounded a fabricated value. Each is a refusal now (§6).
+- **The synthetic provider's own priors** were the same KIND, not the same
+  analyte — an HbA1c row became "an earlier Cholesterol reading", and a
+  "Vitamin B12" target was refused as ungrounded on its own display digits.
+  Priors are the same analyte and the prior segment cites the target too.
+- **Only the response kind was validated**: a classification's kind and a
+  candidate's display/code/unit were stored verbatim, over `MAX_CANDIDATES`
+  was sliced, and a provider-invented key reached the wire. All three kinds
+  are validated and rebuilt (§6), and the output kind must match the task.
+- **A failed audit after an ok receipt** overwrote the receipt as a provider
+  error. The settled receipt stands and `audit_failed` propagates.
+- **An unverified `recordId` on a summary** became the audit row's objectId.
+  Only an explained record inside the manifest is named.
+- **Non-string task/provider/language** passed a `String()` name check;
+  **an environment string outside `ENVIRONMENTS`** opened the synthetic
+  provider to a non-admin at the gate. Exact strings and fail-closed now.
+- **`status.aiAvailable` re-derived half the gate** and said "available" for
+  an unlisted model, a missing date of birth or a blocked region. It calls
+  `checkGate`.
+- **`actPurge` ignored the legal-hold rpc's error** (an rpc failure read as
+  "not held"). It refuses 500.
+- **A health record uuid + reporter identity left the domain into
+  `public.reports`** (admin-readable, outside the health purge). The answer's
+  report now targets the receipt id, and the person's own
+  `health_ai_output` report rows are the one delete in the purge.
+- **Provider refusals had no rendering and no i18n key**; the AI controls
+  stayed visible after a client-only rollback. Both fixed (§12).
+- **Summarise read 120 rows and considered 30**; excluded rows were not
+  backfilled. They are.
+- **Four one-file edits opened a real egress path with every guard green.**
+  The guard is rewritten (§11, item 2) and mutation-checked.
+
+DOCUMENTED LIMITS, kept as tests that assert the limit rather than pretend:
+
+- A fact citing two records may quote either record's value; the grounding
+  check is token membership, not attribution. The client renders both source
+  ids; a number from neither is still refused.
+- A targeted read loads the row to learn its category before the consent
+  check; its content goes nowhere (§4).
+- A person's own record that IS a dose instruction is echoed back to them,
+  inside a fact citing that record, and nowhere else.
+
+CORRECTED IN THE DOCS, not the code: a refusal before the receipt is audited,
+not receipted (§5). The design had promised a receipt for `no_text`; the audit
+row is the proof.
+
+NOT CHANGED, on purpose: `PRICE_PER_1M` and `MODEL_ALLOWLIST` are not frozen —
+nothing in runtime code writes to them, the tests that prove the gate/cost
+split mutate them deliberately, and freezing would force those tests onto
+module mocks. The whole health tree is asserted to contain no assignment to
+either.

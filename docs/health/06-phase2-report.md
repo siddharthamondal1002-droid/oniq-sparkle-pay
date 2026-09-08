@@ -41,7 +41,11 @@ TypeScript's depth limit for those two handlers — no behaviour change).
 Tests: 16 new files under `src/health/__tests__/ai/` (with four fixtures:
 `fakeStore`, `inlineTextSource`, `misbehavingProvider`, `injectionCorpus`);
 Phase 1 tests updated: `consent`, `flags`, `agreement`, `routes`, `wiring`,
-`migration`, `isolation`.
+`migration`, `isolation`. Second pass (the adversarial workflow's five
+lenses): four attack files `ai/redteam{Injection,Authz,Spend,Exfil}.test.ts`
+(212 tests, kept as regression tests), the two isolation guards rewritten and
+mutation-checked by `scripts/health-mutate-guards.sh`, and every fix listed
+in `05 §16`.
 
 Docs: `docs/health/05-phase2-ai-gateway.md` (rewritten to the build, §14
 review outcomes, §15 DoD), this report, `04` (§A-2, B11, B12, D3), `02`
@@ -83,8 +87,8 @@ what a screen reads before offering anything.
 |                             | Files | Tests                                                                                    |
 | --------------------------- | ----- | ---------------------------------------------------------------------------------------- |
 | Before (the brief's figure) | —     | 5,173                                                                                    |
-| After, whole suite          | 332   | 5,566 (1 pre-existing timing flake outside Health: `arapStep11dDiagnosis`, passes alone) |
-| Health suite (Phases 1 + 2) | 28    | 540                                                                                      |
+| After, whole suite          | 336   | 5,805 (1 pre-existing timing flake outside Health: `arapStep11dDiagnosis`, passes alone) |
+| Health suite (Phases 1 + 2) | 32    | 780 (of which 212 are the red team's attack tests)                                       |
 
 Also green: `tsc`, `lint:ci` on every changed file, Prettier, `deno check` of
 both functions against the real client types. The adversarial workflow's
@@ -97,12 +101,25 @@ red-team files are kept under `src/health/__tests__/ai/redteam*.test.ts`.
 - Egress allowlist (server and client), `.rpc` closed list, no `__tests__` import.
 - Store bound to the JWT user; two-user fixture answers `not_found` for foreign
   ids; the real Store read by effect (house count named as the one exception).
-- Closed body (`parseAiRequest`): unknown keys, a text field, bad ids → 400.
-- Contract: 39 closed codes, per-class rules, grounding incl. number words and
-  Indic digits, masking of cited content, forbidden groups en/hi/bn, joined
-  pass, obfuscation, identifiers, home-made disclaimers.
-- Injection: 50 positives / 37 benign corpus; quarantine for models, flag for
-  rules; over-cap is a refusal.
+- Closed body (`parseAiRequest`): unknown keys, a text field, bad ids, a
+  non-string task or language → 400.
+- Contract: 44 closed codes, per-class rules, grounding (value and the digits
+  of display/unit/note only — no date component, no citation count; number
+  words and nineteen digit blocks read), masking of cited content AND an
+  unmasked pass that tolerates only the person's own record, forbidden groups
+  en/hi/bn on digitised, punctuation-opened text, advice-in-a-fact, modal care
+  avoidance, second-person shorthand, joined pass, obfuscation, identifiers,
+  home-made disclaimers. All three output kinds validated and rebuilt; the
+  output kind must match the task; the wire is built from named fields.
+- Injection: 50 positives / 37 benign corpus plus Tamil, Urdu, Gujarati,
+  Marathi and Hinglish shapes; combining marks stripped off Latin; quarantine
+  for models (display, note, unit), flag for rules; over-cap — measured on the
+  scrubbed text — is a refusal.
+- Isolation: named-sibling import allowlist, transitive reachability from each
+  entrypoint, strings-kept egress scan; seven mutations red
+  (`scripts/health-mutate-guards.sh`).
+- `status.aiAvailable` is `checkGate` itself; purge fails closed on a hold
+  rpc error; an audit failure after a settled receipt propagates.
 - Regex safety: no unbounded gap, adversarial 20,000-char inputs timed.
 - Production bound to the project ref; admin verification behind its own
   column and audited by method; no date of birth = refused; under 18 = refused.
@@ -111,6 +128,11 @@ red-team files are kept under `src/health/__tests__/ai/redteam*.test.ts`.
 
 - The privacy notice is unchanged and its test still passes; the sentence is
   now tied to `RECIPIENT_FOR_PROVIDER`.
+- The manifest says what was SENT: an `excluded` entry means the field is absent
+  from the provider input (classify drops injected text; extract flags it).
+- The person's own `health_ai_output` rows in `public.reports` — the one trace
+  of ONIQ Health outside the domain — are removed by the health purge, and the
+  answer's report targets the receipt id, not a record's primary key.
 - Receipt manifest through a whitelist; audit detail through `auditDetail`
   (+ task/provider/model/method/code only); one log line through `redactForLog`;
   `redaction.test.ts` runs content through every task and asserts none lands.
@@ -160,6 +182,13 @@ message was sent).
 - The generated Supabase client types (`src/integrations/supabase/types.ts`)
   do not yet name the Phase 1/2 tables; they regenerate after the migrations
   apply, and `isolation.test.ts` exempts that file until then.
+- Two documented limits of the contract (05 §16): a fact citing two records
+  may quote either record's value (grounding is token membership, not
+  attribution), and a person's own record that IS a dose instruction is
+  echoed back to them inside a fact citing it. Both are asserted as limits.
+- A refusal before the receipt is audited, not receipted, so `no_text` in
+  production leaves an `ai.refused` audit row and no receipt; the caps count
+  receipts, so pre-provider refusals are bounded by the rate limiter alone.
 
 ## How to verify the publish (oniq-ship: learn the chunk from a local build first)
 

@@ -110,7 +110,7 @@ const CONSENT_COLUMNS =
   "id, purpose, data_categories, recipient, status, start_time, expiry_time, terms_version";
 const RECORD_COLUMNS =
   "id, kind, display, value_num, value_unit, value_text, effective_at, status, provenance";
-const DOCUMENT_COLUMNS = "id, kind, title, mime, size_bytes, captured_at, created_at";
+const DOCUMENT_COLUMNS = "id, kind, title, mime, size_bytes, captured_at, created_at, status";
 
 /**
  * The Store, closed over the person the JWT proved. `userId` is captured
@@ -346,7 +346,9 @@ Deno.serve(async (req: Request) => {
         now,
         requestId,
         // Phase 2 registers no text source: extraction answers no_text for
-        // everyone, and that refusal's receipt is the proof the pipeline ran.
+        // everyone, and that refusal's audit row (ai.refused, reason no_text)
+        // is the proof the pipeline ran — a refusal before the receipt is
+        // audited, not receipted.
         textSource: null,
       },
       config,

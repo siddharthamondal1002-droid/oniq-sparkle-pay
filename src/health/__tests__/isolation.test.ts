@@ -143,14 +143,19 @@ describe("the health functions reach no model and no Google", () => {
   ];
   const SHARED = walk(join(ROOT, "supabase/functions/_shared/health")).map(rel);
 
-  it.each(FUNCTIONS)("%s calls no AI helper, names no provider host, opens no socket", (f) => {
-    const fn = stripComments(readFileSync(join(ROOT, f), "utf8"));
-    expect(fn).not.toMatch(/callGemini\(|callClaude\(|callText\(|callGatewayText\(/);
-    expect(fn).not.toMatch(
-      /generativelanguage|anthropic|aiplatform|healthcare\.googleapis|openai/i,
-    );
-    expect(fn).not.toMatch(/\bfetch\(/);
-  });
+  // The whole tree, not the two entrypoints: a fetch in a shared module is
+  // one import away from either function (red-teamed 2026-09-08).
+  it.each([...FUNCTIONS, ...SHARED])(
+    "%s calls no AI helper, names no provider host, opens no socket",
+    (f) => {
+      const fn = stripComments(readFileSync(join(ROOT, f), "utf8"));
+      expect(fn).not.toMatch(/callGemini\(|callClaude\(|callText\(|callGatewayText\(/);
+      expect(fn).not.toMatch(
+        /generativelanguage|anthropic|aiplatform|healthcare\.googleapis|openai/i,
+      );
+      expect(fn).not.toMatch(/\bfetch\b/);
+    },
+  );
 
   it.each(FUNCTIONS)("%s logs through one redacted line and nothing else", (f) => {
     const fn = stripComments(readFileSync(join(ROOT, f), "utf8"));

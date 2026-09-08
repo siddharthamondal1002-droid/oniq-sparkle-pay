@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { HEALTH_STRINGS, fill, registerHealthTranslations } from "@/health/i18n";
 import { DICTIONARIES, lookup } from "@/lib/i18n/dictionaries";
 import { DOCUMENT_KINDS, PROVENANCE_SOURCES, RECORD_KINDS } from "@/health/domain";
+import { AI_REFUSAL_REASONS, PROVIDER_REFUSAL_CODES } from "@/health/ai/types";
 
 const LANGS = ["en", "hi", "bn"] as const;
 
@@ -33,6 +34,18 @@ describe("English, Hindi and Bengali carry the same keys", () => {
     for (const s of PROVENANCE_SOURCES)
       expect(HEALTH_STRINGS.en[`health.provenance.${s}`], s).toBeTruthy();
     expect(HEALTH_STRINGS.en["health.provenance.unknown"]).toMatch(/AI/);
+  });
+
+  it("has a sentence for every gateway refusal reason and every provider refusal code", () => {
+    // A provider's own declination (`response.refusals`) is rendered under
+    // its code; a code with no sentence would be dropped on the floor in
+    // three languages the day a provider emits one.
+    for (const reason of AI_REFUSAL_REASONS) {
+      expect(HEALTH_STRINGS.en[`health.reason.${reason}`], reason).toBeTruthy();
+    }
+    for (const code of PROVIDER_REFUSAL_CODES) {
+      expect(HEALTH_STRINGS.en[`health.ai.refusal.${code}`], code).toBeTruthy();
+    }
   });
 });
 

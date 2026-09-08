@@ -23,7 +23,16 @@
  * NOTHING A PROVIDER RETURNS IS STORED VERBATIM. The receipt carries
  * `storableManifest()` — a whitelist, like `auditDetail()` — and a refusal
  * is a closed code. A provider's text reaches the person only after the
- * contract accepted it, and reaches no row at all.
+ * contract accepted it, and reaches no row at all. That holds for ALL THREE
+ * output kinds: a response is validated segment by segment and rebuilt from
+ * named fields for the client; a classification is rebuilt from a closed
+ * shape; a candidate is admitted only as an entry of the analyte table.
+ * The first version validated the response kind alone and spread the other
+ * two into rows (red-teamed 2026-09-08).
+ *
+ * AN AUDIT FAILURE AFTER THE RECEIPT IS SETTLED PROPAGATES. The receipt is
+ * never rewritten as a provider error to cover an audit row that could not
+ * be written; the caller answers `audit_failed`, as health-api does.
  */
 import {
   AI_DISCLAIMER_KEY,
@@ -48,7 +57,7 @@ import {
 } from "./types.ts";
 import { checkConsent, checkGate, consentedCategories, type Environment } from "./policy.ts";
 import { buildMinimumContext, categoryOf, type DocRow, type RecordRow } from "./context.ts";
-import { validateAiResponse } from "./contract.ts";
+import { validateAiResponse, validateClassification, validateExtraction } from "./contract.ts";
 import { providerFor as defaultProviderFor, type HealthAIProvider } from "./provider.ts";
 import type { DocumentTextSource } from "./textSource.ts";
 import { costEstimateUsd } from "./cost.ts";
@@ -80,7 +89,11 @@ export function parseAiRequest(body: unknown): { ok: true; request: AiRequest } 
   if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false };
   const b = body as Record<string, unknown>;
   for (const key of Object.keys(b)) if (!REQUEST_KEYS.includes(key)) return { ok: false };
-  if (!(AI_TASKS as readonly string[]).includes(String(b.task))) return { ok: false };
+  // Exact strings from the closed lists — never an array or an object whose
+  // String() happens to be one.
+  if (typeof b.task !== "string" || !(AI_TASKS as readonly string[]).includes(b.task)) {
+    return { ok: false };
+  }
   const request: AiRequest = { task: b.task as AiTask };
   for (const key of ["recordId", "documentId"] as const) {
     const v = b[key];
@@ -95,7 +108,12 @@ export function parseAiRequest(body: unknown): { ok: true; request: AiRequest } 
     request.question = b.question;
   }
   if (b.language !== undefined) {
-    if (!(AI_LANGUAGES as readonly string[]).includes(String(b.language))) return { ok: false };
+    if (
+      typeof b.language !== "string" ||
+      !(AI_LANGUAGES as readonly string[]).includes(b.language)
+    ) {
+      return { ok: false };
+    }
     request.language = b.language as AiLanguage;
   }
   return { ok: true, request };
@@ -258,21 +276,35 @@ export function storableManifest(m: ContextManifest): StorableManifest {
   };
 }
 
-/** Aliases back to ids, and what was left out, for the client. */
+/**
+ * Aliases back to ids, and what was left out, for the client — built from
+ * NAMED fields, never a spread, so a key the provider invented (a prompt,
+ * an echo of its input) cannot reach the wire.
+ */
 export function toClientResponse(
   response: AiResponse,
   manifest: ContextManifest,
 ): ClientAiResponse {
-  const { segments, ...rest } = response;
   return {
-    ...rest,
-    segments: segments.map((s) => {
-      const { sourceRefs, ...seg } = s;
-      const sourceRecordIds = (sourceRefs ?? [])
+    schemaVersion: response.schemaVersion,
+    task: response.task,
+    provider: response.provider,
+    model: response.model,
+    language: response.language,
+    refusals: [...response.refusals],
+    usage: {
+      inputTokens: response.usage.inputTokens,
+      outputTokens: response.usage.outputTokens,
+    },
+    costUsd: response.costUsd,
+    segments: response.segments.map((s) => ({
+      class: s.class,
+      text: s.text,
+      ...(s.confidence === undefined ? {} : { confidence: s.confidence }),
+      sourceRecordIds: (s.sourceRefs ?? [])
         .map((ref) => manifest.recordIds[Number(ref.slice(1)) - 1])
-        .filter((id): id is string => typeof id === "string");
-      return { ...seg, sourceRecordIds };
-    }),
+        .filter((id): id is string => typeof id === "string"),
+    })),
     disclaimerKey: AI_DISCLAIMER_KEY,
     excluded: { count: manifest.excluded.length, recordIds: manifest.excluded.map((e) => e.id) },
   };
@@ -284,6 +316,16 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The record kinds and categories extraction can WRITE; storage consent is needed for each. */
 const EXTRACTABLE_CATEGORIES = ["labs", "vitals"] as const;
+
+/** The same set the deployed Store filters on; a row carrying any other status is not a target. */
+const READABLE_DOCUMENT_STATUSES = ["stored", "processing", "ready"];
+
+/** Which output kind each task must come back as. */
+function outputKindFor(task: AiTask): "response" | "classification" | "extraction" {
+  if (task === "classify_document") return "classification";
+  if (task === "extract_document") return "extraction";
+  return "response";
+}
 
 export async function runHealthAi(
   deps: GatewayDeps,
@@ -345,7 +387,12 @@ export async function runHealthAi(
   if (needsDocument) {
     if (!req.documentId) return refusedWith("not_found");
     document = await store.loadDocument(req.documentId);
-    if (!document) return refusedWith("not_found");
+    if (
+      !document ||
+      (document.status !== undefined && !READABLE_DOCUMENT_STATUSES.includes(document.status))
+    ) {
+      return refusedWith("not_found");
+    }
     if (!covered.includes("documents")) {
       return refusedWith("ai_consent_required", {
         purpose: "ai_interpretation",
@@ -379,7 +426,9 @@ export async function runHealthAi(
         recipient,
       });
     }
-    const prior = await store.loadActiveRecords([target.kind], LIMITS.MAX_PRIOR_SAME_KIND * 2);
+    // Enough rows of the kind that the context can find priors of the SAME
+    // ANALYTE among them (context.ts filters on display).
+    const prior = await store.loadActiveRecords([target.kind], LIMITS.MAX_RECORDS);
     records = [target, ...prior.filter((r) => r.id !== target.id)];
   } else {
     const kinds = RECORD_KINDS.filter((k) => covered.includes(CATEGORY_FOR_KIND[k as RecordKind]));
@@ -441,10 +490,36 @@ export async function runHealthAi(
     method: gate.adminVerification ? "admin_verification" : "user",
   };
 
+  // Once the receipt is settled (ok, refused or error) a throw is no longer
+  // the provider's: it is an audit row that could not be written, and that
+  // propagates rather than rewriting the receipt.
+  let settled = false;
+  const settle = async (patch: ReceiptPatch) => {
+    await store.completeReceipt(receiptId, patch);
+    settled = true;
+  };
+  const rejectOutput = async (code: ContractRefusalCode): Promise<GatewayResult> => {
+    await settle({
+      status: "refused",
+      refusal_reason: "output_rejected",
+      contract_code: code,
+      completed_at: now,
+    });
+    await audit({
+      action: "ai.refused",
+      objectType: "account",
+      purpose: consent.purpose,
+      consentId,
+      outcome: "refused",
+      detail: { ...baseDetail, reason: "output_rejected", code },
+    });
+    return { ok: false, reason: "output_rejected", detail: { code }, manifest };
+  };
+
   try {
     // 7. THE PROVIDER.
     const provider = resolve(providerId);
-    let output;
+    let output: unknown;
     try {
       output = await provider.run({
         task,
@@ -453,18 +528,21 @@ export async function runHealthAi(
         counts: { records: context.records.length, documents: context.documents.length },
       });
     } catch {
-      await store.completeReceipt(receiptId, {
-        status: "error",
-        refusal_reason: "provider_error",
-        completed_at: now,
-      });
+      await settle({ status: "error", refusal_reason: "provider_error", completed_at: now });
       return refusedWith("provider_error", undefined, manifest);
     }
 
-    // 8. THE CONTRACT, then persistence, then the completed receipt.
-    if (output.kind === "response") {
+    // 8. THE CONTRACT, then persistence, then the completed receipt. The
+    //    output kind must be the one this TASK produces: an extraction
+    //    answering a record task would write rows nobody asked for.
+    const out = (output ?? {}) as { kind?: unknown };
+    if (!output || typeof output !== "object") return rejectOutput("not_an_object");
+    if (out.kind !== outputKindFor(task)) return rejectOutput("task_mismatch");
+
+    if (out.kind === "response") {
+      const response = (out as { response?: unknown }).response;
       const verdict = validateAiResponse(
-        output.response,
+        response,
         manifest,
         {
           task,
@@ -475,35 +553,27 @@ export async function runHealthAi(
         },
         context.records,
       );
-      if (!verdict.ok) {
-        await store.completeReceipt(receiptId, {
-          status: "refused",
-          refusal_reason: "output_rejected",
-          contract_code: verdict.code,
-          completed_at: now,
-        });
-        await audit({
-          action: "ai.refused",
-          objectType: "account",
-          purpose: consent.purpose,
-          consentId,
-          outcome: "refused",
-          detail: { ...baseDetail, reason: "output_rejected", code: verdict.code },
-        });
-        return { ok: false, reason: "output_rejected", detail: { code: verdict.code }, manifest };
-      }
-      const cost = costEstimateUsd(model, output.response.usage);
-      await store.completeReceipt(receiptId, {
+      if (!verdict.ok) return rejectOutput(verdict.code);
+      const accepted = response as AiResponse;
+      const cost = costEstimateUsd(model, accepted.usage);
+      await settle({
         status: "ok",
-        input_tokens: output.response.usage.inputTokens,
-        output_tokens: output.response.usage.outputTokens,
+        input_tokens: accepted.usage.inputTokens,
+        output_tokens: accepted.usage.outputTokens,
         cost_usd: cost,
         completed_at: now,
       });
+      // The audit names an object only when the request touched it: the
+      // explained record, and only if it is in the manifest. An id riding
+      // on a summary is not an audit fact.
+      const objectId =
+        task === "explain_record" && req.recordId && manifest.recordIds.includes(req.recordId)
+          ? req.recordId
+          : null;
       await audit({
         action: "ai.request",
-        objectType: req.recordId ? "record" : "account",
-        objectId: req.recordId ?? null,
+        objectType: objectId ? "record" : "account",
+        objectId,
         purpose: consent.purpose,
         consentId,
         outcome: "ok",
@@ -515,21 +585,31 @@ export async function runHealthAi(
         manifest,
         result: {
           kind: "response",
-          response: toClientResponse({ ...output.response, costUsd: cost }, manifest),
+          response: toClientResponse({ ...accepted, costUsd: cost }, manifest),
         },
       };
     }
 
     const doc = document!;
-    if (output.kind === "classification") {
-      const cost = costEstimateUsd(model, output.usage);
+    if (out.kind === "classification") {
+      const raw = out as { classification?: unknown; usage?: unknown };
+      const verdict = validateClassification(raw.classification, raw.usage);
+      if (!verdict.ok) return rejectOutput(verdict.code);
+      const cost = costEstimateUsd(model, verdict.usage);
       await store.updateDocument(doc.id, {
-        classification: { ...output.classification, at: now, provider: providerId, model },
+        classification: {
+          kind: verdict.value.kind,
+          confidence: verdict.value.confidence,
+          method: verdict.value.method,
+          at: now,
+          provider: providerId,
+          model,
+        },
       });
-      await store.completeReceipt(receiptId, {
+      await settle({
         status: "ok",
-        input_tokens: output.usage.inputTokens,
-        output_tokens: output.usage.outputTokens,
+        input_tokens: verdict.usage.inputTokens,
+        output_tokens: verdict.usage.outputTokens,
         cost_usd: cost,
         completed_at: now,
       });
@@ -540,33 +620,36 @@ export async function runHealthAi(
         purpose: consent.purpose,
         consentId,
         outcome: "ok",
-        detail: { ...baseDetail, documentKind: output.classification.kind },
+        detail: { ...baseDetail, documentKind: verdict.value.kind },
       });
       return {
         ok: true,
         receiptId,
         manifest,
-        result: { kind: "classification", classification: output.classification },
+        result: { kind: "classification", classification: verdict.value },
       };
     }
 
-    // extraction
-    const cost = costEstimateUsd(model, output.usage);
-    const candidates = output.extraction.candidates.slice(0, LIMITS.MAX_CANDIDATES);
+    // extraction — every candidate an entry of the table, or none is stored.
+    const raw = out as { extraction?: unknown; usage?: unknown };
+    const verdict = validateExtraction(raw.extraction, raw.usage);
+    if (!verdict.ok) return rejectOutput(verdict.code);
+    const { candidates, method, textChars } = verdict.value;
+    const cost = costEstimateUsd(model, verdict.usage);
     const inserted = await store.insertCandidates(doc.id, candidates, {
       source: "document_extraction",
       sourceRef: doc.id,
       capturedAt: now,
-      method: output.extraction.method,
+      method,
     });
     await store.updateDocument(doc.id, {
       extraction_status: inserted > 0 ? "candidates" : "empty",
-      text_chars: output.extraction.textChars,
+      text_chars: textChars,
     });
-    await store.completeReceipt(receiptId, {
+    await settle({
       status: "ok",
-      input_tokens: output.usage.inputTokens,
-      output_tokens: output.usage.outputTokens,
+      input_tokens: verdict.usage.inputTokens,
+      output_tokens: verdict.usage.outputTokens,
       cost_usd: cost,
       completed_at: now,
     });
@@ -583,16 +666,15 @@ export async function runHealthAi(
       ok: true,
       receiptId,
       manifest,
-      result: {
-        kind: "extraction",
-        candidates: inserted,
-        method: output.extraction.method,
-        textChars: output.extraction.textChars,
-      },
+      result: { kind: "extraction", candidates: inserted, method, textChars },
     };
   } catch {
-    // Nothing after the receipt may leave it "started": a throw anywhere
-    // above lands here, completes it as an error, and answers as a refusal.
+    // Nothing after the receipt may leave it "started": a throw before it is
+    // settled lands here, completes it as an error, and answers as a
+    // refusal. A throw AFTER it is settled can only be the audit row (it is
+    // the last thing that runs), so it is answered as one — the receipt
+    // stands as written, and nothing of the thrown object travels.
+    if (settled) throw new Error("audit_failed");
     try {
       await store.completeReceipt(receiptId, {
         status: "error",

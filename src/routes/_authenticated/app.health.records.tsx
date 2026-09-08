@@ -12,7 +12,7 @@ import {
 } from "@/components/oniq";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 import { useT } from "@/lib/i18n/LanguageProvider";
-import { HEALTH_UPLOADS_ENABLED } from "@/health/flags";
+import { HEALTH_AI_ENABLED, HEALTH_UPLOADS_ENABLED } from "@/health/flags";
 import {
   healthApi,
   type CandidateRow,
@@ -235,7 +235,9 @@ function HealthDocuments() {
   }
 
   const rows = docs.data?.ok ? docs.data.data : [];
-  const aiAvailable = status.data?.ok ? status.data.data.aiAvailable === true : false;
+  // Both halves: the server's word, and the client constant that is the rollback.
+  const aiAvailable =
+    HEALTH_AI_ENABLED && (status.data?.ok ? status.data.data.aiAvailable === true : false);
   const suggested = candidates.data?.ok ? candidates.data.data : [];
 
   return (

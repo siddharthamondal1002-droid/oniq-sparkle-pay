@@ -36,7 +36,7 @@ import {
 } from "../_shared/health/domain.ts";
 import { RECIPIENT_FOR_PROVIDER, type ProviderId } from "../_shared/health/ai/types.ts";
 import { isProviderId } from "../_shared/health/ai/provider.ts";
-import { resolveEnvironment } from "../_shared/health/ai/policy.ts";
+import { checkGate, resolveEnvironment } from "../_shared/health/ai/policy.ts";
 import { findCovering, nextVersion } from "../_shared/health/consent.ts";
 import { redactForLog } from "../_shared/health/redact.ts";
 import { expiryFor, type RetentionPolicyLike } from "../_shared/health/retention.ts";
@@ -233,36 +233,59 @@ function consentOut(c: ConsentRow) {
 
 /* ------------------------------------------------------------- actions -- */
 
+function capFrom(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+/** The actor the way health-ai reads it: admin from the rpc, age from the private profile. */
+async function actorFor(ctx: Ctx): Promise<{ isAdmin: boolean; isAdult: boolean | null }> {
+  const [{ data: isAdmin }, { data: dob }] = await Promise.all([
+    ctx.admin.rpc("is_admin", { _uid: ctx.userId }),
+    ctx.admin
+      .from("profiles_private")
+      .select("date_of_birth")
+      .eq("user_id", ctx.userId)
+      .maybeSingle(),
+  ]);
+  let isAdult: boolean | null = null;
+  if (dob?.date_of_birth) {
+    const { data: adult } = await ctx.admin.rpc("is_adult_18", { _uid: ctx.userId });
+    isAdult = adult === true;
+  }
+  return { isAdmin: isAdmin === true, isAdult };
+}
+
 /**
- * Whether health-ai would answer THIS caller today, computed the way the
- * gateway's gate computes it: both flags, a registered provider, caps set,
- * and — because the only provider is synthetic — not production unless the
- * caller is an admin and the row allows admin verification. A screen offers
- * an AI section on this field, never on the client constant alone.
+ * Whether health-ai would answer THIS caller today — decided BY THE SAME
+ * GATE health-ai runs (`checkGate`), on the same inputs health-ai builds:
+ * the row's provider, model and caps, the resolved environment, the region
+ * signal, and the actor's admin bit and age. A screen offers an AI section
+ * on this field, never on the client constant alone. Red-teamed 2026-09-08:
+ * the first version re-derived five of the gate's clauses by hand and said
+ * "available" to a person every call would refuse — an unlisted model, no
+ * date of birth, a blocked region.
  */
 async function aiAvailability(ctx: Ctx, url: string | undefined) {
   const row = ctx.config ?? {};
   const providerId = isProviderId(row.ai_provider) ? (row.ai_provider as ProviderId) : null;
-  const capUser = Number(row.ai_daily_cap_per_user ?? 0);
-  const capHouse = Number(row.ai_daily_cap_house ?? 0);
   const environment = resolveEnvironment(row.environment, url);
-  let isAdmin = false;
-  if (ctx.flags["health.ai.enabled"]) {
-    const { data } = await ctx.admin.rpc("is_admin", { _uid: ctx.userId });
-    isAdmin = data === true;
-  }
-  const adminVerification = isAdmin && row.ai_admin_verification_enabled === true;
-  const available =
-    ctx.flags["health.ai.enabled"] &&
-    providerId !== null &&
-    capUser > 0 &&
-    capHouse > 0 &&
-    (environment !== "production" || adminVerification);
-  return {
-    aiAvailable: available,
-    aiRecipient: providerId ? RECIPIENT_FOR_PROVIDER[providerId] : null,
+  const aiRecipient = providerId ? RECIPIENT_FOR_PROVIDER[providerId] : null;
+  if (!ctx.flags["health.ai.enabled"]) return { aiAvailable: false, aiRecipient, environment };
+  const { isAdmin, isAdult } = await actorFor(ctx);
+  const gate = checkGate({
+    flags: ctx.flags,
     environment,
-  };
+    actor: { isAdmin, isAdult },
+    adminVerificationEnabled: row.ai_admin_verification_enabled === true,
+    regionBlocked: ctx.regionBlocked,
+    providerId: row.ai_provider,
+    model: row.ai_model,
+    task: "summarize_timeline",
+    capPerUser: capFrom(row.ai_daily_cap_per_user),
+    capHouse: capFrom(row.ai_daily_cap_house),
+  });
+  return { aiAvailable: gate.allowed, aiRecipient, environment };
 }
 
 async function actStatus(ctx: Ctx): Promise<Response> {
@@ -907,7 +930,12 @@ async function actExport(ctx: Ctx): Promise<Response> {
 async function actPurge(ctx: Ctx): Promise<Response> {
   // A legal hold is the one thing that outranks the person's own delete; the
   // same rule delete-account already follows.
-  const { data: held } = await ctx.admin.rpc("has_active_legal_hold", { _user_id: ctx.userId });
+  const { data: held, error: holdError } = await ctx.admin.rpc("has_active_legal_hold", {
+    _user_id: ctx.userId,
+  });
+  // An rpc that FAILED is not "not held": a purge must not proceed on a
+  // check it could not make.
+  if (holdError) return refuse(ctx, { status: 500, reason: "failed" });
   if (held === true) {
     await audit(ctx, "purge", "account", "refused", { detail: { reason: "legal_hold" } });
     return refuse(ctx, { status: 423, reason: "legal_hold" });
@@ -940,6 +968,15 @@ async function actPurge(ctx: Ctx): Promise<Response> {
     .update({ purged_at: ctx.now, manifest: {} })
     .eq("user_id", ctx.userId)
     .is("purged_at", null);
+  // The person's own "report bad output" rows for health AI surfaces live in
+  // public.reports, the moderation inbox, keyed to a health record or a
+  // receipt id. They are the one trace of ONIQ Health outside the domain,
+  // so the domain's purge removes them; nothing else in `reports` is touched.
+  await ctx.admin
+    .from("reports")
+    .delete()
+    .eq("reporter_id", ctx.userId)
+    .eq("target_type", "health_ai_output");
   const count = (recs ?? []).length + (docs ?? []).length;
   await audit(ctx, "purge", "account", "ok", { detail: { count } });
   return ok(ctx, { records: (recs ?? []).length, documents: (docs ?? []).length });

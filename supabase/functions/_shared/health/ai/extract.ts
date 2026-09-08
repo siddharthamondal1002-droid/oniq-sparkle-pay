@@ -156,6 +156,48 @@ const ANALYTES: readonly Analyte[] = [
   },
 ];
 
+export type CandidateEntry = {
+  kind: "lab" | "vital";
+  display: string;
+  codeDisplay: string;
+  units: readonly RegExp[];
+};
+
+const MMHG = /^mmhg$/i;
+
+/**
+ * THE CLOSED TABLE A CANDIDATE MUST COME FROM, keyed by ONIQ code. The
+ * extractor below builds candidates from it, and `validateExtraction` in
+ * contract.ts admits nothing that is not in it — a provider that returns
+ * document text as a display, a code or a unit is refused, never stored.
+ */
+export const CANDIDATE_TABLE: Readonly<Record<string, CandidateEntry>> = Object.freeze(
+  Object.fromEntries([
+    ...ANALYTES.map((a): [string, CandidateEntry] => [
+      a.id,
+      { kind: "lab", display: a.display, codeDisplay: a.display, units: a.units },
+    ]),
+    [
+      "bp_sys",
+      {
+        kind: "vital",
+        display: "Blood pressure (systolic)",
+        codeDisplay: "Systolic blood pressure",
+        units: [MMHG],
+      } satisfies CandidateEntry,
+    ],
+    [
+      "bp_dia",
+      {
+        kind: "vital",
+        display: "Blood pressure (diastolic)",
+        codeDisplay: "Diastolic blood pressure",
+        units: [MMHG],
+      } satisfies CandidateEntry,
+    ],
+  ]),
+);
+
 /** The value after an analyte name: up to 24 non-digit chars, a number, an optional short unit. */
 const AFTER_NAME =
   "[^\\d\\n-]{0,24}(-?\\d{1,6}(?:\\.\\d{1,3})?)\\s{0,8}([A-Za-z%µ][A-Za-z0-9%µ^./]{0,10}(?: [A-Za-z][A-Za-z0-9%µ^./]{0,8})?)?";

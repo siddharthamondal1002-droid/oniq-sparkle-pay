@@ -102,10 +102,16 @@ export function checkGate(input: GateInput): GateDecision {
   if (!input.flags["health.enabled"] || !input.flags["health.ai.enabled"]) {
     return { allowed: false, reason: "ai_disabled" };
   }
-  if (!(AI_TASKS as readonly string[]).includes(String(input.task))) {
+  // A STRING from the closed list, not something whose String() is one: an
+  // array or an object with a toString would pass a name check and then be
+  // kept raw (red-teamed 2026-09-08).
+  if (typeof input.task !== "string" || !(AI_TASKS as readonly string[]).includes(input.task)) {
     return { allowed: false, reason: "task_not_allowed" };
   }
-  if (!(PROVIDER_IDS as readonly string[]).includes(String(input.providerId))) {
+  if (
+    typeof input.providerId !== "string" ||
+    !(PROVIDER_IDS as readonly string[]).includes(input.providerId)
+  ) {
     return { allowed: false, reason: "provider_not_allowed" };
   }
   const providerId = input.providerId as ProviderId;
@@ -132,8 +138,14 @@ export function checkGate(input: GateInput): GateDecision {
   if (input.regionBlocked) return { allowed: false, reason: "region_blocked" };
   if (input.actor.isAdult === null) return { allowed: false, reason: "age_unverified" };
   if (input.actor.isAdult === false) return { allowed: false, reason: "minor_blocked" };
+  // Anything that is not a KNOWN non-production value is production —
+  // "Production", "prod" or "" must fail closed here as they do in
+  // resolveEnvironment, whatever the type annotation promised.
+  const environment = (ENVIRONMENTS as readonly string[]).includes(input.environment)
+    ? input.environment
+    : "production";
   let adminVerification = false;
-  if (recipient === "oniq" && input.environment === "production") {
+  if (recipient === "oniq" && environment === "production") {
     if (!(input.actor.isAdmin && input.adminVerificationEnabled)) {
       return { allowed: false, reason: "synthetic_in_production" };
     }

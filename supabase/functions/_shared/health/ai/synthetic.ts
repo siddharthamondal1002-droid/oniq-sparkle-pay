@@ -36,6 +36,7 @@ import { contextText, estimateTokens } from "./cost.ts";
 
 type Templates = {
   fact: (display: string, dateLabel: string, value: string) => string;
+  /** No number word here: the contract grounds every number, and a count is not a value. */
   prior: (count: number, display: string, dates: string) => string;
   general: string;
   noneYet: string;
@@ -47,7 +48,7 @@ const T: Record<AiLanguage, Templates> = {
   en: {
     fact: (d, when, v) => `${d} on ${when} was recorded as ${v}.`,
     prior: (n, d, dates) =>
-      n === 1 ? `One earlier ${d} reading: ${dates}.` : `Earlier ${d} readings: ${dates}.`,
+      n === 1 ? `An earlier ${d} reading: ${dates}.` : `Earlier ${d} readings: ${dates}.`,
     general: "Readings like these are best discussed with a doctor who knows the history.",
     noneYet: "There are no records to summarise yet.",
     noAnswer: "The records do not carry an answer to that question.",
@@ -55,8 +56,7 @@ const T: Record<AiLanguage, Templates> = {
   },
   hi: {
     fact: (d, when, v) => `${when} को ${d} ${v} दर्ज किया गया था।`,
-    prior: (n, d, dates) =>
-      n === 1 ? `${d} की एक पिछली रीडिंग: ${dates}।` : `${d} की पिछली रीडिंग: ${dates}।`,
+    prior: (_n, d, dates) => `${d} की पिछली रीडिंग: ${dates}।`,
     general: "ऐसी रीडिंग पर उस डॉक्टर से बात करना सबसे अच्छा है जो इतिहास जानता हो।",
     noneYet: "सारांश के लिए अभी कोई रिकॉर्ड नहीं है।",
     noAnswer: "रिकॉर्ड में इस सवाल का जवाब नहीं है।",
@@ -64,8 +64,7 @@ const T: Record<AiLanguage, Templates> = {
   },
   bn: {
     fact: (d, when, v) => `${when} তারিখে ${d} ${v} হিসেবে নথিভুক্ত হয়েছিল।`,
-    prior: (n, d, dates) =>
-      n === 1 ? `${d}-এর একটি আগের রিডিং: ${dates}।` : `${d}-এর আগের রিডিং: ${dates}।`,
+    prior: (_n, d, dates) => `${d}-এর আগের রিডিং: ${dates}।`,
     general: "এই ধরনের রিডিং নিয়ে ইতিহাস জানেন এমন ডাক্তারের সঙ্গে আলোচনা করাই ভালো।",
     noneYet: "সারসংক্ষেপের জন্য এখনও কোনো রেকর্ড নেই।",
     noAnswer: "রেকর্ডে এই প্রশ্নের উত্তর নেই।",
@@ -145,12 +144,18 @@ export class SyntheticHealthAIProvider {
     if (input.task === "explain_record") {
       const target = records[0];
       if (target) out.push(this.fact(target, t));
-      const prior = records.slice(1);
+      // The SAME ANALYTE (same display), not merely the same kind, and the
+      // sentence cites the target too, so the digits of its display
+      // ("Vitamin B12") are grounded in what it cites. Red-teamed
+      // 2026-09-08: the first version called an HbA1c row "an earlier
+      // Cholesterol reading" and was refused as ungrounded on "B12".
+      const analyte = target?.display.toLowerCase();
+      const prior = records.slice(1).filter((p) => p.display.toLowerCase() === analyte);
       if (target && prior.length > 0) {
         out.push({
           class: "record_fact",
           text: t.prior(prior.length, target.display, prior.map((p) => p.dateLabel).join(", ")),
-          sourceRefs: prior.map((p) => p.ref),
+          sourceRefs: [target.ref, ...prior.map((p) => p.ref)],
         });
       }
       out.push({ class: "general_info", text: t.general });
