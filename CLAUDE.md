@@ -3120,3 +3120,88 @@ Numbers: health suite 32 files / 780 tests (212 of them attacks); whole suite
 5,805 (the one unrelated timing flake under load, `arapStep11dDiagnosis`,
 passes alone); tsc, lint:ci, Prettier and `deno check` of both functions
 green; seven guard mutations red. $0 spent, no Lovable message sent.
+
+## Owner directive, 2026-09-08 — B11 per-task caps and the kill switch; B12 "AI-assisted". Phase 2 safeguards only.
+
+The owner answered the two decisions Phase 2 had left open, and drew the
+line themselves: _"B11/B12 do not authorize Phase 3. They are Phase 2
+safeguards/UI preparation only."_ Recorded as given:
+
+    B11  per person, per day    Ask My Health / health chat 10 · report
+                                explanation 5 · report comparison 3 ·
+                                health-history summary 3 · document extraction
+                                10 documents · doctor-visit preparation 5
+         "safety/cost guardrails, not quotas to advertise as a product
+         promise"; "the server must enforce them; the client must never be the
+         authority"; "configurable so they can be adjusted without a
+         migration"; "also add a global emergency kill switch for health AI"
+    B12  label "AI-assisted"; under health answers: "AI-assisted information —
+         check your medical records and a qualified healthcare professional
+         for medical decisions."; never "AI Doctor", "Medical AI", "Diagnosis"
+         or anything implying clinical authority
+
+**SIX OPERATIONS, FIVE TASKS, AND TWO OF THE SIX HAVE NO TASK.** Phase 2's
+closed list is `answer_question`, `explain_record`, `summarize_timeline`,
+`classify_document`, `extract_document`. Ask → `answer_question` 10; report
+explanation → `explain_record` 5; health-history summary →
+`summarize_timeline` 3; document extraction → `classify_document` and
+`extract_document` 10. Report comparison and doctor-visit preparation are not
+Phase 2 tasks: their numbers are recorded in `docs/health/04` B11 for the day a
+task exists, and nothing is built to carry them — inventing a task so a cap
+has something to bind to would be Phase 3 work smuggled in under a Phase 2
+directive.
+
+**"WITHOUT A MIGRATION" MEANS ONE JSON COLUMN, NOT FIVE INTEGER ONES.**
+`health_config.ai_daily_caps` is jsonb keyed by task, defaulting to the owner's
+table, changed by `UPDATE`. `capForTask(row.ai_daily_caps, task)` reads one
+task's number at the call site of BOTH functions (the 2026-09-05 lesson: the
+guard is the call site); anything that is not a positive number — no key, 0, a
+string, a negative — is 0, which the gate refuses as `caps_unset`. The
+person's rolling-24h count is `.eq("task", task)` now; the house count stays
+every task, every person, and the wiring guard pins both halves.
+
+**THE HOUSE CAP HAS NO OWNER VALUE, AND IT IS NOW THE ONLY BLOCKER.**
+`ai_daily_cap_house` stays 0 = refuse. After the migration applies, that one
+number is what stands between the deployed functions and a working admin
+verification (`04 §A-2` step 4). It is a spend decision under this file's
+first rule, so it is asked, not picked: **500/day** is offered as a figure to
+say yes or no to.
+
+**THE KILL SWITCH IS READ WHERE THE FLAGS ARE READ, AND NOWHERE ELSE.**
+`flagsFromRow` forces `health.ai.enabled` and `health.provider_sharing.enabled`
+off when `ai_kill_switch` is the boolean `true`, so every function obeys on its
+next request and `status.aiAvailable` follows for free — it IS `checkGate`, so
+nothing is re-derived beside the policy. An admin flips it from
+`/app/admin/health-ai` in two taps; `health-api`'s `admin.ai_kill` re-derives
+`is_admin` from the JWT, audits both outcomes under `config.ai_kill`, and is
+the ONE write to the shared policy row that function makes. The authz red-team
+guard, which requires the caller's id on every health-table chain, went red on
+that write — correctly — and now admits exactly one `health_config` chain and
+requires it to be that update. A second one must earn its own line.
+
+**"AI-ASSISTED" IS AN OVERRIDE THE PLAY GUARD KNOWS ABOUT, NOT AN EXEMPTION
+FROM IT.** `playCompliance.test.ts` required `AI_OUTPUT_LABEL|AI-generated` on
+every declared AI surface; the health screens now render `HEALTH_AI_LABEL`
+instead, so `AI_LABEL_OVERRIDES` names the identifier a surface must carry and
+the guard requires THAT — a health screen that drops its label fails the same
+test every other surface fails.
+
+**AND THE DISCLOSURE NEEDED ITS OWN KEY.** The gateway's `disclaimerKey` and
+the Health shell's footer both resolved to `health.disclaimer`, so writing the
+owner's sentence there would have put "AI-assisted information" under a
+timeline of the person's OWN entries — a label pointing the wrong way, the
+mirror of the 2026-09-06 photo-labelled-as-AI case. `health.ai.disclosure` is
+the answer's, in three languages; the shell's sentence is unchanged.
+
+Mutation-checked, twelve ways, every one red then restored: the kill switch
+not forcing the flag; the admin gate removed; status not reporting the switch;
+a second `health_config` write; the person's count losing `.eq("task")`; the
+gateway counting a fixed task; the override removed; the label set to
+"Medical AI"; a cap number changed in the migration; `capForTask` accepting a
+numeric string; the i18n label set to "AI Doctor"; the admin door losing its
+kill button.
+
+**NOTHING IS APPLIED, DEPLOYED, PUBLISHED OR ACTIVATED.** The go sequence keeps
+its shape and `docs/health/04 §A-2a` carries the ONE Lovable message — to be
+sent after the merge to `main`, never before, and it applies only the Phase 2
+branch, keeps the privacy sentence, and connects no provider.

@@ -241,6 +241,23 @@ export const AI_SURFACES = [
 ] as const;
 
 /**
+ * Surfaces whose label is NOT the app-wide AI_OUTPUT_LABEL, by owner directive.
+ *
+ * ONIQ Health renders "AI-assisted" — HEALTH_AI_LABEL in src/health/labels.ts,
+ * owner directive 2026-09-08 (B12): "clear and non-alarming", never "AI
+ * Doctor", "Medical AI" or "Diagnosis" — under a disclosure that sends the
+ * person to their records and a qualified professional. The value here is the
+ * IDENTIFIER the surface's file must carry; playCompliance.test.ts requires it
+ * in place of the app-wide one, so a health screen that drops its label still
+ * fails the same guard every other AI surface fails. The wording itself lives
+ * once, in labels.ts, and src/health/__tests__/ai/surfaces.test.ts bans the
+ * alternatives the directive names.
+ */
+export const AI_LABEL_OVERRIDES: Readonly<Record<string, string>> = {
+  health_ai_output: "HEALTH_AI_LABEL",
+};
+
+/**
  * Modules whose CONTENT is AI-generated. Any screen rendering one of these is
  * a generative surface and must appear in AI_SURFACES above.
  *

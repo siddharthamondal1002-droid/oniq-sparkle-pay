@@ -94,16 +94,44 @@ describe("the config row", () => {
     expect(alter).toContain(
       "add column if not exists ai_model text not null default 'synthetic-v1'",
     );
-    expect(alter).toContain(
-      "add column if not exists ai_daily_cap_per_user integer not null default 0",
-    );
+    expect(alter).toContain("add column if not exists ai_daily_caps jsonb not null default");
+    expect(alter).not.toContain("ai_daily_cap_per_user");
     expect(alter).toContain(
       "add column if not exists ai_daily_cap_house integer not null default 0",
+    );
+    expect(alter).toContain(
+      "add column if not exists ai_kill_switch boolean not null default false",
     );
     expect(alter).toContain(
       "add column if not exists ai_admin_verification_enabled boolean not null default false",
     );
     expect(alter).not.toMatch(/ai_minors_allowed/);
+  });
+
+  it("the per-task caps default to the owner's B11 table, one key per Phase 2 task, changeable by UPDATE", () => {
+    const m = alter.match(/ai_daily_caps jsonb not null default\s+'(\{[^']+\})'::jsonb/);
+    expect(m).not.toBeNull();
+    const caps = JSON.parse(m![1]) as Record<string, number>;
+    expect(caps).toEqual({
+      answer_question: 10,
+      explain_record: 5,
+      summarize_timeline: 3,
+      classify_document: 10,
+      extract_document: 10,
+    });
+    expect(Object.keys(caps).sort()).toEqual([...AI_TASKS].sort());
+    // The house cap stays the owner's to set: still 0 = refuse.
+    expect(alter).toContain("ai_daily_cap_house integer not null default 0");
+  });
+
+  it("the caps check keeps the house cap non-negative and the per-task caps an object", () => {
+    expect(SQL).toContain(
+      "check (ai_daily_cap_house >= 0 and jsonb_typeof(ai_daily_caps) = 'object')",
+    );
+    expect(SQL).toContain("comment on column public.health_config.ai_kill_switch is");
+    expect(
+      SQL.match(/comment on column public\.health_config\.ai_daily_cap_house is/g)?.length,
+    ).toBe(1);
   });
 
   it("checks the provider against the registry, by a named constraint", () => {

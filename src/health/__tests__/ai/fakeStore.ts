@@ -15,7 +15,7 @@ import type {
   ReceiptRow,
   Store,
 } from "../../../../supabase/functions/_shared/health/ai/gateway";
-import type { CandidateRecord } from "../../ai/types";
+import type { AiTask, CandidateRecord } from "../../ai/types";
 
 export type FakeUser = {
   id: string;
@@ -36,8 +36,13 @@ export class FakeStore implements Store {
     provenance: CandidateProvenance;
   }> = [];
   readonly documentPatches: Array<{ id: string; patch: Record<string, unknown> }> = [];
-  /** Extra receipts "already in the table" for the cap tests, with any status. */
-  priorReceipts: Array<{ userId: string; createdAt: string; status: string }> = [];
+  /**
+   * Extra receipts "already in the table" for the cap tests, with any status.
+   * `task` is optional: absent means the receipt counts for EVERY task (the
+   * pre-B11 fixtures keep their meaning); set it to prove the person's count
+   * is per task while the house count is not.
+   */
+  priorReceipts: Array<{ userId: string; createdAt: string; status: string; task?: string }> = [];
 
   constructor(
     private readonly users: Map<string, FakeUser>,
@@ -75,19 +80,30 @@ export class FakeStore implements Store {
     return Promise.resolve(this.me().documents.find((d) => d.id === id) ?? null);
   }
 
-  private allReceipts(): Array<{ userId: string; createdAt: string; status: string }> {
+  private allReceipts(): Array<{
+    userId: string;
+    createdAt: string;
+    status: string;
+    task?: string;
+  }> {
     const own = this.receipts.map((r) => ({
       userId: this.userId,
       createdAt: "9999-01-01T00:00:00.000Z",
       status: r.patches.at(-1)?.status ?? "started",
+      task: r.row.task,
     }));
     return [...this.priorReceipts, ...own];
   }
 
-  countUserSince(sinceIso: string) {
+  countUserSince(sinceIso: string, task: AiTask) {
     this.log.push("countUserSince");
     return Promise.resolve(
-      this.allReceipts().filter((r) => r.userId === this.userId && r.createdAt >= sinceIso).length,
+      this.allReceipts().filter(
+        (r) =>
+          r.userId === this.userId &&
+          r.createdAt >= sinceIso &&
+          (r.task === undefined || r.task === task),
+      ).length,
     );
   }
 

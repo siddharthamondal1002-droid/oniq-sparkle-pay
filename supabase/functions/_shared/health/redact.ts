@@ -29,6 +29,7 @@ export const AUDIT_DETAIL_KEYS = [
   "model",
   "method",
   "code",
+  "switch",
 ] as const;
 
 /** Keys a log line may carry. */
@@ -84,6 +85,7 @@ export const REASON_MESSAGES: Record<string, string> = {
   health_disabled: "ONIQ Health isn't switched on yet.",
   uploads_disabled: "Document uploads aren't switched on yet.",
   unauthorized: "Please sign in again.",
+  forbidden: "Only an admin can do that.",
   consent_required: "Turn on the storage consent in Health settings first.",
   not_found: "That item isn't there any more.",
   bad_input: "That didn't look right. Check the details and try again.",

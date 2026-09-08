@@ -28,7 +28,20 @@ export function flagsFromRow(row: HealthConfigRow): HealthFlags {
   // The master switch gates every other one: a row with uploads on and
   // enabled off is "off", not "uploads only".
   if (!out["health.enabled"]) return allHealthFlagsOff();
+  // THE EMERGENCY STOP (owner directive 2026-09-08). One column, read here
+  // and nowhere else, forces every AI flag off whatever the other columns
+  // say — so an admin can end all Health AI from the app in seconds, and
+  // every function that reads the flags obeys without a deploy.
+  if (aiKillSwitchFromRow(row)) {
+    out["health.ai.enabled"] = false;
+    out["health.provider_sharing.enabled"] = false;
+  }
   return out;
+}
+
+/** True only for the boolean true, like every other column here. */
+export function aiKillSwitchFromRow(row: HealthConfigRow): boolean {
+  return !!row && typeof row === "object" && row.ai_kill_switch === true;
 }
 
 export function environmentFromRow(row: HealthConfigRow): string {

@@ -23,6 +23,7 @@ import {
   allHealthFlagsOff,
 } from "../../../supabase/functions/_shared/health/flagNames.ts";
 import {
+  aiKillSwitchFromRow,
   environmentFromRow,
   flagsFromRow,
 } from "../../../supabase/functions/_shared/health/flags.ts";
@@ -99,6 +100,37 @@ describe("the server flags", () => {
   it("ignore every other column while the master switch is off", () => {
     const flags = flagsFromRow({ enabled: false, uploads_enabled: true, fhir_enabled: true });
     expect(flags).toEqual(allHealthFlagsOff());
+  });
+
+  it("the kill switch forces every AI flag off and nothing else — and only the boolean true counts", () => {
+    // Owner directive 2026-09-08: a global emergency stop for Health AI.
+    const on = {
+      enabled: true,
+      uploads_enabled: true,
+      ai_enabled: true,
+      provider_sharing_enabled: true,
+    };
+    const live = flagsFromRow(on);
+    expect(live["health.ai.enabled"]).toBe(true);
+    expect(live["health.provider_sharing.enabled"]).toBe(true);
+
+    const killed = flagsFromRow({ ...on, ai_kill_switch: true });
+    expect(killed["health.ai.enabled"]).toBe(false);
+    expect(killed["health.provider_sharing.enabled"]).toBe(false);
+    // The stop is for AI, not for Health: records and uploads stay reachable.
+    expect(killed["health.enabled"]).toBe(true);
+    expect(killed["health.uploads.enabled"]).toBe(true);
+
+    expect(aiKillSwitchFromRow({ ai_kill_switch: true })).toBe(true);
+    expect(aiKillSwitchFromRow({ ai_kill_switch: false })).toBe(false);
+    expect(aiKillSwitchFromRow(null)).toBe(false);
+    for (const v of ["true", 1, "on", {}, []]) {
+      expect(aiKillSwitchFromRow({ ai_kill_switch: v }), JSON.stringify(v)).toBe(false);
+      expect(
+        flagsFromRow({ ...on, ai_kill_switch: v })["health.ai.enabled"],
+        JSON.stringify(v),
+      ).toBe(true);
+    }
   });
 
   it("default the environment to production", () => {

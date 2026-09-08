@@ -9,7 +9,7 @@ import {
   OniqSectionHeader,
   OniqSkeletonRows,
 } from "@/components/oniq";
-import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
+import { AiOutputReport } from "@/components/safety/AiOutputReport";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { HEALTH_AI_ENABLED, HEALTH_ENABLED } from "@/health/flags";
 import { healthApi, type HealthStatus, type TimelineRow } from "@/health/api";
@@ -25,6 +25,8 @@ import {
   provenanceLabel,
   reasonText,
   todayIso,
+  HEALTH_AI_DISCLOSURE,
+  HEALTH_AI_LABEL,
 } from "@/health/labels";
 
 /**
@@ -38,7 +40,7 @@ import {
  *
  * PHASE 2 — AI-READ ROWS AND THE ANSWER PANEL. A confirmed candidate keeps
  * its `document_extraction` provenance, so `needsAiLabel` is true for it and
- * the row renders AI_OUTPUT_LABEL and an <AiOutputReport />; this file is
+ * the row renders HEALTH_AI_LABEL ("AI-assisted", B12) and an <AiOutputReport />; this file is
  * declared in AI_SURFACES. The panel ("Summarise", "Explain", "Ask") appears
  * only when the server's `status.aiAvailable` says health-ai would answer —
  * in Phase 2 production that is never for anyone but a verifying admin — and
@@ -226,9 +228,11 @@ function HealthTimeline() {
                   </p>
                 ) : null}
                 <p className="text-xs text-muted-foreground">
-                  {t(answer.disclaimerKey, "Information only — not a diagnosis. See a doctor.")}
+                  {t(answer.disclaimerKey, HEALTH_AI_DISCLOSURE)}
                 </p>
-                <p className="text-[11px] text-muted-foreground">🤖 {AI_OUTPUT_LABEL}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  🤖 {t("health.ai.label", HEALTH_AI_LABEL)}
+                </p>
                 <AiOutputReport surface="health_ai_output" targetId={answerReceipt ?? "unsaved"} />
               </div>
             ) : null}
@@ -354,7 +358,7 @@ function HealthTimeline() {
                     {needsAiLabel(r.provenance?.source) ? (
                       <div data-testid="health-record-ai-label">
                         <p className="mt-1 text-[11px] text-muted-foreground">
-                          🤖 {AI_OUTPUT_LABEL}
+                          🤖 {t("health.ai.label", HEALTH_AI_LABEL)}
                         </p>
                         <AiOutputReport surface="health_ai_output" targetId={r.id} />
                       </div>

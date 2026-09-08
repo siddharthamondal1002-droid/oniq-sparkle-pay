@@ -56,7 +56,9 @@ describe("gate order in Deno.serve", () => {
     expect(serve).toContain("resolveEnvironment(row?.environment, url)");
     expect(serve).toContain("provider: row?.ai_provider");
     expect(serve).toContain("model: row?.ai_model");
-    expect(serve).toContain("capPerUser: capFrom(row?.ai_daily_cap_per_user)");
+    // B11: the person's cap is THIS task's number from the row's JSON, never a total.
+    expect(serve).toContain("capPerUser: capForTask(row?.ai_daily_caps, parsed.request.task)");
+    expect(SRC).not.toContain("ai_daily_cap_per_user");
     expect(serve).toContain("capHouse: capFrom(row?.ai_daily_cap_house)");
     expect(serve).toContain(
       "adminVerificationEnabled: row?.ai_admin_verification_enabled === true",
@@ -116,7 +118,7 @@ describe("the Store is bound to the caller", () => {
     expect(houseCount).toBe(1);
   });
 
-  it("both cap counts window on created_at and never on status", () => {
+  it("both cap counts window on created_at and never on status; the person's is per TASK, the house's is not", () => {
     for (const name of ["countUserSince", "countHouseSince"]) {
       const body = fnBody(name);
       expect(body).toContain('.from("health_ai_requests")');
@@ -124,6 +126,8 @@ describe("the Store is bound to the caller", () => {
       expect(body).not.toContain('.eq("status"');
       expect(body).not.toContain('.in("status"');
     }
+    expect(fnBody("countUserSince")).toContain('.eq("task", task)');
+    expect(fnBody("countHouseSince")).not.toContain('.eq("task"');
   });
 
   it("reads only active records, and documents only in stored states", () => {

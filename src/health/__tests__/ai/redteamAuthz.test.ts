@@ -938,13 +938,25 @@ describe("F. health-api and health-ai, read from source with comments stripped",
   it("every health-table query in health-api carries the caller's id — no exceptions but the shared policy table", () => {
     const qs = chains(API);
     expect(qs.length).toBeGreaterThanOrEqual(25);
+    let configWrites = 0;
     for (const q of qs) {
       if (q.table === "health_retention_policies") continue;
+      // The shared policy row has no owner. Its ONE write in this function is
+      // the emergency stop (owner directive 2026-09-08), admitted here only
+      // because it sits behind the server-side is_admin gate — wiring.test.ts
+      // pins gate-before-update. A second health_config chain must earn its
+      // own line; it does not inherit this one.
+      if (q.table === "health_config") {
+        expect(q.text).toContain(".update({ ai_kill_switch: on })");
+        configWrites++;
+        continue;
+      }
       expect(
         q.text.includes('.eq("user_id", ctx.userId)') || q.text.includes("user_id: ctx.userId"),
         `${q.table}: ${q.text.slice(0, 120)}`,
       ).toBe(true);
     }
+    expect(configWrites).toBe(1);
     // The status counts go through a helper that applies the filter itself.
     expect(API).toContain('await q.eq("user_id", ctx.userId)');
   });

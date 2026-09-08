@@ -34,8 +34,10 @@ alter table public.health_config
   add column if not exists provider_sharing_enabled boolean not null default false,
   add column if not exists ai_provider text not null default 'synthetic',
   add column if not exists ai_model text not null default 'synthetic-v1',
-  add column if not exists ai_daily_cap_per_user integer not null default 0,
+  add column if not exists ai_daily_caps jsonb not null default
+    '{"answer_question":10,"explain_record":5,"summarize_timeline":3,"classify_document":10,"extract_document":10}'::jsonb,
   add column if not exists ai_daily_cap_house integer not null default 0,
+  add column if not exists ai_kill_switch boolean not null default false,
   add column if not exists ai_admin_verification_enabled boolean not null default false;
 alter table public.health_config drop constraint if exists health_config_ai_provider_check;
 alter table public.health_config add constraint health_config_ai_provider_check
@@ -45,11 +47,13 @@ alter table public.health_config add constraint health_config_ai_model_check
   check (length(ai_model) between 1 and 64);
 alter table public.health_config drop constraint if exists health_config_ai_caps_check;
 alter table public.health_config add constraint health_config_ai_caps_check
-  check (ai_daily_cap_per_user >= 0 and ai_daily_cap_house >= 0);
-comment on column public.health_config.ai_daily_cap_per_user is
-  'Requests per person per rolling 24h. 0 = refuse (caps_unset). The owner sets it; it is a spend decision.';
+  check (ai_daily_cap_house >= 0 and jsonb_typeof(ai_daily_caps) = 'object');
+comment on column public.health_config.ai_daily_caps is
+  'Per person, per TASK, per rolling 24h, keyed by the task name. Owner directive 2026-09-08 (B11): ask 10, explain 5, summarise 3, document classify/extract 10. Change with an UPDATE, never a migration. A task with no key, or 0, is refused (caps_unset). The server is the authority; the client never is.';
 comment on column public.health_config.ai_daily_cap_house is
-  'Requests for the whole app per rolling 24h. 0 = refuse (caps_unset).';
+  'Requests for the WHOLE app per rolling 24h, every task, every person. 0 = refuse (caps_unset). The owner sets it; it is a spend decision.';
+comment on column public.health_config.ai_kill_switch is
+  'EMERGENCY STOP for every Health AI path. true forces the ai and provider_sharing flags off whatever the other columns say; an admin flips it from /app/admin/health-ai (health-api admin.ai_kill, audited), in seconds, with no SQL and no deploy.';
 comment on column public.health_config.ai_admin_verification_enabled is
   'Lets an is_admin account exercise the synthetic provider in production. Every such call is audited with method=admin_verification.';
 comment on column public.health_config.environment is
@@ -99,7 +103,8 @@ alter table public.health_audit add constraint health_audit_action_check
     'records.create','records.delete','records.confirm','records.reject',
     'documents.register','documents.confirm','documents.read','documents.delete',
     'documents.classify','documents.extract',
-    'consents.grant','consents.revoke','ai.request','ai.refused','export','purge'));
+    'consents.grant','consents.revoke','ai.request','ai.refused','export','purge',
+    'config.ai_kill'));
 
 -- 6. RECEIPTS ---------------------------------------------------------------------
 create table if not exists public.health_ai_requests (

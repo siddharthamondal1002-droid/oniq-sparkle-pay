@@ -40,6 +40,7 @@ const MUTATING = [
   "actConsentsRevoke",
   "actExport",
   "actPurge",
+  "actAdminAiKill",
 ];
 
 describe("gate order in Deno.serve", () => {
@@ -159,6 +160,29 @@ describe("every mutation is audited; every read is scoped", () => {
     expect(purge).toContain('reason: "legal_hold"');
     expect(purge).toContain("purged_at: ctx.now, manifest: {}");
     expect(purge).not.toMatch(/health_ai_requests"\)\s*\.delete\(/);
+  });
+
+  it("the emergency stop is gated on is_admin SERVER-side, before the row is touched, audited on both outcomes", () => {
+    // Owner directive 2026-09-08: a global kill switch for Health AI. The
+    // screen is not the gate; the JWT-derived admin bit is, and a non-admin's
+    // attempt leaves an audit row too.
+    const body = fnBody("actAdminAiKill");
+    const shape = body.indexOf('typeof body.on !== "boolean"');
+    const gate = body.indexOf('rpc("is_admin", { _uid: ctx.userId })');
+    const update = body.indexOf(".update({ ai_kill_switch: on })");
+    expect(shape).toBeGreaterThan(-1);
+    expect(gate).toBeGreaterThan(shape);
+    expect(update).toBeGreaterThan(gate);
+    expect(body).toContain('reason: "forbidden"');
+    expect(
+      body.match(/await audit\(ctx, "config\.ai_kill", "account", "(refused|ok)"/g)?.length,
+    ).toBe(2);
+    expect(body).toContain('.from("health_config")');
+    expect(body).toContain('.eq("id", true)');
+    expect(body).not.toContain("ai_enabled");
+    expect(SRC).toContain('"admin.ai_kill": actAdminAiKill');
+    // Status reports the switch's position, read from the row, never from a client.
+    expect(fnBody("actStatus")).toContain("aiKillSwitch: ctx.config?.ai_kill_switch === true");
   });
 
   it("export carries the receipts, so a person can see what AI was asked about them", () => {

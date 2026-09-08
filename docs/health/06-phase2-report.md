@@ -51,12 +51,28 @@ Docs: `docs/health/05-phase2-ai-gateway.md` (rewritten to the build, §14
 review outcomes, §15 DoD), this report, `04` (§A-2, B11, B12, D3), `02`
 (§10, §12a, §15, §16), `README`, `CLAUDE.md`.
 
+B11/B12 pass (2026-09-08, the owner's decisions, Phase 2 safeguards only):
+`_shared/health/ai/{policy,gateway}.ts` (`capForTask`, the person's count per
+task), `_shared/health/flags.ts` (`aiKillSwitchFromRow`), `health-api`
+(`admin.ai_kill`, `status.aiKillSwitch`), `health-ai` (per-task cap at the
+call site), the migration (`ai_daily_caps` JSON, `ai_kill_switch`),
+`_shared/health/{domain,redact}.ts` (+ mirrors: `config.ai_kill`, `switch`,
+`forbidden`), `_shared/health/ai/types.ts` (+ mirror: `AI_DISCLAIMER_KEY` →
+`health.ai.disclosure`), `src/health/labels.ts` (`HEALTH_AI_LABEL`,
+`HEALTH_AI_DISCLOSURE`), `src/health/i18n.ts` (`health.ai.label`,
+`health.ai.disclosure`, `health.reason.forbidden`), `src/health/api.ts`, the
+three health AI screens (the label; the admin door's two-tap emergency stop),
+`src/config/playCompliance.ts` (`AI_LABEL_OVERRIDES`) and
+`src/data/__tests__/playCompliance.test.ts`; tests `flags`, `wiring`, `i18n`,
+`ai/{policy,gateway,wiring,migration2,surfaces,redteamAuthz}`, `ai/fakeStore`.
+
 ## Database changes
 
 One new migration, applied AFTER Phase 1's, every constraint named:
 `health_config` + `provider_sharing_enabled`, `ai_provider` (CHECK synthetic),
-`ai_model`, `ai_daily_cap_per_user` / `ai_daily_cap_house` (default **0 =
-refuse**), `ai_admin_verification_enabled`; `health_records` statuses
+`ai_model`, `ai_daily_caps` (JSON per task, defaulting to the owner's B11
+table) / `ai_daily_cap_house` (default **0 = refuse**), `ai_kill_switch`
+(default false), `ai_admin_verification_enabled`; `health_records` statuses
 `candidate`/`rejected`, `confidence`, `value_text IS NULL` for extracted rows,
 candidate index; `health_documents` `classification`, `extraction_status`,
 `text_chars`; `health_consents` `jurisdiction`, terms-discloses-recipient CHECK;
@@ -77,8 +93,9 @@ of a blocklist match.
 Twelve, all false on both halves: the eleven of the mapping plus
 `health.provider_sharing.enabled` (§83C), which the policy engine consults for
 any provider whose recipient is not ONIQ — none exists. Server half:
-`health_config.ai_enabled` (false), caps (0), `ai_admin_verification_enabled`
-(false). Client half: `HEALTH_FLAGS["health.ai.enabled"]` (false; stays false
+`health_config.ai_enabled` (false), `ai_kill_switch` (false; true forces both
+AI flags off for every function on its next read — the emergency stop), the
+house cap (0), `ai_admin_verification_enabled` (false). Client half: `HEALTH_FLAGS["health.ai.enabled"]` (false; stays false
 in production for Phase 2). `status.aiAvailable` is computed server-side and is
 what a screen reads before offering anything.
 
@@ -147,8 +164,10 @@ red-team files are kept under `src/health/__tests__/ai/redteam*.test.ts`.
 
 ## Cost impact
 
-**$0.** The synthetic model's price row is 0/0; nothing is billed. Caps default
-to 0 and refuse until the owner sets them (B11). `unpriced_model` is refused
+**$0.** The synthetic model's price row is 0/0; nothing is billed. The per-task
+caps are the owner's B11 numbers (per person per day: ask 10, explain 5,
+summarise 3, classify/extract 10); the house cap defaults to 0 and refuses
+until the owner sets it (B11, still open). `unpriced_model` is refused
 in the gate, so a future model without a price row cannot spend. Rate limit 10
 per minute per person. Lovable credits spent on this phase: none (no deploy
 message was sent).
@@ -156,9 +175,9 @@ message was sent).
 ## Owner actions (none needed to merge; all needed to verify)
 
 1. Apply the migration; deploy `health-api` + `health-ai` in one message; publish (04 §A-2, steps 1–3).
-2. Set the two caps (B11), then `ai_admin_verification_enabled`, then `ai_enabled`.
+2. Set the house cap `ai_daily_cap_house` (B11 — the per-task caps arrive with the migration), then `ai_admin_verification_enabled`, then `ai_enabled`.
 3. Grant the AI consent on the Health tab as the admin; tap through `/app/admin/health-ai`.
-4. Decide the AI label wording question (B12) — optional.
+4. ~~Decide the AI label wording question (B12)~~ — decided 2026-09-08: "AI-assisted", built.
 
 ## Legal actions
 
@@ -189,6 +208,13 @@ message was sent).
 - A refusal before the receipt is audited, not receipted, so `no_text` in
   production leaves an `ai.refused` audit row and no receipt; the caps count
   receipts, so pre-provider refusals are bounded by the rate limiter alone.
+- The house cap has no owner value yet: `ai_daily_cap_house` stays 0 and every
+  call refuses `caps_unset` until it is set (04 §A-2 step 4, B11).
+- Two of the owner's six B11 operations (report comparison, doctor-visit
+  preparation) have no Phase 2 task; their caps are recorded, not enforced,
+  because nothing exists to enforce them on.
+- The emergency stop is read on every request and stops the NEXT one; it
+  does not interrupt a request already past the gate (milliseconds).
 
 ## How to verify the publish (oniq-ship: learn the chunk from a local build first)
 
@@ -202,9 +228,18 @@ entry, so grep production for these files, not for `index-*.js`:
 | `health-consent-ai-toggle`               | `app.health.consent-*.js`                                                                                                                                          |
 | `health-ai-admin-result`                 | `app.admin_.health-ai-*.js` (the underscore IS the route id)                                                                                                       |
 | `health-ai-refusal`                      | `app.health.index-*.js` — a literal that existed in NO earlier build, so a 1 cannot be left over from a previous deploy; the decisive marker for the red-team pass |
+| `health-ai-admin-kill`                   | `app.admin_.health-ai-*.js` — the emergency stop; existed in no build before the B11/B12 pass, so it is the decisive marker for THAT publish                       |
 
 Re-measured after the red-team pass (2026-09-08, 429 chunks): every marker
 still in its route chunk, none in the entry.
+
+Re-measured after the B11/B12 pass (2026-09-08, `.output/public/assets`, 302
+chunks): `health-ai-admin-kill` and `admin.ai_kill` → `app.admin_.health-ai-*.js`
+(4,533 bytes), 0 in the entry; `health-ai-refusal` and `health-record-ai-label`
+→ `app.health.index-*.js`. **`AI-assisted` is NOT a marker to verify a deploy
+by**: it lands in `labels-*.js` AND in the entry (the i18n strings register at
+start), so a grep for it says nothing about which build is served — use the
+`data-testid` literals above.
 
 `signInWithPhoneNumber` in the entry: 0 — the Firebase SDK stays in its own
 chunk, unchanged by this phase. The functions are verified separately: a POST

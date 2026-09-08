@@ -49,6 +49,34 @@ describe("English, Hindi and Bengali carry the same keys", () => {
   });
 });
 
+describe("the AI label and disclosure — owner directive 2026-09-08, B12", () => {
+  it("carries the label and the answer disclosure in all three languages, English verbatim", () => {
+    expect(HEALTH_STRINGS.en["health.ai.label"]).toBe("AI-assisted");
+    expect(HEALTH_STRINGS.en["health.ai.disclosure"]).toBe(
+      "AI-assisted information — check your medical records and a qualified healthcare professional for medical decisions.",
+    );
+    for (const lang of LANGS) {
+      expect(HEALTH_STRINGS[lang]["health.ai.label"], lang).toMatch(/AI/);
+      expect(HEALTH_STRINGS[lang]["health.ai.disclosure"], lang).toMatch(/AI/);
+      // The shell's general footer is a different sentence: a timeline of the
+      // person's own entries is not AI-assisted information.
+      expect(HEALTH_STRINGS[lang]["health.disclaimer"], lang).not.toBe(
+        HEALTH_STRINGS[lang]["health.ai.disclosure"],
+      );
+    }
+  });
+
+  it("uses no label implying clinical authority, in any language", () => {
+    const banned =
+      /AI Doctor|Medical AI|AI Diagnos|Diagnosis:|AI डॉक्टर|AI ডাক্তার|मेडिकल AI|মেডিকেল AI/i;
+    for (const lang of LANGS) {
+      for (const [k, v] of Object.entries(HEALTH_STRINGS[lang])) {
+        expect(v, `${lang} ${k}`).not.toMatch(banned);
+      }
+    }
+  });
+});
+
 describe("registration and lookup", () => {
   it("resolves per language after registering, and falls back to English elsewhere", () => {
     registerHealthTranslations();

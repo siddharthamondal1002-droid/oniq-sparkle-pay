@@ -381,6 +381,7 @@ export const AUDIT_ACTIONS = [
   "ai.refused",
   "export",
   "purge",
+  "config.ai_kill",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

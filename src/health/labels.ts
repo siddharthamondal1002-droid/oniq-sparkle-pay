@@ -9,6 +9,25 @@ import { DOCUMENT_KINDS, PROVENANCE_SOURCES, RECORD_KINDS, isAiDerived } from ".
 
 type T = (key: string, fallback?: string) => string;
 
+/**
+ * THE LABEL ON EVERY HEALTH AI SURFACE (owner directive 2026-09-08, B12):
+ * "AI-assisted" — clear, not alarming, and claiming no clinical authority.
+ * The health screens render this, through `health.ai.label`, in place of the
+ * app-wide AI_OUTPUT_LABEL; playCompliance.test.ts knows the override. Never
+ * "AI Doctor", "Medical AI" or "Diagnosis" — surfaces.test.ts bans them.
+ */
+export const HEALTH_AI_LABEL = "AI-assisted";
+
+/**
+ * The disclosure under every AI ANSWER, by the same directive. The gateway
+ * names it (`AI_DISCLAIMER_KEY` = `health.ai.disclosure`, three languages in
+ * i18n.ts); the Health shell's general footer (`health.disclaimer`) is a
+ * different sentence, because a timeline of the person's own entries is not
+ * AI-assisted information.
+ */
+export const HEALTH_AI_DISCLOSURE =
+  "AI-assisted information — check your medical records and a qualified healthcare professional for medical decisions.";
+
 export function kindLabel(t: T, kind: string): string {
   if ((RECORD_KINDS as readonly string[]).includes(kind)) return t(`health.kind.${kind}`, kind);
   return kind;

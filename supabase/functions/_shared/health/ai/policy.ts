@@ -66,6 +66,20 @@ export function resolveEnvironment(
   return "production";
 }
 
+/**
+ * The per-person daily cap for ONE task, read from the row's `ai_daily_caps`
+ * JSON (owner directive 2026-09-08, B11: per operation, changed by UPDATE,
+ * never a migration). Anything but a finite positive number for that task —
+ * no key, 0, a string, a negative — is 0, which the gate refuses as
+ * `caps_unset`. The server is the authority; the client never is.
+ */
+export function capForTask(caps: unknown, task: unknown): number {
+  if (!caps || typeof caps !== "object" || Array.isArray(caps)) return 0;
+  if (typeof task !== "string" || !Object.prototype.hasOwnProperty.call(caps, task)) return 0;
+  const v = (caps as Record<string, unknown>)[task];
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+}
+
 export type Actor = {
   isAdmin: boolean;
   /** null = no date of birth on file; the account cannot prove its age either way. */
@@ -81,6 +95,7 @@ export type GateInput = {
   providerId: unknown;
   model: unknown;
   task: unknown;
+  /** THIS task's per-person daily cap (`capForTask`), not a total. */
   capPerUser: number;
   capHouse: number;
 };

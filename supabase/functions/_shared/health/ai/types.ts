@@ -218,7 +218,7 @@ export type AiResponse = {
 export type ClientAiResponse = Omit<AiResponse, "segments"> & {
   segments: Array<Omit<AiSegment, "sourceRefs"> & { sourceRecordIds: string[] }>;
   /** The i18n KEY; the client renders the counsel-approved sentence in its language. */
-  disclaimerKey: "health.disclaimer";
+  disclaimerKey: "health.ai.disclosure";
   excluded: { count: number; recordIds: string[] };
 };
 
@@ -343,4 +343,4 @@ export const CONTRACT_REFUSAL_CODES = [
 export type ContractRefusalCode = (typeof CONTRACT_REFUSAL_CODES)[number];
 
 /** The i18n key of the sentence the gateway attaches. The provider never writes it. */
-export const AI_DISCLAIMER_KEY = "health.disclaimer" as const;
+export const AI_DISCLAIMER_KEY = "health.ai.disclosure" as const;

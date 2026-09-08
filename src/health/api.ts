@@ -35,7 +35,8 @@ export type HealthAction =
   | "consents.grant"
   | "consents.revoke"
   | "export"
-  | "purge";
+  | "purge"
+  | "admin.ai_kill";
 
 export type HealthOk<T> = { ok: true; data: T; requestId: string | null };
 export type HealthErr = {
@@ -60,6 +61,8 @@ export type HealthStatus = {
    * A screen offers an AI action on this, never on the client constant alone.
    */
   aiAvailable: boolean;
+  /** The emergency stop's position; shown on the admin screen, forces aiAvailable false when on. */
+  aiKillSwitch?: boolean;
 };
 
 export type TimelineRow = {

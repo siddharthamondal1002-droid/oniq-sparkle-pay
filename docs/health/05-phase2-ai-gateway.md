@@ -67,7 +67,10 @@ provider_not_allowed     ∉ PROVIDER_IDS, or a recipient ≠ oniq while
                          health.provider_sharing.enabled is off (§83C's switch)
 model_not_allowed        ∉ MODEL_ALLOWLIST[provider]
 unpriced_model           allowed but no PRICE_PER_1M row — before any receipt
-caps_unset               a daily cap of 0 (the row's default: the owner sets them)
+caps_unset               a daily cap of 0: THIS task's per-person cap, read by
+                         capForTask from the row's ai_daily_caps JSON (B11,
+                         the owner's table), or the house cap
+                         (ai_daily_cap_house, default 0: the owner sets it)
 region_blocked           cf-ipcountry in HEALTH_BLOCKED_REGIONS
 age_unverified           no date of birth on file
 minor_blocked            under 18 (is_adult_18)
@@ -82,6 +85,18 @@ ai_consent_required      no active consent (purpose × category × recipient)
 returns `production` whenever `SUPABASE_URL` names `bqwttemnnoexadpwifcj`,
 whatever `health_config.environment` says; unknown values are production too.
 `ai_minors_allowed` was dropped in review: not an adult means refused.
+
+**The emergency stop sits above all of this** (owner directive 2026-09-08).
+`health_config.ai_kill_switch = true` makes `flagsFromRow` force
+`health.ai.enabled` and `health.provider_sharing.enabled` off for every
+function on its next read, so the first line above answers `ai_disabled`
+everywhere — `status.aiAvailable` included, because it IS `checkGate` —
+within seconds, with no SQL and no deploy. An admin flips it from
+`/app/admin/health-ai` (two taps); `health-api`'s `admin.ai_kill` re-derives
+`is_admin` from the JWT, audits both outcomes as `config.ai_kill`, and is the
+one write to the shared policy row that function makes (the authz red-team
+guard admits exactly that chain and no other). Only the boolean `true` counts,
+like every other column.
 
 ## 4. Minimum-data context and the manifest
 
@@ -200,9 +215,17 @@ provider, model`). The person's declared kind stays authoritative.
 `health_ai_requests` is the receipt, written **before** the provider runs and
 completed after — `ok`, `refused` (+ `contract_code`), or `error`; a throw
 anywhere after the receipt completes it as an error (no row is left
-`started`). Both rolling-24h counts (house first, then person) ignore status.
-Caps come from the row and default to **0 = refuse**; the price row is checked
-in the gate, so nothing can spend before it can price
+`started`). Both rolling-24h counts (house first, then person) ignore status;
+the person's count is **per task** (`.eq("task", task)`), the house count is
+every task. The per-task caps are the owner's B11 table in
+`health_config.ai_daily_caps` — JSON, changed by `UPDATE`, never a migration:
+`answer_question` 10, `explain_record` 5, `summarize_timeline` 3,
+`classify_document` 10, `extract_document` 10 — and `capForTask` reads one
+task's number at the call site; anything that is not a positive number (no
+key, 0, a string, a negative) is 0 and refuses `caps_unset`. The house cap
+(`ai_daily_cap_house`) still defaults to **0 = refuse** until the owner sets
+it. The price row is checked in the gate, so nothing can spend before it can
+price
 (`MODEL_ALLOWLIST ⊆ PRICE_PER_1M` is a test). `health-ai` rate-limits at 10
 per minute.
 
@@ -262,8 +285,10 @@ is_adult_18, has_active_legal_hold}`. Mutation-checked 2026-09-08 against
 ## 12. Client (dark)
 
 `src/health/ai/client.ts` sends the closed body to `health-ai`. The timeline
-labels every AI-derived row (`needsAiLabel` → `AI_OUTPUT_LABEL` +
-`<AiOutputReport surface="health_ai_output" />`) and offers Explain /
+labels every AI-derived row (`needsAiLabel` → `HEALTH_AI_LABEL`, "AI-assisted"
+— owner directive B12, rendered in place of the app-wide label, and
+`AI_LABEL_OVERRIDES` in `playCompliance.ts` tells the Play guard to require
+that identifier instead — + `<AiOutputReport surface="health_ai_output" />`) and offers Explain /
 Summarise / Ask only when BOTH the server's `status.aiAvailable` and the
 client constant `HEALTH_AI_ENABLED` are true — the server says whether
 health-ai would answer, the client constant is the rollback, and gating on the
@@ -278,7 +303,13 @@ Documents tab lists "Suggested records" whenever candidates exist (rollback
 cannot strand them) and offers extraction on the same two conditions. The
 Consent tab has the AI switch (recipient ONIQ). `/app/admin/health-ai` is the
 verification door, linked from Profile. All three files are in `AI_SURFACES`,
-and none passes content to a report.
+and none passes content to a report. Under every answer the disclosure is the
+owner's sentence, `health.ai.disclosure` in three languages — the gateway's
+`AI_DISCLAIMER_KEY`; the Health shell's general footer `health.disclaimer` is
+a different sentence, because a timeline of the person's own entries is not
+AI-assisted information. No health screen or string says "AI Doctor",
+"Medical AI" or "Diagnosis" as a label — `surfaces.test.ts` and
+`i18n.test.ts` ban the phrases.
 
 **Phase 2 produces zero candidates and zero answers for any production user**:
 the client constant `health.ai.enabled` stays false, and even with it on the
@@ -286,10 +317,12 @@ server refuses everyone but a verifying admin.
 
 ## 13. Activation and rollback
 
-Server: `health_config.enabled AND ai_enabled`, `ai_daily_cap_per_user > 0`,
-`ai_daily_cap_house > 0`, and for production verification
-`ai_admin_verification_enabled`. Client: `HEALTH_FLAGS["health.ai.enabled"]`.
-Off on either side is off. Rollback is the flag; candidates stay reachable
+Server: `health_config.enabled AND ai_enabled AND NOT ai_kill_switch`,
+`ai_daily_caps[task] > 0`, `ai_daily_cap_house > 0`, and for production
+verification `ai_admin_verification_enabled`. Client:
+`HEALTH_FLAGS["health.ai.enabled"]`. Off on either side is off. Rollback is
+the flag — or the emergency stop on the admin screen (§3), which needs no SQL;
+candidates stay reachable
 (reject is above the gate), receipts and audit rows stay. Phase 3 replaces
 nothing: it adds a provider whose recipient is not ONIQ, which is refused until
 `health.provider_sharing.enabled` is on, the consent pair and a NEW terms

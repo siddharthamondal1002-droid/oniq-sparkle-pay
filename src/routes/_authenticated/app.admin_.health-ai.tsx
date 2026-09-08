@@ -17,12 +17,20 @@
 // THE UNDERSCORE IN THE FILENAME IS LOAD-BEARING: it opts the route out of
 // nesting under app.admin.tsx, which has no <Outlet /> (routeNesting.test.ts).
 //
-// This is an AI surface: the answer panel carries AI_OUTPUT_LABEL and an
-// <AiOutputReport />, and the file is declared in playCompliance.ts.
+// This is an AI surface: the answer panel carries HEALTH_AI_LABEL ("AI-assisted",
+// owner directive B12) and an <AiOutputReport />, and the file is declared in
+// playCompliance.ts.
+//
+// THE EMERGENCY STOP LIVES HERE TOO. "Stop Health AI now" sets the kill
+// switch on the health_config row through health-api (admin.ai_kill, admin
+// re-derived from the JWT, audited); every function reads it on its next
+// request and every AI flag reads false — seconds, no SQL, no deploy. Two
+// taps, so a stray touch cannot flip it either way.
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
+import { AiOutputReport } from "@/components/safety/AiOutputReport";
 import { healthApi, type CandidateRow, type HealthStatus } from "@/health/api";
+import { HEALTH_AI_LABEL } from "@/health/labels";
 import { healthAi } from "@/health/ai/client";
 import type { AiTask } from "@/health/ai/types";
 
@@ -40,6 +48,7 @@ function HealthAiVerificationTool() {
   const [result, setResult] = useState<string | null>(null);
   const [documentId, setDocumentId] = useState("");
   const [question, setQuestion] = useState("");
+  const [armed, setArmed] = useState<"on" | "off" | null>(null);
 
   const show = (v: unknown) => setResult(JSON.stringify(v, null, 2));
 
@@ -65,6 +74,18 @@ function HealthAiVerificationTool() {
         question: task === "answer_question" ? question.trim() || undefined : undefined,
       }),
     );
+    setBusy(null);
+  };
+
+  const killSwitch = async (on: boolean) => {
+    const position = on ? "on" : "off";
+    if (armed !== position) {
+      setArmed(position);
+      return;
+    }
+    setArmed(null);
+    setBusy(`kill-${position}`);
+    show(await healthApi<{ aiKillSwitch: boolean }>("admin.ai_kill", { on }));
     setBusy(null);
   };
 
@@ -122,9 +143,45 @@ function HealthAiVerificationTool() {
       </div>
 
       <p className="mt-2 max-w-prose text-xs text-muted-foreground">
-        Extract answers no_text in Phase 2: no text source is registered, and the receipt and audit
-        row for that refusal are the proof the pipeline ran.
+        Extract answers no_text in Phase 2: no text source is registered, and the audit row for that
+        refusal is the proof the pipeline ran.
       </p>
+
+      <div className="mt-6 max-w-prose rounded-2xl border border-destructive/40 p-3">
+        <h2 className="text-sm font-semibold">Emergency stop</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Turns every Health AI path off for everyone, on the next request, without a deploy. Status
+          shows the switch as aiKillSwitch. Tap twice.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            data-testid="health-ai-admin-kill"
+            onClick={() => void killSwitch(true)}
+            disabled={busy !== null}
+            className="press rounded-full bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground disabled:opacity-50"
+          >
+            {busy === "kill-on"
+              ? "Stopping…"
+              : armed === "on"
+                ? "Tap again to stop Health AI"
+                : "Stop Health AI now"}
+          </button>
+          <button
+            type="button"
+            data-testid="health-ai-admin-unkill"
+            onClick={() => void killSwitch(false)}
+            disabled={busy !== null}
+            className="press rounded-full border border-border px-4 py-2 text-sm font-semibold disabled:opacity-50"
+          >
+            {busy === "kill-off"
+              ? "Allowing…"
+              : armed === "off"
+                ? "Tap again to allow Health AI"
+                : "Allow Health AI again"}
+          </button>
+        </div>
+      </div>
 
       {result ? (
         <div className="mt-4">
@@ -134,7 +191,7 @@ function HealthAiVerificationTool() {
           >
             {result}
           </pre>
-          <p className="mt-2 text-[11px] text-muted-foreground">🤖 {AI_OUTPUT_LABEL}</p>
+          <p className="mt-2 text-[11px] text-muted-foreground">🤖 {HEALTH_AI_LABEL}</p>
           <AiOutputReport surface="health_ai_output" targetId="health-ai-admin" />
         </div>
       ) : null}

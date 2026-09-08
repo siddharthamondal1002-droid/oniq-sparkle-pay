@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   ENVIRONMENTS,
   PRODUCTION_PROJECT_REF,
+  capForTask,
   checkConsent,
   checkGate,
   consentedCategories,
@@ -216,5 +217,62 @@ describe("checkConsent and consentedCategories", () => {
     });
     expect(ok.allowed).toBe(true);
     if (ok.allowed) expect(ok.purpose).toBe("ai_interpretation");
+  });
+});
+
+describe("capForTask — the row's JSON, one task's number, or zero (owner directive B11)", () => {
+  const B11 = {
+    answer_question: 10,
+    explain_record: 5,
+    summarize_timeline: 3,
+    classify_document: 10,
+    extract_document: 10,
+  };
+
+  it("reads each task's own cap", () => {
+    expect(capForTask(B11, "answer_question")).toBe(10);
+    expect(capForTask(B11, "explain_record")).toBe(5);
+    expect(capForTask(B11, "summarize_timeline")).toBe(3);
+    expect(capForTask(B11, "classify_document")).toBe(10);
+    expect(capForTask(B11, "extract_document")).toBe(10);
+    expect(capForTask({ answer_question: 2.9 }, "answer_question")).toBe(2);
+  });
+
+  it("is zero — caps_unset — for a missing key, a non-object, a non-number, zero, negative or a bad task", () => {
+    expect(capForTask(B11, "no_such_task")).toBe(0);
+    expect(capForTask(null, "answer_question")).toBe(0);
+    expect(capForTask(undefined, "answer_question")).toBe(0);
+    expect(capForTask("10", "answer_question")).toBe(0);
+    expect(capForTask([10], "answer_question")).toBe(0);
+    expect(capForTask({ answer_question: "10" }, "answer_question")).toBe(0);
+    expect(capForTask({ answer_question: true }, "answer_question")).toBe(0);
+    expect(capForTask({ answer_question: 0 }, "answer_question")).toBe(0);
+    expect(capForTask({ answer_question: -1 }, "answer_question")).toBe(0);
+    expect(capForTask({ answer_question: Infinity }, "answer_question")).toBe(0);
+    expect(capForTask({ answer_question: NaN }, "answer_question")).toBe(0);
+    expect(capForTask(B11, ["answer_question"])).toBe(0);
+    expect(capForTask(B11, { toString: () => "answer_question" })).toBe(0);
+    // Inherited names are not keys of the row's JSON.
+    expect(capForTask(B11, "__proto__")).toBe(0);
+    expect(capForTask(B11, "toString")).toBe(0);
+    expect(capForTask(B11, "constructor")).toBe(0);
+  });
+
+  it("a zero for THIS task refuses caps_unset in the gate while another task's cap stands", () => {
+    const summarised = { ...B11, summarize_timeline: 0 };
+    expect(
+      checkGate({
+        ...allowed,
+        task: "summarize_timeline",
+        capPerUser: capForTask(summarised, "summarize_timeline"),
+      }),
+    ).toMatchObject({ allowed: false, reason: "caps_unset" });
+    expect(
+      checkGate({
+        ...allowed,
+        task: "answer_question",
+        capPerUser: capForTask(summarised, "answer_question"),
+      }),
+    ).toMatchObject({ allowed: true });
   });
 });

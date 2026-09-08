@@ -10,7 +10,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { stripComments } from "@/test/sourceText";
-import { AI_SURFACES } from "@/config/playCompliance";
+import { AI_LABEL_OVERRIDES, AI_SURFACES } from "@/config/playCompliance";
+import { HEALTH_AI_DISCLOSURE, HEALTH_AI_LABEL } from "@/health/labels";
 
 const ROOT = join(__dirname, "..", "..", "..", "..");
 const ROUTES = join(ROOT, "src/routes/_authenticated");
@@ -40,7 +41,8 @@ describe("the timeline", () => {
     const i = src.indexOf("needsAiLabel(r.provenance?.source) ? (");
     expect(i).toBeGreaterThan(-1);
     const branch = src.slice(i, src.indexOf(") : null", i));
-    expect(branch).toContain("AI_OUTPUT_LABEL");
+    expect(branch).toContain("HEALTH_AI_LABEL");
+    expect(branch).not.toContain("AI_OUTPUT_LABEL");
     expect(branch).toContain('surface="health_ai_output"');
     expect(branch).toContain("targetId={r.id}");
     expect(src).not.toContain("✨");
@@ -87,7 +89,8 @@ describe("the documents tab", () => {
     const i = src.indexOf("suggested.length > 0 ? (");
     expect(i).toBeGreaterThan(-1);
     const section = src.slice(i, src.indexOf(") : null", i));
-    expect(section).toContain("AI_OUTPUT_LABEL");
+    expect(section).toContain("HEALTH_AI_LABEL");
+    expect(section).not.toContain("AI_OUTPUT_LABEL");
     expect(section).toContain('surface="health_ai_output"');
     expect(section).toContain("health-candidate-confirm");
     expect(section).toContain("health-candidate-reject");
@@ -122,10 +125,21 @@ describe("the admin door", () => {
       expect(src, task).toContain(task);
     }
     expect(src).toContain('healthApi<CandidateRow[]>("records.candidates")');
-    expect(src).toContain("AI_OUTPUT_LABEL");
+    expect(src).toContain("HEALTH_AI_LABEL");
     expect(src).toContain('surface="health_ai_output"');
     const profile = read("app.profile.tsx");
     expect(profile).toContain('to="/app/admin/health-ai"');
+  });
+
+  it("carries the emergency stop: two taps, one action, the server decides who may", () => {
+    const src = read("app.admin_.health-ai.tsx");
+    expect(src).toContain('healthApi<{ aiKillSwitch: boolean }>("admin.ai_kill", { on })');
+    expect(src).toContain('data-testid="health-ai-admin-kill"');
+    expect(src).toContain('data-testid="health-ai-admin-unkill"');
+    // The first tap arms and returns; only the second sends.
+    expect(src).toMatch(/if \(armed !== position\) \{\s*setArmed\(position\);\s*return;\s*\}/);
+    // The client carries no admin check of its own: the gate is health-api's.
+    expect(src).not.toMatch(/is_admin|isAdmin/);
   });
 });
 
@@ -135,5 +149,32 @@ describe("the consent tab", () => {
     expect(src).toContain("health-consent-ai-toggle");
     expect(src).toContain('grant.mutate("ai_interpretation")');
     expect(src).toContain('c.recipient === "oniq"');
+  });
+});
+
+describe("the label — owner directive 2026-09-08, B12", () => {
+  const FILES = ["app.health.index.tsx", "app.health.records.tsx", "app.admin_.health-ai.tsx"];
+
+  it('is "AI-assisted", one constant, rendered on every health AI surface in place of the app-wide label', () => {
+    expect(HEALTH_AI_LABEL).toBe("AI-assisted");
+    expect(HEALTH_AI_DISCLOSURE).toBe(
+      "AI-assisted information — check your medical records and a qualified healthcare professional for medical decisions.",
+    );
+    expect(AI_LABEL_OVERRIDES.health_ai_output).toBe("HEALTH_AI_LABEL");
+    for (const f of FILES) {
+      const src = read(f);
+      expect(src, f).toContain("HEALTH_AI_LABEL");
+      expect(src, f).not.toContain("AI_OUTPUT_LABEL");
+    }
+    // The answer panel's disclosure is the owner's sentence, under the gateway's own key.
+    expect(read("app.health.index.tsx")).toContain("t(answer.disclaimerKey, HEALTH_AI_DISCLOSURE)");
+  });
+
+  it("never claims clinical authority: no 'AI Doctor', 'Medical AI' or 'Diagnosis' label on a health screen or in the label module", () => {
+    const banned = /AI Doctor|Medical AI|AI Diagnos|Diagnosis:|Diagnosed by/i;
+    for (const f of FILES) expect(read(f), f).not.toMatch(banned);
+    const labels = stripComments(readFileSync(join(ROOT, "src/health/labels.ts"), "utf8"));
+    expect(labels).not.toMatch(banned);
+    expect(labels).not.toMatch(/AI-generated —/);
   });
 });

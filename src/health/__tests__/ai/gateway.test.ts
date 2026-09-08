@@ -173,7 +173,7 @@ describe("the happy path, in order", () => {
     expect(store.receipts[0].row.status).toBe("started");
     expect(store.receipts[0].patches.at(-1)?.status).toBe("ok");
     if (r.ok && r.result.kind === "response") {
-      expect(r.result.response.disclaimerKey).toBe("health.disclaimer");
+      expect(r.result.response.disclaimerKey).toBe("health.ai.disclosure");
       expect(
         r.result.response.segments.every((s) =>
           s.sourceRecordIds.every((id) => [u(10), u(11), u(12)].includes(id)),
@@ -327,6 +327,36 @@ describe("caps", () => {
     expect(h).toMatchObject({ ok: false, reason: "quota_house" });
     expect(store.log.indexOf("countHouseSince")).toBeLessThan(store.log.indexOf("countUserSince"));
     expect(store.receipts.length).toBe(0);
+  });
+
+  it("the person's cap is per TASK (B11): ten explanations do not spend a summary, receipts of THIS task do", async () => {
+    const store = new FakeStore(users(), ALICE);
+    store.priorReceipts = Array.from({ length: 10 }, () => ({
+      userId: ALICE,
+      createdAt: NOW,
+      status: "ok",
+      task: "explain_record",
+    }));
+    const cfg = config({ capPerUser: 3, capHouse: 100 });
+    const r = await runHealthAi(deps(store), cfg, actor, { task: "summarize_timeline" });
+    expect(r.ok).toBe(true);
+    // Two prior summaries plus the one just receipted: at this task's cap of 3.
+    store.priorReceipts.push(
+      ...Array.from({ length: 2 }, () => ({
+        userId: ALICE,
+        createdAt: NOW,
+        status: "refused",
+        task: "summarize_timeline",
+      })),
+    );
+    const again = await runHealthAi(deps(store), cfg, actor, { task: "summarize_timeline" });
+    expect(again).toMatchObject({ ok: false, reason: "quota_user" });
+    // The house count is every task: the ten explanations DO count there.
+    const house = await runHealthAi(deps(store), config({ capPerUser: 50, capHouse: 13 }), actor, {
+      task: "answer_question",
+      question: "What is my HbA1c?",
+    });
+    expect(house).toMatchObject({ ok: false, reason: "quota_house" });
   });
 
   it("a zero cap is caps_unset, before any row is read", async () => {

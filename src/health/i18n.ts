@@ -68,6 +68,8 @@ const en: Dict = {
   "health.provenance.ai_interpretation": "AI interpretation",
   "health.provenance.unknown": "AI-generated (source unknown)",
   "health.disclaimer": "Information only — not a diagnosis. See a doctor.",
+  "health.ai.disclosure":
+    "AI-assisted information — check your medical records and a qualified healthcare professional for medical decisions.",
   "health.error.generic": "Something went wrong. Try again.",
   "health.kind.vital": "Vital",
   "health.kind.lab": "Lab result",
@@ -88,6 +90,7 @@ const en: Dict = {
   "health.reason.health_disabled": "ONIQ Health isn't switched on yet.",
   "health.reason.uploads_disabled": "Document uploads aren't switched on yet.",
   "health.reason.unauthorized": "Please sign in again.",
+  "health.reason.forbidden": "Only an admin can do that.",
   "health.reason.consent_required": "Turn on the storage consent in Health settings first.",
   "health.reason.not_found": "That item isn't there any more.",
   "health.reason.bad_input": "That didn't look right. Check the details and try again.",
@@ -147,6 +150,7 @@ const en: Dict = {
   "health.ai.refusal.no_matching_records": "None of your records match that question.",
   "health.ai.refusal.insufficient_context": "There isn't enough in your records to answer that.",
   "health.ai.refusal.out_of_scope": "That isn't something Health AI can answer.",
+  "health.ai.label": "AI-assisted",
 };
 
 const hi: Dict = {
@@ -205,6 +209,8 @@ const hi: Dict = {
   "health.provenance.ai_interpretation": "AI व्याख्या",
   "health.provenance.unknown": "AI-निर्मित (स्रोत अज्ञात)",
   "health.disclaimer": "केवल जानकारी — निदान नहीं। डॉक्टर से मिलें।",
+  "health.ai.disclosure":
+    "AI की सहायता से दी गई जानकारी — चिकित्सा निर्णयों के लिए अपने मेडिकल रिकॉर्ड और किसी योग्य स्वास्थ्य पेशेवर से पुष्टि करें।",
   "health.error.generic": "कुछ गड़बड़ हुई। फिर कोशिश करें।",
   "health.kind.vital": "वाइटल",
   "health.kind.lab": "लैब रिपोर्ट",
@@ -225,6 +231,7 @@ const hi: Dict = {
   "health.reason.health_disabled": "ONIQ Health अभी चालू नहीं है।",
   "health.reason.uploads_disabled": "दस्तावेज़ अपलोड अभी चालू नहीं है।",
   "health.reason.unauthorized": "कृपया फिर से साइन इन करें।",
+  "health.reason.forbidden": "यह केवल एक एडमिन कर सकता है।",
   "health.reason.consent_required": "पहले Health सेटिंग में सहेजने की सहमति चालू करें।",
   "health.reason.not_found": "वह चीज़ अब वहाँ नहीं है।",
   "health.reason.bad_input": "कुछ सही नहीं लगा। विवरण जाँचकर फिर कोशिश करें।",
@@ -286,6 +293,7 @@ const hi: Dict = {
   "health.ai.refusal.insufficient_context":
     "इसका जवाब देने के लिए आपके रिकॉर्ड में पर्याप्त जानकारी नहीं है।",
   "health.ai.refusal.out_of_scope": "Health AI इसका जवाब नहीं दे सकता।",
+  "health.ai.label": "AI की सहायता से",
 };
 
 const bn: Dict = {
@@ -343,6 +351,8 @@ const bn: Dict = {
   "health.provenance.ai_interpretation": "AI ব্যাখ্যা",
   "health.provenance.unknown": "AI-তৈরি (উৎস অজানা)",
   "health.disclaimer": "শুধু তথ্য — রোগনির্ণয় নয়। ডাক্তার দেখান।",
+  "health.ai.disclosure":
+    "AI-এর সহায়তায় দেওয়া তথ্য — চিকিৎসা সংক্রান্ত সিদ্ধান্তের জন্য আপনার মেডিকেল রেকর্ড ও একজন যোগ্য স্বাস্থ্য পেশাদারের সঙ্গে যাচাই করুন।",
   "health.error.generic": "কিছু ভুল হয়েছে। আবার চেষ্টা করুন।",
   "health.kind.vital": "ভাইটাল",
   "health.kind.lab": "ল্যাব ফলাফল",
@@ -363,6 +373,7 @@ const bn: Dict = {
   "health.reason.health_disabled": "ONIQ Health এখনও চালু হয়নি।",
   "health.reason.uploads_disabled": "নথি আপলোড এখনও চালু হয়নি।",
   "health.reason.unauthorized": "অনুগ্রহ করে আবার সাইন ইন করুন।",
+  "health.reason.forbidden": "এটি শুধু একজন অ্যাডমিন করতে পারেন।",
   "health.reason.consent_required": "প্রথমে Health সেটিংসে সংরক্ষণের সম্মতি চালু করুন।",
   "health.reason.not_found": "সেটি আর সেখানে নেই।",
   "health.reason.bad_input": "কিছু ঠিক মনে হচ্ছে না। বিবরণ দেখে আবার চেষ্টা করুন।",
@@ -419,6 +430,7 @@ const bn: Dict = {
   "health.ai.refusal.no_matching_records": "আপনার কোনো রেকর্ড এই প্রশ্নের সঙ্গে মেলে না।",
   "health.ai.refusal.insufficient_context": "এর উত্তর দেওয়ার মতো যথেষ্ট তথ্য আপনার রেকর্ডে নেই।",
   "health.ai.refusal.out_of_scope": "Health AI এর উত্তর দিতে পারে না।",
+  "health.ai.label": "AI-এর সহায়তায়",
 };
 
 export const HEALTH_STRINGS: Record<"en" | "hi" | "bn", Dict> = { en, hi, bn };

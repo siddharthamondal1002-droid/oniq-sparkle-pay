@@ -10,7 +10,7 @@ import {
   OniqSectionHeader,
   OniqSkeletonRows,
 } from "@/components/oniq";
-import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
+import { AiOutputReport } from "@/components/safety/AiOutputReport";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { HEALTH_AI_ENABLED, HEALTH_UPLOADS_ENABLED } from "@/health/flags";
 import {
@@ -37,6 +37,7 @@ import {
   kindLabel,
   provenanceLabel,
   reasonText,
+  HEALTH_AI_LABEL,
 } from "@/health/labels";
 
 /**
@@ -62,7 +63,7 @@ import {
  * above every AI gate server-side. "Read values" offers extraction only when
  * the server's `status.aiAvailable` says it would answer; in Phase 2
  * production that is never, and the button is absent rather than broken.
- * This is an AI surface: it carries AI_OUTPUT_LABEL and <AiOutputReport />
+ * This is an AI surface: it carries HEALTH_AI_LABEL ("AI-assisted", B12) and <AiOutputReport />
  * and is declared in src/config/playCompliance.ts.
  */
 export const Route = createFileRoute("/_authenticated/app/health/records")({
@@ -355,7 +356,9 @@ function HealthDocuments() {
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-[11px] text-muted-foreground">🤖 {AI_OUTPUT_LABEL}</p>
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            🤖 {t("health.ai.label", HEALTH_AI_LABEL)}
+          </p>
           <AiOutputReport surface="health_ai_output" targetId="health-candidates" />
         </OniqCard>
       ) : null}

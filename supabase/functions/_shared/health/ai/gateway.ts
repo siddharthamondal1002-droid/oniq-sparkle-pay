@@ -126,6 +126,7 @@ export type AiConfig = {
   environment: Environment;
   provider: unknown;
   model: unknown;
+  /** The cap for this request's TASK, per person per day; the caller resolves it from the row. */
   capPerUser: number;
   capHouse: number;
   adminVerificationEnabled: boolean;
@@ -175,7 +176,8 @@ export interface Store {
   loadRecord(id: string): Promise<RecordRow | null>;
   loadActiveRecords(kinds: readonly string[], limit: number): Promise<RecordRow[]>;
   loadDocument(id: string): Promise<DocRow | null>;
-  countUserSince(sinceIso: string): Promise<number>;
+  /** The person's receipts for THIS task in the window — caps are per task (B11). */
+  countUserSince(sinceIso: string, task: AiTask): Promise<number>;
   countHouseSince(sinceIso: string): Promise<number>;
   beginReceipt(row: ReceiptRow): Promise<string>;
   completeReceipt(id: string, patch: ReceiptPatch): Promise<void>;
@@ -465,7 +467,7 @@ export async function runHealthAi(
   if ((await store.countHouseSince(since)) >= config.capHouse) {
     return refusedWith("quota_house", undefined, manifest);
   }
-  if ((await store.countUserSince(since)) >= config.capPerUser) {
+  if ((await store.countUserSince(since, task)) >= config.capPerUser) {
     return refusedWith("quota_user", undefined, manifest);
   }
 

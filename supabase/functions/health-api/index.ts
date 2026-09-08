@@ -36,7 +36,7 @@ import {
 } from "../_shared/health/domain.ts";
 import { RECIPIENT_FOR_PROVIDER, type ProviderId } from "../_shared/health/ai/types.ts";
 import { isProviderId } from "../_shared/health/ai/provider.ts";
-import { checkGate, resolveEnvironment } from "../_shared/health/ai/policy.ts";
+import { capForTask, checkGate, resolveEnvironment } from "../_shared/health/ai/policy.ts";
 import { findCovering, nextVersion } from "../_shared/health/consent.ts";
 import { redactForLog } from "../_shared/health/redact.ts";
 import { expiryFor, type RetentionPolicyLike } from "../_shared/health/retention.ts";
@@ -282,10 +282,37 @@ async function aiAvailability(ctx: Ctx, url: string | undefined) {
     providerId: row.ai_provider,
     model: row.ai_model,
     task: "summarize_timeline",
-    capPerUser: capFrom(row.ai_daily_cap_per_user),
+    capPerUser: capForTask(row.ai_daily_caps, "summarize_timeline"),
     capHouse: capFrom(row.ai_daily_cap_house),
   });
   return { aiAvailable: gate.allowed, aiRecipient, environment };
+}
+
+/**
+ * THE EMERGENCY STOP, from the app (owner directive 2026-09-08). An admin
+ * sets `health_config.ai_kill_switch`; `flagsFromRow` then forces every AI
+ * flag off for every function on its next read — seconds, no SQL, no
+ * deploy. The gate is `is_admin` re-derived from the JWT here, never the
+ * screen; both outcomes are audited under `config.ai_kill`.
+ */
+async function actAdminAiKill(ctx: Ctx, body: Record<string, unknown>): Promise<Response> {
+  if (typeof body.on !== "boolean") return refuse(ctx, { status: 400, reason: "bad_input" });
+  const on = body.on;
+  const position = on ? "on" : "off";
+  const { data: isAdmin } = await ctx.admin.rpc("is_admin", { _uid: ctx.userId });
+  if (isAdmin !== true) {
+    await audit(ctx, "config.ai_kill", "account", "refused", {
+      detail: { switch: position, reason: "forbidden" },
+    });
+    return refuse(ctx, { status: 403, reason: "forbidden" });
+  }
+  const { error } = await ctx.admin
+    .from("health_config")
+    .update({ ai_kill_switch: on })
+    .eq("id", true);
+  if (error) return refuse(ctx, { status: 500, reason: "failed" });
+  await audit(ctx, "config.ai_kill", "account", "ok", { detail: { switch: position } });
+  return ok(ctx, { aiKillSwitch: on });
 }
 
 async function actStatus(ctx: Ctx): Promise<Response> {
@@ -313,6 +340,7 @@ async function actStatus(ctx: Ctx): Promise<Response> {
     storeConsent: { active: !!store, categories: store?.data_categories ?? [] },
     aiConsent: { active: !!aiConsent, categories: aiConsent?.data_categories ?? [] },
     aiAvailable: ai.aiAvailable,
+    aiKillSwitch: ctx.config?.ai_kill_switch === true,
   });
 }
 
@@ -1004,6 +1032,7 @@ const ACTIONS: Record<string, Handler> = {
   "consents.revoke": actConsentsRevoke,
   export: (ctx) => actExport(ctx),
   purge: (ctx) => actPurge(ctx),
+  "admin.ai_kill": actAdminAiKill,
 };
 
 Deno.serve(async (req: Request) => {

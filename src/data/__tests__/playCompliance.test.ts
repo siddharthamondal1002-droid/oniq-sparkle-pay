@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   AI_CONTENT_MODULES,
+  AI_LABEL_OVERRIDES,
   AI_SURFACES,
   ALLOWED_REMOTE_IMAGE_HOSTS,
   DATA_COLLECTED,
@@ -38,7 +39,15 @@ describe("AI-Generated Content policy", () => {
       const src = readFileSync(join(ROOT, file), "utf8");
       expect(src, `${file} does not render AiOutputReport`).toMatch(/AiOutputReport/);
       expect(src, `${file} does not pass surface="${id}"`).toContain(id);
-      expect(src, `${file} does not label the output`).toMatch(/AI_OUTPUT_LABEL|AI-generated/);
+      // A surface may carry its own label by owner directive (AI_LABEL_OVERRIDES,
+      // e.g. Health's "AI-assisted"); it must then render THAT identifier, and
+      // an override never lets a surface render no label at all.
+      const override = AI_LABEL_OVERRIDES[id];
+      if (override) {
+        expect(src, `${file} does not render its ${override}`).toContain(override);
+      } else {
+        expect(src, `${file} does not label the output`).toMatch(/AI_OUTPUT_LABEL|AI-generated/);
+      }
     },
   );
 

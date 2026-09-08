@@ -40,7 +40,7 @@ import {
   type ReceiptRow,
   type Store,
 } from "../_shared/health/ai/gateway.ts";
-import { resolveEnvironment } from "../_shared/health/ai/policy.ts";
+import { capForTask, resolveEnvironment } from "../_shared/health/ai/policy.ts";
 import type { DocRow, RecordRow } from "../_shared/health/ai/context.ts";
 import type { AiRefusalReason, CandidateRecord } from "../_shared/health/ai/types.ts";
 import type { ConsentLike } from "../_shared/health/consent.ts";
@@ -173,12 +173,14 @@ function makeStore(
         .maybeSingle();
       return (data ?? null) as DocRow | null;
     },
-    async countUserSince(sinceIso) {
-      // The person's own window. No status filter: a refused request is a request.
+    async countUserSince(sinceIso, task) {
+      // The person's own window, for THIS task (caps are per task). No status
+      // filter: a refused request is a request.
       const { count } = await admin
         .from("health_ai_requests")
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
+        .eq("task", task)
         .gte("created_at", sinceIso);
       return count ?? 0;
     },
@@ -331,7 +333,7 @@ Deno.serve(async (req: Request) => {
     environment: resolveEnvironment(row?.environment, url),
     provider: row?.ai_provider,
     model: row?.ai_model,
-    capPerUser: capFrom(row?.ai_daily_cap_per_user),
+    capPerUser: capForTask(row?.ai_daily_caps, parsed.request.task),
     capHouse: capFrom(row?.ai_daily_cap_house),
     adminVerificationEnabled: row?.ai_admin_verification_enabled === true,
   };
