@@ -195,12 +195,16 @@ message was sent).
 `npm run build` here emits the markers in their ROUTE chunks and none in the
 entry, so grep production for these files, not for `index-*.js`:
 
-| Marker (a string literal the code emits) | Chunk                                                        |
-| ---------------------------------------- | ------------------------------------------------------------ |
-| `health-candidate-confirm`               | `app.health.records-*.js`                                    |
-| `health-record-ai-label`                 | `app.health.index-*.js`                                      |
-| `health-consent-ai-toggle`               | `app.health.consent-*.js`                                    |
-| `health-ai-admin-result`                 | `app.admin_.health-ai-*.js` (the underscore IS the route id) |
+| Marker (a string literal the code emits) | Chunk                                                                                                                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `health-candidate-confirm`               | `app.health.records-*.js`                                                                                                                                          |
+| `health-record-ai-label`                 | `app.health.index-*.js`                                                                                                                                            |
+| `health-consent-ai-toggle`               | `app.health.consent-*.js`                                                                                                                                          |
+| `health-ai-admin-result`                 | `app.admin_.health-ai-*.js` (the underscore IS the route id)                                                                                                       |
+| `health-ai-refusal`                      | `app.health.index-*.js` — a literal that existed in NO earlier build, so a 1 cannot be left over from a previous deploy; the decisive marker for the red-team pass |
+
+Re-measured after the red-team pass (2026-09-08, 429 chunks): every marker
+still in its route chunk, none in the entry.
 
 `signInWithPhoneNumber` in the entry: 0 — the Firebase SDK stays in its own
 chunk, unchanged by this phase. The functions are verified separately: a POST
