@@ -2331,6 +2331,123 @@ export type Database = {
         }
         Relationships: []
       }
+      health_ai_requests: {
+        Row: {
+          completed_at: string | null
+          consent_id: string | null
+          contract_code: string | null
+          cost_usd: number | null
+          created_at: string
+          id: string
+          input_tokens: number | null
+          manifest: Json
+          model: string
+          output_tokens: number | null
+          provider: string
+          purged_at: string | null
+          purpose: string
+          refusal_reason: string | null
+          request_id: string
+          status: string
+          task: string
+          user_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          consent_id?: string | null
+          contract_code?: string | null
+          cost_usd?: number | null
+          created_at?: string
+          id?: string
+          input_tokens?: number | null
+          manifest?: Json
+          model: string
+          output_tokens?: number | null
+          provider: string
+          purged_at?: string | null
+          purpose: string
+          refusal_reason?: string | null
+          request_id: string
+          status?: string
+          task: string
+          user_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          consent_id?: string | null
+          contract_code?: string | null
+          cost_usd?: number | null
+          created_at?: string
+          id?: string
+          input_tokens?: number | null
+          manifest?: Json
+          model?: string
+          output_tokens?: number | null
+          provider?: string
+          purged_at?: string | null
+          purpose?: string
+          refusal_reason?: string | null
+          request_id?: string
+          status?: string
+          task?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      health_audit: {
+        Row: {
+          action: string
+          actor: string
+          consent_id: string | null
+          created_at: string
+          detail: Json
+          id: string
+          object_id: string | null
+          object_type: string
+          outcome: string
+          prev_hash: string | null
+          purpose: string | null
+          record_hash: string
+          request_id: string
+          seq: number
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor: string
+          consent_id?: string | null
+          created_at?: string
+          detail?: Json
+          id?: string
+          object_id?: string | null
+          object_type: string
+          outcome: string
+          prev_hash?: string | null
+          purpose?: string | null
+          record_hash?: string
+          request_id: string
+          seq?: number
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string
+          consent_id?: string | null
+          created_at?: string
+          detail?: Json
+          id?: string
+          object_id?: string | null
+          object_type?: string
+          outcome?: string
+          prev_hash?: string | null
+          purpose?: string | null
+          record_hash?: string
+          request_id?: string
+          seq?: number
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       health_checkins: {
         Row: {
           created_at: string
@@ -2382,6 +2499,222 @@ export type Database = {
           },
         ]
       }
+      health_config: {
+        Row: {
+          abdm_enabled: boolean
+          ai_admin_verification_enabled: boolean
+          ai_daily_cap_house: number
+          ai_daily_caps: Json
+          ai_enabled: boolean
+          ai_kill_switch: boolean
+          ai_model: string
+          ai_provider: string
+          dicom_enabled: boolean
+          enabled: boolean
+          environment: string
+          fhir_enabled: boolean
+          health_connect_enabled: boolean
+          healthcare_search_enabled: boolean
+          hl7_enabled: boolean
+          id: boolean
+          medgemma_enabled: boolean
+          provider_sharing_enabled: boolean
+          research_enabled: boolean
+          updated_at: string
+          uploads_enabled: boolean
+        }
+        Insert: {
+          abdm_enabled?: boolean
+          ai_admin_verification_enabled?: boolean
+          ai_daily_cap_house?: number
+          ai_daily_caps?: Json
+          ai_enabled?: boolean
+          ai_kill_switch?: boolean
+          ai_model?: string
+          ai_provider?: string
+          dicom_enabled?: boolean
+          enabled?: boolean
+          environment?: string
+          fhir_enabled?: boolean
+          health_connect_enabled?: boolean
+          healthcare_search_enabled?: boolean
+          hl7_enabled?: boolean
+          id?: boolean
+          medgemma_enabled?: boolean
+          provider_sharing_enabled?: boolean
+          research_enabled?: boolean
+          updated_at?: string
+          uploads_enabled?: boolean
+        }
+        Update: {
+          abdm_enabled?: boolean
+          ai_admin_verification_enabled?: boolean
+          ai_daily_cap_house?: number
+          ai_daily_caps?: Json
+          ai_enabled?: boolean
+          ai_kill_switch?: boolean
+          ai_model?: string
+          ai_provider?: string
+          dicom_enabled?: boolean
+          enabled?: boolean
+          environment?: string
+          fhir_enabled?: boolean
+          health_connect_enabled?: boolean
+          healthcare_search_enabled?: boolean
+          hl7_enabled?: boolean
+          id?: boolean
+          medgemma_enabled?: boolean
+          provider_sharing_enabled?: boolean
+          research_enabled?: boolean
+          updated_at?: string
+          uploads_enabled?: boolean
+        }
+        Relationships: []
+      }
+      health_consents: {
+        Row: {
+          created_at: string
+          data_categories: string[]
+          expiry_time: string | null
+          id: string
+          jurisdiction: string
+          notice_locale: string
+          purpose: string
+          recipient: string
+          revoked_at: string | null
+          source: string
+          start_time: string
+          status: string
+          terms_version: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          data_categories: string[]
+          expiry_time?: string | null
+          id?: string
+          jurisdiction?: string
+          notice_locale?: string
+          purpose: string
+          recipient: string
+          revoked_at?: string | null
+          source: string
+          start_time?: string
+          status?: string
+          terms_version: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          data_categories?: string[]
+          expiry_time?: string | null
+          id?: string
+          jurisdiction?: string
+          notice_locale?: string
+          purpose?: string
+          recipient?: string
+          revoked_at?: string | null
+          source?: string
+          start_time?: string
+          status?: string
+          terms_version?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_consents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "health_consents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      health_documents: {
+        Row: {
+          captured_at: string | null
+          classification: Json | null
+          created_at: string
+          deleted_at: string | null
+          expires_at: string | null
+          extraction_status: string
+          id: string
+          kind: string
+          mime: string
+          provenance: Json
+          sha256: string | null
+          size_bytes: number
+          status: string
+          storage_path: string | null
+          text_chars: number | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          captured_at?: string | null
+          classification?: Json | null
+          created_at?: string
+          deleted_at?: string | null
+          expires_at?: string | null
+          extraction_status?: string
+          id?: string
+          kind: string
+          mime: string
+          provenance: Json
+          sha256?: string | null
+          size_bytes: number
+          status?: string
+          storage_path?: string | null
+          text_chars?: number | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          captured_at?: string | null
+          classification?: Json | null
+          created_at?: string
+          deleted_at?: string | null
+          expires_at?: string | null
+          extraction_status?: string
+          id?: string
+          kind?: string
+          mime?: string
+          provenance?: Json
+          sha256?: string | null
+          size_bytes?: number
+          status?: string
+          storage_path?: string | null
+          text_chars?: number | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_documents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "health_documents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       health_profiles: {
         Row: {
           created_at: string
@@ -2417,6 +2750,112 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      health_records: {
+        Row: {
+          code: string | null
+          code_system: string | null
+          confidence: number | null
+          created_at: string
+          deleted_at: string | null
+          display: string
+          document_id: string | null
+          effective_at: string
+          expires_at: string | null
+          id: string
+          kind: string
+          provenance: Json
+          recorded_at: string
+          status: string
+          user_id: string
+          value_num: number | null
+          value_text: string | null
+          value_unit: string | null
+        }
+        Insert: {
+          code?: string | null
+          code_system?: string | null
+          confidence?: number | null
+          created_at?: string
+          deleted_at?: string | null
+          display: string
+          document_id?: string | null
+          effective_at: string
+          expires_at?: string | null
+          id?: string
+          kind: string
+          provenance: Json
+          recorded_at?: string
+          status?: string
+          user_id: string
+          value_num?: number | null
+          value_text?: string | null
+          value_unit?: string | null
+        }
+        Update: {
+          code?: string | null
+          code_system?: string | null
+          confidence?: number | null
+          created_at?: string
+          deleted_at?: string | null
+          display?: string
+          document_id?: string | null
+          effective_at?: string
+          expires_at?: string | null
+          id?: string
+          kind?: string
+          provenance?: Json
+          recorded_at?: string
+          status?: string
+          user_id?: string
+          value_num?: number | null
+          value_text?: string | null
+          value_unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_records_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "health_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "health_records_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "health_records_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      health_retention_policies: {
+        Row: {
+          basis: string
+          category: string
+          retention_days: number
+          updated_at: string
+        }
+        Insert: {
+          basis: string
+          category: string
+          retention_days: number
+          updated_at?: string
+        }
+        Update: {
+          basis?: string
+          category?: string
+          retention_days?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       image_jobs: {
         Row: {
@@ -6647,8 +7086,32 @@ export type Database = {
         Args: { _key: string; _user: string }
         Returns: boolean
       }
+      health_append_audit: {
+        Args: {
+          _action: string
+          _actor: string
+          _consent_id: string
+          _detail: Json
+          _object_id: string
+          _object_type: string
+          _outcome: string
+          _purpose: string
+          _request_id: string
+          _user_id: string
+        }
+        Returns: string
+      }
+      health_apply_retention: { Args: never; Returns: number }
       health_data_allowed: { Args: { _user_id: string }; Returns: boolean }
       health_request_region_ok: { Args: never; Returns: boolean }
+      health_verify_audit_chain: {
+        Args: never
+        Returns: {
+          first_bad: string
+          ok: boolean
+          rows_checked: number
+        }[]
+      }
       is_admin: { Args: { _uid: string }; Returns: boolean }
       is_adult_18: { Args: { _uid: string }; Returns: boolean }
       is_conversation_member: {
