@@ -21,3 +21,9 @@ Phase 2 code: `supabase/functions/_shared/health/ai/`, `supabase/functions/healt
 `src/health/ai/`, `src/routes/_authenticated/app.admin_.health-ai.tsx`,
 `supabase/migrations/20260908150000_oniq_health_phase2.sql`, tests under
 `src/health/__tests__/ai/`. All dark. Phase 3 is NOT AUTHORIZED.
+
+## Verifying production
+
+- `scripts/health-production-check.sql` — read-only against production; PASS = zero rows. Schema, RLS, triggers, the audit vocabulary, the provider lock, the bucket, retention, migration history, the config row against the owner's values, and the audit chain recomputed. Expectations pinned to their sources by `src/health/__tests__/productionCheck.test.ts`.
+- `npx tsx scripts/health-bundle-markers.ts [--url https://oniqhub.com]` — the admin-screen markers in their route chunk and the privacy sentence in its chunk; exit 2 means unreachable, not stale.
+- The deployed functions, from inside the database with `pg_net` (recipe at the bottom of the SQL file): a response proves deployment, its reason code proves which gate answered.

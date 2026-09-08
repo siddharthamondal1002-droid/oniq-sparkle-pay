@@ -2,8 +2,10 @@
 
 **Phase:** 2 — Health AI Safety Gateway + Document Intelligence
 **Status:** BUILT DARK, tested, reviewed, documented, flagged. APPLIED, DEPLOYED and
-PUBLISHED on 2026-09-08 (see the deploy record below), NOT activated: every
-switch on the row is off and the house cap is 0. Phase 3 is NOT AUTHORIZED and
+PUBLISHED and CONFIGURED on 2026-09-08 (the deploy record and the production
+verification below), NOT activated: `ai_enabled` is off, the kill switch is
+off and the client constant is false; the master switch is on, the house cap is
+500 and admin verification is on. Phase 3 is NOT AUTHORIZED and
 nothing here activates it.
 
 The one sentence the brief asked for: **Health → AI direct path = impossible**
@@ -186,11 +188,11 @@ in the gate, so a future model without a price row cannot spend. Rate limit 10
 per minute per person. Lovable credits spent on this phase: none (no deploy
 message was sent).
 
-## Owner actions (none needed to merge; all needed to verify)
+## Owner actions — status 2026-09-08 (evening)
 
-1. Apply the migration; deploy `health-api` + `health-ai` in one message; publish (04 §A-2, steps 1–3).
-2. Set `enabled = true` on the row (the master switch; nothing user-visible changes while the client constant is false), then the house cap **500** from `/app/admin/health-ai` → Daily caps (two taps, audited), then `ai_admin_verification_enabled = true`.
-3. Verify the kill switch both ways (two taps each), a non-admin's refusal (403 `forbidden`, audited), and the `config.*` audit rows.
+1. DONE — migration applied, `health-api` + `health-ai` deployed, published (04 §A-2 steps 1–3, one Lovable message).
+2. DONE by the autonomous loop, by audited `UPDATE` through the Lovable database connection — `enabled = true` (seq 1), the house cap **500** (seq 2), `ai_admin_verification_enabled = true` (seq 3). The admin screen's Daily caps route remains available and would add a `config.ai_caps` row on top of the trigger's.
+3. DONE except the admin's own taps — the kill switch was flipped on and off by SQL (seq 5, 6) and each position was read back through the deployed `health-api` by a throwaway non-admin account; that same account's `admin.ai_kill` was refused 403 and audited `refused` (seq 4). What only the owner can add: **Stop Health AI now** / **Allow Health AI again** on `/app/admin/health-ai` as an admin, which exercises the `is_admin = true` branch and leaves `config.ai_kill … ok` rows. Free; two taps each way.
 4. `ai_enabled` stays OFF (owner directive 2026-09-08, later): the synthetic-answer verification waits with it, behind the Phase 3 authorization and legal gate. B12 is decided ("AI-assisted") and built.
 
 ## Legal actions
@@ -212,9 +214,6 @@ message was sent).
 - The extraction table is 28 analytes + BP; reports outside it yield nothing.
 - `arapStep11dDiagnosis.test.ts` times out under full-suite load on this
   container (unrelated; passes alone).
-- The generated Supabase client types (`src/integrations/supabase/types.ts`)
-  do not yet name the Phase 1/2 tables; they regenerate after the migrations
-  apply, and `isolation.test.ts` exempts that file until then.
 - Two documented limits of the contract (05 §16): a fact citing two records
   may quote either record's value (grounding is token membership, not
   attribution), and a person's own record that IS a dose instruction is
@@ -222,27 +221,49 @@ message was sent).
 - A refusal before the receipt is audited, not receipted, so `no_text` in
   production leaves an `ai.refused` audit row and no receipt; the caps count
   receipts, so pre-provider refusals are bounded by the rate limiter alone.
-- The house cap has no owner value yet: `ai_daily_cap_house` stays 0 and every
-  call refuses `caps_unset` until it is set (04 §A-2 step 4, B11).
+- The house cap is 500 on the row (set 18:18Z, seq 2) and the per-task caps
+  are the B11 table; both change from the admin screen or by `UPDATE`, and
+  either path is audited. `scripts/health-production-check.sql` reports any
+  drift from those values as `CONFIG_DRIFT`.
 - Two of the owner's six B11 operations (report comparison, doctor-visit
   preparation) have no Phase 2 task; their caps are recorded, not enforced,
   because nothing exists to enforce them on.
 - The emergency stop is read on every request and stops the NEXT one; it
   does not interrupt a request already past the gate (milliseconds).
-- The `health_config_audit_ai_controls` trigger is read from source by its
-  test; no test runs SQL. Its first real fire is the owner's first cap change
-  after the migration applies — read `health_audit` for `config.changed` then.
+- The audit chain broke on the throwaway account's deletion (`user_id` is a
+  set-null FK and is hashed) — the defect real erasure would have caused for
+  any person with health audit rows. Fixed the same evening in the verifier
+  (`20260908190000_…survives_erasure.sql`: the committed id is recovered from
+  `actor`, which every writer sets to the person's id — pinned by
+  `auditChainSurvivesErasure.test.ts`), applied and re-verified: all six rows
+  intact. Limit: a future writer with `actor ≠ userId` would need a stored
+  commitment column instead. See `05 §9`.
+- The `health_config_audit_ai_controls` trigger has fired six times on
+  production (seq 1–6) and every row recomputes in the chain check. As shipped
+  it watched five AI columns and would have missed `enabled`, the first value
+  the go sequence sets; `20260908181500_…every_column.sql` made it diff the
+  whole row before the sequence ran. No test runs SQL; the production check
+  does, read-only.
 - An API-driven config change leaves two audit rows (the action's, with the
   admin as actor; the trigger's, with the database role); a raw `UPDATE`
   leaves one. Both are in the hash chain.
-- The repo carries each health migration twice: the documented originals and
+- The repo carries each Phase migration twice: the documented originals and
   Lovable's applied copies (headers stripped; Phase 1's copy lacks the bucket
-  insert, which the tool refused). A `supabase db push` from the repo would
-  replay the originals over the copies — idempotent by construction, but not
-  to be done casually.
+  insert, which the tool refused). That is this repo's convention, not an
+  accident — production's `schema_migrations` records only the UUID-named
+  copies, and the older `weather_cache` pair shows the same shape — so the
+  copies stay, and `appliedCopies.test.ts` fails if either side drifts by one
+  statement. A `supabase db push` from the repo would replay the originals over
+  the copies — idempotent by construction, but not to be done casually. The
+  every-column trigger migration is the exception: applied from the repo file
+  itself and recorded under its own version, so a push skips it.
 - The served bundle was not fetched from this container (`oniqhub.com` is
-  proxy-blocked); Lovable reports the publish live at `84a8e4f2`. The admin
-  screen showing "Daily caps" and "Emergency stop" is the functional check.
+  proxy-blocked); Lovable reports the publish live at `84a8e4f2`, and the
+  deployed FUNCTIONS were verified from inside the database instead (below).
+  The bundle check is one command from any host that can reach the site —
+  `npx tsx scripts/health-bundle-markers.ts --url https://oniqhub.com` — and
+  the local build passes the same check. The admin screen showing "Daily caps"
+  and "Emergency stop" remains the functional check.
 
 ## Deploy record (2026-09-08)
 
@@ -282,7 +303,69 @@ untouched (every switch off, house cap 0). Nothing is user-visible: the client
 constants are false and `health-api` answers 503 to everyone until `enabled`
 is set — the owner's step, `04 §A-2` step 4.
 
+## Production verification (2026-09-08, 18:02–18:30Z, no Lovable message, no credits)
+
+Everything below was measured through the Lovable database connection
+(`query_database`) against production — identified first: 126 `auth.users`,
+48 `device_tokens`, one `health_config` row — not taken from the deploy report.
+
+```
+schema        9 health tables (7 sealed + 2 pre-existing); RLS on all 9; every
+              policy, index, trigger, constraint and function of both phases
+              present; health_config_audit_ai_controls and
+              health_apply_retention bodies IDENTICAL to the repo files;
+              health_audit_action_check carries the 19 actions, object types
+              carry `config`; ai_provider CHECK = synthetic only
+bucket        health-documents  public=false  limit=10485760  no storage policy
+retention     12 rows incl. ai_requests 365
+history       20260908170834, 20260908171017 (Lovable's copies)  then
+              20260908181500 (the every-column trigger, applied here)
+grants        trigger fn + health_append_audit: postgres, service_role only
+functions     from inside the DB with pg_net, no credential — three-way control:
+                health-api  503 health_disabled   health-ai  503 health_disabled
+                a function that does not exist    404 NOT_FOUND
+              after enabled = true, the same calls ADVANCED:
+                health-api  401 unauthorized      health-ai  503 ai_disabled
+config        each: read → guarded UPDATE → read back → audit row read
+                enabled                        false → true   18:16:13Z  seq 1
+                ai_daily_cap_house             0 → 500        18:18:57Z  seq 2
+                ai_admin_verification_enabled  false → true   18:22:30Z  seq 3
+                ai_kill_switch                 false → true   18:26:58Z  seq 5
+                ai_kill_switch                 true → false   18:28:31Z  seq 6
+              ai_enabled untouched (false); uploads untouched (false)
+authenticated one throwaway NON-admin, signed up through the project's own
+              /auth/v1/signup from inside the DB (the smoke tests' pattern),
+              its token never read out of net._http_response, deleted in the
+              same run:
+                status                 200  aiCaps.house 500, tasks = B11,
+                                            aiKillSwitch false, aiAvailable
+                                            false, health.ai.enabled false
+                admin.ai_kill on:true  403  forbidden; seq 4 config.ai_kill
+                                            refused, actor = that uid; the
+                                            switch and updated_at unchanged
+                status (switch on)     200  aiKillSwitch true, both AI flags
+                                            forced off, house still 500
+                status (switch off)    200  aiKillSwitch false
+chain         seq 1–6 recomputed with health_verify_audit_chain's expression:
+              intact — then BROKEN at seq 4 the moment the throwaway was
+              deleted (its user_id set null by the FK, the hash computed
+              with it); proven by recomputing seq 4 with the original id
+              (match) and seq 5's link (still holds). Verifier replaced —
+              20260908190000, the committed id recovered from actor —
+              applied, read back, all six rows intact again
+check         scripts/health-production-check.sql -> 4 rows before the
+              sequence (exactly the three values it sets + the history row),
+              0 rows after; 1 row (AUDIT_CHAIN_BROKEN seq 4) after the
+              deletion; 0 rows after the verifier fix
+```
+
+What is NOT verified from here, stated as such: the served web bundle (proxy);
+the admin branch of `admin.ai_kill` / `admin.ai_caps` (needs an admin JWT — the
+owner's two taps); and everything behind `ai_enabled`, by directive.
+
 ## How to verify the publish (oniq-ship: learn the chunk from a local build first)
+
+`npx tsx scripts/health-bundle-markers.ts` runs the recipe below against a local build, and `--url https://oniqhub.com` against the served one (exit 2 = unreachable, which is UNVERIFIED and never STALE). What follows is what it does.
 
 `npm run build` here emits the markers in their ROUTE chunks and none in the
 entry, so grep production for these files, not for `index-*.js`:

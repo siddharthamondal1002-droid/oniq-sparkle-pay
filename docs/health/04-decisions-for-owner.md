@@ -19,17 +19,35 @@ Before step 5, the Play Data safety form needs a "Health records" entry if uploa
 Each step is one Lovable message or one owner action; nothing user-visible
 changes at any step, and `ai_enabled` stays OFF at the end of it (step 6).
 
-**STATUS 2026-09-08: steps 1–3 are DONE** — migration applied (Phase 1 first,
-which turned out never to have been applied; the `storage.buckets` insert ran
-through the storage tool instead, see `06 §Deploy record`), `health-api` and
-`health-ai` deployed, web build published. Step 4 onward is the owner's and
-unstarted; `ai_enabled` stays off.
+**STATUS 2026-09-08 (evening): steps 1–5 are DONE and MEASURED; step 6 stands.**
+Steps 1–3 by the one Lovable message (Phase 1 first, which turned out never to
+have been applied; the `storage.buckets` insert ran through the storage tool
+instead, see `06 §Deploy record`). Steps 4–5 by the autonomous loop the owner
+directed the same evening, through the Lovable database connection — each value
+read, applied with an idempotent guard, read back, and its `config.changed` row
+read (`06 §Production verification`): `enabled = true` (18:16Z, audit seq 1),
+`ai_daily_cap_house = 500` (18:18Z, seq 2), `ai_admin_verification_enabled =
+true` (18:22Z, seq 3), the emergency stop on (seq 5) and off again (seq 6) with
+each position observed through the DEPLOYED `health-api` (`status.aiKillSwitch`),
+and a non-admin's `admin.ai_kill` refused 403 with its `refused` row (seq 4) and
+the switch untouched. Before any of it, the audit trigger was found to watch
+five AI columns and not `enabled` — the first value this sequence sets —
+and `20260908181500_oniq_health_config_audit_every_column.sql` replaced it with
+one that diffs the whole row, applied first so the master switch landed in the
+chain. `ai_enabled` is OFF, the kill switch is OFF, the client constant is
+false, nothing is user-visible; `scripts/health-production-check.sql` returns
+zero rows at this state. One defect found on the way and fixed the same
+evening: the audit chain broke when the throwaway account was deleted, which
+is what any real erasure would have done — `05 §9`, `06 §Remaining risks`. What the admin screen can still add, free and the
+owner's: the two-tap Stop/Allow as an ADMIN through `admin.ai_kill` — measured
+here as a non-admin's refusal and as the SQL flip the trigger audits; the admin
+branch of that action is unit-tested, not yet tapped.
 
 1. **Apply the Phase 2 migration** `20260908150000_oniq_health_phase2.sql`, after Phase 1's. Adds columns and one ledger table; every new switch defaults off (the emergency stop `ai_kill_switch` included), the per-task caps arrive as the owner's B11 table (`ai_daily_caps`, JSON), and the house cap defaults to **0 = refuse**.
 2. **Deploy `health-api` AND `health-ai` in the same message.** Give the agent the check it can run itself before deploying: `grep -c records.candidates supabase/functions/health-api/index.ts` and `grep -c parseAiRequest supabase/functions/health-ai/index.ts` — stop if either is 0. The functions go BEFORE the web publish (the 2026-09-07 lesson: buttons with nothing behind them); every new action the client sends is one an OLD function answers 400 to, never 500.
 3. **Publish** the web build. Nothing renders differently: the client AI flag is false and `status.aiAvailable` is false for everyone.
-4. **Server row, in this order — the OWNER's, after step 3**: `enabled = true` (the master switch; `health-api` answers 503 to everyone until it is set, and nothing user-visible changes while the client constant is false), then the house cap **500** from `/app/admin/health-ai` → Daily caps → House cap → Save, two taps (owner directive 2026-09-08, later the same day: a system-wide safety ceiling, never a person's allowance; admin re-derived on the server; audited twice — `config.ai_caps` says who asked, the row trigger's `config.changed` says what changed — or by `UPDATE`, which the trigger audits too), then `ai_admin_verification_enabled = true`. The per-task caps arrive with the migration (the owner's B11 table) and are changed the same way. 0 anywhere refuses; nothing is ever unlimited.
-5. **Verify as the admin, with `ai_enabled` still OFF**: Status → `aiCaps.house: 500`, `aiKillSwitch: false`; **Stop Health AI now** (two taps) → Status `aiKillSwitch: true` → **Allow Health AI again**; from a NON-admin account, `admin.ai_kill` and `admin.ai_caps` answer 403 `forbidden` and leave a `refused` audit row; read `health_audit` for the `config.ai_kill`, `config.ai_caps` and `config.changed` rows. The synthetic-answer checks (Status → `aiAvailable: true`, Summarise → an answer, Extract → `no_text`, each receipted with `method = admin_verification`) need `ai_enabled` and therefore WAIT with step 6.
+4. **DONE 2026-09-08 18:16–18:22Z by UPDATE, each audited by the row trigger (seq 1–3).** Server row, in this order — the OWNER's, after step 3: `enabled = true` (the master switch; `health-api` answers 503 to everyone until it is set, and nothing user-visible changes while the client constant is false), then the house cap **500** from `/app/admin/health-ai` → Daily caps → House cap → Save, two taps (owner directive 2026-09-08, later the same day: a system-wide safety ceiling, never a person's allowance; admin re-derived on the server; audited twice — `config.ai_caps` says who asked, the row trigger's `config.changed` says what changed — or by `UPDATE`, which the trigger audits too), then `ai_admin_verification_enabled = true`. The per-task caps arrive with the migration (the owner's B11 table) and are changed the same way. 0 anywhere refuses; nothing is ever unlimited.
+5. **DONE 2026-09-08 18:25–18:28Z except the admin's own two taps** (Status through the deployed function: `aiCaps.house 500`, `aiKillSwitch` false → true → false as the row was flipped; non-admin `admin.ai_kill` → 403 `forbidden`, seq 4 `refused`). Verify as the admin, with `ai_enabled` still OFF: Status → `aiCaps.house: 500`, `aiKillSwitch: false`; **Stop Health AI now** (two taps) → Status `aiKillSwitch: true` → **Allow Health AI again**; from a NON-admin account, `admin.ai_kill` and `admin.ai_caps` answer 403 `forbidden` and leave a `refused` audit row; read `health_audit` for the `config.ai_kill`, `config.ai_caps` and `config.changed` rows. The synthetic-answer checks (Status → `aiAvailable: true`, Summarise → an answer, Extract → `no_text`, each receipted with `method = admin_verification`) need `ai_enabled` and therefore WAIT with step 6.
 6. **`ai_enabled` stays OFF, and so does the client constant `health.ai.enabled`** (owner directive 2026-09-08, later the same day). Turning the server flag on is no longer a technical Phase 2 step — it permits the real Health AI pathway — and waits on the Phase 3 authorization and legal gate (D4, `02 §16`). The client constant flipped alone shows AI sections the server refuses to every non-admin (`synthetic_in_production`) — "section visible, every action refused" is the symptom of that mistake.
 
 Rollback at any step: `ai_enabled = false` on the row — or, from the app, **Stop Health AI now** on `/app/admin/health-ai` (`ai_kill_switch = true`; `is_admin` re-derived server-side, audited as `config.ai_kill`), which forces `health.ai.enabled` and `health.provider_sharing.enabled` off for every function on its next read — seconds, no SQL, no deploy. Candidates stay reachable (reject sits above the AI gate); receipts and audit rows stay; nothing is deleted.

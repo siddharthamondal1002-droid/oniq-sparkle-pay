@@ -267,6 +267,36 @@ the values after the change, actor the database role, `user_id` null (a system
 row, readable by admins under the audit policy). An API-driven change therefore
 leaves two rows; a raw `UPDATE` leaves one. The hash chain covers all of them.
 
+The trigger as Phase 2 shipped it named five columns, and the first value the
+go sequence sets — `enabled` — was not one of them. Since
+`20260908181500_oniq_health_config_audit_every_column.sql` (applied to
+production the same evening, before the sequence ran) it diffs
+`to_jsonb(new) - 'updated_at'` against `old`, fires on any difference, keeps the
+five keys the Phase 2 rows already carry, adds `enabled` and `uploads`, and
+carries `changed` — the columns that differed, with their new values. A column
+added to `health_config` later is audited without an edit;
+`configAuditEveryColumn.test.ts` fails if the condition ever names a column
+again. Six rows on production so far (seq 1–6), every one recomputed by
+`scripts/health-production-check.sql`.
+
+**And the chain did not survive an account's erasure — found by that check,
+fixed the same evening.** `health_audit.user_id` is `on delete set null`
+against `auth.users`, and the chain trigger hashes it. Real erasure deletes the
+auth user (`purgeUserData.ts` step 4), so every audit row naming that person
+would have had a hashed column rewritten by the cascade and failed the
+recompute for good. Measured on seq 4 after the throwaway probe account was
+deleted: the row verifies with its original id substituted back, and seq 5
+still links to it. `20260908190000_oniq_health_audit_chain_survives_erasure.sql`
+changes the VERIFIER only: the user slot is `user_id`, else `actor` when it is
+a UUID, else `''` — sound because both writers pass `actor = userId`
+(`auditChainSurvivesErasure.test.ts` pins that over every `appendAudit` call,
+comments stripped), and `actor` is text the cascade never touches. Nothing is
+rewritten and nothing new is retained. Stated limit: a row whose `actor` is
+not the person's id (none can be written today) would still be unverifiable
+after erasure; that day needs a stored commitment column, not a verifier rule.
+The same migration revokes the PUBLIC default EXECUTE Phase 1 had left on the
+verifier.
+
 ## 10. Database — `20260908150000_oniq_health_phase2.sql` (applied to production 2026-09-08 — see `06 §Deploy record`)
 
 Separate from Phase 1, every constraint NAMED. `health_config` + twelfth flag
@@ -355,9 +385,11 @@ Server: `health_config.enabled AND ai_enabled AND NOT ai_kill_switch`,
 `ai_daily_caps[task] > 0`, `ai_daily_cap_house > 0`, and for production
 verification `ai_admin_verification_enabled`. Client:
 `HEALTH_FLAGS["health.ai.enabled"]`. Off on either side is off. The house cap is 500 by owner directive
-(2026-09-08, later the same day), set from the admin screen AFTER the deploy —
-the migration ships 0 so the deploy lands fail-closed — and `ai_enabled` stays
-off behind the Phase 3 authorization and legal gate. Rollback is the flag — or
+(2026-09-08, later the same day); the migration shipped 0 so the deploy landed
+fail-closed, and the row was set to 500 by audited `UPDATE` at 18:18Z the same
+evening (with `enabled` and `ai_admin_verification_enabled` before and after
+it — `06 §Production verification`). `ai_enabled` stays off behind the Phase 3
+authorization and legal gate. Rollback is the flag — or
 the emergency stop on the admin screen (§3), which needs no SQL; candidates
 stay reachable
 (reject is above the gate), receipts and audit rows stay. Phase 3 replaces
