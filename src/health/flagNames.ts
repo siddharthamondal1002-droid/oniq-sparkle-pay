@@ -1,5 +1,5 @@
 /**
- * ONIQ HEALTH — the eleven feature flags, by name.
+ * ONIQ HEALTH — the twelve feature flags, by name.
  *
  * MIRRORED. This file exists twice, byte for byte: `src/health/flagNames.ts`
  * (the client reads the constants in `flags.ts`) and
@@ -9,7 +9,15 @@
  * `src/health/__tests__/agreement.test.ts` fails the moment the copies differ.
  *
  * The names are the owner's, from the 2026-09-08 brief, dotted exactly as
- * given. The column is what the server row calls the same switch.
+ * given — the eleven of the mapping plus `health.provider_sharing.enabled`,
+ * which §83C of the same brief names as its own independent switch. The
+ * column is what the server row calls the same switch.
+ *
+ * `health.provider_sharing.enabled` is the gate a provider must pass before
+ * it may carry a health byte OUT of ONIQ (a recipient other than "oniq").
+ * No Phase 2 provider does, so the switch is consulted and never satisfied;
+ * `aiIsolation.test.ts` pins that no registered provider names another
+ * recipient while it is off.
  */
 export const HEALTH_FLAG_NAMES = [
   "health.enabled",
@@ -23,6 +31,7 @@ export const HEALTH_FLAG_NAMES = [
   "health.medgemma.enabled",
   "health.healthcare_search.enabled",
   "health.research.enabled",
+  "health.provider_sharing.enabled",
 ] as const;
 
 export type HealthFlag = (typeof HEALTH_FLAG_NAMES)[number];
@@ -40,6 +49,7 @@ export const HEALTH_FLAG_COLUMNS: Record<HealthFlag, string> = {
   "health.medgemma.enabled": "medgemma_enabled",
   "health.healthcare_search.enabled": "healthcare_search_enabled",
   "health.research.enabled": "research_enabled",
+  "health.provider_sharing.enabled": "provider_sharing_enabled",
 };
 
 /** Every flag off — the shape a missing server row resolves to. */

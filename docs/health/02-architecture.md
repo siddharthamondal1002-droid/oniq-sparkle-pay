@@ -124,21 +124,22 @@ Refuse, never degrade: a missing consent is a 403 with the purpose named, not a 
 
 ## 10. Flags
 
-| Flag                               | Gates                                                                             |
-| ---------------------------------- | --------------------------------------------------------------------------------- |
-| `health.enabled`                   | the module, every door, every action                                              |
-| `health.uploads.enabled`           | `documents.*` actions and the Records screen                                      |
-| `health.ai.enabled`                | Phase 3 (health chat, extraction) — also requires the privacy-notice change (§16) |
-| `health.health_connect.enabled`    | Phase 5 native sync                                                               |
-| `health.abdm.enabled`              | Phase 6                                                                           |
-| `health.fhir.enabled`              | Phase 4 mirror                                                                    |
-| `health.dicom.enabled`             | Phase 7                                                                           |
-| `health.hl7.enabled`               | HL7v2 ingestion (no phase; only if a hospital feed exists)                        |
-| `health.medgemma.enabled`          | Phase 8 evaluation endpoint                                                       |
-| `health.healthcare_search.enabled` | Agent Search for Healthcare                                                       |
-| `health.research.enabled`          | Phase 9 de-identified analytics                                                   |
+| Flag                               | Gates                                                                                                                                                                              |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `health.enabled`                   | the module, every door, every action                                                                                                                                               |
+| `health.uploads.enabled`           | `documents.*` actions and the Records screen                                                                                                                                       |
+| `health.ai.enabled`                | Phase 2's gateway (synthetic provider, in-process). A provider that LEAVES ONIQ (Phase 3) additionally needs `health.provider_sharing.enabled` and the privacy-notice change (§16) |
+| `health.health_connect.enabled`    | Phase 5 native sync                                                                                                                                                                |
+| `health.abdm.enabled`              | Phase 6                                                                                                                                                                            |
+| `health.fhir.enabled`              | Phase 4 mirror                                                                                                                                                                     |
+| `health.dicom.enabled`             | Phase 7                                                                                                                                                                            |
+| `health.hl7.enabled`               | HL7v2 ingestion (no phase; only if a hospital feed exists)                                                                                                                         |
+| `health.medgemma.enabled`          | Phase 8 evaluation endpoint                                                                                                                                                        |
+| `health.healthcare_search.enabled` | Agent Search for Healthcare                                                                                                                                                        |
+| `health.research.enabled`          | Phase 9 de-identified analytics                                                                                                                                                    |
+| `health.provider_sharing.enabled`  | §83C's twelfth switch: the gate a provider must pass to carry a health byte OUT of ONIQ (recipient ≠ `oniq`). No Phase 2 provider does                                             |
 
-Client and server carry the same eleven names; `flags.test.ts` fails if they drift. To turn a flag on: client — change the constant in `src/health/flags.ts` and publish; server — `update health_config set enabled = true` (or the column for the feature) through the Lovable agent or the owner's SQL, and the change is live on the next request.
+Client and server carry the same twelve names; `flags.test.ts` fails if they drift. To turn a flag on: client — change the constant in `src/health/flags.ts` and publish; server — `update health_config set enabled = true` (or the column for the feature) through the Lovable agent or the owner's SQL, and the change is live on the next request.
 
 ## 11. Environments and test data
 
@@ -150,7 +151,7 @@ Phase 1 sends none. When one is sent (Phase 2+), it may say only "ONIQ Health: s
 
 ## 12a. AI labelling on the timeline
 
-Phase 1 rows are all `user_entry`. The timeline already resolves `needsAiLabel()` per row, but the screen is **not** in `AI_SURFACES` because it renders no AI output today. The first AI-derived row (Phase 2 extraction) requires adding `app.health.index.tsx` to `AI_SURFACES` and rendering the AI label and `<AiOutputReport />`; `playCompliance.test.ts` is the guard that will say so.
+Phase 1 rows were all `user_entry`. Phase 2 can produce `document_extraction` rows (a confirmed candidate), so `app.health.index.tsx`, `app.health.records.tsx` and the admin door are in `AI_SURFACES` under `health_ai_output`, and the timeline renders `AI_OUTPUT_LABEL` + `<AiOutputReport />` for every row `needsAiLabel()` is true for — `ai/surfaces.test.ts` and `playCompliance.test.ts` guard it.
 
 ## 13. Admin
 
@@ -162,8 +163,8 @@ Every user-facing Health string is a `health.*` key registered for `en`, `hi` an
 
 ## 15. Phases 2–9 (designed, not built)
 
-- **Phase 2 — document processing worker:** compute `sha256`, extract text (Gemini Flash-Lite on Vertex/paid key, `document_extraction` provenance with confidence), create candidate records the person confirms. Cap per user per day and a house cap, the `image_jobs` shape.
-- **Phase 3 — Health AI:** a separate `health-chat` function and `health_messages` table; prompt assembles the person's consented records with ids; the model must answer in four labelled classes (record-derived fact / general information / AI interpretation / unknown); a post-filter refuses prescriptions, dosages and medication changes; evaluation suite of synthetic records in CI; zero data retention terms via Vertex; **blocked until §16 is done**.
+- **Phase 2 — the Health AI safety gateway + document intelligence (BUILT DARK, see `05-phase2-ai-gateway.md`):** the gateway, policy engine, consent enforcement, minimum-data context, redaction, provider abstraction with a SYNTHETIC-only registry, model allowlist, receipts, audit, the four-class response contract, rules-based classification and extraction into candidate records the person confirms, caps from the row. No text source is registered, so production extraction answers `no_text`. Nothing leaves the process.
+- **Phase 3 — a real provider:** a registry entry whose recipient is not ONIQ (refused until `health.provider_sharing.enabled`), a model in the allowlist with a dated price row, the `google_vertex` consent pair under a NEW terms version, a text source (OCR / Gemini on Vertex with the Health service account) registered in `TEXT_SOURCE_REGISTRY`, the prompt adapter that renders the STRUCTURED provider input with delimiters, an evaluation suite in CI, zero-data-retention terms; **blocked until §16 is done, and NOT AUTHORIZED (owner + legal gate)**.
 - **Phase 4 — Google Healthcare adapter:** `GoogleFhirAdapter` implements `HealthcareAdapter` (put/get/search/delete/export) against a FHIR R4 store in `asia-south1`; Postgres stays authoritative and the mirror is eventually consistent; a user write never waits on Google; per-store IAM; Cloud Audit Logs on.
 - **Phase 5 — Health Connect:** Capacitor plugin (Lovable adds the dependency), explicit per-type permissions, Play Health declaration, a Play release; `health_connect` provenance; steps/heart rate/sleep first.
 - **Phase 6 — ABDM:** after sandbox credentials and the official spec; ONIQ as PHR app; consent artefacts stored under `abdm_exchange`; WASA and PHR certification are external.
@@ -173,7 +174,7 @@ Every user-facing Health string is a `health.*` key registered for `en`, `hi` an
 
 ## 16. The privacy-notice change the AI phase needs
 
-`src/routes/privacy.tsx` says **"Health data is never sent to any AI feature."** and `playCompliance.test.ts` verifies no edge function names the three Vitals tables. Phase 3 contradicts the sentence. Before `health.ai.enabled` goes true: the notice must state which health data is sent, to whom (Google, on Vertex or the paid Gemini API), that it is not used to train, and that it happens only under a consent the person can withdraw; Play Data safety must declare it; the test must be rewritten to assert the new, true sentence. Owner and counsel decision.
+`src/routes/privacy.tsx` says **"Health data is never sent to any AI feature."** and `playCompliance.test.ts` verifies no edge function names the three Vitals tables. **Phase 2 does not contradict the sentence**: its only provider is an in-process synthetic checker, and `ai/isolation.test.ts` ties the sentence to `RECIPIENT_FOR_PROVIDER` holding no recipient but ONIQ. Phase 3 contradicts the sentence. Before a real provider goes live: the notice must state which health data is sent, to whom (Google, on Vertex or the paid Gemini API), that it is not used to train, and that it happens only under a consent the person can withdraw; Play Data safety must declare it; the test must be rewritten to assert the new, true sentence. Owner and counsel decision.
 
 ## 17. Definition of Done (Phase 1) — each line is a test
 

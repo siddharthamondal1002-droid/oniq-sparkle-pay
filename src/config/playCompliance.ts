@@ -212,6 +212,32 @@ export const AI_SURFACES = [
     screen: "Home — Originals loop",
     file: "src/routes/_authenticated/app.index.tsx",
   },
+  {
+    // ONIQ HEALTH, Phase 2 (dark). The timeline renders AI-read rows — a
+    // confirmed candidate keeps its document_extraction provenance — and the
+    // gateway's answers. Declared BEFORE the flag flips, which is the ordering
+    // Lores got wrong; docs/health/02 §12a said this line would be needed the
+    // day the first AI-derived row could exist, and that day is Phase 2.
+    id: "health_ai_output",
+    screen: "Health — timeline (AI-read rows, answers)",
+    file: "src/routes/_authenticated/app.health.index.tsx",
+  },
+  {
+    // The Documents tab's "Suggested records": what the extractor read,
+    // waiting on the person's confirm or reject. AI output by definition.
+    id: "health_ai_output",
+    screen: "Health — documents (suggested records)",
+    file: "src/routes/_authenticated/app.health.records.tsx",
+  },
+  {
+    // The admin verification door for the Health AI gateway. An admin screen
+    // still shows generated output, and the label goes where the output goes.
+    // Underscore in the filename: opts out of nesting under app.admin.tsx,
+    // which has no <Outlet /> (routeNesting.test.ts).
+    id: "health_ai_output",
+    screen: "Admin — Health AI verification (standalone page)",
+    file: "src/routes/_authenticated/app.admin_.health-ai.tsx",
+  },
 ] as const;
 
 /**

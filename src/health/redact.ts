@@ -24,6 +24,11 @@ export const AUDIT_DETAIL_KEYS = [
   "purpose",
   "recipient",
   "action",
+  "task",
+  "provider",
+  "model",
+  "method",
+  "code",
 ] as const;
 
 /** Keys a log line may carry. */
@@ -37,6 +42,8 @@ export const LOG_KEYS = [
   "ms",
   "count",
   "outcome",
+  "task",
+  "provider",
 ] as const;
 
 const MAX_STRING = 64;
@@ -89,6 +96,24 @@ export const REASON_MESSAGES: Record<string, string> = {
   audit_failed: "Something went wrong. Try again.",
   method_not_allowed: "Something went wrong. Try again.",
   failed: "Something went wrong. Try again.",
+  ai_disabled: "Health AI isn't switched on yet.",
+  task_not_allowed: "That isn't something Health AI can do.",
+  provider_not_allowed: "Health AI isn't set up to answer yet.",
+  model_not_allowed: "Health AI's model isn't set up yet.",
+  unpriced_model: "Health AI's model has no price on file, so it can't run.",
+  caps_unset: "Health AI has no daily limit set yet, so it can't answer.",
+  age_unverified: "Add your date of birth to your profile before using Health AI.",
+  minor_blocked: "Health AI is only available to adults.",
+  synthetic_in_production: "Health AI is still being verified and isn't answering yet.",
+  ai_consent_required: "Turn on the AI consent in Health settings first.",
+  question_rejected: "That question couldn't be used. Try asking it differently.",
+  no_text: "There's no readable text for that document yet.",
+  text_too_long: "That's too long. Keep it shorter.",
+  quota_user: "You've reached today's limit for Health AI. Try again tomorrow.",
+  quota_house: "Health AI is busy right now. Try again later.",
+  output_rejected: "The answer didn't pass ONIQ's safety check, so it wasn't shown.",
+  provider_error: "Health AI couldn't answer just now. Try again.",
+  legal_hold: "These records are under a legal hold and can't be deleted right now.",
 };
 
 export function safeMessage(reason: string | null | undefined): string {

@@ -72,6 +72,7 @@ import { Route as AuthenticatedAppWeatherRouteImport } from './routes/_authentic
 import { Route as ApiPublicMediaSweepRouteImport } from './routes/api/public/media-sweep'
 import { Route as AuthenticatedAppAdminFirebaseRouteImport } from './routes/_authenticated/app.admin_.firebase'
 import { Route as AuthenticatedAppAdminGpuVideoRouteImport } from './routes/_authenticated/app.admin_.gpu-video'
+import { Route as AuthenticatedAppAdminHealthAiRouteImport } from './routes/_authenticated/app.admin_.health-ai'
 import { Route as AuthenticatedAppAdminVideoRouteImport } from './routes/_authenticated/app.admin_.video'
 import { Route as AuthenticatedAppChatIndexRouteImport } from './routes/_authenticated/app.chat.index'
 import { Route as AuthenticatedAppChatConversationIdRouteImport } from './routes/_authenticated/app.chat.$conversationId'
@@ -421,6 +422,12 @@ const AuthenticatedAppAdminGpuVideoRoute =
     path: '/admin/gpu-video',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppAdminHealthAiRoute =
+  AuthenticatedAppAdminHealthAiRouteImport.update({
+    id: '/admin_/health-ai',
+    path: '/admin/health-ai',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppAdminVideoRoute =
   AuthenticatedAppAdminVideoRouteImport.update({
     id: '/admin_/video',
@@ -608,6 +615,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/admin/firebase': typeof AuthenticatedAppAdminFirebaseRoute
   '/app/admin/gpu-video': typeof AuthenticatedAppAdminGpuVideoRoute
+  '/app/admin/health-ai': typeof AuthenticatedAppAdminHealthAiRoute
   '/app/admin/video': typeof AuthenticatedAppAdminVideoRoute
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/app/chat/calls': typeof AuthenticatedAppChatCallsRoute
@@ -690,6 +698,7 @@ export interface FileRoutesByTo {
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/admin/firebase': typeof AuthenticatedAppAdminFirebaseRoute
   '/app/admin/gpu-video': typeof AuthenticatedAppAdminGpuVideoRoute
+  '/app/admin/health-ai': typeof AuthenticatedAppAdminHealthAiRoute
   '/app/admin/video': typeof AuthenticatedAppAdminVideoRoute
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/app/chat/calls': typeof AuthenticatedAppChatCallsRoute
@@ -777,6 +786,7 @@ export interface FileRoutesById {
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/admin_/firebase': typeof AuthenticatedAppAdminFirebaseRoute
   '/_authenticated/app/admin_/gpu-video': typeof AuthenticatedAppAdminGpuVideoRoute
+  '/_authenticated/app/admin_/health-ai': typeof AuthenticatedAppAdminHealthAiRoute
   '/_authenticated/app/admin_/video': typeof AuthenticatedAppAdminVideoRoute
   '/_authenticated/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/_authenticated/app/chat/calls': typeof AuthenticatedAppChatCallsRoute
@@ -864,6 +874,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/admin/firebase'
     | '/app/admin/gpu-video'
+    | '/app/admin/health-ai'
     | '/app/admin/video'
     | '/app/chat/$conversationId'
     | '/app/chat/calls'
@@ -946,6 +957,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/app/admin/firebase'
     | '/app/admin/gpu-video'
+    | '/app/admin/health-ai'
     | '/app/admin/video'
     | '/app/chat/$conversationId'
     | '/app/chat/calls'
@@ -1032,6 +1044,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/'
     | '/_authenticated/app/admin_/firebase'
     | '/_authenticated/app/admin_/gpu-video'
+    | '/_authenticated/app/admin_/health-ai'
     | '/_authenticated/app/admin_/video'
     | '/_authenticated/app/chat/$conversationId'
     | '/_authenticated/app/chat/calls'
@@ -1526,6 +1539,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppAdminGpuVideoRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/admin_/health-ai': {
+      id: '/_authenticated/app/admin_/health-ai'
+      path: '/admin/health-ai'
+      fullPath: '/app/admin/health-ai'
+      preLoaderRoute: typeof AuthenticatedAppAdminHealthAiRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/admin_/video': {
       id: '/_authenticated/app/admin_/video'
       path: '/admin/video'
@@ -1757,6 +1777,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
   AuthenticatedAppAdminFirebaseRoute: typeof AuthenticatedAppAdminFirebaseRoute
   AuthenticatedAppAdminGpuVideoRoute: typeof AuthenticatedAppAdminGpuVideoRoute
+  AuthenticatedAppAdminHealthAiRoute: typeof AuthenticatedAppAdminHealthAiRoute
   AuthenticatedAppAdminVideoRoute: typeof AuthenticatedAppAdminVideoRoute
   AuthenticatedAppFoodIdRoute: typeof AuthenticatedAppFoodIdRoute
   AuthenticatedAppPrivacyDataRightsRoute: typeof AuthenticatedAppPrivacyDataRightsRoute
@@ -1808,6 +1829,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
   AuthenticatedAppAdminFirebaseRoute: AuthenticatedAppAdminFirebaseRoute,
   AuthenticatedAppAdminGpuVideoRoute: AuthenticatedAppAdminGpuVideoRoute,
+  AuthenticatedAppAdminHealthAiRoute: AuthenticatedAppAdminHealthAiRoute,
   AuthenticatedAppAdminVideoRoute: AuthenticatedAppAdminVideoRoute,
   AuthenticatedAppFoodIdRoute: AuthenticatedAppFoodIdRoute,
   AuthenticatedAppPrivacyDataRightsRoute:

@@ -23,6 +23,9 @@ export type HealthAction =
   | "timeline"
   | "records.create"
   | "records.delete"
+  | "records.candidates"
+  | "records.confirm"
+  | "records.reject"
   | "documents.list"
   | "documents.register"
   | "documents.confirm"
@@ -50,6 +53,13 @@ export type HealthStatus = {
   environment: string;
   counts: { records: number; documents: number; consents: number };
   storeConsent: { active: boolean; categories: string[] };
+  aiConsent: { active: boolean; categories: string[] };
+  /**
+   * Whether health-ai would answer THIS caller today, computed server-side
+   * (both flags, a registered provider, caps set, and the production rule).
+   * A screen offers an AI action on this, never on the client constant alone.
+   */
+  aiAvailable: boolean;
 };
 
 export type TimelineRow = {
@@ -63,6 +73,21 @@ export type TimelineRow = {
   recordedAt: string;
   provenance: Provenance;
   documentId: string | null;
+};
+
+/** A value the extractor read from a document, waiting on the person's decision. */
+export type CandidateRow = {
+  id: string;
+  kind: RecordKind;
+  display: string;
+  code: { system: string; code: string; display: string } | null;
+  valueNum: number | null;
+  valueUnit: string | null;
+  effectiveAt: string;
+  confidence: number | null;
+  provenance: Provenance;
+  documentId: string | null;
+  createdAt: string;
 };
 
 export type DocumentRow = {

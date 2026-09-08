@@ -118,7 +118,19 @@ export type CodeSystem = (typeof CODE_SYSTEMS)[number];
 
 export type HealthCode = { system: CodeSystem; code: string; display: string };
 
-export const RECORD_STATUSES = ["active", "entered_in_error", "deleted"] as const;
+/**
+ * `candidate` and `rejected` arrived with Phase 2: a value the document
+ * extractor read is a CANDIDATE until the person confirms it (→ active) or
+ * rejects it (→ rejected, kept as the receipt of what was read). Neither
+ * renders on the timeline; only `active` does.
+ */
+export const RECORD_STATUSES = [
+  "active",
+  "entered_in_error",
+  "deleted",
+  "candidate",
+  "rejected",
+] as const;
 export type RecordStatus = (typeof RECORD_STATUSES)[number];
 
 export type HealthRecord = {
@@ -310,32 +322,63 @@ export type HealthConsent = {
   noticeLocale: string;
 };
 
-/** The purposes Phase 1 lets a person grant. The rest exist in the model only. */
-export const PHASE1_GRANTABLE_PURPOSES: readonly ConsentPurpose[] = ["store_records"];
+/**
+ * The (purpose, recipient) pairs a person may grant today, and nothing else
+ * can be granted at all. Phase 1 opened storage; Phase 2 opens AI
+ * interpretation by ONIQ's OWN in-process provider — recipient "oniq",
+ * because the synthetic provider never leaves the process. A recipient that
+ * would carry bytes out of ONIQ (google_vertex, clinician, abdm, research)
+ * is not grantable until the phase that registers such a recipient adds the
+ * pair here AND a terms version that discloses it (`consent.ts`,
+ * DISCLOSED_RECIPIENTS_BY_TERMS) — a consent given for "oniq" can never be
+ * read as covering anyone else.
+ */
+export const GRANTABLE_CONSENTS: readonly { purpose: ConsentPurpose; recipient: Recipient }[] = [
+  { purpose: "store_records", recipient: "oniq" },
+  { purpose: "ai_interpretation", recipient: "oniq" },
+];
 
-/** The recipient each purpose sends data to. Total, so a purpose cannot leak elsewhere. */
-export const RECIPIENT_FOR_PURPOSE: Record<ConsentPurpose, Recipient> = {
-  store_records: "oniq",
-  ai_interpretation: "google_vertex",
-  share_with_clinician: "clinician",
-  health_connect_sync: "oniq",
-  abdm_exchange: "abdm",
-  research_deidentified: "research",
+export function isGrantable(purpose: string, recipient: string): boolean {
+  return GRANTABLE_CONSENTS.some((g) => g.purpose === purpose && g.recipient === recipient);
+}
+
+/** The purposes with at least one grantable pair, in the order they are offered. */
+export const GRANTABLE_PURPOSES: readonly ConsentPurpose[] = GRANTABLE_CONSENTS.map(
+  (g) => g.purpose,
+).filter((p, i, all) => all.indexOf(p) === i);
+
+/**
+ * The consent-notice version each purpose is granted under. The AI purpose
+ * has its own, so the sentence counsel writes for it (docs/health/04 D3) is
+ * versioned apart from the storage sentence, and a later recipient means a
+ * later version rather than a reinterpretation of this one.
+ */
+export const CONSENT_TERMS_VERSIONS: Record<ConsentPurpose, string> = {
+  store_records: "health-terms-v1",
+  ai_interpretation: "health-ai-terms-v1",
+  share_with_clinician: "health-terms-v1",
+  health_connect_sync: "health-terms-v1",
+  abdm_exchange: "health-terms-v1",
+  research_deidentified: "health-terms-v1",
 };
-
-export const CONSENT_TERMS_VERSION = "health-terms-v1";
 
 /* --------------------------------------------------------------- audit -- */
 
 export const AUDIT_ACTIONS = [
   "records.create",
   "records.delete",
+  "records.confirm",
+  "records.reject",
   "documents.register",
   "documents.confirm",
   "documents.read",
   "documents.delete",
+  "documents.classify",
+  "documents.extract",
   "consents.grant",
   "consents.revoke",
+  "ai.request",
+  "ai.refused",
   "export",
   "purge",
 ] as const;

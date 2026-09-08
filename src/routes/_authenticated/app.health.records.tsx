@@ -10,9 +10,17 @@ import {
   OniqSectionHeader,
   OniqSkeletonRows,
 } from "@/components/oniq";
+import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { HEALTH_UPLOADS_ENABLED } from "@/health/flags";
-import { healthApi, type DocumentRow, type RegisteredUpload } from "@/health/api";
+import {
+  healthApi,
+  type CandidateRow,
+  type DocumentRow,
+  type HealthStatus,
+  type RegisteredUpload,
+} from "@/health/api";
+import { healthAi } from "@/health/ai/client";
 import {
   DOCUMENT_KINDS,
   DOCUMENT_MIMES,
@@ -21,7 +29,15 @@ import {
   type DocumentKind,
   type DocumentMime,
 } from "@/health/domain";
-import { documentKindLabel, formatDate, provenanceLabel, reasonText } from "@/health/labels";
+import { fill } from "@/health/i18n";
+import {
+  documentKindLabel,
+  formatDate,
+  formatValue,
+  kindLabel,
+  provenanceLabel,
+  reasonText,
+} from "@/health/labels";
 
 /**
  * ONIQ HEALTH — documents: a report, a prescription, a discharge summary.
@@ -37,6 +53,17 @@ import { documentKindLabel, formatDate, provenanceLabel, reasonText } from "@/he
  * stream reader to check the magic bytes against the declared type; the
  * whole-file reads are banned on upload paths repo-wide (actorPhoto.test.ts
  * records why) and `routes.test.ts` bans them here.
+ *
+ * PHASE 2 — SUGGESTED RECORDS. What the extractor read from a document waits
+ * here as a CANDIDATE until the person confirms it (it joins the timeline,
+ * labelled as AI-read) or rejects it. The list shows whenever candidates
+ * exist, whatever the AI flag says, because a person whose AI switch was
+ * turned off must still be able to clear what it suggested — reject sits
+ * above every AI gate server-side. "Read values" offers extraction only when
+ * the server's `status.aiAvailable` says it would answer; in Phase 2
+ * production that is never, and the button is absent rather than broken.
+ * This is an AI surface: it carries AI_OUTPUT_LABEL and <AiOutputReport />
+ * and is declared in src/config/playCompliance.ts.
  */
 export const Route = createFileRoute("/_authenticated/app/health/records")({
   component: HealthDocuments,
@@ -70,10 +97,23 @@ function HealthDocuments() {
   const [error, setError] = useState<string | null>(null);
   const [consentNeeded, setConsentNeeded] = useState(false);
   const [armed, setArmed] = useState<string | null>(null);
+  const [aiNote, setAiNote] = useState<string | null>(null);
 
   const docs = useQuery({
     queryKey: ["health", "documents"],
     queryFn: () => healthApi<DocumentRow[]>("documents.list"),
+    enabled: HEALTH_UPLOADS_ENABLED,
+  });
+
+  const status = useQuery({
+    queryKey: ["health", "status"],
+    queryFn: () => healthApi<HealthStatus>("status"),
+    enabled: HEALTH_UPLOADS_ENABLED,
+  });
+
+  const candidates = useQuery({
+    queryKey: ["health", "candidates"],
+    queryFn: () => healthApi<CandidateRow[]>("records.candidates"),
     enabled: HEALTH_UPLOADS_ENABLED,
   });
 
@@ -99,6 +139,45 @@ function HealthDocuments() {
     },
     onSuccess: (url) => {
       window.open(url, "_blank", "noopener");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const extract = useMutation({
+    mutationFn: async (documentId: string) => {
+      setAiNote(null);
+      const res = await healthAi("extract_document", { documentId });
+      if (!res.ok) throw new Error(reasonText(t, res));
+      return res.data;
+    },
+    onSuccess: (data) => {
+      const n = data.kind === "extraction" ? data.candidates : 0;
+      setAiNote(
+        n > 0
+          ? `${t("health.ai.suggested", "Suggested records")}: ${n}`
+          : t("health.reason.no_text", "There's no readable text for that document yet."),
+      );
+      void qc.invalidateQueries({ queryKey: ["health"] });
+    },
+    onError: (e: Error) => setAiNote(e.message),
+  });
+
+  const decide = useMutation({
+    mutationFn: async (input: { id: string; confirm: boolean }) => {
+      const res = await healthApi<{ id: string }>(
+        input.confirm ? "records.confirm" : "records.reject",
+        { id: input.id },
+      );
+      if (!res.ok) throw new Error(reasonText(t, res));
+      return input;
+    },
+    onSuccess: (input) => {
+      toast.success(
+        input.confirm
+          ? t("health.ai.confirmed", "Added to your timeline.")
+          : t("health.ai.rejected", "Removed."),
+      );
+      void qc.invalidateQueries({ queryKey: ["health"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -156,6 +235,8 @@ function HealthDocuments() {
   }
 
   const rows = docs.data?.ok ? docs.data.data : [];
+  const aiAvailable = status.data?.ok ? status.data.data.aiAvailable === true : false;
+  const suggested = candidates.data?.ok ? candidates.data.data : [];
 
   return (
     <div className="space-y-4">
@@ -217,6 +298,72 @@ function HealthDocuments() {
         </div>
       </OniqCard>
 
+      {suggested.length > 0 ? (
+        <OniqCard variant="surface" padding="md" testId="health-candidates">
+          <OniqSectionHeader title={t("health.ai.suggested", "Suggested records")} />
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t(
+              "health.ai.suggested.body",
+              "Read from your documents by ONIQ. Nothing joins your timeline until you confirm it.",
+            )}
+          </p>
+          <ul className="mt-3 space-y-2">
+            {suggested.map((c) => (
+              <li key={c.id} data-testid="health-candidate">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <OniqChip>{kindLabel(t, c.kind)}</OniqChip>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDate(c.effectiveAt, lang)}
+                      </span>
+                    </div>
+                    <div className="mt-1 truncate text-sm font-medium">{c.display}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {formatValue(c.valueNum, c.valueUnit, null)}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {fill(
+                        t("health.ai.confidence", "AI read this from your document ({pct}% sure)"),
+                        { pct: String(Math.round((c.confidence ?? 0) * 100)) },
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <button
+                      type="button"
+                      data-testid="health-candidate-confirm"
+                      className="rounded-full bg-foreground px-3 py-1 text-xs text-background disabled:opacity-50"
+                      disabled={decide.isPending}
+                      onClick={() => decide.mutate({ id: c.id, confirm: true })}
+                    >
+                      {t("health.ai.confirm", "Add to timeline")}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="health-candidate-reject"
+                      className="text-xs text-muted-foreground underline"
+                      disabled={decide.isPending}
+                      onClick={() => decide.mutate({ id: c.id, confirm: false })}
+                    >
+                      {t("health.ai.reject", "Not this")}
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[11px] text-muted-foreground">🤖 {AI_OUTPUT_LABEL}</p>
+          <AiOutputReport surface="health_ai_output" targetId="health-candidates" />
+        </OniqCard>
+      ) : null}
+
+      {aiNote ? (
+        <p className="text-sm text-muted-foreground" data-testid="health-ai-note" role="status">
+          {aiNote}
+        </p>
+      ) : null}
+
       {docs.isPending ? (
         <OniqSkeletonRows rows={3} />
       ) : rows.length === 0 ? (
@@ -249,6 +396,17 @@ function HealthDocuments() {
                     >
                       {t("health.records.open", "Open")}
                     </button>
+                    {aiAvailable ? (
+                      <button
+                        type="button"
+                        className="text-xs underline"
+                        data-testid="health-doc-extract"
+                        disabled={extract.isPending}
+                        onClick={() => extract.mutate(d.id)}
+                      >
+                        {t("health.ai.explain", "Explain")}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       data-testid="health-doc-delete"

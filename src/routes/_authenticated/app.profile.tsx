@@ -465,6 +465,9 @@ function SafetySection() {
               <Link to="/app/admin/gpu-video" className={linkClass}>
                 GPU video
               </Link>
+              <Link to="/app/admin/health-ai" className={linkClass}>
+                Health AI
+              </Link>
             </div>
           </div>
         )}

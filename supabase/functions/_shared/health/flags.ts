@@ -5,7 +5,7 @@
  * off all resolve to every flag false. The function then answers
  * `503 health_disabled` before it has read anything about the caller.
  *
- * The eleven names come from `flagNames.ts`, mirrored with the client; the
+ * The twelve names come from `flagNames.ts`, mirrored with the client; the
  * column each one reads is recorded there too, so this file has no list of
  * its own to drift.
  */
@@ -20,7 +20,7 @@ export type HealthFlags = Record<HealthFlag, boolean>;
 
 export type HealthConfigRow = Record<string, unknown> | null | undefined;
 
-/** Pure: one row (or none) → the eleven flags. Exercised by flags.test.ts. */
+/** Pure: one row (or none) → the twelve flags. Exercised by flags.test.ts. */
 export function flagsFromRow(row: HealthConfigRow): HealthFlags {
   const out = allHealthFlagsOff();
   if (!row || typeof row !== "object") return out;
@@ -43,19 +43,31 @@ export function environmentFromRow(row: HealthConfigRow): string {
 // deno-lint-ignore no-explicit-any
 type Reader = { from(table: string): any };
 
-export async function readHealthFlags(
+/**
+ * The whole row, flags resolved. `row` is null when there is none or it
+ * could not be read — and then every flag is off, so nothing downstream can
+ * mistake "unreadable" for "on".
+ */
+export async function readHealthConfig(
   admin: Reader,
-): Promise<{ flags: HealthFlags; environment: string }> {
+): Promise<{ flags: HealthFlags; environment: string; row: HealthConfigRow }> {
   try {
     const { data, error } = await admin
       .from("health_config")
       .select("*")
       .eq("id", true)
       .maybeSingle();
-    if (error) return { flags: allHealthFlagsOff(), environment: "production" };
+    if (error) return { flags: allHealthFlagsOff(), environment: "production", row: null };
     const row = (data ?? null) as HealthConfigRow;
-    return { flags: flagsFromRow(row), environment: environmentFromRow(row) };
+    return { flags: flagsFromRow(row), environment: environmentFromRow(row), row };
   } catch {
-    return { flags: allHealthFlagsOff(), environment: "production" };
+    return { flags: allHealthFlagsOff(), environment: "production", row: null };
   }
+}
+
+export async function readHealthFlags(
+  admin: Reader,
+): Promise<{ flags: HealthFlags; environment: string }> {
+  const { flags, environment } = await readHealthConfig(admin);
+  return { flags, environment };
 }

@@ -18,7 +18,35 @@ export type ConsentLike = {
   status: string;
   startTime: string;
   expiryTime: string | null;
+  termsVersion: string;
 };
+
+/**
+ * WHICH RECIPIENTS EACH NOTICE VERSION TOLD THE PERSON ABOUT. A consent
+ * covers a need only if the terms it was given under disclosed the
+ * recipient the need names — so a row granted under a notice that mentioned
+ * only ONIQ can never be read as covering Google, a clinician or ABDM,
+ * however the row's recipient column is edited. A new recipient means a new
+ * version here, a new sentence from counsel, and a fresh grant.
+ *
+ * Mirrored on both sides; `CONSENT_TERMS_VERSIONS` in domain.ts names the
+ * version each purpose is granted under and `consent.test.ts` asserts every
+ * grantable pair is disclosed by its purpose's version.
+ */
+export const DISCLOSED_RECIPIENTS_BY_TERMS: Record<string, readonly string[]> = {
+  "health-terms-v1": ["oniq"],
+  "health-ai-terms-v1": ["oniq"],
+};
+
+export function termsDisclose(termsVersion: string, recipient: string): boolean {
+  const disclosed = Object.prototype.hasOwnProperty.call(
+    DISCLOSED_RECIPIENTS_BY_TERMS,
+    termsVersion,
+  )
+    ? DISCLOSED_RECIPIENTS_BY_TERMS[termsVersion]
+    : [];
+  return disclosed.includes(recipient);
+}
 
 export type ConsentNeed = {
   purpose: string;
@@ -31,6 +59,7 @@ export function consentCovers(consent: ConsentLike, need: ConsentNeed, nowIso: s
   if (consent.status !== "active") return false;
   if (consent.purpose !== need.purpose) return false;
   if (consent.recipient !== need.recipient) return false;
+  if (!termsDisclose(consent.termsVersion, need.recipient)) return false;
   if (!consent.dataCategories.includes(need.category)) return false;
   const now = Date.parse(nowIso);
   if (Number.isNaN(now)) return false;

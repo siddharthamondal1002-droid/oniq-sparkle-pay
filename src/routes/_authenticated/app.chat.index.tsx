@@ -1,3 +1,4 @@
+import type React from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
@@ -177,10 +178,7 @@ function ScrollDiagOverlay({
       const delta = top - st.lastTop;
       // A scrollTop move within 200ms of a scrollHeight change is the clamp,
       // not the finger.
-      if (
-        Math.abs(delta) > 1 &&
-        performance.now() - st.lastHeightChangeAt <= 200
-      ) {
+      if (Math.abs(delta) > 1 && performance.now() - st.lastHeightChangeAt <= 200) {
         st.unrequestedTopChanges += 1;
       }
       st.lastTop = top;
@@ -679,7 +677,7 @@ function ChatList() {
                       to="/app/chat/$conversationId"
                       params={{ conversationId: c.id }}
                       className="flex items-center gap-3 px-3 py-3 transition-colors active:bg-surface-2"
-                      onContextMenu={(e) => {
+                      onContextMenu={(e: React.MouseEvent<HTMLAnchorElement>) => {
                         e.preventDefault();
                         setActionConv(c);
                       }}
@@ -687,7 +685,7 @@ function ChatList() {
                       onTouchEnd={cancelLongPress}
                       onTouchMove={cancelLongPress}
                       onTouchCancel={cancelLongPress}
-                      onClick={(e) => {
+                      onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
                         if (longPressFired.current) {
                           e.preventDefault();
                           longPressFired.current = false;

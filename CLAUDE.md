@@ -2966,3 +2966,98 @@ never runs there.
 **NOT APPLIED, NOT DEPLOYED, NOT PUBLISHED.** The migration
 `20260908120000_oniq_health_phase1.sql` is a file; `health-api` is a folder;
 the doors are shut. The go sequence and the decision list are the owner's.
+
+## Owner directive, 2026-09-08 — ONIQ Health Phase 2, built dark: the AI gateway with nothing behind it but a synthetic
+
+The brief's §83: "Implement Phase 2 only." Built, reviewed before code by
+five adversarial lenses, red-teamed after, and green — `docs/health/05`
+(design as built, §14 review outcomes, §15 DoD) and `docs/health/06` (the
+§83F report). **Nothing is applied, deployed, published or activated**; the
+go sequence is `docs/health/04 §A-2`. **Phase 3 is NOT AUTHORIZED.**
+
+**THE PROMISE STANDS, AND A TEST TIES IT TO THE REGISTRY.** The privacy notice
+still says "Health data is never sent to any AI feature", `playCompliance`
+still verifies it, and `src/health/__tests__/ai/isolation.test.ts` asserts the
+sentence alongside `RECIPIENT_FOR_PROVIDER` holding no recipient but `oniq`
+— so the day a provider that leaves ONIQ is registered, the notice and the
+test change together or the build goes red.
+
+**THE BOUNDARY IS AN ALLOWLIST, NOT A BLOCKLIST.** The first design banned
+`fetch(` and five named files; the exfiltration review showed
+`functions.invoke("study-tutor", …)`, `import(…)`, `WebSocket`, `Deno.connect`
+walking straight past it, and that FIFTEEN model-reaching functions match
+nothing in `searchSpendCoverage`'s `PROVIDER_CALL`. So the health trees may
+import health siblings and the Supabase client and nothing else; their
+executable text may open no network path; `.rpc(` is a closed list; the
+client screens may invoke only `"health-api"` and `"health-ai"`. The universal
+inverse — no OTHER function names a health table, the bucket, `"health-ai"`,
+or imports from `_shared/health` — is asserted over every function directory,
+not a regex-selected subset.
+
+**THE DEPLOYED BODY IS CLOSED, AND THERE IS NO TEXT FIELD.** The first draft
+let an admin paste document text into the request for verification. Two
+reviews killed it independently: a paste-to-model field outlives the phase
+that added it, and in Phase 3 it bypasses consent, the mime/size/magic-byte
+pipeline and the bucket's deletion story. `parseAiRequest` refuses unknown
+keys; `TEXT_SOURCE_REGISTRY = { null }`; the test-only inline source lives
+under `__tests__/` and the function is asserted never to import one. The
+honest consequence is written on the screens: **Phase 2 extraction answers
+`no_text` for every production user**, and the receipt for that refusal is
+the proof the pipeline ran.
+
+**PRODUCTION IS DECIDED BY THE PROJECT, NOT THE ROW.** `health_config.environment`
+already had a CHECK, which one review missed and another caught; what
+neither could fix by CHECK is that an edit to one row would have opened
+synthetic answers to 125 real accounts. `resolveEnvironment` returns
+production whenever `SUPABASE_URL` names `bqwttemnnoexadpwifcj`, whatever the
+column says; the column may only tighten.
+
+**THE RECIPIENT DERIVES FROM THE PROVIDER, AND THE TERMS MUST HAVE DISCLOSED
+IT.** Phase 1's `RECIPIENT_FOR_PURPOSE.ai_interpretation = google_vertex`
+would have made the synthetic gateway refuse `consent_required` forever —
+a consent naming Google for a provider that is ONIQ. Now `GRANTABLE_CONSENTS`
+is a list of (purpose, recipient) pairs, each purpose has its own terms
+version, and `consentCovers` additionally requires
+`DISCLOSED_RECIPIENTS_BY_TERMS[termsVersion]` to include the recipient — so
+a row granted under a notice that mentioned only ONIQ can never be re-read as
+covering Google by editing its column. The migration carries the same pairs
+as a CHECK.
+
+**NOTHING SPENDS BEFORE IT CAN PRICE, AND NOTHING HAS A DEFAULT CAP.** The
+first draft looked up the price row AFTER the provider ran and carried
+`DEFAULT` caps of 40/2000. Both are gone: `unpriced_model` refuses in the
+gate, `MODEL_ALLOWLIST ⊆ PRICE_PER_1M` is a test, and the caps are read from
+the row with a default of **0 = refuse** (`caps_unset`), because how many
+requests a day is the owner's under this file's first rule, not a constant an
+agent picked. The receipt is written before the provider and a `catch` after
+it completes any receipt a throw would have left `started`.
+
+**A PROVIDER IS HANDED ALIASES, NEVER IDS.** `r1…`/`d1` by position; the
+manifest maps them back; a provider cannot join a person's requests across
+calls, and the contract refuses any citation outside the manifest. The
+misbehaving provider the contract is proven against is a test-only class;
+the registry factory is zero-arity and a test reads that from source, because
+a constructor option is one config value away from production.
+
+**THE STORE IS BOUND TO THE PERSON.** No method takes a user id; the function
+closes over the id the JWT proved. `aiGateway.test.ts` seeds two users and
+proves a foreign record or document answers `not_found`; `aiWiring.test.ts`
+splits the real Store into its methods and checks the ownership filter by
+effect, with the HOUSE cap count named as the single exception.
+
+**WHERE A TEST MUTATES A CONSTANT, IT MUST MUTATE THE INSTANCE THE CODE
+READS.** `policy.test.ts` first mutated `RECIPIENT_FOR_PROVIDER` from the
+client mirror and saw no effect: `policy.ts` imports the SERVER copy, and the
+two byte-identical files are two module instances. The test now imports the
+server path for anything it mutates.
+
+**AND THE EDGE-IMPORTS GUARD READS QUOTES INSIDE REGEX LITERALS AS STRINGS.**
+`[^\s<>"']` in a URL scrubber started a "string" that swallowed the next
+`export function`, and the guard reported the file using a helper it defines.
+Regex literals under `supabase/functions` carry `\x22`/`\x27` instead of raw
+quotes now; the guard's own header says this limit is accepted, and this is
+the case it describes.
+
+Numbers: health suite 28 files / 540 tests; whole suite 5,566 (one unrelated
+timing flake under load); tsc, lint:ci, Prettier and `deno check` of both
+functions green. $0 spent, no Lovable message sent.

@@ -2,7 +2,7 @@
  * ONIQ HEALTH — client feature flags. ALL OFF.
  *
  * Owner brief, 2026-09-08: everything in ONIQ Health ships behind these
- * eleven switches. The names are the brief's, dotted exactly as given; the
+ * twelve switches (§83C names the twelfth). The names are the brief's, dotted exactly as given; the
  * list lives in `flagNames.ts`, which is mirrored server-side, so the client
  * and the `health_config` row cannot name different switches.
  *
@@ -34,6 +34,7 @@ export const HEALTH_FLAGS: Record<HealthFlag, boolean> = {
   "health.medgemma.enabled": false,
   "health.healthcare_search.enabled": false,
   "health.research.enabled": false,
+  "health.provider_sharing.enabled": false,
 };
 
 /** True only when the master switch AND the named switch are on. */
@@ -46,3 +47,13 @@ export function healthFlag(name: HealthFlag): boolean {
 
 export const HEALTH_ENABLED = healthFlag("health.enabled");
 export const HEALTH_UPLOADS_ENABLED = healthFlag("health.uploads.enabled");
+/**
+ * PHASE 2 STAYS FALSE IN PRODUCTION. The only provider is synthetic and the
+ * server refuses it to every non-admin in production regardless; this flag
+ * decides only whether the AI sections RENDER. Symptom-to-cause, the way the
+ * phone flag records it: a section visible and every action refused means
+ * the client half is on and the server half (the row, the caps, the admin
+ * verification switch) is off. The server's `status.aiAvailable` is what a
+ * screen should read before offering anything.
+ */
+export const HEALTH_AI_ENABLED = healthFlag("health.ai.enabled");

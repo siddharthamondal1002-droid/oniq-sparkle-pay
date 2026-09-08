@@ -1,13 +1,16 @@
 /**
- * THE ELEVEN FLAGS ARE OFF, NAMED AS THE OWNER NAMED THEM, AND THE SERVER
- * KNOWS THE SAME ELEVEN.
+ * THE TWELVE FLAGS ARE OFF, NAMED AS THE OWNER NAMED THEM, AND THE SERVER
+ * KNOWS THE SAME TWELVE.
  *
  * Owner brief, 2026-09-08: every ONIQ Health feature ships behind these
- * switches. The list below is typed out from the brief on purpose — the code
- * carrying the names cannot be the thing that checks the names.
+ * switches — the eleven of the mapping, plus `health.provider_sharing.enabled`
+ * from §83C of the same brief ("Default: ALL = false"). The list below is
+ * typed out from the brief on purpose — the code carrying the names cannot
+ * be the thing that checks the names.
  */
 import { describe, expect, it } from "vitest";
 import {
+  HEALTH_AI_ENABLED,
   HEALTH_ENABLED,
   HEALTH_FLAGS,
   HEALTH_FLAG_NAMES,
@@ -36,18 +39,20 @@ const FROM_THE_BRIEF = [
   "health.medgemma.enabled",
   "health.healthcare_search.enabled",
   "health.research.enabled",
+  "health.provider_sharing.enabled",
 ];
 
 describe("the client flags", () => {
-  it("are exactly the eleven the brief names", () => {
+  it("are exactly the twelve the brief names", () => {
     expect([...HEALTH_FLAG_NAMES]).toEqual(FROM_THE_BRIEF);
     expect(Object.keys(HEALTH_FLAGS).sort()).toEqual([...FROM_THE_BRIEF].sort());
   });
 
-  it("are all off — Phase 1 is dark", () => {
+  it("are all off — Phases 1 and 2 are dark", () => {
     for (const name of HEALTH_FLAG_NAMES) expect(HEALTH_FLAGS[name], name).toBe(false);
     expect(HEALTH_ENABLED).toBe(false);
     expect(HEALTH_UPLOADS_ENABLED).toBe(false);
+    expect(HEALTH_AI_ENABLED).toBe(false);
   });
 
   it("gate every feature on the master switch", () => {
@@ -66,7 +71,7 @@ describe("the client flags", () => {
 });
 
 describe("the server flags", () => {
-  it("name the same eleven, in the same order", () => {
+  it("name the same twelve, in the same order", () => {
     expect([...SERVER_NAMES]).toEqual([...HEALTH_FLAG_NAMES]);
   });
 

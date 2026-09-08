@@ -7,19 +7,22 @@ import { useT } from "@/lib/i18n/LanguageProvider";
 import { deliverFile } from "@/lib/saveFile";
 import { HEALTH_ENABLED } from "@/health/flags";
 import { healthApi, type ConsentRow } from "@/health/api";
-import { CONSENT_PURPOSES, PHASE1_GRANTABLE_PURPOSES } from "@/health/domain";
+import { CONSENT_PURPOSES, GRANTABLE_PURPOSES, type ConsentPurpose } from "@/health/domain";
 import { fill } from "@/health/i18n";
 import { formatDate, reasonText, todayIso } from "@/health/labels";
 
 /**
  * ONIQ HEALTH — consents, export, purge.
  *
- * ONE SWITCH IN PHASE 1: `store_records`, the consent under which anything
- * is written at all. The other five purposes exist in the model and are
- * shown as "coming later" so the shape of what will be asked is visible now
- * and no purpose is ever granted by default. Turning the switch off refuses
- * the next write immediately; what is already stored stays readable and one
- * tap away from purge — withdrawal is meant to be as easy as giving.
+ * TWO SWITCHES: `store_records`, the consent under which anything is written
+ * at all, and — since Phase 2 — `ai_interpretation` for ONIQ's OWN in-process
+ * provider (recipient "oniq"; the server refuses any other). The other
+ * purposes exist in the model and are shown as "coming later" so the shape
+ * of what will be asked is visible now and no purpose is ever granted by
+ * default. Turning a switch off refuses the next write or AI request
+ * immediately; what is already stored stays readable and one tap away from
+ * purge — withdrawal is meant to be as easy as giving. The AI sentence here
+ * is placeholder wording until counsel writes it (docs/health/04 D3).
  *
  * EXPORT is the person's own data as JSON, through the same delivery helper
  * every other download uses (on native it goes to the share sheet). PURGE
@@ -42,9 +45,10 @@ function HealthConsent() {
   });
 
   const grant = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (purpose: ConsentPurpose) => {
       const res = await healthApi<ConsentRow>("consents.grant", {
-        purpose: "store_records",
+        purpose,
+        recipient: "oniq",
         noticeLocale: ["en", "hi", "bn"].includes(lang) ? lang : "en",
       });
       if (!res.ok) throw new Error(reasonText(t, res));
@@ -91,7 +95,11 @@ function HealthConsent() {
 
   const rows = consents.data?.ok ? consents.data.data : [];
   const store = rows.find((c) => c.purpose === "store_records" && c.status === "active") ?? null;
-  const later = CONSENT_PURPOSES.filter((p) => !PHASE1_GRANTABLE_PURPOSES.includes(p));
+  const ai =
+    rows.find(
+      (c) => c.purpose === "ai_interpretation" && c.recipient === "oniq" && c.status === "active",
+    ) ?? null;
+  const later = CONSENT_PURPOSES.filter((p) => !GRANTABLE_PURPOSES.includes(p));
 
   return (
     <div className="space-y-4">
@@ -135,11 +143,50 @@ function HealthConsent() {
               data-testid="health-consent-toggle"
               className="shrink-0 rounded-full bg-foreground px-4 py-2 text-sm text-background disabled:opacity-50"
               disabled={grant.isPending || revoke.isPending}
-              onClick={() => (store ? revoke.mutate(store.consentId) : grant.mutate())}
+              onClick={() =>
+                store ? revoke.mutate(store.consentId) : grant.mutate("store_records")
+              }
             >
               {store
                 ? t("health.consent.revoke", "Turn off")
                 : t("health.consent.grant", "Turn on")}
+            </button>
+          </div>
+        )}
+        {consents.isPending ? null : (
+          <div
+            className="mt-4 flex items-start justify-between gap-3 border-t border-border pt-4"
+            data-testid="health-consent-ai"
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-medium">
+                {t("health.consent.ai", "Let ONIQ's AI read my records")}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {t(
+                  "health.consent.ai.detail",
+                  "Explains and summarises what you have stored. In this phase only ONIQ's own built-in checker runs; nothing is sent to Google or any outside company.",
+                )}
+              </div>
+              <div
+                className="mt-1 text-xs text-muted-foreground"
+                data-testid="health-consent-ai-state"
+              >
+                {ai
+                  ? fill(t("health.consent.active", "On since {date}"), {
+                      date: formatDate(ai.startTime, lang),
+                    })
+                  : t("health.consent.revoked", "Off")}
+              </div>
+            </div>
+            <button
+              type="button"
+              data-testid="health-consent-ai-toggle"
+              className="shrink-0 rounded-full bg-foreground px-4 py-2 text-sm text-background disabled:opacity-50"
+              disabled={grant.isPending || revoke.isPending}
+              onClick={() => (ai ? revoke.mutate(ai.consentId) : grant.mutate("ai_interpretation"))}
+            >
+              {ai ? t("health.consent.revoke", "Turn off") : t("health.consent.grant", "Turn on")}
             </button>
           </div>
         )}

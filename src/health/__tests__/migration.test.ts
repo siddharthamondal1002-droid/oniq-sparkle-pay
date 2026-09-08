@@ -4,6 +4,11 @@
  * guard and no write policy; the audit chain is the audit_log chain with its
  * own lock; the bucket is private with no policy. Read with SQL comments
  * stripped, because the file's comments quote every rule.
+ *
+ * TWO FILES, ONE EFFECTIVE SCHEMA. Phase 2 replaces two CHECK lists and adds
+ * columns by name rather than editing the unapplied Phase 1 file, so a list
+ * is compared against its LAST definition across the ordered files — Phase 1
+ * CREATE ∪ Phase 2 ALTER — never against Phase 1 alone.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -19,6 +24,7 @@ import {
   PROVENANCE_SOURCES,
   RECIPIENTS,
   RECORD_KINDS,
+  RECORD_STATUSES,
 } from "@/health/domain";
 import { HEALTH_FLAG_COLUMNS } from "@/health/flagNames";
 
@@ -26,6 +32,25 @@ const ROOT = join(__dirname, "..", "..", "..");
 const SQL = stripSqlComments(
   readFileSync(join(ROOT, "supabase/migrations/20260908120000_oniq_health_phase1.sql"), "utf8"),
 ).toLowerCase();
+const SQL2 = stripSqlComments(
+  readFileSync(join(ROOT, "supabase/migrations/20260908150000_oniq_health_phase2.sql"), "utf8"),
+).toLowerCase();
+
+/** A named `add constraint … check (col in (…))` in the later file wins over the create. */
+function effectiveCheck(table: string, column: string, createMarker: string, b: string): string[] {
+  const named = `add constraint ${table}_${column}_check`;
+  const i2 = SQL2.lastIndexOf(named);
+  if (i2 > -1) {
+    const open = SQL2.indexOf(`check (${column} in (`, i2);
+    expect(open, `${named} has no IN list`).toBeGreaterThan(-1);
+    const close = SQL2.indexOf("))", open);
+    return quoted(SQL2.slice(open, close)).sort();
+  }
+  const i = b.indexOf(createMarker);
+  expect(i, createMarker).toBeGreaterThan(-1);
+  const close = b.indexOf("))", i + createMarker.length);
+  return quoted(b.slice(i + createMarker.length, close)).sort();
+}
 
 const USER_TABLES = ["health_records", "health_documents", "health_consents"];
 const ALL_TABLES = [...USER_TABLES, "health_audit", "health_config", "health_retention_policies"];
@@ -87,6 +112,14 @@ describe("the CHECK lists equal the domain lists", () => {
     const b = block("health_records");
     expect(listAfter(b, "kind text not null check (kind in (")).toEqual([...RECORD_KINDS].sort());
     expect(listAfter(b, "provenance->>'source' in (")).toEqual([...PROVENANCE_SOURCES].sort());
+    expect(
+      effectiveCheck(
+        "health_records",
+        "status",
+        "status text not null default 'active' check (status in (",
+        b,
+      ),
+    ).toEqual([...RECORD_STATUSES].sort());
   });
 
   it("document kinds, mimes and the size cap", () => {
@@ -112,15 +145,27 @@ describe("the CHECK lists equal the domain lists", () => {
 
   it("audit actions", () => {
     const b = block("health_audit");
-    expect(listAfter(b, "action text not null check (action in (")).toEqual(
-      [...AUDIT_ACTIONS].sort(),
-    );
+    expect(
+      effectiveCheck("health_audit", "action", "action text not null check (action in (", b),
+    ).toEqual([...AUDIT_ACTIONS].sort());
+    // Phase 1's own list is a strict subset: the later file only widens.
+    const phase1 = listAfter(b, "action text not null check (action in (");
+    for (const a of phase1) expect(AUDIT_ACTIONS).toContain(a);
+    expect(phase1.length).toBeLessThan(AUDIT_ACTIONS.length);
   });
 
-  it("the config row carries every flag column, default false", () => {
+  it("the config row carries every flag column, default false, across both files", () => {
     const b = block("health_config");
+    const added = SQL2.slice(
+      SQL2.indexOf("alter table public.health_config"),
+      SQL2.indexOf(";", SQL2.indexOf("alter table public.health_config")),
+    );
     for (const col of Object.values(HEALTH_FLAG_COLUMNS)) {
-      expect(b, col).toContain(`${col} boolean not null default false`);
+      const inCreate = b.includes(`${col} boolean not null default false`);
+      const inAlter = added.includes(
+        `add column if not exists ${col} boolean not null default false`,
+      );
+      expect(inCreate || inAlter, col).toBe(true);
     }
     expect(SQL).toContain(
       "insert into public.health_config (id) values (true) on conflict (id) do nothing",

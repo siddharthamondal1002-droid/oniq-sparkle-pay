@@ -89,10 +89,13 @@ describe("the documents screen", () => {
 });
 
 describe("the consent screen", () => {
-  it("offers only the storage purpose and shows the rest as later", () => {
+  it("offers storage and AI-by-ONIQ, both to ONIQ, and shows the rest as later", () => {
     const src = read(FILES.consent);
-    expect(src).toContain('purpose: "store_records"');
-    expect(src).toContain("PHASE1_GRANTABLE_PURPOSES");
+    expect(src).toContain('grant.mutate("store_records")');
+    expect(src).toContain('grant.mutate("ai_interpretation")');
+    expect(src).toContain('recipient: "oniq"');
+    expect(src).not.toMatch(/google_vertex|clinician|abdm/);
+    expect(src).toContain("GRANTABLE_PURPOSES");
     expect(src).toContain("health.consent.later");
     // Purge is two taps, never one.
     expect(src).toMatch(/purgeArmed \? purge\.mutate\(\) : setPurgeArmed\(true\)/);

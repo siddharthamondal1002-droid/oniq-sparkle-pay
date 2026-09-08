@@ -9,10 +9,14 @@ import {
   OniqSectionHeader,
   OniqSkeletonRows,
 } from "@/components/oniq";
+import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { HEALTH_ENABLED } from "@/health/flags";
-import { healthApi, type TimelineRow } from "@/health/api";
+import { healthApi, type HealthStatus, type TimelineRow } from "@/health/api";
+import { healthAi, languageFor } from "@/health/ai/client";
+import type { ClientAiResponse } from "@/health/ai/types";
 import { RECORD_KINDS, validateRecordInput, type RecordKind } from "@/health/domain";
+import { fill } from "@/health/i18n";
 import {
   formatDate,
   formatValue,
@@ -32,10 +36,14 @@ import {
  * they do to every other. A refusal for missing consent is shown as a link to
  * the Consent tab rather than as an error.
  *
- * PHASE 1 RECORDS ARE ALL `user_entry`. When Phase 2 adds AI-extracted rows,
- * `needsAiLabel` becomes true for them, this file must join `AI_SURFACES` in
- * playCompliance.ts, and the row must render the AI label — the guard in
- * playCompliance.test.ts is what will say so.
+ * PHASE 2 — AI-READ ROWS AND THE ANSWER PANEL. A confirmed candidate keeps
+ * its `document_extraction` provenance, so `needsAiLabel` is true for it and
+ * the row renders AI_OUTPUT_LABEL and an <AiOutputReport />; this file is
+ * declared in AI_SURFACES. The panel ("Summarise", "Explain", "Ask") appears
+ * only when the server's `status.aiAvailable` says health-ai would answer —
+ * in Phase 2 production that is never for anyone but a verifying admin — and
+ * every answer it shows came through the gateway's contract, labelled by
+ * class, with the disclaimer resolved from its i18n key.
  */
 export const Route = createFileRoute("/_authenticated/app/health/")({
   component: HealthTimeline,
@@ -61,6 +69,36 @@ function HealthTimeline() {
   const [error, setError] = useState<string | null>(null);
   const [consentNeeded, setConsentNeeded] = useState(false);
   const [armed, setArmed] = useState<string | null>(null);
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState<ClientAiResponse | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const status = useQuery({
+    queryKey: ["health", "status"],
+    queryFn: () => healthApi<HealthStatus>("status"),
+    enabled: HEALTH_ENABLED,
+  });
+
+  const ask = useMutation({
+    mutationFn: async (input: {
+      task: "summarize_timeline" | "explain_record" | "answer_question";
+      recordId?: string;
+      question?: string;
+    }) => {
+      setAiError(null);
+      const res = await healthAi(input.task, {
+        recordId: input.recordId,
+        question: input.question,
+        language: languageFor(lang),
+      });
+      if (!res.ok) throw new Error(reasonText(t, res));
+      if (res.data.kind !== "response")
+        throw new Error(t("health.error.generic", "Something went wrong."));
+      return res.data.response;
+    },
+    onSuccess: (response) => setAnswer(response),
+    onError: (e: Error) => setAiError(e.message),
+  });
 
   const save = useMutation({
     mutationFn: async () => {
@@ -110,9 +148,77 @@ function HealthTimeline() {
   });
 
   const rows = timeline.data?.ok ? timeline.data.data : [];
+  const aiAvailable = status.data?.ok ? status.data.data.aiAvailable === true : false;
 
   return (
     <div className="space-y-4">
+      {aiAvailable ? (
+        <OniqCard variant="surface" padding="md" testId="health-ai-panel">
+          <OniqSectionHeader title={t("health.ai.ask", "Ask about my records")} />
+          <div className="mt-3 grid gap-2">
+            <input
+              aria-label={t("health.ai.ask", "Ask about my records")}
+              placeholder={t("health.ai.ask.placeholder", "e.g. What was my last HbA1c?")}
+              className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
+              value={question}
+              maxLength={500}
+              onChange={(e) => setQuestion(e.target.value)}
+            />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                data-testid="health-ai-ask"
+                className="rounded-full bg-foreground px-4 py-2 text-sm text-background disabled:opacity-50"
+                disabled={ask.isPending || !question.trim()}
+                onClick={() => ask.mutate({ task: "answer_question", question: question.trim() })}
+              >
+                {t("health.ai.ask", "Ask about my records")}
+              </button>
+              <button
+                type="button"
+                data-testid="health-ai-summarize"
+                className="rounded-full oniq-surface px-4 py-2 text-sm disabled:opacity-50"
+                disabled={ask.isPending}
+                onClick={() => ask.mutate({ task: "summarize_timeline" })}
+              >
+                {t("health.ai.summarize", "Summarise my timeline")}
+              </button>
+            </div>
+            {aiError ? (
+              <p className="text-sm text-destructive" role="alert">
+                {aiError}
+              </p>
+            ) : null}
+            {answer ? (
+              <div className="mt-2 space-y-2" data-testid="health-ai-answer">
+                {answer.segments.map((seg, i) => (
+                  <div key={i} className="rounded-xl border border-border p-2">
+                    <OniqChip>{t(`health.ai.class.${seg.class}`, seg.class)}</OniqChip>
+                    <p className="mt-1 text-sm">{seg.text}</p>
+                  </div>
+                ))}
+                {answer.excluded.count > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {fill(
+                      t(
+                        "health.ai.excluded",
+                        "{count} item(s) were left out of the answer for safety.",
+                      ),
+                      { count: String(answer.excluded.count) },
+                    )}
+                  </p>
+                ) : null}
+                <p className="text-xs text-muted-foreground">
+                  {t(answer.disclaimerKey, "Information only — not a diagnosis. See a doctor.")}
+                </p>
+                <p className="text-[11px] text-muted-foreground">🤖 {AI_OUTPUT_LABEL}</p>
+                <AiOutputReport surface="health_ai_output" targetId="health-ai-answer" />
+              </div>
+            ) : null}
+          </div>
+        </OniqCard>
+      ) : null}
+
       <OniqCard variant="surface" padding="md" testId="health-add">
         <OniqSectionHeader title={t("health.add.title", "Add a reading")} />
         <div className="mt-3 grid gap-2">
@@ -226,20 +332,40 @@ function HealthTimeline() {
                       {formatValue(r.valueNum, r.valueUnit, r.valueText)}
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
-                      {needsAiLabel(r.provenance?.source) ? "✨ " : ""}
                       {provenanceLabel(t, r.provenance?.source)}
                     </div>
+                    {needsAiLabel(r.provenance?.source) ? (
+                      <div data-testid="health-record-ai-label">
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          🤖 {AI_OUTPUT_LABEL}
+                        </p>
+                        <AiOutputReport surface="health_ai_output" targetId={r.id} />
+                      </div>
+                    ) : null}
                   </div>
-                  <button
-                    type="button"
-                    data-testid="health-record-delete"
-                    className="shrink-0 text-xs text-muted-foreground underline"
-                    onClick={() => (armed === r.id ? remove.mutate(r.id) : setArmed(r.id))}
-                  >
-                    {armed === r.id
-                      ? t("health.delete.confirm", "Delete for good?")
-                      : t("health.delete", "Delete")}
-                  </button>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    {aiAvailable ? (
+                      <button
+                        type="button"
+                        data-testid="health-record-explain"
+                        className="text-xs underline"
+                        disabled={ask.isPending}
+                        onClick={() => ask.mutate({ task: "explain_record", recordId: r.id })}
+                      >
+                        {t("health.ai.explain", "Explain")}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      data-testid="health-record-delete"
+                      className="text-xs text-muted-foreground underline"
+                      onClick={() => (armed === r.id ? remove.mutate(r.id) : setArmed(r.id))}
+                    >
+                      {armed === r.id
+                        ? t("health.delete.confirm", "Delete for good?")
+                        : t("health.delete", "Delete")}
+                    </button>
+                  </div>
                 </div>
               </OniqCard>
             </li>

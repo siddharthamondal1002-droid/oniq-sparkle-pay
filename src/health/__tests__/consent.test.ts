@@ -1,13 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { consentCovers, findCovering, isPastExpiry, nextVersion } from "@/health/consent";
+import {
+  DISCLOSED_RECIPIENTS_BY_TERMS,
+  consentCovers,
+  findCovering,
+  isPastExpiry,
+  nextVersion,
+  termsDisclose,
+} from "@/health/consent";
 import {
   CATEGORY_FOR_KIND,
   CONSENT_PURPOSES,
+  CONSENT_TERMS_VERSIONS,
   DATA_CATEGORIES,
-  PHASE1_GRANTABLE_PURPOSES,
+  GRANTABLE_CONSENTS,
+  GRANTABLE_PURPOSES,
   RECIPIENTS,
-  RECIPIENT_FOR_PURPOSE,
   RECORD_KINDS,
+  isGrantable,
 } from "@/health/domain";
 
 const NOW = "2026-09-08T12:00:00.000Z";
@@ -19,6 +28,7 @@ const base = {
   status: "active",
   startTime: "2026-09-01T00:00:00.000Z",
   expiryTime: null as string | null,
+  termsVersion: "health-terms-v1",
 };
 
 const need = { purpose: "store_records", category: "vitals", recipient: "oniq" };
@@ -53,6 +63,18 @@ describe("consentCovers — every clause refuses on its own", () => {
     expect(consentCovers({ ...base, startTime: "yesterday" }, need, NOW)).toBe(false);
     expect(consentCovers(base, need, "now")).toBe(false);
   });
+
+  it("refuses a row whose terms never disclosed the recipient, whatever the column says", () => {
+    // The row SAYS google_vertex; the notice it was granted under mentioned
+    // only ONIQ. Editing the column cannot widen what the person agreed to.
+    const edited = { ...base, purpose: "ai_interpretation", recipient: "google_vertex" };
+    const aiNeed = { purpose: "ai_interpretation", category: "vitals", recipient: "google_vertex" };
+    expect(consentCovers(edited, aiNeed, NOW)).toBe(false);
+    expect(consentCovers({ ...edited, termsVersion: "unknown-v9" }, aiNeed, NOW)).toBe(false);
+    expect(termsDisclose("health-ai-terms-v1", "oniq")).toBe(true);
+    expect(termsDisclose("health-ai-terms-v1", "google_vertex")).toBe(false);
+    expect(termsDisclose("__proto__", "oniq")).toBe(false);
+  });
 });
 
 describe("findCovering, isPastExpiry, nextVersion", () => {
@@ -84,10 +106,33 @@ describe("the closed lists hang together", () => {
     for (const k of RECORD_KINDS) expect(DATA_CATEGORIES).toContain(CATEGORY_FOR_KIND[k]);
   });
 
-  it("every purpose names a declared recipient, and Phase 1 grants only storage", () => {
-    for (const p of CONSENT_PURPOSES) expect(RECIPIENTS).toContain(RECIPIENT_FOR_PURPOSE[p]);
-    expect([...PHASE1_GRANTABLE_PURPOSES]).toEqual(["store_records"]);
-    expect(RECIPIENT_FOR_PURPOSE.store_records).toBe("oniq");
-    expect(RECIPIENT_FOR_PURPOSE.ai_interpretation).toBe("google_vertex");
+  it("Phase 2 grants storage and AI-by-ONIQ, both to ONIQ, and nothing else", () => {
+    expect(GRANTABLE_CONSENTS).toEqual([
+      { purpose: "store_records", recipient: "oniq" },
+      { purpose: "ai_interpretation", recipient: "oniq" },
+    ]);
+    expect([...GRANTABLE_PURPOSES]).toEqual(["store_records", "ai_interpretation"]);
+    for (const g of GRANTABLE_CONSENTS) {
+      expect(CONSENT_PURPOSES).toContain(g.purpose);
+      expect(RECIPIENTS).toContain(g.recipient);
+      expect(g.recipient).toBe("oniq");
+    }
+    expect(isGrantable("ai_interpretation", "google_vertex")).toBe(false);
+    expect(isGrantable("share_with_clinician", "clinician")).toBe(false);
+    expect(isGrantable("store_records", "oniq")).toBe(true);
+  });
+
+  it("every grantable pair is disclosed by its purpose's terms version", () => {
+    for (const p of CONSENT_PURPOSES) {
+      expect(DISCLOSED_RECIPIENTS_BY_TERMS, p).toHaveProperty(CONSENT_TERMS_VERSIONS[p]);
+    }
+    for (const g of GRANTABLE_CONSENTS) {
+      expect(termsDisclose(CONSENT_TERMS_VERSIONS[g.purpose], g.recipient), g.purpose).toBe(true);
+    }
+    // And no version discloses anything that leaves ONIQ: Phase 2 has no such recipient.
+    for (const disclosed of Object.values(DISCLOSED_RECIPIENTS_BY_TERMS)) {
+      expect(disclosed).toEqual(["oniq"]);
+    }
+    expect(CONSENT_TERMS_VERSIONS.ai_interpretation).not.toBe(CONSENT_TERMS_VERSIONS.store_records);
   });
 });

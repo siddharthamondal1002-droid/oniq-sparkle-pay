@@ -30,6 +30,8 @@ function fnBody(name: string): string {
 const MUTATING = [
   "actRecordsCreate",
   "actRecordsDelete",
+  "actRecordsConfirm",
+  "actRecordsReject",
   "actDocumentsRegister",
   "actDocumentsConfirm",
   "actDocumentsUrl",
@@ -43,7 +45,7 @@ const MUTATING = [
 describe("gate order in Deno.serve", () => {
   it("reads the flags before the JWT, the JWT before the body, the body before dispatch", () => {
     const serve = SRC.slice(SRC.indexOf("Deno.serve("));
-    const flags = serve.indexOf("readHealthFlags(");
+    const flags = serve.indexOf("readHealthConfig(");
     const jwt = serve.indexOf("auth.getUser()");
     const body = serve.indexOf("req.json()");
     const dispatch = serve.indexOf("handler(ctx, body)");
@@ -85,9 +87,9 @@ describe("every mutation is audited; every read is scoped", () => {
 
   it("every health-table query carries the ownership filter or writes the caller's id", () => {
     const re =
-      /\.from\("(health_records|health_documents|health_consents|health_audit|consent_records)"\)/g;
+      /\.from\("(health_records|health_documents|health_consents|health_audit|health_ai_requests|consent_records)"\)/g;
     const hits = [...SRC.matchAll(re)];
-    expect(hits.length).toBeGreaterThan(15);
+    expect(hits.length).toBeGreaterThan(20);
     for (let i = 0; i < hits.length; i++) {
       const start = hits[i].index!;
       const end = i + 1 < hits.length ? hits[i + 1].index! : SRC.length;
@@ -118,11 +120,50 @@ describe("every mutation is audited; every read is scoped", () => {
     expect(body).toContain('audit(ctx, "documents.read"');
   });
 
-  it("grants only what Phase 1 offers and lands every grant in the ISO ledger", () => {
+  it("grants only a grantable pair, names the registered provider's recipient, and lands every grant in the ISO ledger", () => {
     const grant = fnBody("actConsentsGrant");
-    expect(grant).toContain("PHASE1_GRANTABLE_PURPOSES.includes(purpose)");
+    expect(grant).toContain("isGrantable(purpose, recipient)");
+    expect(grant).toContain("RECIPIENT_FOR_PROVIDER[providerId] !== recipient");
+    expect(grant).toContain("CONSENT_TERMS_VERSIONS[purpose]");
     expect(grant).toContain('ledgerConsent(ctx, purpose, categories, "granted"');
+    expect(grant).toContain("jurisdictionOf(ctx)");
     expect(fnBody("actConsentsRevoke")).toMatch(/"withdrawn"/);
+  });
+
+  it("confirm is gated on the AI flag and the storage consent; reject and candidates sit above both", () => {
+    const confirm = fnBody("actRecordsConfirm");
+    const flag = confirm.indexOf('ctx.flags["health.ai.enabled"]');
+    const consent = confirm.indexOf('requireConsent(ctx, "store_records"');
+    const validate = confirm.indexOf("validateRecordInput(");
+    const update = confirm.indexOf('.update({ status: "active"');
+    expect(flag).toBeGreaterThan(-1);
+    expect(flag).toBeLessThan(consent);
+    expect(validate).toBeLessThan(update);
+    expect(consent).toBeLessThan(update);
+    expect(confirm).toContain('.eq("status", "candidate")');
+    expect(confirm).toContain('verifiedBy: "user"');
+    for (const name of ["actRecordsReject", "actRecordsCandidates"]) {
+      const body = fnBody(name);
+      expect(body, name).not.toContain("health.ai.enabled");
+      expect(body, name).not.toContain("requireConsent(");
+    }
+    expect(fnBody("actRecordsReject")).toContain('status: "rejected", deleted_at: ctx.now');
+  });
+
+  it("purge refuses under a legal hold and MARKS receipts rather than deleting them", () => {
+    const purge = fnBody("actPurge");
+    const hold = purge.indexOf('rpc("has_active_legal_hold"');
+    const first = purge.indexOf(".update(");
+    expect(hold).toBeGreaterThan(-1);
+    expect(hold).toBeLessThan(first);
+    expect(purge).toContain('reason: "legal_hold"');
+    expect(purge).toContain("purged_at: ctx.now, manifest: {}");
+    expect(purge).not.toMatch(/health_ai_requests"\)\s*\.delete\(/);
+  });
+
+  it("export carries the receipts, so a person can see what AI was asked about them", () => {
+    expect(fnBody("actExport")).toContain('.from("health_ai_requests")');
+    expect(fnBody("actExport")).toContain("aiRequests:");
   });
 
   it("uses the body-first json() convention throughout", () => {
