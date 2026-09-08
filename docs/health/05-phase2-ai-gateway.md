@@ -267,7 +267,7 @@ the values after the change, actor the database role, `user_id` null (a system
 row, readable by admins under the audit policy). An API-driven change therefore
 leaves two rows; a raw `UPDATE` leaves one. The hash chain covers all of them.
 
-## 10. Database — `20260908150000_oniq_health_phase2.sql` (not applied)
+## 10. Database — `20260908150000_oniq_health_phase2.sql` (applied to production 2026-09-08 — see `06 §Deploy record`)
 
 Separate from Phase 1, every constraint NAMED. `health_config` + twelfth flag
 and AI columns (provider CHECK synthetic, caps default 0, admin-verification

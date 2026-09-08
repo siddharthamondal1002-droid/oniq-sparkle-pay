@@ -1,8 +1,9 @@
 # ONIQ Health — Phase 2 completion report (§83F)
 
 **Phase:** 2 — Health AI Safety Gateway + Document Intelligence
-**Status:** BUILT DARK, tested, reviewed, documented, flagged. NOT applied,
-NOT deployed, NOT published, NOT activated. Phase 3 is NOT AUTHORIZED and
+**Status:** BUILT DARK, tested, reviewed, documented, flagged. APPLIED, DEPLOYED and
+PUBLISHED on 2026-09-08 (see the deploy record below), NOT activated: every
+switch on the row is off and the house cap is 0. Phase 3 is NOT AUTHORIZED and
 nothing here activates it.
 
 The one sentence the brief asked for: **Health → AI direct path = impossible**
@@ -234,6 +235,52 @@ message was sent).
 - An API-driven config change leaves two audit rows (the action's, with the
   admin as actor; the trigger's, with the database role); a raw `UPDATE`
   leaves one. Both are in the hash chain.
+- The repo carries each health migration twice: the documented originals and
+  Lovable's applied copies (headers stripped; Phase 1's copy lacks the bucket
+  insert, which the tool refused). A `supabase db push` from the repo would
+  replay the originals over the copies — idempotent by construction, but not
+  to be done casually.
+- The served bundle was not fetched from this container (`oniqhub.com` is
+  proxy-blocked); Lovable reports the publish live at `84a8e4f2`. The admin
+  screen showing "Daily caps" and "Emergency stop" is the functional check.
+
+## Deploy record (2026-09-08)
+
+One Lovable message, sent after `get_project.latest_commit_sha` read the
+merge (`8efeac54`); 6.6 credits. The agent's raw results:
+
+```
+pre-checks   health_config_audit_ai_controls: 5
+             capForTask: supabase/functions/health-api/index.ts:3
+                         supabase/functions/health-ai/index.ts:2
+             admin.ai_caps: supabase/functions/health-api/index.ts:1
+migrations   Phase 1 was NOT applied (only health_checkins and health_profiles
+             existed) -> applied first, unchanged, then Phase 2.
+             Both: "The migration completed successfully."
+deviation    the migration tool rejects writes to storage.buckets; the agent ran
+             everything else and created the bucket with the storage tool:
+             "Successfully created private bucket "health-documents" with a
+             10.00 MB file size limit." No storage.objects policy.
+linter       146 issues before and after -- pre-existing
+deploy       Successfully deployed edge functions: health-api, health-ai
+publish      scheduled; no deployment id; is_published true at 84a8e4f2
+untouched    health_config, privacy.tsx, every health file; no provider, model,
+             key or dependency
+```
+
+Verified from the agent's own tool payloads: the Phase 2 SQL it sent matches
+`20260908150000_oniq_health_phase2.sql` to its last statement; the Phase 1 SQL
+matches `20260908120000_oniq_health_phase1.sql` up to and not including the
+`storage.buckets` insert. Lovable then committed its applied copies to `main`
+(`ab41e2d0`, `84a8e4f2`, by `gpt-engineer-app[bot]`) as
+`supabase/migrations/20260908170834_d2e6b48b-….sql` and
+`20260908171017_c14034b6-….sql`, plus a regenerated
+`src/integrations/supabase/types.ts`; the branch was fast-forwarded onto them
+and the full suite is green (336 files / 5,826 tests). Production therefore
+holds: Phase 1 minus one insert, the bucket, Phase 2 in full; `health_config`
+untouched (every switch off, house cap 0). Nothing is user-visible: the client
+constants are false and `health-api` answers 503 to everyone until `enabled`
+is set — the owner's step, `04 §A-2` step 4.
 
 ## How to verify the publish (oniq-ship: learn the chunk from a local build first)
 

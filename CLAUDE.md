@@ -3259,3 +3259,79 @@ full suite green (the one unrelated ARAP timing flake passes alone). The admin
 route chunk grew from 4,533 to 6,585 bytes and carries
 `health-ai-admin-caps-save`, which existed in no earlier build — the marker
 for this publish; `AI-assisted` is in the entry and proves nothing.
+
+### 2026-09-08 — APPLIED, DEPLOYED, PUBLISHED. Phase 2 is on production, dark.
+
+ONE Lovable message, sent after `latest_commit_sha` read `8efeac54` (the
+merge) and cost **6.6 credits** — the largest turn yet, because the agent had
+to read both migration files and carry their full SQL in its tool calls. Its
+report, verbatim where it matters:
+
+    pre-checks   health_config_audit_ai_controls: 5
+                 capForTask: health-api 3, health-ai 2
+                 admin.ai_caps: health-api 1
+    migrations   Phase 1 was NOT applied (only health_checkins and
+                 health_profiles existed) -> applied first, unchanged, then
+                 Phase 2. Both: "The migration completed successfully."
+    deviation    the migration tool rejects any write to storage.buckets, so
+                 Phase 1's final statement did not run through it; the agent
+                 ran everything else and created the bucket with the storage
+                 tool: "Successfully created private bucket "health-documents"
+                 with a 10.00 MB file size limit." No storage.objects policy,
+                 as the file specifies.
+    linter       146 issues before and after Phase 2 -- all pre-existing
+    deploy       Successfully deployed edge functions: health-api, health-ai
+    publish      scheduled; the tool returns no deployment id; "security scan
+                 is stale for this commit"
+    untouched    health_config, privacy.tsx, every health file; no provider,
+                 model, key or dependency
+
+**VERIFIED HERE, NOT TAKEN ON TRUST.** The agent's message log carries the SQL
+each `supabase--migration` call sent. Aligned against the repo files: the
+Phase 2 payload matches ours through its last statement; the Phase 1 payload
+matches ours through `grant execute on function public.health_apply_retention()`
+and stops there — the `-- 8. THE BUCKET` insert is the only statement missing,
+exactly the deviation reported. So production holds Phase 1 minus one insert,
+the bucket by tool, and Phase 2 in full.
+
+**AND THE DEPLOY COMMITTED TO MAIN.** Lovable's migration tool writes the SQL
+it applied as new files and commits them — `ab41e2d0` "Work in progress" and
+`84a8e4f2` "Applied Phase 2 and published", by `gpt-engineer-app[bot]`:
+`supabase/migrations/20260908170834_d2e6b48b-….sql` (our Phase 1 minus the
+header comment and the bucket insert), `20260908171017_c14034b6-….sql` (our
+Phase 2 minus the header comment), and `src/integrations/supabase/types.ts`
+regenerated (+463 lines: the health tables now have client types). The repo
+therefore carries each health migration TWICE. The originals stay — the tests
+read them by name and they carry the reasoning; Lovable's copies are the
+applied record. A `supabase db push` from the repo would replay ours over
+Lovable's; they are idempotent by construction (if not exists / drop if
+exists) and the bucket insert would then run, but do not do it casually. The
+branch was fast-forwarded onto main and the full suite on the merged tree is
+green — 336 files / 5,826 tests, tsc clean — so the regenerated types and the
+duplicate files trip no guard.
+
+**`list_messages` LAGS THE SEND BY MINUTES, AND A RESEND WOULD HAVE DEPLOYED
+TWICE.** After the 60 s client timeout, two `list_messages` reads over about
+ninety seconds showed no new message, and `get_project` still said
+`agentFinished: true`. The third read, three minutes after the send, showed it
+`accepted` at 17:05:59Z. By oniq-ship's own "a queued message can be dropped"
+rule this looked like a drop — and was not. Read three times over at least
+three minutes before concluding a send did not land; the price of a wrong
+resend here was a second migration run and a second publish.
+
+WHAT IS TRUE ON PRODUCTION NOW, and what is not:
+
+    applied       Phase 1 (minus the bucket statement) + the bucket + Phase 2
+    deployed      health-api, health-ai
+    published     Lovable reports the publish at 84a8e4f2, is_published true.
+                  The served chunk was NOT fetched from here (oniqhub.com is
+                  proxy-blocked); the owner's admin screen showing "Daily caps"
+                  and "Emergency stop" is the functional check
+    the row       health_config: enabled false, ai_enabled false,
+                  ai_kill_switch false, ai_daily_cap_house 0,
+                  ai_admin_verification_enabled false — untouched, fail-closed
+    user-visible  nothing: the client constants are false, and health-api
+                  answers 503 health_disabled to everyone until `enabled` is set
+
+`docs/health/04 §A-2` step 4 onward is the owner's and unstarted; `ai_enabled`
+stays off by their directive.

@@ -19,6 +19,12 @@ Before step 5, the Play Data safety form needs a "Health records" entry if uploa
 Each step is one Lovable message or one owner action; nothing user-visible
 changes at any step, and `ai_enabled` stays OFF at the end of it (step 6).
 
+**STATUS 2026-09-08: steps 1–3 are DONE** — migration applied (Phase 1 first,
+which turned out never to have been applied; the `storage.buckets` insert ran
+through the storage tool instead, see `06 §Deploy record`), `health-api` and
+`health-ai` deployed, web build published. Step 4 onward is the owner's and
+unstarted; `ai_enabled` stays off.
+
 1. **Apply the Phase 2 migration** `20260908150000_oniq_health_phase2.sql`, after Phase 1's. Adds columns and one ledger table; every new switch defaults off (the emergency stop `ai_kill_switch` included), the per-task caps arrive as the owner's B11 table (`ai_daily_caps`, JSON), and the house cap defaults to **0 = refuse**.
 2. **Deploy `health-api` AND `health-ai` in the same message.** Give the agent the check it can run itself before deploying: `grep -c records.candidates supabase/functions/health-api/index.ts` and `grep -c parseAiRequest supabase/functions/health-ai/index.ts` — stop if either is 0. The functions go BEFORE the web publish (the 2026-09-07 lesson: buttons with nothing behind them); every new action the client sends is one an OLD function answers 400 to, never 500.
 3. **Publish** the web build. Nothing renders differently: the client AI flag is false and `status.aiAvailable` is false for everyone.
