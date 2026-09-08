@@ -19,6 +19,7 @@ WHERE schemaname = 'public'
       'messages','conversations','conversation_members','moments_posts',
       'moments_comments','clips','clips_comments','contacts','vitals',
       'health_entries','call_logs','learner_profiles','study_papers',
+      'health_records','health_documents','health_consents','health_audit',
       'friendships','profiles'
     )
   )

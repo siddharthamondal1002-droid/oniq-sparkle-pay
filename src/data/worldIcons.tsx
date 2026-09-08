@@ -37,6 +37,7 @@ import {
   Plane,
   Plug,
   Sparkles,
+  Stethoscope,
   Tv,
   Video,
   Wallet,
@@ -57,6 +58,9 @@ export const WORLD_ICON: Partial<Record<TileKey, WorldIcon>> = {
   ting: { Icon: Sparkles, tint: "sky" },
   faith: { Icon: HandHeart, tint: "amber" },
   vitals: { Icon: HeartPulse, tint: "pink" },
+  // ONIQ Health — the door is shut by HEALTH_FLAGS; the badge exists so the
+  // flip needs no second edit here (the same reason WORLD_ICON.upi survives).
+  health: { Icon: Stethoscope, tint: "indigo" },
   upi: { Icon: IndianRupee, tint: "teal" },
   rides: { Icon: Car, tint: "green" },
   wander: { Icon: Plane, tint: "blue" },

@@ -10,6 +10,7 @@
  */
 import type { TileKey } from "@/lib/i18n/tileLabel";
 import type { WorldId } from "@/components/oniq/OniqCanvas";
+import { HEALTH_WORLD, healthDoorsOpen } from "@/health/doors";
 
 export type WorldEntry = {
   key: TileKey;
@@ -124,6 +125,10 @@ export const WORLD_GROUPS: WorldGroup[] = [
         emoji: "🏛️",
         hint: "Government sites, verified",
       },
+      // ONIQ Health, owner brief 2026-09-08. One of the doors src/health/doors.ts
+      // enumerates; it opens with HEALTH_FLAGS["health.enabled"] and with nothing
+      // else, and healthDoors.test.ts fails if this spread stops reading the flag.
+      ...(healthDoorsOpen() ? [HEALTH_WORLD] : []),
     ],
   },
   {

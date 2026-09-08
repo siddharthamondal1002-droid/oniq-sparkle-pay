@@ -21,7 +21,19 @@
 import { googleAccessToken } from "./googleAuth.ts";
 import { FIREBASE_BUCKET, deleteObject, listObjects } from "./firebaseServer.ts";
 
-export const PURGE_BUCKETS = ["clips", "chat-media", "moments", "verification-docs"] as const;
+// health-documents — ONIQ Health, Phase 1 (owner brief 2026-09-08). Health
+// document bytes live there under `{uid}/health/`, and the rows cascade off
+// profiles, so this entry is what keeps "delete my account" true for them.
+// Listed before the bucket exists in production: purgeFolder tolerates a
+// missing bucket (list errors return early), so the deletion promise is
+// already kept the day the migration is applied.
+export const PURGE_BUCKETS = [
+  "clips",
+  "chat-media",
+  "moments",
+  "verification-docs",
+  "health-documents",
+] as const;
 
 /** The one prefix a user owns in the Firebase bucket. */
 export function firebasePrefixFor(uid: string): string {

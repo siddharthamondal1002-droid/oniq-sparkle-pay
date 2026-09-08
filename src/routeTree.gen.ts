@@ -46,6 +46,7 @@ import { Route as AuthenticatedAppDiagRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedAppEarnRouteImport } from './routes/_authenticated/app.earn'
 import { Route as AuthenticatedAppExploreRouteImport } from './routes/_authenticated/app.explore'
 import { Route as AuthenticatedAppFaithRouteImport } from './routes/_authenticated/app.faith'
+import { Route as AuthenticatedAppHealthRouteImport } from './routes/_authenticated/app.health'
 import { Route as AuthenticatedAppImageRouteImport } from './routes/_authenticated/app.image'
 import { Route as AuthenticatedAppInsightsRouteImport } from './routes/_authenticated/app.insights'
 import { Route as AuthenticatedAppJobsRouteImport } from './routes/_authenticated/app.jobs'
@@ -81,6 +82,9 @@ import { Route as AuthenticatedAppChatReelsRouteImport } from './routes/_authent
 import { Route as AuthenticatedAppChatUpdatesRouteImport } from './routes/_authenticated/app.chat.updates'
 import { Route as AuthenticatedAppFoodIndexRouteImport } from './routes/_authenticated/app.food.index'
 import { Route as AuthenticatedAppFoodIdRouteImport } from './routes/_authenticated/app.food.$id'
+import { Route as AuthenticatedAppHealthIndexRouteImport } from './routes/_authenticated/app.health.index'
+import { Route as AuthenticatedAppHealthConsentRouteImport } from './routes/_authenticated/app.health.consent'
+import { Route as AuthenticatedAppHealthRecordsRouteImport } from './routes/_authenticated/app.health.records'
 import { Route as AuthenticatedAppPrivacyDataRightsRouteImport } from './routes/_authenticated/app.privacy.data-rights'
 import { Route as AuthenticatedAppPrivacyGrievanceRouteImport } from './routes/_authenticated/app.privacy.grievance'
 import { Route as AuthenticatedAppPrivacyNoticeRouteImport } from './routes/_authenticated/app.privacy.notice'
@@ -279,6 +283,11 @@ const AuthenticatedAppFaithRoute = AuthenticatedAppFaithRouteImport.update({
   path: '/faith',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppHealthRoute = AuthenticatedAppHealthRouteImport.update({
+  id: '/health',
+  path: '/health',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppImageRoute = AuthenticatedAppImageRouteImport.update({
   id: '/image',
   path: '/image',
@@ -470,6 +479,24 @@ const AuthenticatedAppFoodIdRoute = AuthenticatedAppFoodIdRouteImport.update({
   path: '/food/$id',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppHealthIndexRoute =
+  AuthenticatedAppHealthIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedAppHealthRoute,
+  } as any)
+const AuthenticatedAppHealthConsentRoute =
+  AuthenticatedAppHealthConsentRouteImport.update({
+    id: '/consent',
+    path: '/consent',
+    getParentRoute: () => AuthenticatedAppHealthRoute,
+  } as any)
+const AuthenticatedAppHealthRecordsRoute =
+  AuthenticatedAppHealthRecordsRouteImport.update({
+    id: '/records',
+    path: '/records',
+    getParentRoute: () => AuthenticatedAppHealthRoute,
+  } as any)
 const AuthenticatedAppPrivacyDataRightsRoute =
   AuthenticatedAppPrivacyDataRightsRouteImport.update({
     id: '/privacy/data-rights',
@@ -554,6 +581,7 @@ export interface FileRoutesByFullPath {
   '/app/earn': typeof AuthenticatedAppEarnRoute
   '/app/explore': typeof AuthenticatedAppExploreRoute
   '/app/faith': typeof AuthenticatedAppFaithRoute
+  '/app/health': typeof AuthenticatedAppHealthRouteWithChildren
   '/app/image': typeof AuthenticatedAppImageRoute
   '/app/insights': typeof AuthenticatedAppInsightsRoute
   '/app/jobs': typeof AuthenticatedAppJobsRoute
@@ -588,6 +616,8 @@ export interface FileRoutesByFullPath {
   '/app/chat/reels': typeof AuthenticatedAppChatReelsRoute
   '/app/chat/updates': typeof AuthenticatedAppChatUpdatesRoute
   '/app/food/$id': typeof AuthenticatedAppFoodIdRoute
+  '/app/health/consent': typeof AuthenticatedAppHealthConsentRoute
+  '/app/health/records': typeof AuthenticatedAppHealthRecordsRoute
   '/app/privacy/data-rights': typeof AuthenticatedAppPrivacyDataRightsRoute
   '/app/privacy/grievance': typeof AuthenticatedAppPrivacyGrievanceRoute
   '/app/privacy/notice': typeof AuthenticatedAppPrivacyNoticeRoute
@@ -597,6 +627,7 @@ export interface FileRoutesByFullPath {
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/app/chat/': typeof AuthenticatedAppChatIndexRoute
   '/app/food/': typeof AuthenticatedAppFoodIndexRoute
+  '/app/health/': typeof AuthenticatedAppHealthIndexRoute
   '/app/made/$kind/$id': typeof AuthenticatedAppMadeKindIdRoute
 }
 export interface FileRoutesByTo {
@@ -667,6 +698,8 @@ export interface FileRoutesByTo {
   '/app/chat/reels': typeof AuthenticatedAppChatReelsRoute
   '/app/chat/updates': typeof AuthenticatedAppChatUpdatesRoute
   '/app/food/$id': typeof AuthenticatedAppFoodIdRoute
+  '/app/health/consent': typeof AuthenticatedAppHealthConsentRoute
+  '/app/health/records': typeof AuthenticatedAppHealthRecordsRoute
   '/app/privacy/data-rights': typeof AuthenticatedAppPrivacyDataRightsRoute
   '/app/privacy/grievance': typeof AuthenticatedAppPrivacyGrievanceRoute
   '/app/privacy/notice': typeof AuthenticatedAppPrivacyNoticeRoute
@@ -676,6 +709,7 @@ export interface FileRoutesByTo {
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/app/chat': typeof AuthenticatedAppChatIndexRoute
   '/app/food': typeof AuthenticatedAppFoodIndexRoute
+  '/app/health': typeof AuthenticatedAppHealthIndexRoute
   '/app/made/$kind/$id': typeof AuthenticatedAppMadeKindIdRoute
 }
 export interface FileRoutesById {
@@ -716,6 +750,7 @@ export interface FileRoutesById {
   '/_authenticated/app/earn': typeof AuthenticatedAppEarnRoute
   '/_authenticated/app/explore': typeof AuthenticatedAppExploreRoute
   '/_authenticated/app/faith': typeof AuthenticatedAppFaithRoute
+  '/_authenticated/app/health': typeof AuthenticatedAppHealthRouteWithChildren
   '/_authenticated/app/image': typeof AuthenticatedAppImageRoute
   '/_authenticated/app/insights': typeof AuthenticatedAppInsightsRoute
   '/_authenticated/app/jobs': typeof AuthenticatedAppJobsRoute
@@ -750,6 +785,8 @@ export interface FileRoutesById {
   '/_authenticated/app/chat/reels': typeof AuthenticatedAppChatReelsRoute
   '/_authenticated/app/chat/updates': typeof AuthenticatedAppChatUpdatesRoute
   '/_authenticated/app/food/$id': typeof AuthenticatedAppFoodIdRoute
+  '/_authenticated/app/health/consent': typeof AuthenticatedAppHealthConsentRoute
+  '/_authenticated/app/health/records': typeof AuthenticatedAppHealthRecordsRoute
   '/_authenticated/app/privacy/data-rights': typeof AuthenticatedAppPrivacyDataRightsRoute
   '/_authenticated/app/privacy/grievance': typeof AuthenticatedAppPrivacyGrievanceRoute
   '/_authenticated/app/privacy/notice': typeof AuthenticatedAppPrivacyNoticeRoute
@@ -759,6 +796,7 @@ export interface FileRoutesById {
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/_authenticated/app/chat/': typeof AuthenticatedAppChatIndexRoute
   '/_authenticated/app/food/': typeof AuthenticatedAppFoodIndexRoute
+  '/_authenticated/app/health/': typeof AuthenticatedAppHealthIndexRoute
   '/_authenticated/app/made/$kind/$id': typeof AuthenticatedAppMadeKindIdRoute
 }
 export interface FileRouteTypes {
@@ -799,6 +837,7 @@ export interface FileRouteTypes {
     | '/app/earn'
     | '/app/explore'
     | '/app/faith'
+    | '/app/health'
     | '/app/image'
     | '/app/insights'
     | '/app/jobs'
@@ -833,6 +872,8 @@ export interface FileRouteTypes {
     | '/app/chat/reels'
     | '/app/chat/updates'
     | '/app/food/$id'
+    | '/app/health/consent'
+    | '/app/health/records'
     | '/app/privacy/data-rights'
     | '/app/privacy/grievance'
     | '/app/privacy/notice'
@@ -842,6 +883,7 @@ export interface FileRouteTypes {
     | '/lovable/email/queue/process'
     | '/app/chat/'
     | '/app/food/'
+    | '/app/health/'
     | '/app/made/$kind/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -912,6 +954,8 @@ export interface FileRouteTypes {
     | '/app/chat/reels'
     | '/app/chat/updates'
     | '/app/food/$id'
+    | '/app/health/consent'
+    | '/app/health/records'
     | '/app/privacy/data-rights'
     | '/app/privacy/grievance'
     | '/app/privacy/notice'
@@ -921,6 +965,7 @@ export interface FileRouteTypes {
     | '/lovable/email/queue/process'
     | '/app/chat'
     | '/app/food'
+    | '/app/health'
     | '/app/made/$kind/$id'
   id:
     | '__root__'
@@ -960,6 +1005,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/earn'
     | '/_authenticated/app/explore'
     | '/_authenticated/app/faith'
+    | '/_authenticated/app/health'
     | '/_authenticated/app/image'
     | '/_authenticated/app/insights'
     | '/_authenticated/app/jobs'
@@ -994,6 +1040,8 @@ export interface FileRouteTypes {
     | '/_authenticated/app/chat/reels'
     | '/_authenticated/app/chat/updates'
     | '/_authenticated/app/food/$id'
+    | '/_authenticated/app/health/consent'
+    | '/_authenticated/app/health/records'
     | '/_authenticated/app/privacy/data-rights'
     | '/_authenticated/app/privacy/grievance'
     | '/_authenticated/app/privacy/notice'
@@ -1003,6 +1051,7 @@ export interface FileRouteTypes {
     | '/lovable/email/queue/process'
     | '/_authenticated/app/chat/'
     | '/_authenticated/app/food/'
+    | '/_authenticated/app/health/'
     | '/_authenticated/app/made/$kind/$id'
   fileRoutesById: FileRoutesById
 }
@@ -1295,6 +1344,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppFaithRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/health': {
+      id: '/_authenticated/app/health'
+      path: '/health'
+      fullPath: '/app/health'
+      preLoaderRoute: typeof AuthenticatedAppHealthRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/image': {
       id: '/_authenticated/app/image'
       path: '/image'
@@ -1540,6 +1596,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppFoodIdRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/health/': {
+      id: '/_authenticated/app/health/'
+      path: '/'
+      fullPath: '/app/health/'
+      preLoaderRoute: typeof AuthenticatedAppHealthIndexRouteImport
+      parentRoute: typeof AuthenticatedAppHealthRoute
+    }
+    '/_authenticated/app/health/consent': {
+      id: '/_authenticated/app/health/consent'
+      path: '/consent'
+      fullPath: '/app/health/consent'
+      preLoaderRoute: typeof AuthenticatedAppHealthConsentRouteImport
+      parentRoute: typeof AuthenticatedAppHealthRoute
+    }
+    '/_authenticated/app/health/records': {
+      id: '/_authenticated/app/health/records'
+      path: '/records'
+      fullPath: '/app/health/records'
+      preLoaderRoute: typeof AuthenticatedAppHealthRecordsRouteImport
+      parentRoute: typeof AuthenticatedAppHealthRoute
+    }
     '/_authenticated/app/privacy/data-rights': {
       id: '/_authenticated/app/privacy/data-rights'
       path: '/privacy/data-rights'
@@ -1623,6 +1700,24 @@ const AuthenticatedAppChatRouteChildren: AuthenticatedAppChatRouteChildren = {
 const AuthenticatedAppChatRouteWithChildren =
   AuthenticatedAppChatRoute._addFileChildren(AuthenticatedAppChatRouteChildren)
 
+interface AuthenticatedAppHealthRouteChildren {
+  AuthenticatedAppHealthConsentRoute: typeof AuthenticatedAppHealthConsentRoute
+  AuthenticatedAppHealthRecordsRoute: typeof AuthenticatedAppHealthRecordsRoute
+  AuthenticatedAppHealthIndexRoute: typeof AuthenticatedAppHealthIndexRoute
+}
+
+const AuthenticatedAppHealthRouteChildren: AuthenticatedAppHealthRouteChildren =
+  {
+    AuthenticatedAppHealthConsentRoute: AuthenticatedAppHealthConsentRoute,
+    AuthenticatedAppHealthRecordsRoute: AuthenticatedAppHealthRecordsRoute,
+    AuthenticatedAppHealthIndexRoute: AuthenticatedAppHealthIndexRoute,
+  }
+
+const AuthenticatedAppHealthRouteWithChildren =
+  AuthenticatedAppHealthRoute._addFileChildren(
+    AuthenticatedAppHealthRouteChildren,
+  )
+
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppAdminRoute: typeof AuthenticatedAppAdminRoute
   AuthenticatedAppAiRoute: typeof AuthenticatedAppAiRoute
@@ -1636,6 +1731,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppEarnRoute: typeof AuthenticatedAppEarnRoute
   AuthenticatedAppExploreRoute: typeof AuthenticatedAppExploreRoute
   AuthenticatedAppFaithRoute: typeof AuthenticatedAppFaithRoute
+  AuthenticatedAppHealthRoute: typeof AuthenticatedAppHealthRouteWithChildren
   AuthenticatedAppImageRoute: typeof AuthenticatedAppImageRoute
   AuthenticatedAppInsightsRoute: typeof AuthenticatedAppInsightsRoute
   AuthenticatedAppJobsRoute: typeof AuthenticatedAppJobsRoute
@@ -1686,6 +1782,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppEarnRoute: AuthenticatedAppEarnRoute,
   AuthenticatedAppExploreRoute: AuthenticatedAppExploreRoute,
   AuthenticatedAppFaithRoute: AuthenticatedAppFaithRoute,
+  AuthenticatedAppHealthRoute: AuthenticatedAppHealthRouteWithChildren,
   AuthenticatedAppImageRoute: AuthenticatedAppImageRoute,
   AuthenticatedAppInsightsRoute: AuthenticatedAppInsightsRoute,
   AuthenticatedAppJobsRoute: AuthenticatedAppJobsRoute,

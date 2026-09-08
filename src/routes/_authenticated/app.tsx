@@ -22,6 +22,7 @@ import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { GlobalIncomingCall } from "@/components/chat/GlobalIncomingCall";
 import { GlobalCallHost } from "@/components/chat/GlobalCallHost";
 import { CALLS_ENABLED } from "@/lib/flags";
+import { HEALTH_NAV, HEALTH_NAV_PREFIX, healthDoorsOpen } from "@/health/doors";
 import { PolicyNoticeBanner } from "@/components/safety/PolicyNoticeBanner";
 import { RestrictedBanner } from "@/components/safety/RestrictedBanner";
 import { DobPrompt } from "@/components/safety/DobPrompt";
@@ -143,6 +144,8 @@ const NAV_WORLDS: Array<{ prefix: string; tab: NavTab; next?: NavTab }> = [
     tab: { to: "/app/lores", labelKey: "nav.lores", fallback: "Lores", icon: Clapperboard },
     next: MINE_TAB,
   },
+  // ONIQ Health — a door enumerated in src/health/doors.ts, shut by the flag.
+  ...(healthDoorsOpen() ? [{ prefix: HEALTH_NAV_PREFIX, tab: HEALTH_NAV }] : []),
   { prefix: "/app/creations", tab: MINE_TAB },
 ];
 

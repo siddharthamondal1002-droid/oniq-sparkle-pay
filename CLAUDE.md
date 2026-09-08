@@ -2897,3 +2897,72 @@ all.** A string that exists in source and not in the bundle will read as a
 stale deploy forever, and the natural response — republish — never fixes it.
 Prefer a plain string literal the code actually emits (an error message, a
 `data-testid`) over an import path or an identifier.
+
+## Owner directive, 2026-09-08 — ONIQ Health, built dark
+
+The owner's brief: "ONIQ HEALTH — FULL GOOGLE HEALTHCARE INTEGRATION", a
+modular, isolated, feature-flagged health-data domain, audited first
+("Do NOT make assumptions about existing architecture"), with a research
+report and a cost model from CURRENT official pricing, and everything behind
+`health.*` flags. Phase 0 and Phase 1 are done; Phases 2–9 are designed and
+not built. Everything is in `docs/health/` — read `README.md` there first.
+
+**WHAT WAS MEASURED BEFORE ANYTHING WAS WRITTEN.** 57 authenticated routes, 61
+edge functions, an existing health surface (`app.vitals.tsx`, `health_checkins`,
+`cycle_logs`, `health_profiles`, the UAE two-axis guard, `purge_my_health_data`)
+and one AI path that already reads a medical document — `health-scan`, Claude
+Haiku on `ANTHROPIC_API_KEY`, ephemeral. The consent, audit, DSR, legal-hold
+and deletion machinery all exist and were reused, not rebuilt.
+
+**THE ONE SENTENCE THAT CONSTRAINS THE AI PHASE.** `src/routes/privacy.tsx`
+says, in bold, "Health data is never sent to any AI feature", and
+`playCompliance.test.ts` verifies it by scanning every edge function for the
+three Vitals table names. So `health.ai.enabled` is not a flag flip: it is a
+privacy-notice change, a Play Data safety change and a rewritten test, and it
+is the owner's with counsel (docs/health/02 §16, 04 D4). Phase 1 names none of
+those tables from any function and the isolation guard keeps it that way.
+
+**PRICES WERE READ FROM THE PAGES, NOT REMEMBERED.** `cloud.google.com/*/pricing`
+is reachable from this container (the `docs.cloud.google.com` host is not), so
+the Healthcare API, Agent Search, Vertex Gemini, Cloud Storage, BigQuery,
+Pub/Sub and DLP prices in `01-research.md` carry a **[PAGE]** label and a date;
+everything that came from a search snippet is labelled **[SNIPPET]** and
+everything from memory **[TRAINING]**. Two numbers decide the shape:
+**Agent Search for Healthcare is $20 per 1,000 queries** (13× the general
+rate) and **Healthcare NLP is $0.10 per 1,000 characters** — about 270× what
+Gemini Flash-Lite charges to read the same report. Neither is in V1. The FHIR
+store itself adds roughly ten percent to a V1 bill.
+
+**TWO HALVES OF EVERY FLAG.** `src/health/flags.ts` decides what RENDERS; the
+`health_config` row decides what `health-api` will DO, and a missing row is
+"off". Both are one-line changes; both are listed in
+`docs/health/04-decisions-for-owner.md §A` in the order to make them. The
+eleven names live once, in `flagNames.ts`, mirrored byte-for-byte on both sides
+— `agreement.test.ts` fails on the first divergent byte, and the fix is `cp`.
+
+**THE SEAL IS A TEST, NOT A CONVENTION.** `src/health/__tests__/isolation.test.ts`
+walks `src/` and `supabase/functions/` with comments stripped and fails if
+anything outside `src/health/`, the four `app.health*` routes, `health-api`,
+`_shared/health/` and `purgeUserData.ts` names a health table, the bucket or the
+function. `send-push` and `push.ts` are asserted health-free. The function is
+asserted model-free, Google-free and `fetch`-free, with exactly one `console.`
+call, through a whitelist.
+
+**ABDM AND DPDP ARE SNIPPETS.** `abdm.gov.in`, `sandbox.abdm.gov.in` and
+`meity.gov.in` are all blocked from here. Nothing in the repo encodes an ABDM
+endpoint, header or flow, on purpose; the research report says so on every
+line. Do not build the ABDM adapter from that document — from the official
+spec, once the owner has sandbox credentials.
+
+**`deno check` OF THE FUNCTION IS POSSIBLE HERE AFTER ALL.** The bare check dies on
+the proxied `esm.sh` import, as recorded above for `voice-clone`; an import map
+that points that one specifier at
+`node_modules/@supabase/supabase-js/dist/index.d.mts`, run with
+`--unstable-sloppy-imports`, typechecks the whole function against the real
+client types. It caught a structural parameter type that TypeScript could not
+instantiate — a class of error vitest never sees, because the function itself
+never runs there.
+
+**NOT APPLIED, NOT DEPLOYED, NOT PUBLISHED.** The migration
+`20260908120000_oniq_health_phase1.sql` is a file; `health-api` is a folder;
+the doors are shut. The go sequence and the decision list are the owner's.

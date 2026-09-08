@@ -26,6 +26,7 @@ export type TileKey =
   | "wander"
   | "faith"
   | "vitals"
+  | "health"
   | "official"
   | "earn"
   | "moots"
@@ -51,6 +52,7 @@ export const TILE_LABELS: Record<TileKey, string> = {
   wander: "Wanderlust ✈️",
   faith: "Blessed 🙏",
   vitals: "Vitals 🫀",
+  health: "Health 🩺",
   official: "Official 🏛️",
   earn: "earn 💸",
   moots: "Moots",
@@ -87,6 +89,7 @@ export const TILE_LABELS_HI: Record<TileKey, string> = {
   wander: "सफ़र ✈️",
   faith: "आस्था 🙏",
   vitals: "सेहत 🫀",
+  health: "स्वास्थ्य 🩺",
   official: "सरकारी 🏛️",
   earn: "कमाई 💸",
   moots: "दोस्त",
