@@ -3996,4 +3996,26 @@ implementation, and neither grows its own `type="file"`. Mutation-checked both
 ways — removing it from the timeline goes red, and so does a whole-file read.
 
 6,089 tests, tsc, lint:ci and Prettier green. Web-only: no migration, no edge
-function, no Lovable message.
+function, no Lovable message, no credits.
+
+**LIVE AND VERIFIED, 2026-09-09.** `main` at `9601af94`, published after
+`latest_commit_sha` matched it — the one commit beyond was `scripts/` only, with
+zero files under `src/`, so it cannot change the bundle. Read from inside the
+database with `pg_net`, before and after:
+
+    entry   index-gEfRhMEW.js  ->  index-BkGwc3qF.js
+
+    AddReport-D2gUxA3e.js        4,505 B   health-doc-input        1
+                                           health-read-result      2
+                                           "goes to Google Cloud
+                                            Vertex AI (Gemini)"    1
+    app.health.index-hRNTKudN.js 9,140 B   all three markers       0
+                                           imports AddReport-*.js  1
+
+**THE CROSS-PATTERN IS THE EVIDENCE, not either line alone.** The TIMELINE
+chunk — the screen the report came from — references the component chunk and
+carries none of the markers itself; the markers are in the component and
+nowhere else. A count in one file only would not distinguish "the timeline
+renders it" from "it is somewhere in the bundle", which is precisely the
+distinction the 2026-09-07 admin-tools entry says a chunk grep cannot make.
+It still does not prove the component MOUNTS — only a tap does that.
