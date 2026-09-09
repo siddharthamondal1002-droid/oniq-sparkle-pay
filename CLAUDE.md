@@ -3572,3 +3572,106 @@ And the sentences now sit in the ENTRY chunk as well — `src/config/privacy.ts`
 is shared, so the constant's literal travels with it — which is why the marker
 script checks the retired claim's ABSENCE in the entry and the new sentences'
 PRESENCE in the privacy chunks, and not the other way round.
+
+## Owner directive, 2026-09-09 — ONIQ Health Phase 3: the Vertex provider, LIVE
+
+_"ONIQ HEALTH — FULL AUTONOMOUS IMPLEMENTATION, DEPLOYMENT AND ACTIVATION"_:
+the Firebase → Vertex AI provider behind the existing `HealthAIProvider`
+abstraction, Anthropic off the active health path with no accidental fallback,
+the gateway order kept, the recipient disclosed in three languages with the
+approved statement verbatim, the approved model configured, deploy, apply,
+publish, `ai_enabled = true` on production ("verify the actual production
+value"), a controlled live smoke test through the real user path with
+throwaway accounts only, every safeguard verified, cost monitored, one
+consolidated report. Done, and every claim below is MEASURED on production —
+`docs/health/07-phase3-report.md` is the record, `05 §17` the design as built.
+
+**ONIQ HEALTH AI IS LIVE.** The first real POST to Vertex went through the
+DEPLOYED `health-ai`, from a throwaway account, on a synthetic HbA1c row:
+
+    07:02:58Z  answer_question "What was my most recent HbA1c result?"
+      -> 200  provider vertex  model gemini-3.1-flash-lite
+         record_fact "The most recent HbA1c result recorded is 5.4% on 1 Sep 2026."
+         sourceRecordIds [the one record]   844 in / 83 out   $0.000335
+         receipt ok, manifest fields closed, redactions 0, injectionSuspected false
+         audit seq 14 ai.request ok
+
+Then the matrix, each through the deployed functions and each with its audit
+row: consent absent → 403 `ai_consent_required`; revoked through the API →
+403; expired → 403; re-granted (v2, Hindi notice) → 200; another person's
+record → 404 `not_found`; non-admin `admin.ai_kill` / `admin.ai_caps` → 403
+`forbidden`; kill switch ON → 503 `ai_disabled` with both AI flags forced off
+in `status`, OFF → 200; per-task cap 1 → 429 `quota_user`; house cap 1 → 429
+`quota_house`; house 0 → 503 `caps_unset`; task cap 0 → 503 `caps_unset`;
+caps restored → 200, in English and then in Hindi. Six receipts, 5,056 input /
+625 output tokens, **$0.0022** for the whole proof. Both accounts deleted the
+same session: 126 users, 0 health rows, the receipts kept with `user_id` null
+(the FK is set-null, so the ledger and the house count stay honest), the audit
+chain intact under the erasure-proof verifier, `health-production-check.sql`
+zero rows at the final state.
+
+**THE MODEL ID WAS VERIFIED BY POST, ON PRODUCTION, BEFORE ANYONE CALLED IT
+LIVE** — this file's first rule, applied at last to the health path: the
+catalogue said `gemini-3.1-flash-lite`; the 200 says it.
+
+**ANTHROPIC IS OFF THE HEALTH PATH BY REMOVAL, NOT BY FLAG.** `health-scan` is
+a 410 stub — no key read, no body read, no `fetch` — measured at
+`410 {"reason":"health_scan_retired"}` through `pg_net` minutes after the
+deploy (it answered `400 attach a report photo or PDF` the day before), the
+Vitals report section is gone, and `anthropicRetired.test.ts` fails if either
+returns. `RECIPIENT_FOR_PROVIDER` is exactly `{synthetic: oniq, vertex:
+google_vertex}` and the isolation guards admit one host in one file reached by
+one `fetch`; ten mutation escapes red.
+
+**THE FLIP-AND-OBSERVE STATEMENT HAS A GUARD SHAPE, and it is the WHERE, not
+the CTE.** A data-modifying CTE always runs, so "flip the config only if the
+previous call has landed" cannot be a CASE around it — but `update … where
+exists (select 1 from net._http_response where id = <the previous request>)`
+can, and a `case when exists(...) then net.http_post(...) end` beside it queues
+the next call under the same condition. One statement then reads the previous
+response, applies the next state, and queues the call that will observe it
+after COMMIT; if the previous response has not landed, nothing moves and the
+statement is simply re-run. Fourteen config-dependent measurements ran that
+way with no race and no double flip.
+
+**THE SCHEMA CAUGHT THE TEST.** The "expired consent" arm first set
+`expiry_time` a day before `start_time`, and `health_consents_check` refused
+the row — an expiry before the start is not a state the table allows, which
+is right. `start_time + 1 second` is what an expired grant looks like.
+
+**`->>` AND `||` ARE THE SAME PRECEDENCE CLASS** — `c->>'a' || ':' || c->>'b'`
+parses as `((c->>'a') || ':' || c) ->> 'b'` and fails on `text ->> unknown`.
+Parenthesise every `->>`. Second SQL precedence trap in this file (the
+`"char"` one is above); both cost a round trip.
+
+**WHAT ERASURE DOES TO THE HEALTH TABLES, measured rather than assumed before
+deleting the throwaways:** `health_records`, `health_consents`,
+`health_documents` cascade from `profiles` (which cascades from `auth.users`);
+`health_ai_requests` and `health_audit` are set-null. So a person's records go
+with them and their receipts stay as an anonymous line in the ledger — which
+is the shape the cap ledgers elsewhere in this file demand ("the row is a
+receipt"), and the audit chain survives because the hash reads `actor`.
+
+**THE SERVED BUNDLE WAS READ FROM INSIDE THE DATABASE**, entry and four route
+chunks, since `oniqhub.com` is proxy-blocked here: the entry moved
+`index-BHxCgVpx.js` → `index-D1pzt6IS.js`, and every Phase 3 marker sits in
+the same chunk the local build puts it in and in no other — `privacy-*.js`
+carries the recipient sentence once and the retired claim never,
+`app.health.consent-*.js` carries `health-consent-ai-recipient`, the admin
+chunk carries both admin markers. Same distribution, different hashes and
+byte counts (Lovable's build environment), which is exactly what a healthy
+publish of the same source looks like.
+
+WHAT IS STILL COUNSEL'S AND NOT BLOCKING (`04 D3/D4/D6`): the Hindi and
+Bengali placeholder wordings, the "not used to train Google's models" clause
+against Google Cloud's current terms, the Play Data safety FORM, and the DPIA
+question — now about a running feature. What is deliberately NOT live:
+uploads and extraction (`no_text` for everyone until a text source and uploads
+are decided), and a separate Health service account (B1's recommendation
+stands as a later hardening; the Firebase project's account with the Vertex AI
+User role is what runs it).
+
+Rollback is two taps: **Stop Health AI now** on `/app/admin/health-ai`, or
+`ai_enabled = false` on the row; both audited, both obeyed by every function
+on its next read. `ai_provider = synthetic` on production is NOT a rollback —
+it refuses everyone (`synthetic_in_production`).

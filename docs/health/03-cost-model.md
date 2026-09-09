@@ -63,6 +63,16 @@ Active users (A1): **300 / 3,000 / 30,000 / 300,000**.
 | AI if on Gemini 3.6 Flash introductory instead | $9.9            | $99              | $990               | $9,900                |
 | Google total, V1                               | **$3.5 (₹310)** | **$35 (₹3,100)** | **$354 (₹31,200)** | **$3,540 (₹311,500)** |
 
+**Measured on production, 2026-09-09 (Phase 3 live, `07`):** one Health AI
+answer on `gemini-3.1-flash-lite` through Vertex is about **840 input tokens**
+(the system instruction and the closed response schema dominate; the person's
+record is a few dozen) and **80–210 output tokens**, receipted at
+**$0.00033–0.00053** at the code's list price row. Six calls: 5,056 in / 625
+out / $0.0022. At the model's A3 (10 answers per active user per month) that is
+$0.003–0.005 per active user — under the $0.0117 the V1 line assumed, so the V1
+figures above are a ceiling, not a floor. The figure is read from the receipts
+(`scripts/health-ai-cost-report.sql`), not estimated.
+
 Supabase Storage for documents (A2, A7 — steady state 36 MB per active user): 10.5 GiB / 105 GiB / 1.05 TiB / 10.5 TiB, billed by Lovable Cloud at its own rates (outside this model).
 
 ### V2 — adds a FHIR store mirror in `asia-south1` and Pub/Sub notifications

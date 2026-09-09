@@ -436,8 +436,11 @@ while the row is off (flags are read before identity), and `401` once it is on.
 
 ## Next phase
 
-Phase 3 (a real provider) is **NOT AUTHORIZED**. What it will need is listed
-in `02 §15` and `05 §13`: a registry entry with a non-ONIQ recipient (refused
-until `health.provider_sharing.enabled`), a dated price row, the consent pair
-under a new terms version, a registered text source, the prompt adapter, the
-privacy-notice change (`02 §16`), and the owner's and counsel's gate.
+Phase 3 was **AUTHORIZED AND DONE on 2026-09-09** by owner directive: the
+Vertex provider behind the same abstraction, Anthropic off the health path,
+the recipient disclosed, `ai_enabled = true` on production, the first real
+call measured through the deployed functions and the safeguards proven live.
+The record is `07-phase3-report.md`; the design as built is `05 §17`. What
+Phase 3 deliberately did NOT do: uploads and a text source (extraction still
+answers `no_text` for everyone), the separate Health service account (B1's
+recommendation stands as a later hardening), and any provider beyond the one.
