@@ -356,7 +356,7 @@ describe("NO SEARCH BECOMES VIDEO GENERATION", () => {
     "supabase/functions/smart-scout/index.ts",
     "supabase/functions/hotel-scout/index.ts",
     "supabase/functions/ting/index.ts",
-    "supabase/functions/health-scan/index.ts",
+    // health-scan left the fleet 2026-09-09: a 410 stub (anthropicRetired.test.ts).
   ];
 
   it("no search function can reach a video model, endpoint, or function", () => {

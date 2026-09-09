@@ -336,6 +336,12 @@ export type HealthConsent = {
 export const GRANTABLE_CONSENTS: readonly { purpose: ConsentPurpose; recipient: Recipient }[] = [
   { purpose: "store_records", recipient: "oniq" },
   { purpose: "ai_interpretation", recipient: "oniq" },
+  // Phase 3 (owner directive 2026-09-09): the real provider's recipient.
+  // health-api offers a person exactly ONE of the two AI pairs — the one the
+  // registered provider names (RECIPIENT_FOR_PROVIDER) — and refuses the
+  // other as recipient_not_offered; both stay grantable here so the
+  // synthetic provider remains a rollback that needs no schema change.
+  { purpose: "ai_interpretation", recipient: "google_vertex" },
 ];
 
 export function isGrantable(purpose: string, recipient: string): boolean {
@@ -351,11 +357,15 @@ export const GRANTABLE_PURPOSES: readonly ConsentPurpose[] = GRANTABLE_CONSENTS.
  * The consent-notice version each purpose is granted under. The AI purpose
  * has its own, so the sentence counsel writes for it (docs/health/04 D3) is
  * versioned apart from the storage sentence, and a later recipient means a
- * later version rather than a reinterpretation of this one.
+ * later version rather than a reinterpretation of this one — which is what
+ * happened on 2026-09-09: `health-ai-terms-v2` is the notice that names
+ * Google Cloud Vertex AI as a recipient (consent.ts DISCLOSED_RECIPIENTS_BY_TERMS).
+ * A v1 row, granted when the notice named only ONIQ, covers the vertex
+ * provider for nobody; every person grants again under v2.
  */
 export const CONSENT_TERMS_VERSIONS: Record<ConsentPurpose, string> = {
   store_records: "health-terms-v1",
-  ai_interpretation: "health-ai-terms-v1",
+  ai_interpretation: "health-ai-terms-v2",
   share_with_clinician: "health-terms-v1",
   health_connect_sync: "health-terms-v1",
   abdm_exchange: "health-terms-v1",

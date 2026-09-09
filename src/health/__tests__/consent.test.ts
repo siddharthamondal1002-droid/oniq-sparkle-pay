@@ -106,18 +106,23 @@ describe("the closed lists hang together", () => {
     for (const k of RECORD_KINDS) expect(DATA_CATEGORIES).toContain(CATEGORY_FOR_KIND[k]);
   });
 
-  it("Phase 2 grants storage and AI-by-ONIQ, both to ONIQ, and nothing else", () => {
+  it("grants storage to ONIQ and the AI purpose to ONIQ or Google Vertex (Phase 3), and nothing else", () => {
     expect(GRANTABLE_CONSENTS).toEqual([
       { purpose: "store_records", recipient: "oniq" },
       { purpose: "ai_interpretation", recipient: "oniq" },
+      { purpose: "ai_interpretation", recipient: "google_vertex" },
     ]);
     expect([...GRANTABLE_PURPOSES]).toEqual(["store_records", "ai_interpretation"]);
     for (const g of GRANTABLE_CONSENTS) {
       expect(CONSENT_PURPOSES).toContain(g.purpose);
       expect(RECIPIENTS).toContain(g.recipient);
-      expect(g.recipient).toBe("oniq");
     }
-    expect(isGrantable("ai_interpretation", "google_vertex")).toBe(false);
+    // Storage never leaves ONIQ; only the AI purpose has an outside recipient.
+    expect(
+      GRANTABLE_CONSENTS.filter((g) => g.purpose === "store_records").map((g) => g.recipient),
+    ).toEqual(["oniq"]);
+    expect(isGrantable("ai_interpretation", "google_vertex")).toBe(true);
+    expect(isGrantable("store_records", "google_vertex")).toBe(false);
     expect(isGrantable("share_with_clinician", "clinician")).toBe(false);
     expect(isGrantable("store_records", "oniq")).toBe(true);
   });
@@ -129,10 +134,16 @@ describe("the closed lists hang together", () => {
     for (const g of GRANTABLE_CONSENTS) {
       expect(termsDisclose(CONSENT_TERMS_VERSIONS[g.purpose], g.recipient), g.purpose).toBe(true);
     }
-    // And no version discloses anything that leaves ONIQ: Phase 2 has no such recipient.
-    for (const disclosed of Object.values(DISCLOSED_RECIPIENTS_BY_TERMS)) {
-      expect(disclosed).toEqual(["oniq"]);
-    }
+    // Exactly ONE version discloses a recipient that leaves ONIQ — the AI
+    // purpose's current one (Phase 3) — and every earlier version still
+    // discloses ONIQ alone, so an old row cannot be read as covering Google.
+    const outside = Object.entries(DISCLOSED_RECIPIENTS_BY_TERMS).filter(([, r]) =>
+      r.some((x) => x !== "oniq"),
+    );
+    expect(outside).toEqual([["health-ai-terms-v2", ["oniq", "google_vertex"]]]);
+    expect(DISCLOSED_RECIPIENTS_BY_TERMS["health-ai-terms-v1"]).toEqual(["oniq"]);
+    expect(DISCLOSED_RECIPIENTS_BY_TERMS["health-terms-v1"]).toEqual(["oniq"]);
+    expect(CONSENT_TERMS_VERSIONS.ai_interpretation).toBe("health-ai-terms-v2");
     expect(CONSENT_TERMS_VERSIONS.ai_interpretation).not.toBe(CONSENT_TERMS_VERSIONS.store_records);
   });
 });

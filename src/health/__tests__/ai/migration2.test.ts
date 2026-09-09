@@ -45,9 +45,10 @@ describe("the receipts table", () => {
 
   it("stores only closed codes", () => {
     expect(listIn("task text not null check (task in (", RECEIPTS)).toEqual([...AI_TASKS].sort());
-    expect(listIn("provider text not null check (provider in (", RECEIPTS)).toEqual(
-      [...PROVIDER_IDS].sort(),
-    );
+    // Phase 2 shipped one provider; Phase 3's migration widens this check to
+    // PROVIDER_IDS (migration3.test.ts). The historical file keeps its text.
+    expect(listIn("provider text not null check (provider in (", RECEIPTS)).toEqual(["synthetic"]);
+    expect([...PROVIDER_IDS]).toContain("synthetic");
     expect(listIn("purpose text not null check (purpose in (", RECEIPTS)).toEqual([
       "ai_interpretation",
     ]);
@@ -134,10 +135,10 @@ describe("the config row", () => {
     ).toBe(1);
   });
 
-  it("checks the provider against the registry, by a named constraint", () => {
+  it("checks the provider by a named constraint — one provider in Phase 2, widened by Phase 3's file", () => {
     expect(
       listIn("add constraint health_config_ai_provider_check\n  check (ai_provider in ("),
-    ).toEqual([...PROVIDER_IDS].sort());
+    ).toEqual(["synthetic"]);
   });
 });
 
@@ -170,9 +171,12 @@ describe("records, documents, consents, audit", () => {
     const pairs = [
       ...block.matchAll(/\(terms_version = '([^']+)' and recipient in \(([^)]+)\)\)/g),
     ].map((m) => [m[1], quoted(m[2]).sort()] as const);
-    const expected = Object.entries(DISCLOSED_RECIPIENTS_BY_TERMS).map(
-      ([v, r]) => [v, [...r].sort()] as const,
-    );
+    // Phase 2's file carries the v1 versions; Phase 3's file widens the check
+    // to the whole map (migration3.test.ts). Each v1 pair must still agree.
+    const expected = Object.entries(DISCLOSED_RECIPIENTS_BY_TERMS)
+      .filter(([v]) => v.endsWith("-v1"))
+      .map(([v, r]) => [v, [...r].sort()] as const);
+    expect(expected.length).toBe(2);
     expect(pairs.sort()).toEqual(expected.sort());
     expect(SQL).toContain("add column if not exists jurisdiction text not null default 'in'");
   });

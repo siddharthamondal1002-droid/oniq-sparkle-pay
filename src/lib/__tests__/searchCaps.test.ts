@@ -298,7 +298,8 @@ describe("the four searching edge functions remain fail-closed", () => {
     "supabase/functions/smart-scout/index.ts",
     "supabase/functions/hotel-scout/index.ts",
     "supabase/functions/ting/index.ts",
-    "supabase/functions/health-scan/index.ts",
+    // health-scan left the fleet 2026-09-09: a 410 stub, no provider call
+    // (src/health/__tests__/anthropicRetired.test.ts).
   ];
 
   it("every one of them routes its provider call through the guard", () => {
@@ -437,7 +438,6 @@ describe("there is exactly one spend ledger", () => {
     "supabase/functions/_shared/searchBudget.ts",
     "supabase/functions/smart-scout/index.ts",
     "supabase/functions/ting/index.ts",
-    "supabase/functions/health-scan/index.ts",
     "supabase/functions/hotel-scout/index.ts",
   ];
 
@@ -475,7 +475,8 @@ describe("deploying a searching edge function cannot reach a provider", () => {
     "supabase/functions/smart-scout/index.ts",
     "supabase/functions/hotel-scout/index.ts",
     "supabase/functions/ting/index.ts",
-    "supabase/functions/health-scan/index.ts",
+    // health-scan left the fleet 2026-09-09: a 410 stub, no provider call
+    // (src/health/__tests__/anthropicRetired.test.ts).
   ];
 
   it("no searching function writes to the budget config — deploying cannot enable SEARCH", () => {

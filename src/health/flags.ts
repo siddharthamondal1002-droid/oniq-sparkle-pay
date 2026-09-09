@@ -1,5 +1,9 @@
 /**
- * ONIQ HEALTH — client feature flags. ALL OFF.
+ * ONIQ HEALTH — client feature flags. THREE ON (owner directive 2026-09-09:
+ * "ONIQ HEALTH — FULL AUTONOMOUS IMPLEMENTATION, DEPLOYMENT AND ACTIVATION"):
+ * the master switch, the AI switch and provider sharing. The other nine stay
+ * off — uploads, Health Connect, ABDM, FHIR, DICOM, HL7, MedGemma, search,
+ * research are unbuilt or unauthorised.
  *
  * Owner brief, 2026-09-08: everything in ONIQ Health ships behind these
  * twelve switches (§83C names the twelfth). The names are the brief's, dotted exactly as given; the
@@ -23,9 +27,9 @@ export type { HealthFlag };
 export { HEALTH_FLAG_NAMES };
 
 export const HEALTH_FLAGS: Record<HealthFlag, boolean> = {
-  "health.enabled": false,
+  "health.enabled": true,
   "health.uploads.enabled": false,
-  "health.ai.enabled": false,
+  "health.ai.enabled": true,
   "health.health_connect.enabled": false,
   "health.abdm.enabled": false,
   "health.fhir.enabled": false,
@@ -34,7 +38,7 @@ export const HEALTH_FLAGS: Record<HealthFlag, boolean> = {
   "health.medgemma.enabled": false,
   "health.healthcare_search.enabled": false,
   "health.research.enabled": false,
-  "health.provider_sharing.enabled": false,
+  "health.provider_sharing.enabled": true,
 };
 
 /** True only when the master switch AND the named switch are on. */
@@ -48,12 +52,13 @@ export function healthFlag(name: HealthFlag): boolean {
 export const HEALTH_ENABLED = healthFlag("health.enabled");
 export const HEALTH_UPLOADS_ENABLED = healthFlag("health.uploads.enabled");
 /**
- * PHASE 2 STAYS FALSE IN PRODUCTION. The only provider is synthetic and the
- * server refuses it to every non-admin in production regardless; this flag
- * decides only whether the AI sections RENDER. Symptom-to-cause, the way the
- * phone flag records it: a section visible and every action refused means
- * the client half is on and the server half (the row, the caps, the admin
- * verification switch) is off. The server's `status.aiAvailable` is what a
- * screen should read before offering anything.
+ * ON since Phase 3 (owner directive 2026-09-09). This flag decides only
+ * whether the AI sections RENDER; the server's `health_config` row (ai_enabled,
+ * the provider, the caps, the kill switch) decides whether they ANSWER, and
+ * `status.aiAvailable` is what a screen reads before offering anything.
+ * Symptom-to-cause, the way the phone flag records it: a section visible and
+ * every action refused means the client half is on and the server half is
+ * off. ROLLBACK is this constant back to false — one word, no other change —
+ * or the emergency stop on /app/admin/health-ai, which needs no publish.
  */
 export const HEALTH_AI_ENABLED = healthFlag("health.ai.enabled");

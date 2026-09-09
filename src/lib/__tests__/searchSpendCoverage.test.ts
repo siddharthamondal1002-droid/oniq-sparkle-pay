@@ -72,8 +72,13 @@ const UNGUARDED_AI_CALLERS: Record<string, string> = {
   "story-voice": "TTS, not search; Lovable gateway credits, inside the story seconds claim",
 };
 
-/** Callers wired to the ledger in this pass. */
-const GUARDED = ["smart-scout", "hotel-scout", "ting", "health-scan"];
+/**
+ * Callers wired to the ledger in this pass. `health-scan` left this list on
+ * 2026-09-09: it is a 410 stub now (owner directive — Anthropic off the
+ * Health AI path), so it neither searches nor calls a provider;
+ * src/health/__tests__/anthropicRetired.test.ts pins the stub.
+ */
+const GUARDED = ["smart-scout", "hotel-scout", "ting"];
 /**
  * Callers that hold a reservation for TOKENS ONLY via the search adapter — no
  * web_search, so they are not part of the search fleet, but they are billable
@@ -154,7 +159,8 @@ describe("every AI CALL in the repository is either reserved for or listed", () 
     const unexplained: string[] = [];
     for (const f of fns) {
       if (!PROVIDER_CALL.test(f.src)) continue;
-      const guarded = /withSearchSpendGuard\(/.test(f.src) || /withProviderSpendGuard\(/.test(f.src);
+      const guarded =
+        /withSearchSpendGuard\(/.test(f.src) || /withProviderSpendGuard\(/.test(f.src);
       if (guarded) continue;
       if (!(f.name in UNGUARDED_AI_CALLERS)) unexplained.push(f.name);
     }
@@ -197,7 +203,9 @@ describe("every AI CALL in the repository is either reserved for or listed", () 
     // would spend the $10/1,000 search fee with nothing reserving for it.
     for (const name of GUARDED_DIRECT_LEDGER) {
       const src = read(join(FN_DIR, name, "index.ts"));
-      expect(src, `${name} runs web_search but is listed as direct-ledger`).not.toMatch(SEARCH_TOOL);
+      expect(src, `${name} runs web_search but is listed as direct-ledger`).not.toMatch(
+        SEARCH_TOOL,
+      );
     }
   });
 });

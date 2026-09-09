@@ -3,10 +3,13 @@
  * `src/health/ai/types.ts` (`agreement.test.ts`). No imports, on purpose, so
  * the copy is exact.
  *
- * Phase 2 (owner brief 2026-09-08 §83): a safety gateway with a SYNTHETIC
- * provider only. The lists here are closed. Two of them decide whether a
- * health byte can leave ONIQ — the provider registry and the model allowlist
- * — and in Phase 2 both name one thing that never leaves the process.
+ * Phase 2 (owner brief 2026-09-08 §83) built a safety gateway with a
+ * SYNTHETIC provider only. Phase 3 (owner directive 2026-09-09) registered
+ * the ONE real provider: "vertex" — Google Cloud Vertex AI, Gemini, reached
+ * with the Firebase service account (`ai/vertex.ts`). The lists here are
+ * still closed. Two of them decide whether a health byte can leave ONIQ —
+ * the provider registry and the model allowlist — and the recipient table
+ * says where it goes, so a consent can name it.
  *
  * Reviewed 2026-09-08 (five-lens design review, docs/health/05 §14): record
  * ids never reach a provider (per-request aliases do), refusal reasons are
@@ -34,7 +37,7 @@ export type AiLanguage = (typeof AI_LANGUAGES)[number];
 
 /* ----------------------------------------------------------- providers -- */
 
-export const PROVIDER_IDS = ["synthetic"] as const;
+export const PROVIDER_IDS = ["synthetic", "vertex"] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 /**
@@ -45,13 +48,25 @@ export type ProviderId = (typeof PROVIDER_IDS)[number];
 export const AI_RECIPIENTS = ["oniq", "google_vertex"] as const;
 export type AiRecipient = (typeof AI_RECIPIENTS)[number];
 
-/** The recipient a consent must name for each provider. Synthetic never leaves ONIQ. */
+/**
+ * The recipient a consent must name for each provider. Synthetic never
+ * leaves ONIQ; vertex sends the request's context to Google Cloud Vertex AI
+ * (Gemini), under the consent pair (ai_interpretation, google_vertex) and a
+ * terms version that discloses Google (domain.ts, consent.ts).
+ */
 export const RECIPIENT_FOR_PROVIDER: Record<ProviderId, AiRecipient> = {
   synthetic: "oniq",
+  vertex: "google_vertex",
 };
 
+/**
+ * One model per real provider, priced in cost.ts ([PAGE] 2026-09-08, the
+ * global endpoint). Verified by the first real POST on 2026-09-09; a second
+ * id joins this list only after ITS first POST answers.
+ */
 export const MODEL_ALLOWLIST: Record<ProviderId, readonly string[]> = {
   synthetic: ["synthetic-v1"],
+  vertex: ["gemini-3.1-flash-lite"],
 };
 
 /** Where a document's text may come from. Phase 2 registers no source: "null" yields nothing. */
@@ -69,6 +84,7 @@ export type SegmentClass = (typeof SEGMENT_CLASSES)[number];
 /** The classes each provider may emit. A class no provider may emit cannot appear. */
 export const PROVIDER_CLASS_ALLOWLIST: Record<ProviderId, readonly SegmentClass[]> = {
   synthetic: ["record_fact", "general_info", "unknown"],
+  vertex: ["record_fact", "general_info", "ai_interpretation", "unknown"],
 };
 
 /* ------------------------------------------------------------- context -- */

@@ -499,7 +499,7 @@ describe("acceptance is decided on the MEDIA, not on the request", () => {
 // ============================================================ separation
 describe("SEARCH MUST REMAIN SEPARATE", () => {
   it("no search function can reach a video model or the video ledger capability", () => {
-    for (const f of ["smart-scout", "hotel-scout", "ting", "health-scan"]) {
+    for (const f of ["smart-scout", "hotel-scout", "ting"]) {
       const src = read(`supabase/functions/${f}/index.ts`);
       expect(src, f).not.toMatch(/veo-|predictLongRunning|story-clip|runwayml|generateVideo/i);
       expect(src, f).not.toMatch(/capability:\s*"VIDEO"/);

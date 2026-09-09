@@ -17,17 +17,24 @@
  * still stands, this fails.
  *
  * Red-teamed 2026-09-08 by mutation: four one-file edits (a fetch inside a
- * template literal in synthetic.ts; a new ai/vertex.ts importing
+ * template literal in synthetic.ts; a new ai/ file importing
  * ../../fetchTimeout.ts; a new health-ai/net.ts; a bracket-accessed
  * functions["invoke"], an aliased globalThis.fetch and a Worker in
  * health-ai/index.ts) walked past the first version of this file with every
  * guard green. Each is a red test now.
+ *
+ * PHASE 3 (owner directive 2026-09-09) ADDED THE ONE LEGITIMATE EXIT and
+ * narrowed the guard around it rather than loosening it: `ai/vertex.ts` may
+ * import exactly two named modules outside the tree and may contain exactly
+ * one `fetch`, to exactly one host; every other file is held to the old
+ * rule unchanged, and scripts/health-mutate-guards.sh M9–M11 prove a second
+ * host, a third module and a rewritten host constant each go red.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { executableText, stripComments } from "@/test/sourceText";
-import { HEALTH_AI_PRIVACY_STATEMENT } from "@/config/privacy";
+import { HEALTH_AI_PRIVACY_STATEMENT, HEALTH_AI_RECIPIENT_NAME } from "@/config/privacy";
 import { RECIPIENTS } from "../../domain";
 import {
   AI_RECIPIENTS,
@@ -97,12 +104,23 @@ const IMPORT_SPEC =
   /\bfrom\s+["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']|^\s*import\s+["']([^"']+)["']/gm;
 const specOf = (m: RegExpMatchArray) => m[1] ?? m[2] ?? m[3];
 
+/**
+ * THE ONE FILE THAT MAY LEAVE THE TREE, and the two modules it may reach
+ * (Phase 3, owner directive 2026-09-09): the Google credential ONIQ already
+ * mints for every other Vertex call, and the reader of Google's error shapes.
+ * Named by full path, not by a `../../` wildcard — M10 in
+ * scripts/health-mutate-guards.sh proves a third module goes red.
+ */
+const VERTEX_FILE = "supabase/functions/_shared/health/ai/vertex.ts";
+const VERTEX_OUTSIDE = ["../../googleAuth.ts", "../../vertexError.ts"];
+
 /** Which specifiers a file at this path may import; everything else is an escape. */
 function importAllowed(file: string, spec: string): boolean {
   if (spec === SUPABASE_JS) return true;
   if (!spec.startsWith("./") && !spec.startsWith("../")) return false;
-  if (spec.includes("../../")) return false;
   const r = rel(file);
+  if (r === VERTEX_FILE && VERTEX_OUTSIDE.includes(spec)) return true;
+  if (spec.includes("../../")) return false;
   const inAi = r.startsWith("supabase/functions/_shared/health/ai/");
   const inShared = !inAi && r.startsWith("supabase/functions/_shared/health/");
   if (inAi) {
@@ -143,18 +161,23 @@ const SERVER_RPC_ALLOWED = [
 ];
 
 describe("the registry", () => {
-  it("names exactly one provider, synthetic, whose recipient is ONIQ", () => {
-    expect(Object.keys(PROVIDER_REGISTRY)).toEqual(["synthetic"]);
-    expect([...PROVIDER_IDS]).toEqual(["synthetic"]);
-    expect(Object.values(RECIPIENT_FOR_PROVIDER)).toEqual(["oniq"]);
+  it("names exactly two providers — synthetic to ONIQ, vertex to Google Vertex (Phase 3)", () => {
+    expect(Object.keys(PROVIDER_REGISTRY)).toEqual(["synthetic", "vertex"]);
+    expect([...PROVIDER_IDS]).toEqual(["synthetic", "vertex"]);
+    expect(RECIPIENT_FOR_PROVIDER).toEqual({ synthetic: "oniq", vertex: "google_vertex" });
     for (const r of AI_RECIPIENTS) expect(RECIPIENTS).toContain(r);
+    const vertex = providerFor("vertex");
+    expect(vertex.id).toBe("vertex");
+    expect(vertex.recipient).toBe("google_vertex");
+    expect(vertex.synthetic).toBe(false);
+    expect(providerFor("synthetic").synthetic).toBe(true);
   });
 
   it.each([
-    "vertex",
     "gemini",
     "medgemma",
     "google_vertex",
+    "google",
     "openai",
     "anthropic",
     "",
@@ -162,21 +185,50 @@ describe("the registry", () => {
     undefined,
     1,
     "SYNTHETIC",
+    "VERTEX",
+    "Vertex",
+    "vertex ",
+    ["vertex"],
   ])("refuses %s", (id) => {
     expect(() => providerFor(id)).toThrow(/provider_not_allowed/);
   });
 
-  it("the factory takes no arguments and the synthetic class has no constructor options", () => {
+  it("the factories take no arguments and neither provider class has constructor options", () => {
     const src = stripComments(
       readFileSync(join(ROOT, "supabase/functions/_shared/health/ai/provider.ts"), "utf8"),
     );
     expect(src).toContain("synthetic: () => new SyntheticHealthAIProvider(),");
+    expect(src).toContain("vertex: () => new VertexHealthAIProvider(),");
     expect(PROVIDER_REGISTRY.synthetic.length).toBe(0);
-    const synth = stripComments(
-      readFileSync(join(ROOT, "supabase/functions/_shared/health/ai/synthetic.ts"), "utf8"),
+    expect(PROVIDER_REGISTRY.vertex.length).toBe(0);
+    for (const [file, className] of [
+      ["synthetic.ts", "SyntheticHealthAIProvider"],
+      ["vertex.ts", "VertexHealthAIProvider"],
+    ]) {
+      const whole = stripComments(
+        readFileSync(join(ROOT, "supabase/functions/_shared/health/ai", file), "utf8"),
+      );
+      expect(whole, file).not.toMatch(/misbehav/i);
+      // The PROVIDER class body: from its declaration to the end of the file
+      // (it is the last thing in each). vertex.ts also declares ProviderError,
+      // whose constructor takes a code and a message — that is not a mode.
+      const start = whole.indexOf(`export class ${className}`);
+      expect(start, `${file} declares ${className}`).toBeGreaterThan(-1);
+      const cls = whole.slice(start);
+      expect(cls, file).not.toMatch(/constructor\(/);
+      expect(cls, file).not.toMatch(new RegExp(`export class (?!${className})`));
+    }
+    // The transport and the credential are PROTECTED methods a test-only
+    // subclass overrides — never module state a caller could reach.
+    const vertex = stripComments(
+      readFileSync(join(ROOT, "supabase/functions/_shared/health/ai/vertex.ts"), "utf8"),
     );
-    expect(synth).not.toMatch(/constructor\(/);
-    expect(synth).not.toMatch(/misbehav/i);
+    expect(vertex).toMatch(/protected token\(\)/);
+    expect(vertex).toMatch(/protected async send\(/);
+    // No MODULE-level mutable state (a `let` at column 0): nothing a request
+    // could flip. Locals inside functions are fine.
+    expect(vertex).not.toMatch(/^(export )?let /m);
+    expect(vertex).not.toMatch(/Deno\.env\.get\(\s*["'](?!GOOGLE|FIREBASE)/);
   });
 
   it("nothing in the health tree writes to the price table, the allowlist, the recipient map or the registry", () => {
@@ -225,17 +277,27 @@ describe("egress allowlist — server", () => {
   );
 
   it.each(FUNCTION_DIRS.map((d) => [rel(d), join(d, "index.ts")] as const))(
-    "%s reaches, transitively, nothing outside _shared/health",
+    "%s reaches, transitively, nothing outside _shared/health but the vertex provider's two named modules",
     (_r, entry) => {
       const modules = reachable(entry);
       expect(modules.length).toBeGreaterThanOrEqual(8);
-      for (const m of modules) {
-        expect(m.startsWith(SHARED_DIR + "/"), `${rel(entry)} reaches ${rel(m)}`).toBe(true);
+      const allowedOutside = VERTEX_OUTSIDE.map((s) => resolve(join(ROOT, VERTEX_FILE), "..", s));
+      const outside = modules.filter((m) => !m.startsWith(SHARED_DIR + "/"));
+      expect(outside.map(rel).sort(), `${rel(entry)} reaches outside the tree`).toEqual(
+        allowedOutside.map(rel).sort(),
+      );
+      // And those two reach nothing further: the boundary is two files deep, not open-ended.
+      for (const m of allowedOutside) {
+        expect(existsSync(m), rel(m)).toBe(true);
+        expect(reachable(m), `${rel(m)} imports something`).toEqual([]);
       }
     },
   );
 
-  it.each(SERVER_FILES.map((f) => [rel(f), f] as const))(
+  /** The vertex provider is allowed the word `fetch` and nothing else on the egress list. */
+  const EGRESS_BUT_FETCH = new RegExp(EGRESS.source.replace("\\bfetch\\b|", ""));
+
+  it.each(SERVER_FILES.filter((f) => rel(f) !== VERTEX_FILE).map((f) => [rel(f), f] as const))(
     "%s opens no network path — strings included",
     (_r, f) => {
       const src = stripComments(readFileSync(f, "utf8"));
@@ -245,6 +307,29 @@ describe("egress allowlist — server", () => {
       expect(executableText(readFileSync(f, "utf8")), rel(f)).not.toMatch(EGRESS);
     },
   );
+
+  it("the vertex provider opens exactly one network path: one fetch, to the one host, and no other egress word", () => {
+    const f = join(ROOT, VERTEX_FILE);
+    expect(SERVER_FILES).toContain(f);
+    expect(EGRESS_BUT_FETCH.source).not.toContain("fetch");
+    const src = stripComments(readFileSync(f, "utf8"));
+    const hit = EGRESS_BUT_FETCH.exec(src);
+    expect(hit, `vertex.ts carries ${hit?.[0]}`).toBeNull();
+    expect(executableText(readFileSync(f, "utf8"))).not.toMatch(EGRESS_BUT_FETCH);
+    expect(src.match(/\bfetch\b/g)?.length ?? 0).toBe(1);
+    expect(src.match(/\bfetch\(/g)?.length ?? 0).toBe(1);
+    // One host, as a named constant the URL builder interpolates — M11 in
+    // scripts/health-mutate-guards.sh proves a rewritten constant goes red.
+    expect(src).toContain('export const VERTEX_HOST = "aiplatform.googleapis.com";');
+    expect(src.match(/googleapis\.com/g)?.length ?? 0).toBe(1);
+    expect(src.match(/https?:\/\//g)?.length ?? 0).toBe(1);
+    expect(src).toMatch(/`https:\/\/\$\{VERTEX_HOST\}\//);
+    // The credential is minted by the shared module, never read here by name.
+    expect(src).not.toMatch(
+      /private_key|client_email|FIREBASE_SERVICE_ACCOUNT|GOOGLE_SERVICE_ACCOUNT_JSON/,
+    );
+    expect(src).toMatch(/googleAccessToken\(\)/);
+  });
 
   it.each(SERVER_FILES.map((f) => [rel(f), f] as const))(
     "%s calls rpc only from the closed list",
@@ -384,19 +469,20 @@ describe("what a provider is handed", () => {
 });
 
 describe("the disclosure stands", () => {
-  it("the privacy notice carries the owner's consent-conditioned statement, the absolute claim is gone, and no recipient leaves ONIQ", () => {
-    // Owner directive 2026-09-09 replaced "never sent to any AI feature".
+  it("the privacy notice carries the owner's statement, the absolute claim is gone, and the ONE recipient that leaves ONIQ is named", () => {
+    // Owner directive 2026-09-09 replaced "never sent to any AI feature"; the
+    // Phase 3 directive the same day registered a provider that leaves ONIQ,
+    // and 05 §13 said the notice must then NAME it. It does, by the constant
+    // the registry's recipient is tied to (privacyDisclosure.test.ts).
     const privacy = readFileSync(join(ROOT, "src/routes/privacy.tsx"), "utf8")
       .replace(/\{"\s*"\}/g, " ")
       .replace(/<[^>]+>/g, " ")
       .replace(/\s+/g, " ");
     expect(privacy).toContain(HEALTH_AI_PRIVACY_STATEMENT);
+    expect(privacy).toContain(HEALTH_AI_RECIPIENT_NAME);
     expect(privacy.toLowerCase()).not.toMatch(/never sent to any ai/);
-    // The two facts are still tied: "provide the required consent" and
-    // "subject to ONIQ's … controls" are true while every recipient is ONIQ;
-    // the day a provider that leaves ONIQ is registered, the notice must name
-    // it (05 §13) and this assertion changes with it.
-    expect(Object.values(RECIPIENT_FOR_PROVIDER).every((r) => r === "oniq")).toBe(true);
+    const outside = Object.entries(RECIPIENT_FOR_PROVIDER).filter(([, r]) => r !== "oniq");
+    expect(outside).toEqual([["vertex", "google_vertex"]]);
   });
 
   it("no edge function outside the two health functions names a health table, and none imports from _shared/health", () => {

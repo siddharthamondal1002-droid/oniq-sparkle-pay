@@ -65,6 +65,13 @@ export type HealthStatus = {
    * A screen offers an AI action on this, never on the client constant alone.
    */
   aiAvailable: boolean;
+  /**
+   * The recipient the registered provider names ("google_vertex" since
+   * Phase 3, "oniq" for the synthetic provider). The consent screen grants
+   * the AI purpose to THIS recipient and no other; the server refuses any
+   * other pair, so the client never chooses where a byte goes.
+   */
+  aiRecipient?: string | null;
   /** The emergency stop's position; shown on the admin screen, forces aiAvailable false when on. */
   aiKillSwitch?: boolean;
   /** Owner directive 2026-09-08: the house cap is a system-wide ceiling, the per-task caps the tighter control. */

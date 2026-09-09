@@ -21,7 +21,8 @@ const SCOUT = read("supabase/functions/smart-scout/index.ts");
 const SEARCH_FNS = [
   "supabase/functions/smart-scout/index.ts",
   "supabase/functions/ting/index.ts",
-  "supabase/functions/health-scan/index.ts",
+  // health-scan left the fleet 2026-09-09: a 410 stub with no model at all
+  // (src/health/__tests__/anthropicRetired.test.ts).
   "supabase/functions/hotel-scout/index.ts",
 ] as const;
 

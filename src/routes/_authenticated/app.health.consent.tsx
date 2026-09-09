@@ -6,7 +6,7 @@ import { OniqCard, OniqChip, OniqSectionHeader, OniqSkeletonRows } from "@/compo
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { deliverFile } from "@/lib/saveFile";
 import { HEALTH_ENABLED } from "@/health/flags";
-import { healthApi, type ConsentRow } from "@/health/api";
+import { healthApi, type ConsentRow, type HealthStatus } from "@/health/api";
 import { CONSENT_PURPOSES, GRANTABLE_PURPOSES, type ConsentPurpose } from "@/health/domain";
 import { fill } from "@/health/i18n";
 import { formatDate, reasonText, todayIso } from "@/health/labels";
@@ -15,14 +15,16 @@ import { formatDate, reasonText, todayIso } from "@/health/labels";
  * ONIQ HEALTH — consents, export, purge.
  *
  * TWO SWITCHES: `store_records`, the consent under which anything is written
- * at all, and — since Phase 2 — `ai_interpretation` for ONIQ's OWN in-process
- * provider (recipient "oniq"; the server refuses any other). The other
- * purposes exist in the model and are shown as "coming later" so the shape
- * of what will be asked is visible now and no purpose is ever granted by
- * default. Turning a switch off refuses the next write or AI request
- * immediately; what is already stored stays readable and one tap away from
- * purge — withdrawal is meant to be as easy as giving. The AI sentence here
- * is placeholder wording until counsel writes it (docs/health/04 D3).
+ * at all, and `ai_interpretation`, granted to the recipient the server's
+ * registered provider names — since Phase 3 (owner directive 2026-09-09)
+ * that is Google Cloud Vertex AI ("google_vertex"), read from `status`, never
+ * typed here; the server refuses any other pair. The other purposes exist in
+ * the model and are shown as "coming later" so the shape of what will be
+ * asked is visible now and no purpose is ever granted by default. Turning a
+ * switch off refuses the next write or AI request immediately; what is
+ * already stored stays readable and one tap away from purge — withdrawal is
+ * meant to be as easy as giving. The AI sentence here is placeholder wording
+ * until counsel writes it (docs/health/04 D3); its detail names the recipient.
  *
  * EXPORT is the person's own data as JSON, through the same delivery helper
  * every other download uses (on native it goes to the share sheet). PURGE
@@ -43,12 +45,24 @@ function HealthConsent() {
     queryFn: () => healthApi<ConsentRow[]>("consents.list"),
     enabled: HEALTH_ENABLED,
   });
+  // The AI consent names the recipient the SERVER's registered provider
+  // names (Phase 3: "google_vertex"); the storage consent is always ONIQ's.
+  // A screen that hard-coded a recipient would offer a pair the server
+  // refuses the day the provider changes.
+  const status = useQuery({
+    queryKey: ["health", "status"],
+    queryFn: () => healthApi<HealthStatus>("status"),
+    enabled: HEALTH_ENABLED,
+  });
+  const aiRecipient = status.data?.ok ? (status.data.data.aiRecipient ?? null) : null;
 
   const grant = useMutation({
     mutationFn: async (purpose: ConsentPurpose) => {
+      const recipient = purpose === "ai_interpretation" ? aiRecipient : "oniq";
+      if (!recipient) throw new Error(t("health.ai.unavailable", "Health AI isn't answering yet."));
       const res = await healthApi<ConsentRow>("consents.grant", {
         purpose,
-        recipient: "oniq",
+        recipient,
         noticeLocale: ["en", "hi", "bn"].includes(lang) ? lang : "en",
       });
       if (!res.ok) throw new Error(reasonText(t, res));
@@ -97,7 +111,8 @@ function HealthConsent() {
   const store = rows.find((c) => c.purpose === "store_records" && c.status === "active") ?? null;
   const ai =
     rows.find(
-      (c) => c.purpose === "ai_interpretation" && c.recipient === "oniq" && c.status === "active",
+      (c) =>
+        c.purpose === "ai_interpretation" && c.recipient === aiRecipient && c.status === "active",
     ) ?? null;
   const later = CONSENT_PURPOSES.filter((p) => !GRANTABLE_PURPOSES.includes(p));
 
@@ -165,7 +180,7 @@ function HealthConsent() {
               <div className="text-xs text-muted-foreground">
                 {t(
                   "health.consent.ai.detail",
-                  "Explains and summarises what you have stored. In this phase only ONIQ's own built-in checker runs; nothing is sent to Google or any outside company.",
+                  "Explains and summarises what you have stored. The records you ask about are sent to Google Cloud Vertex AI (Gemini), operated by Google, to write the answer — under Google Cloud's terms, which do not use them to train Google's models. ONIQ checks every answer before you see it.",
                 )}
               </div>
               <p
@@ -175,6 +190,15 @@ function HealthConsent() {
                 {t(
                   "health.privacy.ai_processing",
                   "Health data may be processed by ONIQ's AI-assisted health features when you choose to use them and provide the required consent. AI-assisted features are subject to ONIQ's privacy, security, consent, audit, and safety controls.",
+                )}
+              </p>
+              <p
+                className="mt-1 text-xs text-muted-foreground"
+                data-testid="health-consent-ai-recipient"
+              >
+                {t(
+                  "health.privacy.ai_recipient",
+                  "When you use them, the records you ask about are sent to Google Cloud Vertex AI (Gemini), operated by Google, to produce the answer, and are not used to train Google's models.",
                 )}
               </p>
               <div

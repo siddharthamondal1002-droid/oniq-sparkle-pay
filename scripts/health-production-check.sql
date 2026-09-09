@@ -27,11 +27,12 @@ with cfg as (
 expected_config(col, expected) as (values
   ('enabled',                       'true'),
   ('uploads_enabled',               'false'),
-  ('ai_enabled',                    'false'),
+  ('ai_enabled',                    'true'),
   ('ai_kill_switch',                'false'),
   ('ai_admin_verification_enabled', 'true'),
-  ('provider_sharing_enabled',      'false'),
-  ('ai_provider',                   'synthetic'),
+  ('provider_sharing_enabled',      'true'),
+  ('ai_provider',                   'vertex'),
+  ('ai_model',                      'gemini-3.1-flash-lite'),
   ('environment',                   'production'),
   ('ai_daily_cap_house',            '500'),
   ('ai_daily_caps',                 '{"answer_question": 10, "explain_record": 5, "summarize_timeline": 3, "classify_document": 10, "extract_document": 10}')
@@ -44,6 +45,7 @@ actual_config(col, actual) as (
   union all select 'ai_admin_verification_enabled', ai_admin_verification_enabled::text from cfg
   union all select 'provider_sharing_enabled', provider_sharing_enabled::text from cfg
   union all select 'ai_provider', ai_provider from cfg
+  union all select 'ai_model', ai_model from cfg
   union all select 'environment', environment from cfg
   union all select 'ai_daily_cap_house', ai_daily_cap_house::text from cfg
   union all select 'ai_daily_caps', ai_daily_caps::text from cfg
@@ -68,7 +70,8 @@ expected_retention(category) as (values
   ('immunizations'), ('procedures'), ('encounters'), ('notes'), ('device_metrics'), ('ai_requests')
 ),
 expected_versions(version) as (values
-  ('20260908170834'), ('20260908171017'), ('20260908181500'), ('20260908190000')
+  ('20260908170834'), ('20260908171017'), ('20260908181500'), ('20260908190000'),
+  ('20260909100000')
 ),
 audit_fn as (
   select pg_get_functiondef(p.oid) as def
@@ -122,8 +125,14 @@ union all
 select 'MISSING_AUDIT_OBJECT_TYPE', 'config', 'not in health_audit_object_type_check'
 where not exists (select 1 from pg_constraint k where k.conname = 'health_audit_object_type_check' and pg_get_constraintdef(k.oid) like '%''config''%')
 union all
-select 'PROVIDER_NOT_LOCKED', 'CHECK ((ai_provider = ''synthetic''::text))', coalesce((select pg_get_constraintdef(k.oid) from pg_constraint k where k.conname = 'health_config_ai_provider_check'), 'absent')
-where coalesce((select pg_get_constraintdef(k.oid) from pg_constraint k where k.conname = 'health_config_ai_provider_check'), '') <> 'CHECK ((ai_provider = ''synthetic''::text))'
+select 'PROVIDER_NOT_LOCKED', 'CHECK ((ai_provider = ANY (ARRAY[''synthetic''::text, ''vertex''::text])))', coalesce((select pg_get_constraintdef(k.oid) from pg_constraint k where k.conname = 'health_config_ai_provider_check'), 'absent')
+where coalesce((select pg_get_constraintdef(k.oid) from pg_constraint k where k.conname = 'health_config_ai_provider_check'), '') <> 'CHECK ((ai_provider = ANY (ARRAY[''synthetic''::text, ''vertex''::text])))'
+union all
+select 'RECEIPT_PROVIDER_NOT_LOCKED', 'CHECK ((provider = ANY (ARRAY[''synthetic''::text, ''vertex''::text])))', coalesce((select pg_get_constraintdef(k.oid) from pg_constraint k where k.conname = 'health_ai_requests_provider_check'), 'absent')
+where coalesce((select pg_get_constraintdef(k.oid) from pg_constraint k where k.conname = 'health_ai_requests_provider_check'), '') <> 'CHECK ((provider = ANY (ARRAY[''synthetic''::text, ''vertex''::text])))'
+union all
+select 'CONSENT_TERMS_NOT_WIDENED', 'health-ai-terms-v2 names google_vertex', coalesce((select pg_get_constraintdef(k.oid) from pg_constraint k where k.conname = 'health_consents_terms_recipient_check'), 'absent')
+where coalesce((select pg_get_constraintdef(k.oid) from pg_constraint k where k.conname = 'health_consents_terms_recipient_check'), '') not like '%health-ai-terms-v2%google_vertex%'
 
 -- 3. The config audit trigger diffs the whole row and no client can call it.
 union all

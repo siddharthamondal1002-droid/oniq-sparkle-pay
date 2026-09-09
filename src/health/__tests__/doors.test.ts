@@ -30,15 +30,19 @@ const ROOT = join(__dirname, "..", "..", "..");
 const ROUTES = join(ROOT, "src", "routes", "_authenticated");
 const read = (p: string) => stripComments(readFileSync(p, "utf8"));
 
-describe("shut", () => {
-  it("the flag is off and the expression says so", () => {
-    expect(HEALTH_ENABLED).toBe(false);
-    expect(healthDoorsOpen()).toBe(false);
+describe("open (Phase 3, owner directive 2026-09-09) — by the flag, through the spreads", () => {
+  it("the flag is on and the expression says so", () => {
+    expect(HEALTH_ENABLED).toBe(true);
+    expect(healthDoorsOpen()).toBe(true);
+    // And shut is still one word away: the same expression, evaluated off.
+    expect(healthDoorsOpen(false)).toBe(false);
   });
 
-  it("door 1 — no Home or Explore tile routes to /app/health", () => {
-    expect(ALL_WORLDS.find((w) => w.to === HEALTH_ROUTE)).toBeUndefined();
-    expect(ALL_WORLDS.find((w) => w.key === "health")).toBeUndefined();
+  it("door 1 — exactly one Home tile routes to /app/health, and it is the declared one", () => {
+    const tiles = ALL_WORLDS.filter((w) => w.to === HEALTH_ROUTE);
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0]).toBe(HEALTH_WORLD);
+    expect(ALL_WORLDS.filter((w) => w.key === "health")).toHaveLength(1);
   });
 
   it("door 2 — the bottom nav spread reads the flag, by app.tsx's own text", () => {

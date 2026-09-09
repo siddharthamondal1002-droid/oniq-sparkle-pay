@@ -194,14 +194,14 @@ describe("no whole-file reads on any upload path (Track A4, pre-emptive)", () =>
    * guard landed, and why each is tolerated FOR NOW.
    *
    * Not an exemption list. It is a ratchet, the same shape as
-   * eslint-suppressions.json: these five are known, nothing new may join
+   * eslint-suppressions.json: these four are known, nothing new may join
    * them, and Track A4 is where the three real ones get fixed. Writing them
    * down beats pretending the codebase is already clean.
    */
   //
   // REVISED IN A4, after reading every call site instead of assuming. All
-  // five are now BOUNDED, so the list is a record of deliberate whole-file
-  // reads rather than a list of debts.
+  // of them are now BOUNDED, so the list is a record of deliberate whole-file
+  // reads rather than a list of debts. Five until 2026-09-09; four since.
   const KNOWN = [
     // Our own generated Blob (a PDF we just built), read to base64 for the
     // Capacitor share sheet. Not a user file, bounded by what we produced.
@@ -209,13 +209,14 @@ describe("no whole-file reads on any upload path (Track A4, pre-emptive)", () =>
     // A CSV the user picks. Was the ONLY genuinely unbounded read in the app
     // — file.text() with no size check. Capped at 2 MB in A4.
     "src/components/cv/CredentialCsvImport.tsx",
-    // These three base64 a file for an AI edge function, which needs base64
-    // and so cannot stream. Each was already capped before A4: 5/10/1 MB,
-    // 10 MB and 6 MB respectively. They are not the chat-media path and the
-    // 200 MB cap never reaches them.
+    // These two base64 a file for an AI edge function, which needs base64
+    // and so cannot stream. Each was already capped before A4: 5/10/1 MB and
+    // 10 MB respectively. They are not the chat-media path and the 200 MB cap
+    // never reaches them. (app.vitals.tsx was the third until 2026-09-09,
+    // when its report scan — the base64 path to Anthropic — was retired;
+    // the ratchet moved down by one, as it is meant to.)
     "src/routes/_authenticated/app.ai.tsx",
     "src/routes/_authenticated/app.study.tsx",
-    "src/routes/_authenticated/app.vitals.tsx",
   ];
 
   function offenders(): string[] {
@@ -248,7 +249,7 @@ describe("no whole-file reads on any upload path (Track A4, pre-emptive)", () =>
     expect(fresh, `new whole-file read — stream it instead:\n${fresh.join("\n")}`).toEqual([]);
   });
 
-  it("the frozen tail is exactly five files, so it cannot grow unnoticed", () => {
+  it("the frozen tail is exactly four files, so it cannot grow unnoticed", () => {
     const files = new Set(offenders().map((l) => l.split(":")[0]));
     expect([...files].sort()).toEqual([...KNOWN].sort());
   });

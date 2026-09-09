@@ -349,7 +349,10 @@ describe("B. consent shapes that must not cover", () => {
   });
 
   it("a consent whose termsVersion never disclosed the recipient does not cover, however the recipient column reads", async () => {
-    for (const termsVersion of ["health-ai-terms-v2", "", "__proto__", "constructor", "toString"]) {
+    // "health-ai-terms-v2" left this list on 2026-09-09: it is the Phase 3
+    // version that DOES disclose both recipients. A version that does not
+    // exist yet stands in for it.
+    for (const termsVersion of ["health-ai-terms-v3", "", "__proto__", "constructor", "toString"]) {
       const store = new FakeStore(
         aiOnly(consent("a1", "ai_interpretation", ALL, { termsVersion })),
         ALICE,

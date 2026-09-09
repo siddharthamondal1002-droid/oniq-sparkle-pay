@@ -126,8 +126,11 @@ const en: Dict = {
     "The answer didn't pass ONIQ's safety check, so it wasn't shown.",
   "health.reason.provider_error": "Health AI couldn't answer just now. Try again.",
   "health.consent.ai": "Let ONIQ's AI read my records",
+  // Phase 3 (owner directive 2026-09-09): the detail NAMES the recipient. The
+  // Vertex data-governance position (prompts not used to train) is recorded
+  // in docs/health/01-research.md as a SNIPPET-labelled claim.
   "health.consent.ai.detail":
-    "Explains and summarises what you have stored. In this phase only ONIQ's own built-in checker runs; nothing is sent to Google or any outside company.",
+    "Explains and summarises what you have stored. The records you ask about are sent to Google Cloud Vertex AI (Gemini), operated by Google, to write the answer — under Google Cloud's terms, which do not use them to train Google's models. ONIQ checks every answer before you see it.",
   "health.consent.ai.required": "Turn on the AI consent first.",
   // The privacy DISCLOSURE beside the AI consent — owner directive 2026-09-09,
   // verbatim; src/config/privacy.ts HEALTH_AI_PRIVACY_STATEMENT is the copy the
@@ -135,6 +138,10 @@ const en: Dict = {
   // placeholder (docs/health/04 D3).
   "health.privacy.ai_processing":
     "Health data may be processed by ONIQ's AI-assisted health features when you choose to use them and provide the required consent. AI-assisted features are subject to ONIQ's privacy, security, consent, audit, and safety controls.",
+  // The RECIPIENT sentence (Phase 3) — src/config/privacy.ts
+  // HEALTH_AI_RECIPIENT_SENTENCE is the copy the tests pin this to.
+  "health.privacy.ai_recipient":
+    "When you use them, the records you ask about are sent to Google Cloud Vertex AI (Gemini), operated by Google, to produce the answer, and are not used to train Google's models.",
   "health.ai.suggested": "Suggested records",
   "health.ai.suggested.body":
     "Read from your documents by ONIQ. Nothing joins your timeline until you confirm it.",
@@ -273,13 +280,18 @@ const hi: Dict = {
     "जवाब ONIQ की सुरक्षा जाँच में पास नहीं हुआ, इसलिए दिखाया नहीं गया।",
   "health.reason.provider_error": "Health AI अभी जवाब नहीं दे सका। फिर कोशिश करें।",
   "health.consent.ai": "ONIQ के AI को मेरे रिकॉर्ड पढ़ने दें",
+  // Counsel-review placeholder translation of the English detail (Phase 3).
   "health.consent.ai.detail":
-    "आपके सहेजे रिकॉर्ड को समझाता और सारांश देता है। इस चरण में केवल ONIQ का अपना अंदरूनी जाँचकर्ता चलता है; Google या किसी बाहरी कंपनी को कुछ नहीं भेजा जाता।",
+    "आपके सहेजे रिकॉर्ड को समझाता और सारांश देता है। आप जिन रिकॉर्ड के बारे में पूछते हैं, वे जवाब लिखने के लिए Google द्वारा संचालित Google Cloud Vertex AI (Gemini) को भेजे जाते हैं — Google Cloud की शर्तों के तहत, जो उन्हें Google के मॉडल को प्रशिक्षित करने में इस्तेमाल नहीं करतीं। ONIQ हर जवाब को आपको दिखाने से पहले जाँचता है।",
   "health.consent.ai.required": "पहले AI सहमति चालू करें।",
   // Counsel-review placeholder: a meaning-preserving translation of the owner's
   // approved English sentence (2026-09-09); no legal approval is claimed for it.
   "health.privacy.ai_processing":
     "जब आप ONIQ की AI-सहायता वाली स्वास्थ्य सुविधाओं का उपयोग करना चुनते हैं और आवश्यक सहमति देते हैं, तब आपका स्वास्थ्य डेटा उन सुविधाओं द्वारा प्रोसेस किया जा सकता है। AI-सहायता वाली सुविधाएँ ONIQ के गोपनीयता, सुरक्षा, सहमति, ऑडिट और सेफ़्टी नियंत्रणों के अधीन हैं।",
+  // Counsel-review placeholder: a meaning-preserving translation of the
+  // English recipient sentence (Phase 3, 2026-09-09).
+  "health.privacy.ai_recipient":
+    "जब आप उनका उपयोग करते हैं, तो आप जिन रिकॉर्ड के बारे में पूछते हैं वे जवाब बनाने के लिए Google द्वारा संचालित Google Cloud Vertex AI (Gemini) को भेजे जाते हैं, और उनका उपयोग Google के मॉडल को प्रशिक्षित करने में नहीं किया जाता।",
   "health.ai.suggested": "सुझाए गए रिकॉर्ड",
   "health.ai.suggested.body":
     "ONIQ ने आपके दस्तावेज़ों से पढ़ा है। आपकी पुष्टि के बिना कुछ भी समयरेखा में नहीं जुड़ता।",
@@ -416,13 +428,18 @@ const bn: Dict = {
     "উত্তরটি ONIQ-এর নিরাপত্তা পরীক্ষায় পাশ করেনি, তাই দেখানো হয়নি।",
   "health.reason.provider_error": "Health AI এখন উত্তর দিতে পারেনি। আবার চেষ্টা করুন।",
   "health.consent.ai": "ONIQ-এর AI-কে আমার রেকর্ড পড়তে দিন",
+  // Counsel-review placeholder translation of the English detail (Phase 3).
   "health.consent.ai.detail":
-    "আপনার সংরক্ষিত রেকর্ড ব্যাখ্যা ও সারসংক্ষেপ করে। এই পর্যায়ে শুধু ONIQ-এর নিজস্ব অভ্যন্তরীণ পরীক্ষক চলে; Google বা কোনো বাইরের কোম্পানিকে কিছু পাঠানো হয় না।",
+    "আপনার সংরক্ষিত রেকর্ড ব্যাখ্যা ও সারসংক্ষেপ করে। আপনি যে রেকর্ড নিয়ে জিজ্ঞাসা করেন সেগুলি উত্তর লেখার জন্য Google পরিচালিত Google Cloud Vertex AI (Gemini)-তে পাঠানো হয় — Google Cloud-এর শর্তের অধীনে, যা সেগুলি Google-এর মডেল প্রশিক্ষণে ব্যবহার করে না। ONIQ প্রতিটি উত্তর আপনাকে দেখানোর আগে যাচাই করে।",
   "health.consent.ai.required": "প্রথমে AI সম্মতি চালু করুন।",
   // Counsel-review placeholder: a meaning-preserving translation of the owner's
   // approved English sentence (2026-09-09); no legal approval is claimed for it.
   "health.privacy.ai_processing":
     "আপনি যখন ONIQ-এর AI-সহায়িত স্বাস্থ্য ফিচার ব্যবহার করতে বেছে নেন এবং প্রয়োজনীয় সম্মতি দেন, তখন আপনার স্বাস্থ্য ডেটা সেই ফিচারগুলির মাধ্যমে প্রক্রিয়া করা হতে পারে। AI-সহায়িত ফিচারগুলি ONIQ-এর গোপনীয়তা, নিরাপত্তা, সম্মতি, অডিট ও সুরক্ষা নিয়ন্ত্রণের অধীন।",
+  // Counsel-review placeholder: a meaning-preserving translation of the
+  // English recipient sentence (Phase 3, 2026-09-09).
+  "health.privacy.ai_recipient":
+    "আপনি যখন সেগুলি ব্যবহার করেন, তখন আপনি যে রেকর্ড নিয়ে জিজ্ঞাসা করেন সেগুলি উত্তর তৈরির জন্য Google পরিচালিত Google Cloud Vertex AI (Gemini)-তে পাঠানো হয়, এবং সেগুলি Google-এর মডেল প্রশিক্ষণে ব্যবহার করা হয় না।",
   "health.ai.suggested": "প্রস্তাবিত রেকর্ড",
   "health.ai.suggested.body":
     "ONIQ আপনার নথি থেকে পড়েছে। আপনি নিশ্চিত না করা পর্যন্ত কিছুই সময়রেখায় যোগ হয় না।",

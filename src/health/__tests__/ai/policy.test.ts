@@ -71,7 +71,10 @@ describe("checkGate — one mutation, one reason, in order", () => {
     ["master flag off", { flags: { ...flagsOn(), "health.enabled": false } }, "ai_disabled"],
     ["ai flag off", { flags: { ...flagsOn(), "health.ai.enabled": false } }, "ai_disabled"],
     ["unknown task", { task: "diagnose" }, "task_not_allowed"],
-    ["vertex provider", { providerId: "vertex" }, "provider_not_allowed"],
+    // "vertex" is registered since Phase 3, but this fixture's flags leave
+    // provider sharing OFF, so its clause refuses first; the vertex describe
+    // below turns the switch on and walks the later clauses.
+    ["vertex provider, sharing off", { providerId: "vertex" }, "provider_not_allowed"],
     ["gemini provider", { providerId: "gemini" }, "provider_not_allowed"],
     ["undefined provider", { providerId: undefined }, "provider_not_allowed"],
     ["unknown model", { model: "gemini-3.1-flash" }, "model_not_allowed"],
@@ -136,6 +139,63 @@ describe("checkGate — one mutation, one reason, in order", () => {
       });
       expect(g.allowed).toBe(true);
       if (g.allowed) expect(g.recipient).toBe("google_vertex");
+    });
+  });
+
+  describe("the vertex provider (Phase 3) — its recipient is Google, so the sharing switch is its gate", () => {
+    const vertex = { providerId: "vertex", model: "gemini-3.1-flash-lite" };
+
+    it("is refused provider_not_allowed with the recipient named while sharing is off", () => {
+      const g = checkGate({
+        ...allowed,
+        ...vertex,
+        flags: { ...flagsOn(), "health.provider_sharing.enabled": false },
+      });
+      expect(g.allowed).toBe(false);
+      if (!g.allowed) {
+        expect(g.reason).toBe("provider_not_allowed");
+        expect(g.detail).toEqual({ recipient: "google_vertex" });
+      }
+    });
+
+    it("passes with sharing on, carries google_vertex to the consent check, and is NOT the synthetic-in-production clause's business", () => {
+      const g = checkGate({
+        ...allowed,
+        ...vertex,
+        environment: "production",
+        actor: { isAdmin: false, isAdult: true },
+        adminVerificationEnabled: false,
+        flags: { ...flagsOn(), "health.provider_sharing.enabled": true },
+      });
+      expect(g.allowed).toBe(true);
+      if (g.allowed) {
+        expect(g.recipient).toBe("google_vertex");
+        expect(g.adminVerification).toBe(false);
+        expect(g.model).toBe("gemini-3.1-flash-lite");
+      }
+    });
+
+    it("still refuses a model the vertex allowlist does not name, and a person who is unverified or under 18", () => {
+      const on = { ...flagsOn(), "health.provider_sharing.enabled": true };
+      const m = checkGate({ ...allowed, ...vertex, model: "gemini-3.1-pro", flags: on });
+      expect(m.allowed).toBe(false);
+      if (!m.allowed) expect(m.reason).toBe("model_not_allowed");
+      const a = checkGate({
+        ...allowed,
+        ...vertex,
+        flags: on,
+        actor: { isAdmin: false, isAdult: null },
+      });
+      if (!a.allowed) expect(a.reason).toBe("age_unverified");
+      const b = checkGate({
+        ...allowed,
+        ...vertex,
+        flags: on,
+        actor: { isAdmin: false, isAdult: false },
+      });
+      if (!b.allowed) expect(b.reason).toBe("minor_blocked");
+      const k = checkGate({ ...allowed, ...vertex, flags: { ...on, "health.ai.enabled": false } });
+      if (!k.allowed) expect(k.reason).toBe("ai_disabled");
     });
   });
 

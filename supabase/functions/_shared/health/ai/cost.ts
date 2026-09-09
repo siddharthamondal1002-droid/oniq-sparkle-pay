@@ -24,6 +24,15 @@ export const PRICE_PER_1M: Record<string, PriceRow> = {
     output: 0,
     source: "synthetic provider: nothing is billed, 2026-09-08",
   },
+  // Vertex AI, global endpoint, <= 200K input — docs/health/01-research.md
+  // "Gemini on Vertex AI [PAGE]". Text input only (audio is $0.50 and this
+  // provider sends none). The metered Google project, not Lovable credits.
+  "gemini-3.1-flash-lite": {
+    input: 0.25,
+    output: 1.5,
+    source:
+      "[PAGE] cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing, global endpoint, read 2026-09-08",
+  },
 };
 
 export function priceRowFor(model: unknown): PriceRow | null {

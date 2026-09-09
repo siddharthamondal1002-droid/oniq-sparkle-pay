@@ -89,11 +89,14 @@ describe("the documents screen", () => {
 });
 
 describe("the consent screen", () => {
-  it("offers storage and AI-by-ONIQ, both to ONIQ, and shows the rest as later", () => {
+  it("offers storage to ONIQ and the AI purpose to the SERVER's recipient, and shows the rest as later", () => {
     const src = read(FILES.consent);
     expect(src).toContain('grant.mutate("store_records")');
     expect(src).toContain('grant.mutate("ai_interpretation")');
-    expect(src).toContain('recipient: "oniq"');
+    // Phase 3: the AI recipient is read from status.aiRecipient, never typed
+    // here — the screen carries no recipient literal but ONIQ's own.
+    expect(src).toContain('purpose === "ai_interpretation" ? aiRecipient : "oniq"');
+    expect(src).toContain("status.data.data.aiRecipient");
     expect(src).not.toMatch(/google_vertex|clinician|abdm/);
     expect(src).toContain("GRANTABLE_PURPOSES");
     expect(src).toContain("health.consent.later");

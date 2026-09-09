@@ -543,3 +543,101 @@ nothing in runtime code writes to them, the tests that prove the gate/cost
 split mutate them deliberately, and freezing would force those tests onto
 module mocks. The whole health tree is asserted to contain no assignment to
 either.
+
+## 17. Phase 3 as built — the Vertex provider behind the same gateway (owner directive 2026-09-09)
+
+The owner authorised the full implementation, deployment and activation of
+ONIQ Health AI: "Firebase → Vertex AI", behind the existing
+`HealthAIProvider` abstraction, no second pipeline, no bypass, Anthropic off
+the health path. What was added, and what was deliberately NOT changed:
+
+**The provider — `supabase/functions/_shared/health/ai/vertex.ts`.** One
+class, `VertexHealthAIProvider` (`id: "vertex"`, `recipient: "google_vertex"`,
+`synthetic: false`), registered by a zero-arity factory next to the synthetic
+one. "Firebase → Vertex" means the Firebase project's own service account
+(`FIREBASE_SERVICE_ACCOUNT`, read through `_shared/googleAuth.ts` exactly as
+`voice-clone` reads it), project `oniq-309bd` from inside that JSON, role
+Vertex AI User (granted 2026-09-07, proven by the first successful Vertex call
+the same day), endpoint `generateContent` at location `global` on
+`aiplatform.googleapis.com`, model `gemini-3.1-flash-lite` (the one
+`MODEL_ALLOWLIST.vertex` names; priced in `cost.ts` from the [PAGE] table in
+`01`: $0.25 in / $1.50 out per 1M). The request is JSON mode with the
+contract's own schema, temperature 0.2, at most 1,024 output tokens, no
+tools, no grounding, a 25-second abort.
+
+**What travels is the gateway's `ProviderInput` and nothing else** — aliases
+(r1…), kinds, displays, values, units, date labels, the scrubbed question.
+The provider reads no table and cannot: the isolation guard names the two
+modules outside the health tree it may import (`googleAuth.ts`,
+`vertexError.ts`), pins exactly one `fetch` and exactly one host literal in
+the file, and `scripts/health-mutate-guards.sh` M9–M11 prove that a second
+host, a third module and a rewritten host constant each go red.
+
+**What comes back is judged by the contract HERE, one segment at a time.**
+Every segment the model returns is run through `validateAiResponse` alone,
+against a pseudo-manifest of aliases; a segment that cites outside the
+manifest, states a number no cited record carries, advises the reader, or
+carries a dose, a diagnosis, a disclaimer or an identifier is DROPPED and the
+rest is answered. Nothing survives → one `unknown` segment in the request's
+language with a refusal code, receipted `ok` for what it cost. The gateway
+then validates the whole response again (unchanged code) and refuses
+`output_rejected` if anything slipped past.
+
+**Failures are closed codes, never sentences.** `ProviderError.code` is
+`vertex_http_403_permission_denied`, `vertex_http_404_not_found`,
+`vertex_timeout`, `vertex_bad_json`, `vertex_no_token`, … (Google's own STATUS
+token, lower-cased, never its message). The gateway audits the code on the
+`ai.refused` row and returns it as `detail.code`; Google's sentence stays on
+the thrown object and dies in the catch. The receipt completes as `error`.
+
+**The gate is unchanged and now real.** `provider_not_allowed` refuses vertex
+while `health.provider_sharing.enabled` is off, naming the recipient;
+`synthetic_in_production` applies only to recipient ONIQ, so an ordinary adult
+in production reaches vertex with no admin verification; caps, region, age,
+consent, receipt-before-provider, contract, audit — all as §3–§9 built them.
+
+**Consent names Google or it covers nothing.** `GRANTABLE_CONSENTS` gained
+`(ai_interpretation, google_vertex)`; `CONSENT_TERMS_VERSIONS.ai_interpretation`
+is `health-ai-terms-v2`, and `DISCLOSED_RECIPIENTS_BY_TERMS["health-ai-terms-v2"]`
+is `["oniq", "google_vertex"]`. A v1 row covers the vertex provider for
+nobody (`consent.test.ts`, `redteamAuthz`, `vertex.test.ts`). `health-api`
+offers a person exactly the registered provider's pair
+(`recipient_not_offered` otherwise) and now reports `aiRecipient` in
+`status`; the consent screen grants to THAT, never to a typed recipient.
+`20260909100000_oniq_health_phase3_vertex.sql` widens the three CHECKs
+(config provider, receipt provider, consent terms/recipient) to exactly what
+the code names — `migration3.test.ts` — and does nothing else.
+
+**Disclosure.** The approved statement is untouched and a recipient sentence
+follows it (`HEALTH_AI_RECIPIENT_SENTENCE`): in the public notice, beside the
+AI consent in English/Hindi/Bengali (`health.privacy.ai_recipient`,
+translations labelled counsel-review placeholders), and in the Play
+declaration (the AI-processing entry and a declared server-side host,
+`aiplatform.googleapis.com`). The consent DETAIL no longer says "nothing is
+sent to Google"; it names Google Cloud Vertex AI (Gemini) and the
+not-used-to-train position. `privacyDisclosure.test.ts` pins every copy and
+bans the retired sentence in every language.
+
+**Anthropic is off the health path.** `supabase/functions/health-scan` is a
+410 stub (no key read, no body read, no fetch — `anthropicRetired.test.ts`),
+the Vitals report-scan section is gone, and the six search-fleet tests that
+listed it no longer do. Deploying the stub closes the production path from
+here whether or not the function is ever deleted from the dashboard.
+
+**Not changed:** the text-source registry (`null` only — extraction still
+answers `no_text` for every production user; the vertex provider can extract
+and classify, proven under an injected test source, but no document byte
+reaches it in production until a source is registered under its own gate);
+uploads (off); the caps (B11), the house cap (500), the kill switch; the
+gateway's order; the audit vocabulary; the label (B12).
+
+**Activation and rollback (Phase 3).** Server: `ai_provider = 'vertex'`,
+`ai_model = 'gemini-3.1-flash-lite'`, `provider_sharing_enabled = true`,
+`ai_enabled = true`, each an audited UPDATE. Client: `health.enabled`,
+`health.ai.enabled`, `health.provider_sharing.enabled` true in
+`src/health/flags.ts`. Rollback is any ONE of: the emergency stop on
+`/app/admin/health-ai` (seconds, no publish, forces both AI flags off);
+`ai_enabled = false` (SQL, audited); `ai_provider = 'synthetic'` (the synthetic
+provider stays registered and its consent pair grantable, so a rollback needs
+no migration); or the client constant. Measured values, the first real POST
+and the smoke test are in `07-phase3-report.md`.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,9 +12,6 @@ import {
   Zap,
   Flower2,
   Sparkles,
-  Upload,
-  FileText,
-  Loader2,
   Lock,
   RotateCw,
   Trash2,
@@ -238,7 +235,10 @@ function VitalsPage() {
               {hp.experience === "women" && <CycleSection />}
               <CareSection experience={hp.experience} />
               <PartnerShortcuts />
-              <ReportsSection />
+              {/* The report scan that lived here sent an uploaded lab report to
+                  Anthropic with no consent step. Retired 2026-09-09 (owner
+                  directive: the Health AI path is Vertex through the gateway
+                  only); the Health tab's consented, audited AI replaces it. */}
               <WipeHealthData />
               <p className="pt-2 text-center text-[11px] text-muted-foreground">{DISCLAIMER}</p>
             </div>
@@ -1054,151 +1054,6 @@ function CareSection({ experience }: { experience: Experience }) {
         ))}
       </ul>
       <div className="mt-2 text-[11px] text-muted-foreground">{DISCLAIMER}</div>
-    </section>
-  );
-}
-
-// ============================================================
-// REPORTS (AI scan)
-// ============================================================
-
-function ReportsSection() {
-  const [file, setFile] = useState<File | null>(null);
-  const [note, setNote] = useState("");
-  const [reply, setReply] = useState<string | null>(null);
-  const [sources, setSources] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const submit = async () => {
-    if (!file) {
-      toast.error("attach a report first");
-      return;
-    }
-    if (file.size > 6 * 1024 * 1024) {
-      toast.error("file too big — keep under 6MB");
-      return;
-    }
-    setBusy(true);
-    setReply(null);
-    setSources([]);
-    try {
-      const b64 = await new Promise<string>((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => {
-          const s = String(r.result);
-          const idx = s.indexOf(",");
-          resolve(idx >= 0 ? s.slice(idx + 1) : s);
-        };
-        r.onerror = () => reject(r.error);
-        r.readAsDataURL(file);
-      });
-      const kind: "image" | "pdf" = file.type === "application/pdf" ? "pdf" : "image";
-      const { data, error } = await supabase.functions.invoke("health-scan", {
-        body: { kind, mime: file.type, data: b64, note },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      if (data?.configured === false) {
-        toast.error("AI not configured yet");
-        return;
-      }
-      setReply(String(data?.reply || ""));
-      setSources(Array.isArray(data?.sources) ? data.sources : []);
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "scan failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <section className="rounded-3xl oniq-surface p-5">
-      <div className="mb-2 flex items-center gap-2">
-        <span
-          className="grid h-8 w-8 place-items-center rounded-xl bg-world-soft text-world"
-          aria-hidden="true"
-        >
-          <FileText className="h-4 w-4" />
-        </span>
-        <h3 className="font-display text-[16px] text-foreground">reports 🧾</h3>
-      </div>
-      <p className="mb-3 text-xs text-muted-foreground">
-        upload a photo or PDF of a lab/medical report — AI explains it in plain english.
-      </p>
-
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*,application/pdf"
-        className="hidden"
-        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-      />
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        className="press flex w-full items-center gap-2 rounded-2xl border border-dashed border-border-strong bg-surface-2/40 p-3 text-sm text-foreground"
-      >
-        <Upload className="h-4 w-4" />
-        <span className="flex-1 truncate text-start">
-          {file ? file.name : "attach report (jpg/png/pdf)"}
-        </span>
-      </button>
-      <input
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="anything to know? (optional)"
-        aria-label="Note for the scan"
-        className="mt-2 w-full rounded-2xl border border-border bg-surface-2 px-3 py-2 text-sm text-foreground"
-      />
-      <button
-        type="button"
-        onClick={submit}
-        disabled={busy || !file}
-        className="press mt-3 w-full rounded-2xl bg-world py-3 font-semibold text-on-world disabled:opacity-60"
-      >
-        {busy ? (
-          <span className="inline-flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            reading…
-          </span>
-        ) : (
-          "scan report"
-        )}
-      </button>
-
-      {reply && (
-        <div className="mt-4 rounded-2xl bg-surface-2/60 p-3">
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-world">
-            AI summary
-          </div>
-          <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{reply}</div>
-          {sources.length > 0 && (
-            <div className="mt-3">
-              <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-                sources
-              </div>
-              <ul className="space-y-1">
-                {sources.slice(0, 6).map((s) => (
-                  <li key={s}>
-                    <a
-                      href={s}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="break-all text-xs text-world underline"
-                    >
-                      {s}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <div className="mt-3 rounded-2xl bg-amber-500/10 p-2.5 text-[11px] text-foreground ring-1 ring-amber-500/30">
-            🩺 {DISCLAIMER}
-          </div>
-        </div>
-      )}
     </section>
   );
 }

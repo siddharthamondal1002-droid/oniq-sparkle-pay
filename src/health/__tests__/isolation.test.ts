@@ -142,10 +142,17 @@ describe("the health functions reach no model and no Google", () => {
     "supabase/functions/health-ai/index.ts",
   ];
   const SHARED = walk(join(ROOT, "supabase/functions/_shared/health")).map(rel);
+  /**
+   * THE ONE EXCEPTION, by name (Phase 3, owner directive 2026-09-09): the
+   * vertex provider is where a health byte leaves ONIQ, through the gateway
+   * and nowhere else. It is held to a narrower rule below — one fetch, one
+   * host — and ai/isolation.test.ts pins what it may import.
+   */
+  const VERTEX = "supabase/functions/_shared/health/ai/vertex.ts";
 
   // The whole tree, not the two entrypoints: a fetch in a shared module is
   // one import away from either function (red-teamed 2026-09-08).
-  it.each([...FUNCTIONS, ...SHARED])(
+  it.each([...FUNCTIONS, ...SHARED.filter((f) => f !== VERTEX)])(
     "%s calls no AI helper, names no provider host, opens no socket",
     (f) => {
       const fn = stripComments(readFileSync(join(ROOT, f), "utf8"));
@@ -156,6 +163,18 @@ describe("the health functions reach no model and no Google", () => {
       expect(fn).not.toMatch(/\bfetch\b/);
     },
   );
+
+  it("the vertex provider reaches ONE host with ONE fetch, names no other provider, and calls no shared AI helper", () => {
+    expect(SHARED).toContain(VERTEX);
+    const fn = stripComments(readFileSync(join(ROOT, VERTEX), "utf8"));
+    expect(fn).not.toMatch(/callGemini\(|callClaude\(|callText\(|callGatewayText\(/);
+    expect(fn).not.toMatch(/generativelanguage|anthropic|healthcare\.googleapis|openai|lovable/i);
+    expect(fn.match(/\bfetch\(/g)?.length ?? 0).toBe(1);
+    expect(fn.match(/aiplatform\.googleapis\.com/g)?.length ?? 0).toBe(1);
+    expect(fn).toContain('export const VERTEX_HOST = "aiplatform.googleapis.com";');
+    expect(fn).toMatch(/https:\/\/\$\{VERTEX_HOST\}\//);
+    expect(fn.match(/https?:\/\//g)?.length ?? 0).toBe(1);
+  });
 
   it.each(FUNCTIONS)("%s logs through one redacted line and nothing else", (f) => {
     const fn = stripComments(readFileSync(join(ROOT, f), "utf8"));

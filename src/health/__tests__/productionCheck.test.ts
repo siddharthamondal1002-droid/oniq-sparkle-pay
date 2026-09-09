@@ -8,6 +8,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { stripSqlComments } from "../../test/sourceText";
+import { MODEL_ALLOWLIST } from "../ai/types";
 import {
   ENTRY_CHUNK,
   PRIVACY_CHUNK,
@@ -57,13 +58,25 @@ describe("health-production-check.sql", () => {
     expect(JSON.parse(inCheck![1])).toEqual(JSON.parse(def![1]));
   });
 
-  it("expects the owner's house cap, AI off, the provider locked to synthetic, and production", () => {
+  it("expects the owner's house cap, AI ON with the vertex provider and its one model, sharing on, and production (Phase 3)", () => {
     expect(CHECK_SQL).toContain(`('ai_daily_cap_house',            '${HOUSE_CAP_OWNER_VALUE}')`);
-    expect(CHECK_SQL).toContain("('ai_enabled',                    'false')");
+    expect(CHECK_SQL).toContain("('ai_enabled',                    'true')");
     expect(CHECK_SQL).toContain("('ai_kill_switch',                'false')");
-    expect(CHECK_SQL).toContain("('ai_provider',                   'synthetic')");
+    expect(CHECK_SQL).toContain("('provider_sharing_enabled',      'true')");
+    expect(CHECK_SQL).toContain("('ai_provider',                   'vertex')");
+    expect(CHECK_SQL).toContain(
+      `('ai_model',                      '${MODEL_ALLOWLIST.vertex[0]}')`,
+    );
     expect(CHECK_SQL).toContain("('environment',                   'production')");
     expect(PHASE2).toContain("check (ai_provider in ('synthetic'))");
+    // The lock the check expects is the WIDENED one, in Postgres's own rendering.
+    expect(CHECK_SQL).toContain(
+      "CHECK ((ai_provider = ANY (ARRAY[''synthetic''::text, ''vertex''::text])))",
+    );
+    expect(CHECK_SQL).toContain(
+      "CHECK ((provider = ANY (ARRAY[''synthetic''::text, ''vertex''::text])))",
+    );
+    expect(CHECK_SQL).toContain("not like '%health-ai-terms-v2%google_vertex%'");
   });
 
   it("expects the bucket limit the documents table already enforces", () => {
@@ -89,6 +102,7 @@ describe("health-production-check.sql", () => {
       "20260908171017",
       "20260908181500",
       "20260908190000",
+      "20260909100000",
     ]);
     for (const v of versions) {
       expect(

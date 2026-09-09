@@ -36,6 +36,10 @@ export type ConsentLike = {
 export const DISCLOSED_RECIPIENTS_BY_TERMS: Record<string, readonly string[]> = {
   "health-terms-v1": ["oniq"],
   "health-ai-terms-v1": ["oniq"],
+  // Phase 3 (owner directive 2026-09-09): the notice that names Google Cloud
+  // Vertex AI (Gemini) as the recipient of an AI request. A v1 row keeps
+  // covering ONIQ's own provider and nothing else.
+  "health-ai-terms-v2": ["oniq", "google_vertex"],
 };
 
 export function termsDisclose(termsVersion: string, recipient: string): boolean {

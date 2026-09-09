@@ -401,17 +401,19 @@ export const DATA_COLLECTED: CollectedData[] = [
     // third-party processing, because it is.
     category: "AI processing",
     playType: "App activity / user-generated content",
-    what: "What the user types into Ting, Study Buddy, or the CV builder — including the facts they enter about themselves for a CV — is sent to Anthropic's API to generate a response.",
+    what: "What the user types into Ting, Study Buddy, or the CV builder — including the facts they enter about themselves for a CV — is sent to Anthropic's API to generate a response. Separately, the ONIQ Health AI features send the health readings a person chooses to ask about (kind, name, value, unit, date) to Google Cloud Vertex AI (Gemini), under a consent granted in Health settings.",
     purpose:
       "Producing the answer, the practice paper or the CV the user asked for. Not used to train a model, not used for advertising, not sold.",
     optional: true,
     // Owner directive 2026-09-09: the absolute "never sent to any AI surface" is
-    // gone with the privacy notice's sentence. Health data is no part of these
-    // three surfaces; the health features' own position is the consent-
-    // conditioned statement the notice now carries (HEALTH_AI_PRIVACY_STATEMENT
-    // in src/config/privacy.ts), mirrored here so the two cannot disagree.
+    // gone with the privacy notice's sentence. Health data is no part of the
+    // three Anthropic surfaces; the health features' own position is the
+    // consent-conditioned statement the notice now carries
+    // (HEALTH_AI_PRIVACY_STATEMENT in src/config/privacy.ts) plus the
+    // recipient sentence Phase 3 added (HEALTH_AI_RECIPIENT_SENTENCE),
+    // mirrored here so the three cannot disagree.
     protection:
-      "Health data is not part of these three surfaces. ONIQ's AI-assisted health features may process health data only when the person chooses to use them and provides the required consent, under the privacy, security, consent, audit and safety controls the privacy notice describes. Output is labelled AI-generated and reportable in-app.",
+      "Health data is not part of the three Anthropic surfaces. ONIQ's AI-assisted health features may process health data only when the person chooses to use them and provides the required consent, under the privacy, security, consent, audit and safety controls the privacy notice describes. When they use them, the records they ask about are sent to Google Cloud Vertex AI (Gemini), operated by Google, to produce the answer, and are not used to train Google's models. Output is labelled AI-assisted and reportable in-app.",
   },
 ];
 
@@ -528,6 +530,23 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
   // saves a link or opens the Movies shelf — the device reaches only ONIQ's
   // own backend. Declared anyway, the way places.googleapis.com is: the
   // provider still receives ONIQ's server IP and the id being looked up.
+  {
+    // ONIQ HEALTH AI (Phase 3, owner directive 2026-09-09). Made FROM THE
+    // SERVER (supabase/functions/_shared/health/ai/vertex.ts, reached only
+    // through the health-ai gateway), with the Firebase project's service
+    // account — the device reaches only ONIQ's own backend. Declared like the
+    // Watch lookups above, and heavier than them: what travels is HEALTH
+    // data, under the consent granted in Health settings and the privacy
+    // notice's recipient sentence (HEALTH_AI_RECIPIENT_SENTENCE).
+    host: "aiplatform.googleapis.com",
+    triggeredBy:
+      "Tapping Ask, Summarise or Explain on the Health tab, after granting the AI consent (src/routes/_authenticated/app.health.index.tsx, app.health.records.tsx).",
+    sends:
+      "The health records the person asked about — kind, name, value, unit and date, with identifiers scrubbed and record ids replaced by per-request aliases — and the question, from ONIQ's server to Google Cloud Vertex AI (Gemini). No user IP, no account, no record id.",
+    purpose:
+      "Producing the AI-assisted answer, which ONIQ validates before showing. Not used to train Google's models (Vertex AI data governance), not used for advertising, not sold.",
+    avoidable: true,
+  },
   {
     host: "vimeo.com",
     triggeredBy: "Saving a Vimeo link in the Watch library (server-side oEmbed lookup).",

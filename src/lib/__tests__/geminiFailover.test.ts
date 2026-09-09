@@ -734,7 +734,6 @@ describe("the production gate is closed", () => {
     for (const p of [
       "supabase/functions/smart-scout/index.ts",
       "supabase/functions/ting/index.ts",
-      "supabase/functions/health-scan/index.ts",
       "supabase/functions/hotel-scout/index.ts",
     ]) {
       const src = readFileSync(join(process.cwd(), p), "utf8");

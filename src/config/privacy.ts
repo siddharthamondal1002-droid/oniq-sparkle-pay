@@ -40,3 +40,20 @@ export const HEALTH_AI_PRIVACY_SENTENCES = [
   "AI-assisted features are subject to ONIQ's privacy, security, consent, audit, and safety controls.",
 ] as const;
 export const HEALTH_AI_PRIVACY_STATEMENT = HEALTH_AI_PRIVACY_SENTENCES.join(" ");
+
+/**
+ * The RECIPIENT of a health-AI request — Phase 3, owner directive 2026-09-09.
+ * The approved statement above says "when you choose to use them and provide
+ * the required consent"; this sentence says WHO receives what, because the
+ * registered provider (`vertex`, src/health/ai/types.ts RECIPIENT_FOR_PROVIDER)
+ * carries the request's records out of ONIQ to Google. It sits directly after
+ * the statement in the public notice, beside the AI consent in three
+ * languages (`health.privacy.ai_recipient`), and in the Play declaration;
+ * privacyDisclosure.test.ts pins every copy and ties the name to the
+ * registry, so a provider change and this sentence cannot drift apart.
+ * The "not used to train" clause is Google Cloud's Vertex AI data-governance
+ * position, recorded in docs/health/01-research.md as a SNIPPET-labelled
+ * claim; counsel should confirm it against the current terms.
+ */
+export const HEALTH_AI_RECIPIENT_NAME = "Google Cloud Vertex AI (Gemini)";
+export const HEALTH_AI_RECIPIENT_SENTENCE = `When you use them, the records you ask about are sent to ${HEALTH_AI_RECIPIENT_NAME}, operated by Google, to produce the answer, and are not used to train Google's models.`;

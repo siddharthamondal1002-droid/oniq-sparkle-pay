@@ -154,7 +154,9 @@ function PrivacyPage() {
                 to use them and provide the required consent.
               </strong>{" "}
               AI-assisted features are subject to ONIQ's privacy, security, consent, audit, and
-              safety controls.
+              safety controls. When you use them, the records you ask about are sent to{" "}
+              <strong>Google Cloud Vertex AI (Gemini)</strong>, operated by Google, to produce the
+              answer, and are not used to train Google's models.
             </li>
             <li>
               Generated output is labelled as AI-generated, and you can report a bad answer from

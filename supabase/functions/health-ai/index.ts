@@ -1,18 +1,18 @@
-// health-ai — ONIQ Health, Phase 2. DARK: answers 503 until health_config
-// says otherwise, and in production answers every non-admin
-// `synthetic_in_production` even then. Owner brief 2026-09-08 §83; design in
-// docs/health/05-phase2-ai-gateway.md.
+// health-ai — ONIQ Health. Phase 2 (owner brief 2026-09-08 §83) built the
+// gateway with a synthetic provider; Phase 3 (owner directive 2026-09-09)
+// put the real one behind it. Answers 503 until health_config says
+// otherwise. Design in docs/health/05-phase2-ai-gateway.md §17.
 //
 // THE PIPELINE, in the order the code below runs it:
 //   flags (missing row = off) -> JWT -> rate -> CLOSED body -> actor
 //   (is_admin, date of birth, region) -> the gateway (gate, consents,
 //   context, receipt, provider, contract, audit) -> one redacted log line
 //
-// THE ONLY PROVIDER IS SYNTHETIC AND NOTHING HERE REACHES THE NETWORK. The
-// registry in _shared/health/ai/provider.ts names one provider that never
-// leaves the process; this file imports only ./-relative health modules and
-// the Supabase client, opens no socket, invokes no other function, and
-// aiIsolation.test.ts fails the moment any of that changes.
+// THIS FILE STILL OPENS NO SOCKET. The one place a health byte leaves ONIQ
+// is the registry's vertex provider (_shared/health/ai/vertex.ts), reached
+// only through the gateway after every gate above it; this file imports only
+// ./-relative health modules and the Supabase client, invokes no other
+// function, and aiIsolation.test.ts fails the moment any of that changes.
 //
 // THE STORE IS BOUND TO THE PERSON. `makeStore` closes over the id the JWT
 // proved and no method takes a user id, so a request naming another person's

@@ -61,6 +61,7 @@ import { validateAiResponse, validateClassification, validateExtraction } from "
 import { providerFor as defaultProviderFor, type HealthAIProvider } from "./provider.ts";
 import type { DocumentTextSource } from "./textSource.ts";
 import { costEstimateUsd } from "./cost.ts";
+import { isProviderError } from "./vertex.ts";
 import { findCovering, type ConsentLike } from "../consent.ts";
 import type { HealthFlags } from "../flags.ts";
 import {
@@ -354,10 +355,18 @@ export async function runHealthAi(
         provider: String(config.provider),
         model: String(config.model),
         count: manifest?.recordIds.length ?? 0,
+        // A provider failure's CLOSED code (vertex_http_403_permission_denied,
+        // vertex_timeout, …): the one diagnostic a refused call leaves
+        // behind, readable from the audit table without any log. Never the
+        // provider's sentence — that stays on the thrown object and dies here.
+        ...(detail?.code ? { code: detail.code } : {}),
       },
     });
     return { ok: false, reason, detail, manifest };
   };
+  /** The closed code of a provider failure, or nothing: a thrown object is never echoed. */
+  const providerCode = (e: unknown): Record<string, string> | undefined =>
+    isProviderError(e) ? { code: e.code } : undefined;
 
   // 1. THE GATE, before any row about the person is read.
   const gate = checkGate({
@@ -529,9 +538,9 @@ export async function runHealthAi(
         context,
         counts: { records: context.records.length, documents: context.documents.length },
       });
-    } catch {
+    } catch (e) {
       await settle({ status: "error", refusal_reason: "provider_error", completed_at: now });
-      return refusedWith("provider_error", undefined, manifest);
+      return refusedWith("provider_error", providerCode(e), manifest);
     }
 
     // 8. THE CONTRACT, then persistence, then the completed receipt. The
@@ -670,12 +679,13 @@ export async function runHealthAi(
       manifest,
       result: { kind: "extraction", candidates: inserted, method, textChars },
     };
-  } catch {
+  } catch (e) {
     // Nothing after the receipt may leave it "started": a throw before it is
     // settled lands here, completes it as an error, and answers as a
     // refusal. A throw AFTER it is settled can only be the audit row (it is
     // the last thing that runs), so it is answered as one — the receipt
-    // stands as written, and nothing of the thrown object travels.
+    // stands as written, and nothing of the thrown object travels but a
+    // provider's closed code.
     if (settled) throw new Error("audit_failed");
     try {
       await store.completeReceipt(receiptId, {
@@ -686,6 +696,6 @@ export async function runHealthAi(
     } catch {
       /* the receipt could not be completed either; the audit row below still records the failure */
     }
-    return refusedWith("provider_error", undefined, manifest);
+    return refusedWith("provider_error", providerCode(e), manifest);
   }
 }

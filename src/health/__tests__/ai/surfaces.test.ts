@@ -160,11 +160,12 @@ describe("the admin door — the caps", () => {
 });
 
 describe("the consent tab", () => {
-  it("offers the AI switch to ONIQ only", () => {
+  it("offers the AI switch to the server's registered recipient, read from status", () => {
     const src = read("app.health.consent.tsx");
     expect(src).toContain("health-consent-ai-toggle");
     expect(src).toContain('grant.mutate("ai_interpretation")');
-    expect(src).toContain('c.recipient === "oniq"');
+    expect(src).toContain("c.recipient === aiRecipient");
+    expect(src).not.toContain('c.recipient === "oniq"');
   });
 });
 

@@ -18,7 +18,7 @@
 // renamed control or a reworded promise fails the test before it fails here.
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { HEALTH_AI_PRIVACY_SENTENCES } from "../src/config/privacy";
+import { HEALTH_AI_PRIVACY_SENTENCES, HEALTH_AI_RECIPIENT_SENTENCE } from "../src/config/privacy";
 
 export const ROUTE_CHUNK = /^app\.admin_\.health-ai-[\w-]+\.js$/;
 export const ROUTE_MARKERS = [
@@ -28,8 +28,17 @@ export const ROUTE_MARKERS = [
   "health-ai-admin-house-cap",
 ];
 export const PRIVACY_CHUNK = /^privacy-[\w-]+\.js$/;
-/** The two sentences of the health-AI disclosure (owner directive 2026-09-09), each a marker of its own. */
-export const PRIVACY_SENTENCES = HEALTH_AI_PRIVACY_SENTENCES;
+/**
+ * The two sentences of the health-AI disclosure (owner directive 2026-09-09),
+ * each a marker of its own, plus a FRAGMENT of the Phase 3 recipient sentence:
+ * the notice renders the recipient's name in a <strong>, so the bundle carries
+ * the sentence as three text nodes and only a fragment survives as one literal.
+ * The fragment is derived from the constant, so a reworded sentence moves it.
+ */
+export const RECIPIENT_FRAGMENT = HEALTH_AI_RECIPIENT_SENTENCE.slice(
+  HEALTH_AI_RECIPIENT_SENTENCE.indexOf(", operated by Google") + 2,
+);
+export const PRIVACY_SENTENCES = [...HEALTH_AI_PRIVACY_SENTENCES, RECIPIENT_FRAGMENT];
 /** The absolute claim that disclosure replaced; in a served chunk it means the build is STALE. */
 export const OLD_PRIVACY_CLAIM = "never sent to any AI";
 export const ENTRY_CHUNK = /^index-[\w-]+\.js$/;

@@ -1,13 +1,15 @@
 /**
  * ONIQ HEALTH AI — the provider registry. This file is the boundary.
  *
- * A health byte can reach a model only through a provider resolved HERE, and
- * in Phase 2 the registry names one provider that never leaves the process.
- * `providerFor` throws for any other id — "vertex", "gemini", "medgemma",
- * anything — so a `health_config.ai_provider` value that names a real
- * provider is a refusal, not a call. Phase 3 adds an entry to the registry, a
- * model to the allowlist and a price row, under the owner's and counsel's
- * gate; nothing else in the gateway changes.
+ * A health byte can reach a model only through a provider resolved HERE.
+ * Phase 2 named one provider that never leaves the process; Phase 3 (owner
+ * directive 2026-09-09) added the one real provider, "vertex" — Google Cloud
+ * Vertex AI through the Firebase service account (`./vertex.ts`). Its
+ * recipient is `google_vertex`, so the gate refuses it until
+ * `health.provider_sharing.enabled` is on and a consent names Google under a
+ * terms version that disclosed Google. `providerFor` still throws for any
+ * other id — "gemini", "medgemma", anything — so a `health_config.ai_provider`
+ * value outside this file is a refusal, not a call.
  *
  * THE FACTORIES TAKE NO ARGUMENTS. Nothing from a request or a config row can
  * reach a provider's constructor, so no provider can be put into a special
@@ -25,6 +27,7 @@ import {
   type ProviderOutput,
 } from "./types.ts";
 import { SyntheticHealthAIProvider } from "./synthetic.ts";
+import { VertexHealthAIProvider } from "./vertex.ts";
 
 export interface HealthAIProvider {
   readonly id: ProviderId;
@@ -35,6 +38,7 @@ export interface HealthAIProvider {
 
 export const PROVIDER_REGISTRY: Record<ProviderId, () => HealthAIProvider> = {
   synthetic: () => new SyntheticHealthAIProvider(),
+  vertex: () => new VertexHealthAIProvider(),
 };
 
 export function isProviderId(id: unknown): id is ProviderId {

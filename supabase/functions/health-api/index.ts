@@ -414,6 +414,10 @@ async function actStatus(ctx: Ctx): Promise<Response> {
     storeConsent: { active: !!store, categories: store?.data_categories ?? [] },
     aiConsent: { active: !!aiConsent, categories: aiConsent?.data_categories ?? [] },
     aiAvailable: ai.aiAvailable,
+    // The recipient the registered provider names (Phase 3: "google_vertex").
+    // The consent screen grants the AI purpose to THIS and nothing else, so
+    // a client cannot name a recipient the server would refuse.
+    aiRecipient: ai.aiRecipient,
     aiKillSwitch: ctx.config?.ai_kill_switch === true,
     aiCaps: capsOut(ctx.config ?? {}),
   });

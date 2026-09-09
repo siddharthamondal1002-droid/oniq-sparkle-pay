@@ -49,20 +49,23 @@ describe("the client flags", () => {
     expect(Object.keys(HEALTH_FLAGS).sort()).toEqual([...FROM_THE_BRIEF].sort());
   });
 
-  it("are all off — Phases 1 and 2 are dark", () => {
-    for (const name of HEALTH_FLAG_NAMES) expect(HEALTH_FLAGS[name], name).toBe(false);
-    expect(HEALTH_ENABLED).toBe(false);
+  it("three are on — the master, the AI and provider sharing (Phase 3, owner directive 2026-09-09) — and nine stay off", () => {
+    const ON = ["health.enabled", "health.ai.enabled", "health.provider_sharing.enabled"];
+    for (const name of HEALTH_FLAG_NAMES) expect(HEALTH_FLAGS[name], name).toBe(ON.includes(name));
+    expect(HEALTH_ENABLED).toBe(true);
     expect(HEALTH_UPLOADS_ENABLED).toBe(false);
-    expect(HEALTH_AI_ENABLED).toBe(false);
+    expect(HEALTH_AI_ENABLED).toBe(true);
   });
 
   it("gate every feature on the master switch", () => {
-    const before = HEALTH_FLAGS["health.uploads.enabled"];
-    HEALTH_FLAGS["health.uploads.enabled"] = true;
+    const before = HEALTH_FLAGS["health.enabled"];
+    HEALTH_FLAGS["health.enabled"] = false;
     try {
-      expect(healthFlag("health.uploads.enabled")).toBe(false);
+      // An ON flag reads off the moment the master is off.
+      expect(HEALTH_FLAGS["health.ai.enabled"]).toBe(true);
+      expect(healthFlag("health.ai.enabled")).toBe(false);
     } finally {
-      HEALTH_FLAGS["health.uploads.enabled"] = before;
+      HEALTH_FLAGS["health.enabled"] = before;
     }
   });
 
