@@ -7086,6 +7086,25 @@ export type Database = {
         Args: { _key: string; _user: string }
         Returns: boolean
       }
+      health_ai_reserve_request: {
+        Args: {
+          _cap_house: number
+          _cap_user: number
+          _consent_id: string
+          _manifest: Json
+          _model: string
+          _provider: string
+          _purpose: string
+          _request_id: string
+          _since: string
+          _task: string
+          _user_id: string
+        }
+        Returns: {
+          receipt_id: string
+          refusal: string
+        }[]
+      }
       health_append_audit: {
         Args: {
           _action: string
