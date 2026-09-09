@@ -101,10 +101,12 @@ describe("extractCandidates", () => {
     expect(reportDay("no date here")).toBeNull();
   });
 
-  it("marks an unrecognised unit as unknown rather than storing the page's word", () => {
-    const odd = extractCandidates("Haemoglobin 13 bananas", "2026-09-01");
-    expect(odd.candidates[0].valueUnit).toBeUndefined();
-    expect(odd.candidates[0].confidence).toBeLessThan(0.8);
+  it("a number whose unit is not the analyte's is not a reading at all", () => {
+    // It used to be kept, unitless, at confidence 0.55 — which is how a
+    // reference-range bound, an age band and a sample id became blood
+    // results (see the header). A number is a result when a unit says so.
+    expect(extractCandidates("Haemoglobin 13 bananas", "2026-09-01").candidates).toHaveLength(0);
+    expect(extractCandidates("Haemoglobin 13", "2026-09-01").candidates).toHaveLength(0);
   });
 
   it("caps candidates and text length", () => {

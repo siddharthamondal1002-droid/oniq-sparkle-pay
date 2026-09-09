@@ -198,9 +198,107 @@ export const CANDIDATE_TABLE: Readonly<Record<string, CandidateEntry>> = Object.
   ]),
 );
 
-/** The value after an analyte name: up to 24 non-digit chars, a number, an optional short unit. */
-const AFTER_NAME =
-  "[^\\d\\n-]{0,24}(-?\\d{1,6}(?:\\.\\d{1,3})?)\\s{0,8}([A-Za-z%µ][A-Za-z0-9%µ^./]{0,10}(?: [A-Za-z][A-Za-z0-9%µ^./]{0,8})?)?";
+/**
+ * THE UNIT IS THE EVIDENCE THAT A NUMBER IS A RESULT — and the old rule had
+ * it the other way round, which is how a wrong value could reach a timeline.
+ *
+ * MEASURED 2026-09-09, against report LAYOUTS rather than the tidy one-line
+ * fixtures this repo had invented for itself. The old rule took the FIRST
+ * number after the analyte name, within 24 characters and no newline, and
+ * treated the unit as decoration that merely raised the confidence:
+ *
+ *     "Haemoglobin   13.0 - 17.0   13.2  g/dL"  ->  Haemoglobin = 13.0  WRONG
+ *     "Haemoglobin   Male 18-60 yrs 13.2 g/dL"  ->  Haemoglobin = 18    WRONG
+ *     "Haemoglobin   Sample 4471    13.2 g/dL"  ->  Haemoglobin = 4471  WRONG
+ *
+ * A reference-range bound, an age band and a sample id, each stored as
+ * somebody's blood result. GROUNDING CANNOT CATCH ONE OF THEM: every such
+ * number IS printed on the page, which is all grounding checks. And since the
+ * owner's 2026-09-09 directive removed the per-value confirm step, nothing
+ * stands between that number and the person's timeline.
+ *
+ * The same 24-character no-newline window ALSO found nothing at all on
+ * ordinary shapes — a padded label column, or a method/specimen column
+ * between the name and the value — which is why the owner's own 8-page,
+ * 14,780-character report produced `count: 0`, twice, with `dropped: 0`.
+ *
+ * So the rule is inverted: scan the analyte's OWN ROW for the first number
+ * followed by a unit that analyte is measured in, and take that one. A number
+ * with no unit after it is not a result; a number on one side of a dash from
+ * another number is a range bound, not a result. The false positives and the
+ * false negatives are the same fix, because both came from believing the
+ * first number.
+ *
+ * WHAT IS GIVEN UP, stated rather than glossed: a report printing no unit for
+ * an analyte now yields nothing for it, where it used to yield a number that
+ * was probably not the result. Zero is the safe direction; a wrong lab value
+ * in a medical timeline is not.
+ *
+ * STILL NOT READ, deliberately: a value on a DIFFERENT LINE from its label,
+ * which is how some PDF text layers emit a table. Crossing a newline means
+ * guessing which row a number belongs to, and guessing wrong files one
+ * analyte's number under another's name — the exact failure this change ends.
+ * That needs real report samples, not more fixtures invented here.
+ */
+/**
+ * THE UNIT IS CAPTURED AS TWO TOKENS AND TESTED BOTH WAYS, because a
+ * single greedy group swallowed the next word: on
+ * "Haemoglobin 12.1 g/dL take 2 tablets daily" it captured "g/dL take", which
+ * matches no unit, and the whole reading was lost. Two tokens exist at all
+ * for counts written "x 10^3/µL".
+ *
+ * AND THE NUMBER CARRIES NO SIGN. A leading "-" was being read as a minus,
+ * so "Haemoglobin (13.0-17.0 g/dL)" returned a haemoglobin of MINUS 17 — the
+ * range's upper bound, negated by the dash that separated it. None of the
+ * analytes here can be negative, so a "-" is a range separator, and dropping
+ * the sign is what lets RANGE_BEFORE see it.
+ */
+const NUMBER_THEN_UNIT =
+  /(\d{1,6}(?:\.\d{1,3})?)\s{0,12}([A-Za-z%µ][A-Za-z0-9%µ^./]{0,10})(?:\s([A-Za-z0-9][A-Za-z0-9%µ^./]{0,8}))?/g;
+/** A number a dash away from another number is a range bound. */
+const RANGE_BEFORE = /\d\s{0,2}[-–—]\s{0,2}$/;
+const RANGE_AFTER = /^\s{0,2}[-–—]\s{0,2}\d/;
+/** How far along its own row a result may sit, and the bounds that keep the scan linear. */
+const ROW_TAIL = 160;
+const MAX_NAME_HITS = 20;
+const MAX_ROW_NUMBERS = 20;
+
+/** The first number on the analyte's own row that carries one of its units. */
+function resultOnRow(src: string, a: Analyte): { valueNum: number; unit: string } | null {
+  const name = new RegExp(a.re.source, "gi");
+  let hits = 0;
+  for (let m = name.exec(src); m !== null && hits < MAX_NAME_HITS; m = name.exec(src)) {
+    hits += 1;
+    const from = m.index + m[0].length;
+    const newline = src.indexOf("\n", from);
+    const rowEnd = Math.min(newline === -1 ? src.length : newline, from + ROW_TAIL);
+    const row = src.slice(from, rowEnd);
+    NUMBER_THEN_UNIT.lastIndex = 0;
+    let seen = 0;
+    for (
+      let n = NUMBER_THEN_UNIT.exec(row);
+      n !== null && seen < MAX_ROW_NUMBERS;
+      n = NUMBER_THEN_UNIT.exec(row)
+    ) {
+      seen += 1;
+      const valueNum = Number(n[1]);
+      if (!Number.isFinite(valueNum)) continue;
+      const one = n[2].trim();
+      const two = n[3] ? `${one} ${n[3].trim()}` : null;
+      const unit = a.units.some((u) => u.test(one))
+        ? one
+        : two && a.units.some((u) => u.test(two))
+          ? two
+          : null;
+      if (unit === null) continue;
+      const before = row.slice(Math.max(0, n.index - 8), n.index);
+      const after = row.slice(n.index + n[1].length, n.index + n[1].length + 8);
+      if (RANGE_BEFORE.test(before) || RANGE_AFTER.test(after)) continue;
+      return { valueNum, unit };
+    }
+  }
+  return null;
+}
 
 const DATE =
   /\b(\d{4}-\d{2}-\d{2})\b|\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})\b|\b(\d{1,2})\s{1,2}(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]{0,7}\.?\s{1,2}(\d{4})\b/i;
@@ -236,19 +334,15 @@ export function extractCandidates(text: string, fallbackDay: string): Extraction
   const effectiveAt = noonUtc(reportDay(src) ?? fallbackDay);
   for (const a of ANALYTES) {
     if (candidates.length >= LIMITS.MAX_CANDIDATES) break;
-    const m = new RegExp(a.re.source + AFTER_NAME, "i").exec(src);
-    if (!m) continue;
-    const valueNum = Number(m[1]);
-    if (!Number.isFinite(valueNum)) continue;
-    const rawUnit = (m[2] ?? "").trim();
-    const unitOk = rawUnit.length > 0 && a.units.some((u) => u.test(rawUnit));
+    const hit = resultOnRow(src, a);
+    if (!hit) continue;
     candidates.push({
       kind: "lab",
       display: a.display,
-      valueNum,
-      valueUnit: unitOk ? rawUnit.slice(0, LIMITS.MAX_UNIT_CHARS) : undefined,
+      valueNum: hit.valueNum,
+      valueUnit: hit.unit.slice(0, LIMITS.MAX_UNIT_CHARS),
       effectiveAt,
-      confidence: unitOk ? 0.8 : 0.55,
+      confidence: 0.8,
       code: { system: "ONIQ", code: a.id, display: a.display },
     });
   }

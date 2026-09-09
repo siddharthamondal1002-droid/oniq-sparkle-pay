@@ -45,6 +45,15 @@ export const RECORDS_MARKERS = [
   "health-read-result",
   "goes to Google Cloud Vertex AI (Gemini)",
 ];
+/**
+ * ANALYSE, back on every stored document (owner report 2026-09-09, "analysis
+ * is gone"). These live in the RECORDS chunk, not the shared AddReport one —
+ * measured from a local build, where `health-doc-analyse` appears in
+ * app.health.records-*.js and in no other chunk. The records chunk was
+ * previously only checked for EXISTENCE, which is why its own control could
+ * disappear from a publish with every marker green.
+ */
+export const ANALYSE_MARKERS = ["health-doc-analyse", "health-doc-analyse-note"];
 export const ROUTE_MARKERS = [
   "health-ai-admin-kill",
   "health-ai-admin-unkill",
@@ -90,6 +99,12 @@ export function check(chunks: Record<string, string>): Verdict[] {
   const recordsChunks = Object.keys(chunks).filter((n) => RECORDS_CHUNK.test(n));
   if (recordsChunks.length === 0) {
     out.push({ ok: false, line: `records chunk app.health.records-*.js  ABSENT` });
+  }
+  for (const name of recordsChunks) {
+    for (const m of ANALYSE_MARKERS) {
+      const c = count(chunks[name], m);
+      out.push({ ok: c >= 1, line: `${m.padEnd(28)} ${name}  ${c}` });
+    }
   }
   const addReportChunks = Object.keys(chunks).filter((n) => ADD_REPORT_CHUNK.test(n));
   if (addReportChunks.length === 0) {

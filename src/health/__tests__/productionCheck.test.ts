@@ -19,6 +19,7 @@ import {
   RECORDS_CHUNK,
   ADD_REPORT_CHUNK,
   RECORDS_MARKERS,
+  ANALYSE_MARKERS,
   check,
 } from "../../../scripts/health-bundle-markers";
 
@@ -217,6 +218,19 @@ describe("health-bundle-markers.ts", () => {
     expect(ADD_REPORT_CHUNK.test("app.health.records-Dq8cIP7N.js")).toBe(false);
   });
 
+  it("every analyse marker is a data-testid the Records screen itself renders", () => {
+    // These stay in the records chunk while the picker's live in the shared
+    // one, so they are pinned to the screen's own source. Owner report
+    // 2026-09-09, "analysis is gone": the records chunk was previously checked
+    // only for EXISTENCE, so its own control could vanish from a publish with
+    // every marker green.
+    const screen = read("src/routes/_authenticated/app.health.records.tsx");
+    const ids = [...screen.matchAll(/data-testid="([^"]+)"/g)].map((m) => m[1]);
+    for (const m of ANALYSE_MARKERS) expect(ids, m).toContain(m);
+    const shared = read("src/health/AddReport.tsx");
+    for (const m of ANALYSE_MARKERS) expect(shared, m).not.toContain(m);
+  });
+
   it("looks for them in the chunk named after the route file, never the entry", () => {
     expect(ROUTE_CHUNK.test("app.admin_.health-ai-C3CCfxGu.js")).toBe(true);
     expect(ROUTE_CHUNK.test("app.admin.health-ai-C3CCfxGu.js")).toBe(false); // the nested build that never rendered
@@ -240,7 +254,7 @@ describe("health-bundle-markers.ts check()", () => {
     "app.admin_.health-ai-BBBB.js": ROUTE_MARKERS.join(" "),
     // The records chunk still ships; the PICKER's markers moved to the shared
     // component chunk both health routes import.
-    "app.health.records-DDDD.js": "the document list",
+    "app.health.records-DDDD.js": `the document list ${ANALYSE_MARKERS.join(" ")}`,
     "AddReport-EEEE.js": RECORDS_MARKERS.join(" "),
     "privacy-CCCC.js": `x ${PRIVACY_SENTENCES.join(" ")} y`,
   };
@@ -272,6 +286,14 @@ describe("health-bundle-markers.ts check()", () => {
   it("fails when the route chunk is absent — a route that never made it into the build", () => {
     const { "app.admin_.health-ai-BBBB.js": _gone, ...rest } = good;
     expect(pass(rest)).toBe(false);
+  });
+
+  it("fails a records chunk that lost Analyse — the exact shape of the owner's report", () => {
+    // The publish measured on production 2026-09-09 before this fix:
+    // app.health.records-BYKX4X5r.js, health-doc-analyse = 0. This check
+    // returned PASS on it, because the records chunk was only checked for
+    // existence. It does not any more.
+    expect(pass({ ...good, "app.health.records-DDDD.js": "the document list" })).toBe(false);
   });
 
   it("fails when the marker leaks into the entry — the chunk split changed and the recipe is stale", () => {
