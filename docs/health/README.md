@@ -39,7 +39,7 @@ the PDF reader `_shared/health/ai/pdfText.ts` (the one third-party module,
 `npm:unpdf@1.8.1`, importable from that file only), `transcribe()` in
 `vertex.ts`, the gateway's caps-then-receipt-then-transcribe step, and
 `scripts/health-pdf-text-probe.ts` (the real reader on Deno). Design as built:
-`05 §18`; record: `07`, "2026-09-09 (later)". Every other flag stays off.
+`05 §18`; record: `07`, "2026-09-09 (later)". Every other flag stays off. Proven live the same day (`07`, "2026-09-09 (later)"): a synthetic PDF read by its own text (`pdf_text`, the file stayed with ONIQ) and a synthetic PNG read through Vertex (`vertex_transcription`, one receipt for both calls), identical candidates from both; the production check then caught the audit chain numbering two concurrent rows outside its lock — migration `20260909130000` and `05 §19`.
 
 ## Verifying production
 

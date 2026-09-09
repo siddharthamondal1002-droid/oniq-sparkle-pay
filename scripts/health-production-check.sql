@@ -12,8 +12,11 @@
 --
 -- The audit chain is verified by RECOMPUTING every hash with the exact
 -- expression health_verify_audit_chain() uses, because that function requires
--- an admin JWT and a SQL console has none. The recompute is pinned to the
--- function's own text by the same test. The user slot falls back to `actor`
+-- an admin JWT and a SQL console has none. A row adopted by a later
+-- chain.adopt row (migration 20260909130000 — the seq-outside-the-lock race)
+-- is content-verified and left out of the linking, as the function does. The
+-- recompute is pinned to the function's own text by the same test. The user
+-- slot falls back to `actor`
 -- when user_id has been nulled by an account's erasure (migration
 -- 20260908190000): every writer passes actor = the person's id, so the value
 -- the hash committed to is still in the row.
@@ -71,16 +74,29 @@ expected_retention(category) as (values
 ),
 expected_versions(version) as (values
   ('20260908170834'), ('20260908171017'), ('20260908181500'), ('20260908190000'),
-  ('20260909100000')
+  ('20260909100000'), ('20260909130000')
 ),
 audit_fn as (
   select pg_get_functiondef(p.oid) as def
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.proname = 'health_config_audit_ai_controls'
 ),
-chain as (
-  select r.id, r.seq, r.record_hash, r.prev_hash,
-    lag(r.record_hash) over (order by r.seq) as expected_prev,
+chain_fn as (
+  select pg_get_functiondef(p.oid) as def
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.proname = 'health_audit_chain'
+),
+-- A row a chained chain.adopt row vouches for by record_hash (migration
+-- 20260909130000): its content must still recompute, its link is not checked,
+-- and it is left out when the rows around it are linked.
+adopted as (
+  select x as h
+  from public.health_audit a, jsonb_array_elements_text(a.detail->'adopts') x
+  where a.action = 'chain.adopt'
+),
+hashed as (
+  select r.id, r.seq, r.action, r.detail, r.record_hash, r.prev_hash,
+    (r.record_hash in (select h from adopted)) as adopted,
     encode(extensions.digest(
       r.seq::text || '|' || r.id::text || '|' ||
       coalesce(r.user_id::text,
@@ -93,6 +109,11 @@ chain as (
       to_char(r.created_at at time zone 'utc','YYYY-MM-DD"T"HH24:MI:SS.US') || '|' ||
       coalesce(r.prev_hash,''), 'sha256'), 'hex') as calc
   from public.health_audit r
+),
+chain as (
+  select h.*, lag(h.record_hash) over (order by h.seq) as expected_prev
+  from hashed h
+  where not h.adopted
 )
 
 -- 1. The config row exists, and every controlled value is what was decided.
@@ -124,6 +145,18 @@ where not exists (select 1 from pg_constraint k where k.conname = 'health_audit_
 union all
 select 'MISSING_AUDIT_OBJECT_TYPE', 'config', 'not in health_audit_object_type_check'
 where not exists (select 1 from pg_constraint k where k.conname = 'health_audit_object_type_check' and pg_get_constraintdef(k.oid) like '%''config''%')
+union all
+select 'MISSING_AUDIT_ACTION', 'chain.adopt', 'not in health_audit_action_check'
+where not exists (select 1 from pg_constraint k where k.conname = 'health_audit_action_check' and pg_get_constraintdef(k.oid) like '%''chain.adopt''%')
+union all
+select 'MISSING_AUDIT_OBJECT_TYPE', 'chain', 'not in health_audit_object_type_check'
+where not exists (select 1 from pg_constraint k where k.conname = 'health_audit_object_type_check' and pg_get_constraintdef(k.oid) like '%''chain''%')
+union all
+select 'MISSING_INDEX', 'health_audit_seq_key (unique on seq)', 'absent or not unique'
+where not exists (select 1 from pg_indexes where schemaname = 'public' and tablename = 'health_audit' and indexname = 'health_audit_seq_key' and indexdef like 'CREATE UNIQUE INDEX%')
+union all
+select 'CHAIN_SEQ_NOT_UNDER_LOCK', 'new.seq := coalesce(last_seq, 0) + 1 inside health_audit_chain()', 'the trigger leaves seq to the sequence default'
+from chain_fn where def not like '%new.seq := coalesce(last_seq, 0) + 1%'
 union all
 select 'PROVIDER_NOT_LOCKED', 'CHECK ((ai_provider = ANY (ARRAY[''synthetic''::text, ''vertex''::text])))', coalesce((select pg_get_constraintdef(k.oid) from pg_constraint k where k.conname = 'health_config_ai_provider_check'), 'absent')
 where coalesce((select pg_get_constraintdef(k.oid) from pg_constraint k where k.conname = 'health_config_ai_provider_check'), '') <> 'CHECK ((ai_provider = ANY (ARRAY[''synthetic''::text, ''vertex''::text])))'
@@ -181,6 +214,14 @@ where not exists (select 1 from supabase_migrations.schema_migrations m where m.
 union all
 select 'AUDIT_CHAIN_BROKEN', 'seq ' || seq::text, id::text
 from chain where calc <> record_hash or prev_hash is distinct from expected_prev
+union all
+select 'AUDIT_ADOPTED_ROW_ALTERED', 'seq ' || seq::text, id::text
+from hashed where adopted and calc <> record_hash
+union all
+select 'AUDIT_ADOPTION_INVALID', 'seq ' || h.seq::text || ' adopts ' || left(x, 12), h.id::text
+from hashed h, jsonb_array_elements_text(h.detail->'adopts') x
+where h.action = 'chain.adopt'
+  and not exists (select 1 from public.health_audit b where b.record_hash = x and b.seq < h.seq)
 union all
 select 'CONFIG_CHANGE_UNAUDITED', 'updated_at <= newest config.changed row', 'updated_at ' || updated_at::text
 from cfg

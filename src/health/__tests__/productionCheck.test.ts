@@ -27,9 +27,12 @@ const CHECK = read("scripts/health-production-check.sql");
 const CHECK_SQL = stripSqlComments(CHECK);
 const PHASE1 = stripSqlComments(read("supabase/migrations/20260908120000_oniq_health_phase1.sql"));
 const PHASE2 = stripSqlComments(read("supabase/migrations/20260908150000_oniq_health_phase2.sql"));
-/** The latest definition of health_verify_audit_chain(): erasure-proof since 2026-09-08. */
+/**
+ * The latest definition of health_verify_audit_chain(): erasure-proof since
+ * 2026-09-08, adoption-aware since 2026-09-09 (the seq-outside-the-lock race).
+ */
 const VERIFIER = stripSqlComments(
-  read("supabase/migrations/20260908190000_oniq_health_audit_chain_survives_erasure.sql"),
+  read("supabase/migrations/20260909130000_oniq_health_audit_seq_under_lock.sql"),
 );
 
 /** Owner directive 2026-09-08 (later the same day): the house cap is 500, a ceiling. */
@@ -96,7 +99,7 @@ describe("health-production-check.sql", () => {
     expect(valuesList("expected_retention").sort()).toEqual([...seeded].sort());
   });
 
-  it("expects exactly the versions production recorded: Lovable's two copies, the every-column trigger, the erasure-proof verifier", () => {
+  it("expects exactly the versions production recorded: Lovable's two copies, the every-column trigger, the erasure-proof verifier, Phase 3, the seq-under-lock fix", () => {
     const files = readdirSync(join(ROOT, "supabase", "migrations"));
     const versions = valuesList("expected_versions");
     expect(versions).toEqual([
@@ -105,6 +108,7 @@ describe("health-production-check.sql", () => {
       "20260908181500",
       "20260908190000",
       "20260909100000",
+      "20260909130000",
     ]);
     for (const v of versions) {
       expect(
@@ -120,10 +124,36 @@ describe("health-production-check.sql", () => {
       expect(start).toBeGreaterThan(-1);
       return sql.slice(start, sql.indexOf("'sha256'), 'hex')", start)).replace(/\s+/g, " ");
     };
+    // The function links through `link` (the row's own prev_hash for an
+    // adopted row, the running prev otherwise); the check recomputes every row
+    // with its own stored prev_hash and checks the link separately.
     const fromFunction = expr(
       VERIFIER.slice(VERIFIER.indexOf("health_verify_audit_chain")),
-    ).replace("coalesce(prev,'')", "coalesce(r.prev_hash,'')");
+    ).replace("coalesce(link,'')", "coalesce(r.prev_hash,'')");
+    expect(fromFunction).toContain("coalesce(r.prev_hash,'')");
     expect(expr(CHECK_SQL)).toEqual(fromFunction);
+  });
+
+  it("links only the rows no chain.adopt row vouches for, and holds an adopt row to its claims", () => {
+    // Adopted rows: content recomputed, left out of the lag() that links the rest.
+    expect(CHECK_SQL).toContain("where a.action = 'chain.adopt'");
+    expect(CHECK_SQL).toContain("(r.record_hash in (select h from adopted)) as adopted");
+    expect(CHECK_SQL).toContain(
+      "lag(h.record_hash) over (order by h.seq) as expected_prev\n  from hashed h\n  where not h.adopted",
+    );
+    expect(CHECK_SQL).toContain("select 'AUDIT_ADOPTED_ROW_ALTERED'");
+    expect(CHECK_SQL).toContain("from hashed where adopted and calc <> record_hash");
+    // An adopted hash must belong to an EARLIER row, or the adoption is the violation.
+    expect(CHECK_SQL).toContain("select 'AUDIT_ADOPTION_INVALID'");
+    expect(CHECK_SQL).toContain("where b.record_hash = x and b.seq < h.seq");
+    // The schema half of the same fix: the unique seq, the trigger numbering
+    // under the lock, the action and object type the adopt row needs.
+    expect(CHECK_SQL).toContain(
+      "indexname = 'health_audit_seq_key' and indexdef like 'CREATE UNIQUE INDEX%'",
+    );
+    expect(CHECK_SQL).toContain("def not like '%new.seq := coalesce(last_seq, 0) + 1%'");
+    expect(CHECK_SQL).toContain("like '%''chain.adopt''%'");
+    expect(CHECK_SQL).toContain("like '%''chain''%'");
   });
 
   it("expects every audit action Phase 2 added, and the config object type", () => {

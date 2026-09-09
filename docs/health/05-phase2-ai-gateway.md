@@ -735,3 +735,34 @@ false` (row, audited) close the attachment facility; the emergency stop or
 `ai_enabled = false` stops every transcription and extraction in seconds;
 documents already stored stay stored and readable. Measured values and the
 live test are in `07-phase3-report.md`, "2026-09-09 (later)".
+
+## 19. The audit chain under concurrency (2026-09-09, found by the production check)
+
+Phase 1's `health_audit_chain()` trigger took the chain lock before reading
+the latest row for `prev_hash` — but `seq` was the column default,
+`nextval()`, evaluated before any BEFORE INSERT trigger runs, outside the lock.
+Two concurrent appends could therefore number in one order and hash in the
+other; on production the Phase 3b smoke test's two `documents.register` calls
+did exactly that (seq 44 linked to 45, 45 to 43, 46 to 45), leaving row 44
+referenced by nothing — deletable without breaking the chain.
+
+Migration `20260909130000`: the trigger assigns `seq` itself, inside the lock,
+from the same read that supplies `prev_hash` (`coalesce(latest.seq, 0) + 1`),
+so number and link are decided together in commit order; a UNIQUE index on
+`seq` makes any future numbering race an error rather than a fork; the hash
+expression is unchanged so every existing row keeps verifying.
+
+The two rows already written were repaired without rewriting a hash:
+**adoption**. A later, chained row with action `chain.adopt` (object type
+`chain`, written by an operator from SQL — the app's closed lists do not carry
+it) names the orphan's `record_hash` in `detail.adopts`. The verifier
+(`health_verify_audit_chain()`) and `scripts/health-production-check.sql`
+content-verify an adopted row against its own stored `prev_hash`, leave it out
+of the linking of the rows around it, and refuse an adopt row that names a
+hash with no EARLIER row behind it — so the orphan can no longer vanish (the
+adopting row commits to its hash), and the chain 43 → 45 → 46 → … → 58
+verifies. `src/health/__tests__/auditChainSeqUnderLock.test.ts` pins the
+trigger's order of operations, the unchanged digest, the unique index, the
+adoption rules and the retained erasure fallback; the production check gains
+`MISSING_INDEX`, `CHAIN_SEQ_NOT_UNDER_LOCK`, `AUDIT_ADOPTED_ROW_ALTERED` and
+`AUDIT_ADOPTION_INVALID`.

@@ -3675,3 +3675,108 @@ Rollback is two taps: **Stop Health AI now** on `/app/admin/health-ai`, or
 `ai_enabled = false` on the row; both audited, both obeyed by every function
 on its next read. `ai_provider = synthetic` on production is NOT a rollback —
 it refuses everyone (`synthetic_in_production`).
+
+## Owner directive, 2026-09-09 (later) — "i want A, B and C all done": uploads on, a PDF read by its own text, a photo read through Vertex
+
+The owner reported _"attachment facility not in health"_ and was offered three
+shapes — A attach and keep (the Phase 1 upload facility, built dark), B the AI
+reads a PDF, C the AI reads a photo or a scan — and said to do all three.
+Built, disclosed, deployed, published and proven live from throwaway accounts
+the same hour. This SUPERSEDES "what is deliberately NOT live: uploads and
+extraction" in the Phase 3 entry above. `docs/health/07`, "2026-09-09 (later)",
+is the record; `05 §18` the design as built; `04 §A-4` the sequence.
+
+WHAT IS LIVE, measured through the DEPLOYED functions:
+
+    PDF   extract_document -> 200   readMethod pdf_text · documentSent FALSE
+          the PDF's own text layer read by npm:unpdf@1.8.1 on ONIQ's side, only
+          the TEXT to Vertex · 485 in / 165 out · $0.000369 · 3 candidates
+    PNG   extract_document -> 200   readMethod vertex_transcription · documentSent TRUE
+          the file itself to Vertex (inlineData) to be transcribed, then the
+          same extraction · ONE receipt, 1,774 in / 220 out, of which the
+          transcription 1,289 / 47 · $0.000774 · 3 candidates IDENTICAL to the
+          PDF's (HbA1c 5.4 %, Haemoglobin 13.2 g/dL, Fasting glucose 92 mg/dL)
+    then  classify_document -> lab_report · one candidate confirmed into the
+          timeline · another account's read of the document -> 404 · purge ->
+          the bucket empty · both throwaways deleted · $0.001233 for all of it
+
+The transcription is a PAID step before the extraction call, so the gateway
+runs it only after the consent check and the caps, on a provisional receipt
+(`consent_id` null until settle) that the second call's usage is summed into;
+a blank transcription is receipted `refused no_text` WITH its cost. The
+Records screen says which way a document was read; `readMethod` and
+`documentSent` travel on the manifest, the receipt and the audit detail; the
+notice, the consent (en/hi/bn placeholders) and the Play declaration say the
+report itself may go to Google when the person asks the AI to read it.
+
+**`pg_net` HAS NO PUT, AND THE STORAGE UPLOAD IS PUT-ONLY.** Registering a
+document from the database works — register and confirm are ordinary function
+calls — but the bytes cannot be sent from inside Postgres. Measured with a free
+verb probe first: a POST at `/storage/v1/object/upload/sign/<bucket>/<path>`
+answers `400 headers must have required property 'authorization'`, which is
+the create-signed-URL endpoint, not an upload. So the ONE Lovable deploy
+message also carried the two synthetic files as base64 (5,184 characters,
+sizes and sha256 stated) and the agent put them at the two registered paths
+with its `supabase--storage_upload` tool, byte-exact — **2.1 credits** for the
+deploy and the upload together. That tool exists: a future smoke test that
+needs bytes in a bucket is one message.
+
+**THE CHECK CAUGHT A PHASE 1 DEFECT AGAIN, AND THIS ONE COULD HIDE A
+DELETION.** Minutes after the throwaways were deleted,
+`health-production-check.sql` returned `AUDIT_CHAIN_BROKEN seq 44` and
+`seq 45`. Not erasure this time — `health_audit` has ONE foreign key, user_id,
+read from pg_constraint before theorising — and not content: both rows' hashes
+recomputed. Their LINKS were crossed: 44 pointed at 45, 45 at 43, 46 at 45, so
+row 44 was referenced by NOTHING. The trigger took the chain lock before
+reading the latest row for `prev_hash`, but `seq` was the column DEFAULT —
+`nextval()`, evaluated before any BEFORE INSERT trigger, OUTSIDE the lock. Two
+concurrent registers (one SQL statement had queued both through pg_net) drew
+44 and 45 in one order and hashed in the other. Under that trigger, deleting
+row 44 would have left the chain intact: a tamper-evident log with a row that
+can vanish undetected. Three earlier concurrent pairs in these smoke tests had
+simply not interleaved. **A lock that serialises the hashing but not the
+numbering serialises nothing that matters.**
+
+Fixed by `20260909130000`, applied from here: the trigger assigns `seq` ITSELF,
+inside the lock, from the same read that supplies `prev_hash`; a UNIQUE index
+on seq; and, for the two rows already written, ADOPTION rather than a rewrite —
+a chained `chain.adopt` row (seq 58, actor `system:chain-repair`) names row
+44's record_hash; the verifier and the check content-verify an adopted row and
+leave it out of the linking, and an adopt row that names a hash with no EARLIER
+row is itself a violation. Swapping the numbers would have changed two content
+hashes; re-linking would have changed every hash after 43. The check at the
+final state: zero rows. `auditChainSeqUnderLock.test.ts` pins the order of
+operations, the unchanged digest and the adoption rules; four mutations red.
+
+**A CANCELLED DDL REQUEST IS NOT A CANCELLED DDL.** Two ALTER TABLE statements
+came back `499 request_cancelled` from the Lovable API — and both had LANDED.
+Each was waiting for an ACCESS EXCLUSIVE lock behind Lovable's own schema-dump
+transaction (`EXECUTE dumpFunc(...)`, "idle in transaction", AccessShare on
+every table for minutes; it appears to run after DDL, so each statement queued
+behind the dump the previous one had triggered). The API gave up on the client
+side; the backend kept waiting, took the lock and committed. Resending was
+harmless here (drop-if-exists then add) and is not in general. **Read the state
+before retrying DDL through that connection**, and read `pg_stat_activity` and
+`pg_blocking_pids` rather than the error text: the 499 says nothing about the
+database.
+
+Smaller things worth their lines:
+
+- PDF.js DETACHES the buffer it is handed — after `pdfText(bytes)` the
+  caller's `bytes.byteLength` is 0. The seam passes a copy; the probe measures
+  the size before the call.
+- The manifest and receipt whitelists refuse any key matching `text`, so
+  `textSource` as a field name failed three guards; it is `readMethod`. Record
+  the rename; do not widen the ban.
+- The mutation script's M9 reported GREEN with nothing mutated: its python
+  anchor (`const auth = await this.token();`) had doubled when `transcribe()`
+  was added, the assert failed before the edit, and the verdict printed
+  anyway. It prints `NOTAPPLIED` now. **A mutation that did not apply is not a
+  verdict.**
+- The first live extraction answered `403 age_unverified` with `count 0` on
+  its audit row — the throwaway had no date of birth, and the gate refused
+  before anything was read or spent, which is the order the design promises. A
+  throwaway for an AI smoke test needs `profiles_private.date_of_birth`.
+- The two `health_consents` rows left after the throwaways were gone are the
+  OWNER's own, granted at 07:53Z that morning from the app. Nothing of theirs
+  was touched, and it is the first sign of the screens being used.

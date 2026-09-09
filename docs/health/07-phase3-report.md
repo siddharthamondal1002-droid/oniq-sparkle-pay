@@ -336,9 +336,11 @@ DPIA question now that AI runs on health data.
   separate Health account B1 recommended. Same project, same IAM; a separate
   principal is a later hardening that changes nothing in code but
   `FIREBASE_SERVICE_ACCOUNT`'s reader.
-- Extraction still answers `no_text` for everyone (`TEXT_SOURCE_REGISTRY =
-{null}`, uploads off): document intelligence waits on uploads and a text
-  source, by design.
+- Extraction reads a PDF's own text on ONIQ's side and sends a photo, a scan
+  or a text-less PDF to Vertex as the file itself, after the caps and on a
+  receipt (Phase 3b, below); an unsupported mime or a file over 10 MB is
+  refused at register, and a blank transcription is receipted `no_text` with
+  its cost.
 - `health-scan` is a deployed 410 stub rather than a deleted function; the
   deletion is a control-plane action the Lovable agent's guard refuses
   (2026-09-06), so it is the owner's from the Supabase dashboard. The stub
@@ -357,3 +359,128 @@ removes the sections on the next publish. Setting `ai_provider = synthetic`
 would refuse everyone in production (`synthetic_in_production`) — it is not a
 rollback, it is a different outage. Receipts and audit rows stay; nothing is
 deleted by any of it.
+
+## 2026-09-09 (later) — Phase 3b: uploads on, a PDF read by its own text, a photo read through Vertex
+
+Owner directive: _"i want A, B and C all done"_ — A attach and keep, B the AI
+reads PDFs, C the AI reads photos and scans. Design as built: `05 §18`; the go
+sequence: `04 §A-4`. Everything below is MEASURED on production, the throwaway
+accounts' tokens used only by subquery from `net._http_response`.
+
+THE ROW AND THE CODE
+
+    08:53:35Z  uploads_enabled false -> true   guarded UPDATE; audit seq 41
+               config.changed {uploads_enabled: true}
+    1be09ae4   the code, pushed, main fast-forwarded; Lovable latest_commit_sha
+               read f6487a91 seconds after the push and 1be09ae4 a minute later —
+               the sha rule held
+
+THE THROWAWAY AND ITS DOCUMENTS — before the deploy, because register and
+confirm are Phase 1 code the deploy does not change:
+
+    08:54:02Z  consents.grant store_records -> oniq 200 · ai_interpretation ->
+               google_vertex 200                                     seq 42, 43
+    08:54:20Z  documents.register x2 -> 200: a 716-byte PDF and a 3,170-byte
+               PNG, both lab_report, both SYNTHETIC ("Sample Diagnostics -
+               Blood report": HbA1c 5.4 %, Haemoglobin 13.2 g/dL, Fasting
+               glucose 92 mg/dL)                                     seq 44, 45
+
+THE ONE LOVABLE MESSAGE, 08:56:26Z, **2.1 credits**, verbatim where it matters:
+
+    pre-checks   StoredDocumentSource in health-ai/index.ts: 2 · transcribe in
+                 ai/vertex.ts: 3
+    deploy       "Successfully deployed edge functions: health-ai, health-api"
+    upload       both base64 blobs decoded, sizes and sha256 verified, put at
+                 the two registered paths with supabase--storage_upload; the
+                 listing verbatim:
+                   0b67269d-….png   3170   image/png
+                   501dbc84-….pdf    716   application/pdf
+
+`pg_net` has no PUT, so the bytes could not travel from the database; the
+message carried them — 5,184 base64 characters. A free verb probe had settled
+it first: a POST at the signed-upload path answers `400 headers must have
+required property 'authorization'` — that is the create-signed-URL endpoint,
+not an upload; the upload itself is PUT only.
+
+THE PUBLISH — `deploy_project` after the sha check; the served bundle read from
+inside the database:
+
+    entry    index-D1pzt6IS.js -> index-BU9dwD0N.js   478,220 B
+             widened recipient sentence 1 (the constant is shared) · retired claim 0
+    records  app.health.records-VFnLwS46.js   9,321 B
+             health-doc-input 1 · health-doc-extract 1 ·
+             "was sent to Google Cloud Vertex AI (Gemini) to be read" 1
+    privacy  privacy-CfKHYktg.js             12,348 B
+             "or the photo or PDF itself" 1 · retired claim 0
+             (privacy-sCfVPIfa.js, 547 B, carries neither)
+    consent  app.health.consent-877s9SFG.js   6,848 B   health-consent-ai-recipient 1
+
+The local build puts the same markers in the same chunks (9,344 B for the
+records chunk here — Lovable's build, different bytes, same distribution).
+
+THE FIRST LIVE DOCUMENT READS, through the DEPLOYED `health-ai`:
+
+    09:00:22Z  documents.confirm x2 -> 200 stored (bytes declared = bytes
+               arrived, the size check passed)                        seq 46, 47
+    09:00:39Z  extract_document (PDF) -> 403 age_unverified; the PNG the same
+               seq 48, 49 — count 0, nothing spent: the throwaway had no date
+               of birth. One set (its own profiles_private row), then:
+    09:01:43Z  extract_document PDF  -> 200  candidates 3 · textChars 106 ·
+               readMethod pdf_text · documentSent FALSE
+               receipt d0671b50: 485 in / 165 out · $0.000369 · manifest
+               fields [documentKind, title, mime, sizeBytes, capturedDay,
+               text] · pages 1 · transcription null · redactions 0 ·
+               injectionSuspected false                                 seq 50
+    09:02:03Z  extract_document PNG  -> 200  candidates 3 · textChars 106 ·
+               readMethod vertex_transcription · documentSent TRUE
+               receipt e02cdee9: 1,774 in / 220 out · $0.000774 ·
+               transcription {inputTokens 1289, outputTokens 47, truncated
+               false} — ONE receipt for both calls (the extraction itself
+               was 485 in / 173 out) · pages null                       seq 51
+    candidates 6, three per document: HbA1c 5.4 %, Haemoglobin 13.2 g/dL,
+               Fasting glucose 92 mg/dL, effectiveAt 2026-09-01, provenance
+               document_extraction with sourceRef = the document. The two
+               read paths produced IDENTICAL values.
+    09:02:50Z  classify_document (PDF) -> 200 lab_report, confidence 1 ·
+               receipt 7d5c7f65 226 in / 22 out $0.00009 · readMethod
+               pdf_text                                                 seq 52
+    09:03:16Z  records.confirm on the PNG-derived HbA1c -> 200 active,
+               provenance verifiedBy user                               seq 53
+    a SECOND throwaway (consents seq 54, 55; date of birth set):
+               extract_document on the first one's PDF -> 404 not_found
+               seq 56 ai.refused not_found, count 0 — the loader's ownership
+               filter, on production, nothing spent
+    09:04:35Z  purge -> 200 {records 6, documents 2}: the bucket EMPTY, both
+               document rows deleted with storage_path null, the three
+               receipts kept with purged_at set and manifest {}        seq 57
+    09:05:11Z  both auth users deleted: 126 users, 0 throwaways, 0
+               health_records, 0 health_documents, 0 objects; 9 receipts in
+               the ledger, every one with user_id null
+
+Phase 3b spend: 3 receipts, 2,485 input / 407 output tokens, **$0.001233**.
+Month to date (all of it today, all of it throwaways): 9 requests, 7,541 /
+1,032 tokens, $0.003433. The one thing NOT measured, stated as such: a real
+handset choosing a file on the Records screen — the client path from the file
+picker to `documents.register` and the signed PUT is Phase 1 code that the
+Playwright suite exercises, and the server half of it ran live above.
+
+WHAT THE CHECK THEN FOUND, and what it cost to make it pass honestly.
+`scripts/health-production-check.sql` at the final state returned:
+
+    AUDIT_CHAIN_BROKEN  seq 44        AUDIT_CHAIN_BROKEN  seq 45
+
+Both rows' CONTENT hashes verified; their LINKS were crossed — 44.prev =
+hash(45), 45.prev = hash(43), 46.prev = hash(45), so row 44 was referenced by
+nothing. Cause, measured from the trigger's own text: `seq` came from the
+column default (`nextval`) BEFORE the trigger took the chain lock, and two
+concurrent registers drew 44 and 45 in one order and hashed in the other.
+Under the old trigger row 44 could have been DELETED without breaking the
+chain. Migration `20260909130000` (applied from here, recorded in history):
+the trigger assigns seq inside the lock from the same read as prev_hash; a
+UNIQUE index on seq; and ADOPTION — a chained `chain.adopt` row (seq 58, actor
+`system:chain-repair`, prev = hash 57) names row 44's record_hash, and the
+verifier and the check content-verify an adopted row, leave it out of the
+linking, and refuse an adopt row that names a hash with no earlier row behind
+it. No hash was rewritten. The check at the final state: **zero rows**. The two
+crossed rows also carry IDENTICAL created_at values to the microsecond
+(08:54:20.985808), which is recorded as an observation and not explained.
