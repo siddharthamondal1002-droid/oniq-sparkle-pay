@@ -710,16 +710,24 @@ describe("6. the extract_document receipt carries the document id, counts, and n
       "categories",
       "charCount",
       "documentIds",
+      "documentSent",
       "estimatedInputTokens",
       "excluded",
       "fields",
       "injectionSuspected",
       "language",
+      "pages",
+      "readMethod",
       "recordIds",
       "redactions",
       "task",
+      "transcription",
       "truncated",
     ]);
+    // Phase 3b: an inline text layer never sends the file.
+    expect(m.readMethod).toBe("pdf_text");
+    expect(m.documentSent).toBe(false);
+    expect(m.transcription).toBeNull();
     expect(JSON.stringify(store.receipts[0])).not.toMatch(MARK_RE);
     // The receipt's usage is the provider's, and the cost is the price row's (zero).
     expect(store.receipts[0].patches.at(-1)).toMatchObject({ status: "ok", cost_usd: 0 });

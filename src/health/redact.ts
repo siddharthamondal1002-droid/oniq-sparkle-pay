@@ -31,6 +31,10 @@ export const AUDIT_DETAIL_KEYS = [
   "code",
   "switch",
   "house",
+  // Phase 3b: how a document's text was obtained (a closed method or "none"),
+  // and whether the file itself was sent to the provider. Names and a boolean.
+  "readMethod",
+  "documentSent",
 ] as const;
 
 /** Keys a log line may carry. */

@@ -21,6 +21,18 @@ import { join } from "node:path";
 import { HEALTH_AI_PRIVACY_SENTENCES, HEALTH_AI_RECIPIENT_SENTENCE } from "../src/config/privacy";
 
 export const ROUTE_CHUNK = /^app\.admin_\.health-ai-[\w-]+\.js$/;
+/**
+ * Phase 3b (owner directive 2026-09-09, "A, B and C"): the Records screen
+ * carries the upload control and the read-method note. The note's English
+ * default is a literal that existed in NO earlier build, so a 1 cannot be a
+ * leftover; the two data-testids are the upload input and the Explain button.
+ */
+export const RECORDS_CHUNK = /^app\.health\.records-[\w-]+\.js$/;
+export const RECORDS_MARKERS = [
+  "health-doc-input",
+  "health-doc-extract",
+  "was sent to Google Cloud Vertex AI (Gemini) to be read",
+];
 export const ROUTE_MARKERS = [
   "health-ai-admin-kill",
   "health-ai-admin-unkill",
@@ -63,6 +75,16 @@ export function check(chunks: Record<string, string>): Verdict[] {
       out.push({ ok: c >= 1, line: `${m.padEnd(28)} ${name}  ${c}` });
     }
   }
+  const recordsChunks = Object.keys(chunks).filter((n) => RECORDS_CHUNK.test(n));
+  if (recordsChunks.length === 0) {
+    out.push({ ok: false, line: `records chunk app.health.records-*.js  ABSENT` });
+  }
+  for (const name of recordsChunks) {
+    for (const m of RECORDS_MARKERS) {
+      const c = count(chunks[name], m);
+      out.push({ ok: c >= 1, line: `${m}  ${name}  ${c}` });
+    }
+  }
   const privacyChunks = Object.keys(chunks).filter((n) => PRIVACY_CHUNK.test(n));
   if (privacyChunks.length === 0)
     out.push({ ok: false, line: `privacy chunk privacy-*.js  ABSENT` });
@@ -88,7 +110,12 @@ export function check(chunks: Record<string, string>): Verdict[] {
 function fromDir(dir: string): Record<string, string> {
   const chunks: Record<string, string> = {};
   for (const name of readdirSync(dir)) {
-    if (ROUTE_CHUNK.test(name) || PRIVACY_CHUNK.test(name) || ENTRY_CHUNK.test(name)) {
+    if (
+      ROUTE_CHUNK.test(name) ||
+      RECORDS_CHUNK.test(name) ||
+      PRIVACY_CHUNK.test(name) ||
+      ENTRY_CHUNK.test(name)
+    ) {
       chunks[name] = readFileSync(join(dir, name), "utf8");
     }
   }
@@ -103,7 +130,9 @@ async function fromUrl(base: string): Promise<Record<string, string>> {
   const entryText = await (await fetch(`${root}/assets/${entry[1]}`)).text();
   const chunks: Record<string, string> = { [entry[1]]: entryText };
   const wanted = new Set<string>();
-  for (const m of entryText.matchAll(/(app\.admin_\.health-ai-[\w-]+\.js|privacy-[\w-]+\.js)/g))
+  for (const m of entryText.matchAll(
+    /(app\.admin_\.health-ai-[\w-]+\.js|app\.health\.records-[\w-]+\.js|privacy-[\w-]+\.js)/g,
+  ))
     wanted.add(m[1]);
   for (const name of wanted) chunks[name] = await (await fetch(`${root}/assets/${name}`)).text();
   return chunks;

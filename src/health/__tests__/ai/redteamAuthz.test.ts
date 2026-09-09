@@ -197,9 +197,9 @@ class SpyTextSource implements DocumentTextSource {
   readonly id = "null" as const;
   readonly asked: string[] = [];
   constructor(private readonly inner: InlineTextSource) {}
-  text(documentId: string) {
+  read(documentId: string) {
     this.asked.push(documentId);
-    return this.inner.text(documentId);
+    return this.inner.read(documentId);
   }
 }
 

@@ -16,6 +16,8 @@ import {
   PRIVACY_SENTENCES,
   ROUTE_CHUNK,
   ROUTE_MARKERS,
+  RECORDS_CHUNK,
+  RECORDS_MARKERS,
   check,
 } from "../../../scripts/health-bundle-markers";
 
@@ -149,6 +151,16 @@ describe("health-bundle-markers.ts", () => {
     );
   });
 
+  it("every records marker is a data-testid the Records screen renders, or a literal it carries (Phase 3b)", () => {
+    const records = read("src/routes/_authenticated/app.health.records.tsx");
+    const ids = [...records.matchAll(/data-testid="([^"]+)"/g)].map((m) => m[1]);
+    for (const m of RECORDS_MARKERS) {
+      expect(ids.includes(m) || records.includes(m), m).toBe(true);
+    }
+    expect(RECORDS_CHUNK.test("app.health.records-Dq8cIP7N.js")).toBe(true);
+    expect(RECORDS_CHUNK.test("app.health.index-DiTriFPE.js")).toBe(false);
+  });
+
   it("looks for them in the chunk named after the route file, never the entry", () => {
     expect(ROUTE_CHUNK.test("app.admin_.health-ai-C3CCfxGu.js")).toBe(true);
     expect(ROUTE_CHUNK.test("app.admin.health-ai-C3CCfxGu.js")).toBe(false); // the nested build that never rendered
@@ -170,12 +182,21 @@ describe("health-bundle-markers.ts check()", () => {
   const good = {
     "index-AAAA.js": "entry without the marker",
     "app.admin_.health-ai-BBBB.js": ROUTE_MARKERS.join(" "),
+    "app.health.records-DDDD.js": RECORDS_MARKERS.join(" "),
     "privacy-CCCC.js": `x ${PRIVACY_SENTENCES.join(" ")} y`,
   };
   const pass = (chunks: Record<string, string>) => check(chunks).every((r) => r.ok);
 
   it("passes a build that carries every marker in its own chunk", () => {
     expect(pass(good)).toBe(true);
+  });
+
+  it("fails a records chunk from before Phase 3b — the read-method note is the marker no earlier build had", () => {
+    expect(
+      pass({ ...good, "app.health.records-DDDD.js": "health-doc-input health-doc-extract" }),
+    ).toBe(false);
+    const { "app.health.records-DDDD.js": _gone, ...rest } = good;
+    expect(pass(rest)).toBe(false);
   });
 
   it("fails a stale route chunk — the shape of a publish that rebuilt the previous commit", () => {

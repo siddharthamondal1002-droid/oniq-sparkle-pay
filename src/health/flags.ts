@@ -1,9 +1,12 @@
 /**
- * ONIQ HEALTH — client feature flags. THREE ON (owner directive 2026-09-09:
- * "ONIQ HEALTH — FULL AUTONOMOUS IMPLEMENTATION, DEPLOYMENT AND ACTIVATION"):
- * the master switch, the AI switch and provider sharing. The other nine stay
- * off — uploads, Health Connect, ABDM, FHIR, DICOM, HL7, MedGemma, search,
- * research are unbuilt or unauthorised.
+ * ONIQ HEALTH — client feature flags. FOUR ON: the master switch, the AI
+ * switch and provider sharing (owner directive 2026-09-09: "ONIQ HEALTH —
+ * FULL AUTONOMOUS IMPLEMENTATION, DEPLOYMENT AND ACTIVATION"), and uploads
+ * (owner directive 2026-09-09, later the same day: "i want A, B and C all
+ * done" — the attachment facility, PDF reading on ONIQ's side, and
+ * transcription of photos and scans by the provider). The other eight stay
+ * off — Health Connect, ABDM, FHIR, DICOM, HL7, MedGemma, search, research
+ * are unbuilt or unauthorised.
  *
  * Owner brief, 2026-09-08: everything in ONIQ Health ships behind these
  * twelve switches (§83C names the twelfth). The names are the brief's, dotted exactly as given; the
@@ -28,7 +31,7 @@ export { HEALTH_FLAG_NAMES };
 
 export const HEALTH_FLAGS: Record<HealthFlag, boolean> = {
   "health.enabled": true,
-  "health.uploads.enabled": false,
+  "health.uploads.enabled": true,
   "health.ai.enabled": true,
   "health.health_connect.enabled": false,
   "health.abdm.enabled": false,

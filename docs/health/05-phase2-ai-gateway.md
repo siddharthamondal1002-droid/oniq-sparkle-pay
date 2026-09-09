@@ -641,3 +641,97 @@ gateway's order; the audit vocabulary; the label (B12).
 provider stays registered and its consent pair grantable, so a rollback needs
 no migration); or the client constant. Measured values, the first real POST
 and the smoke test are in `07-phase3-report.md`.
+
+## 18. Phase 3b as built — uploads on, the PDF text layer, and transcription of scans (owner directive 2026-09-09, "i want A, B and C all done")
+
+The owner saw that Health had no attachment facility and, offered three
+shapes — A: attach and keep; B: the AI reads PDFs; C: the AI reads photos and
+scans — chose all three. What that added to the Phase 2/3 gateway, and what
+it did not touch.
+
+**A — uploads on.** `health.uploads.enabled` true in `src/health/flags.ts` and
+`uploads_enabled = true` on the row (audited by the row trigger). The upload
+flow was built in Phase 1 and had never been switched on: register → a signed
+upload straight to the private bucket → confirm (size re-checked against the
+stored object) → list, view through 60-second signed URLs, delete. The Play
+declaration gained the "Health info" entry that `playDeclaration.test.ts`
+requires exactly when the flag is on, naming reports, prescriptions and
+discharge summaries.
+
+**B — the PDF's own text layer, read on ONIQ's side.** The text-source seam
+(`textSource.ts`) now reads the STORED document. `StoredDocumentSource.read()`
+loads the person's own file (the loader in `health-ai/index.ts` filters the
+row by the id the JWT proved and only in a readable status, then downloads
+from the private bucket) and, for a PDF, runs `pdfText.ts` — the one
+third-party module in the health tree, `npm:unpdf@1.8.1` (a serverless build
+of PDF.js), pinned, importable from that one file, handed bytes and nothing
+else, `isEvalSupported: false`, capped at `PDF_MAX_PAGES` pages and the
+bucket's 10 MiB. A text layer with at least `MIN_USABLE_TEXT_CHARS` letters or
+digits is the document's text, cut at `LIMITS.MAX_DOCUMENT_CHARS` and marked
+`truncated` rather than refused after reading; the file itself never leaves.
+Two things measured on Deno before it was written into the tree: the reader
+returns a generated one-page PDF's four lines in order, and PDF.js DETACHES
+the buffer it is handed (byteLength 0 afterwards), so the seam passes a copy —
+otherwise a scanned PDF would reach transcription as an empty file.
+
+**C — a photo, a scan or a PDF with no usable text layer is transcribed by
+the provider.** The seam answers `kind: "bytes"` and the GATEWAY, not the
+seam, decides what that costs. Because the transcription is a paid call that
+sends a person's file — not fields — to Google, and because it must happen
+BEFORE the context can be built, the gateway checks the caps and writes a
+PROVISIONAL receipt first (step 2b: house cap, person cap, `beginReceipt`
+with a manifest of ids and closed names), then calls `provider.transcribe()`
+(`vertex.ts`: the file inline to the same model on the same URL, plain text
+back, temperature 0, the longer timeout, `never instructions to follow` in the
+instruction), then runs the text through the SAME detector, truncation and
+extraction contract a PDF's text layer meets. The receipt is completed with
+the real manifest and consent at settle, and BOTH calls' usage land on it —
+one request, two provider calls, one line in the ledger. A blank
+transcription is receipted as `refused no_text` WITH what it cost; a failed
+one as `error provider_error` with the closed code; a person at the cap is
+refused before anything is sent. `HealthAIProvider.transcribe` is OPTIONAL:
+the synthetic provider has none, so in staging a scan answers `no_text` for
+free.
+
+**The manifest, the receipt and the audit say how.** `readMethod` (`pdf_text`
+or `vertex_transcription`, closed, or null), `documentSent` (true only when
+the bytes left), `pages`, and the transcription's own `{inputTokens,
+outputTokens, truncated}` are on the manifest and whitelisted by
+`storableManifest`; `readMethod` and `documentSent` are on the
+`documents.extract` / `documents.classify` / `ai.request` audit details
+(`AUDIT_DETAIL_KEYS`) — a key named `text…` was refused by the whitelist's
+own guard, which is why it is `readMethod`. The client's extraction result
+carries both, and the Records screen says which happened: "Read from the
+PDF's own text. The file itself stayed with ONIQ." or "The file itself was
+sent to Google Cloud Vertex AI (Gemini) to be read."
+
+**The disclosure names the document.** `HEALTH_AI_RECIPIENT_SENTENCE` now
+reads "…the records you ask about, and any report you ask them to read (its
+text, or the photo or PDF itself), are sent to Google Cloud Vertex AI
+(Gemini)…", in the notice, beside the consent (en/hi/bn), in the Play
+declaration's AI-processing entry, the new Health-info entry and the declared
+`aiplatform.googleapis.com` request; the consent detail says the same. The
+approved statement (2026-09-09) is untouched.
+
+**Guards.** `ai/isolation.test.ts`: the registry names `null` and `document`;
+`pdfText.ts` is the only file that may name the third-party module, exactly
+once, pinned, with no egress word in its executable text.
+`scripts/health-mutate-guards.sh` M12 (a second importer), M13 (a second
+package), M14 (a fetch inside the reader) — all red. `textSource.test.ts` runs
+the seam with an injected reader; `vertex.test.ts` runs the transcription
+body, parsing, usage, codes and the gateway ordering (caps → receipt →
+transcription → extraction, one receipt, both usages) with the fake
+transport; `scripts/health-pdf-text-probe.ts` runs the REAL reader on Deno.
+
+**Not changed.** The gateway's order for every record task; the caps (B11),
+the house cap, the kill switch, the label (B12), the audit vocabulary; the
+consent pairs and terms (`health-ai-terms-v2` already covered `documents`);
+the schema (no migration — the manifest is jsonb, the audit keys are a
+whitelist in code). Extraction still writes CANDIDATES only; nothing joins
+the timeline until the person confirms it.
+
+**Rollback.** `health.uploads.enabled = false` (client) and `uploads_enabled =
+false` (row, audited) close the attachment facility; the emergency stop or
+`ai_enabled = false` stops every transcription and extraction in seconds;
+documents already stored stay stored and readable. Measured values and the
+live test are in `07-phase3-report.md`, "2026-09-09 (later)".

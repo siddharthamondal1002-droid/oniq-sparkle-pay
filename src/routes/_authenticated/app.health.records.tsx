@@ -153,11 +153,26 @@ function HealthDocuments() {
     },
     onSuccess: (data) => {
       const n = data.kind === "extraction" ? data.candidates : 0;
-      setAiNote(
+      // Phase 3b: say HOW it was read, because the two ways differ in what
+      // left ONIQ — a PDF's text layer stays here; a photo or scan travels.
+      const source = data.kind === "extraction" ? (data.readMethod ?? null) : null;
+      const how =
+        source === "vertex_transcription"
+          ? t(
+              "health.ai.read.vertex_transcription",
+              "The file itself was sent to Google Cloud Vertex AI (Gemini) to be read.",
+            )
+          : source === "pdf_text"
+            ? t(
+                "health.ai.read.pdf_text",
+                "Read from the PDF's own text. The file itself stayed with ONIQ.",
+              )
+            : "";
+      const head =
         n > 0
           ? `${t("health.ai.suggested", "Suggested records")}: ${n}`
-          : t("health.reason.no_text", "There's no readable text for that document yet."),
-      );
+          : t("health.ai.read.nothing", "No lab values or vitals were found in that document.");
+      setAiNote(how ? `${head} ${how}` : head);
       void qc.invalidateQueries({ queryKey: ["health"] });
     },
     onError: (e: Error) => setAiNote(e.message),

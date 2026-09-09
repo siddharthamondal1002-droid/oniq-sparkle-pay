@@ -130,7 +130,7 @@ const en: Dict = {
   // Vertex data-governance position (prompts not used to train) is recorded
   // in docs/health/01-research.md as a SNIPPET-labelled claim.
   "health.consent.ai.detail":
-    "Explains and summarises what you have stored. The records you ask about are sent to Google Cloud Vertex AI (Gemini), operated by Google, to write the answer — under Google Cloud's terms, which do not use them to train Google's models. ONIQ checks every answer before you see it.",
+    "Explains and summarises what you have stored, and reads the reports you upload. The records you ask about, and any report you ask it to read (its text, or the photo or PDF itself), are sent to Google Cloud Vertex AI (Gemini), operated by Google, to write the answer — under Google Cloud's terms, which do not use them to train Google's models. ONIQ checks every answer before you see it.",
   "health.consent.ai.required": "Turn on the AI consent first.",
   // The privacy DISCLOSURE beside the AI consent — owner directive 2026-09-09,
   // verbatim; src/config/privacy.ts HEALTH_AI_PRIVACY_STATEMENT is the copy the
@@ -141,11 +141,15 @@ const en: Dict = {
   // The RECIPIENT sentence (Phase 3) — src/config/privacy.ts
   // HEALTH_AI_RECIPIENT_SENTENCE is the copy the tests pin this to.
   "health.privacy.ai_recipient":
-    "When you use them, the records you ask about are sent to Google Cloud Vertex AI (Gemini), operated by Google, to produce the answer, and are not used to train Google's models.",
+    "When you use them, the records you ask about, and any report you ask them to read (its text, or the photo or PDF itself), are sent to Google Cloud Vertex AI (Gemini), operated by Google, to produce the answer, and are not used to train Google's models.",
   "health.ai.suggested": "Suggested records",
   "health.ai.suggested.body":
     "Read from your documents by ONIQ. Nothing joins your timeline until you confirm it.",
   "health.ai.confidence": "AI read this from your document ({pct}% sure)",
+  "health.ai.read.pdf_text": "Read from the PDF's own text. The file itself stayed with ONIQ.",
+  "health.ai.read.vertex_transcription":
+    "The file itself was sent to Google Cloud Vertex AI (Gemini) to be read.",
+  "health.ai.read.nothing": "No lab values or vitals were found in that document.",
   "health.ai.confirm": "Add to timeline",
   "health.ai.reject": "Not this",
   "health.ai.confirmed": "Added to your timeline.",
@@ -282,7 +286,7 @@ const hi: Dict = {
   "health.consent.ai": "ONIQ के AI को मेरे रिकॉर्ड पढ़ने दें",
   // Counsel-review placeholder translation of the English detail (Phase 3).
   "health.consent.ai.detail":
-    "आपके सहेजे रिकॉर्ड को समझाता और सारांश देता है। आप जिन रिकॉर्ड के बारे में पूछते हैं, वे जवाब लिखने के लिए Google द्वारा संचालित Google Cloud Vertex AI (Gemini) को भेजे जाते हैं — Google Cloud की शर्तों के तहत, जो उन्हें Google के मॉडल को प्रशिक्षित करने में इस्तेमाल नहीं करतीं। ONIQ हर जवाब को आपको दिखाने से पहले जाँचता है।",
+    "आपके सहेजे रिकॉर्ड को समझाता और सारांश देता है, और आपकी अपलोड की गई रिपोर्ट पढ़ता है। आप जिन रिकॉर्ड के बारे में पूछते हैं, और जिस रिपोर्ट को पढ़ने के लिए कहते हैं (उसका टेक्स्ट, या फ़ोटो अथवा PDF स्वयं), वे जवाब लिखने के लिए Google द्वारा संचालित Google Cloud Vertex AI (Gemini) को भेजे जाते हैं — Google Cloud की शर्तों के तहत, जो उनका उपयोग Google के मॉडल को प्रशिक्षित करने में नहीं करतीं। हर जवाब आपको दिखाने से पहले ONIQ उसकी जाँच करता है।",
   "health.consent.ai.required": "पहले AI सहमति चालू करें।",
   // Counsel-review placeholder: a meaning-preserving translation of the owner's
   // approved English sentence (2026-09-09); no legal approval is claimed for it.
@@ -291,11 +295,15 @@ const hi: Dict = {
   // Counsel-review placeholder: a meaning-preserving translation of the
   // English recipient sentence (Phase 3, 2026-09-09).
   "health.privacy.ai_recipient":
-    "जब आप उनका उपयोग करते हैं, तो आप जिन रिकॉर्ड के बारे में पूछते हैं वे जवाब बनाने के लिए Google द्वारा संचालित Google Cloud Vertex AI (Gemini) को भेजे जाते हैं, और उनका उपयोग Google के मॉडल को प्रशिक्षित करने में नहीं किया जाता।",
+    "जब आप उनका उपयोग करते हैं, तो आप जिन रिकॉर्ड के बारे में पूछते हैं, और जिस रिपोर्ट को पढ़ने के लिए आप कहते हैं (उसका टेक्स्ट, या फ़ोटो अथवा PDF स्वयं), वे जवाब बनाने के लिए Google द्वारा संचालित Google Cloud Vertex AI (Gemini) को भेजे जाते हैं, और Google के मॉडल को प्रशिक्षित करने में उपयोग नहीं होते।",
   "health.ai.suggested": "सुझाए गए रिकॉर्ड",
   "health.ai.suggested.body":
     "ONIQ ने आपके दस्तावेज़ों से पढ़ा है। आपकी पुष्टि के बिना कुछ भी समयरेखा में नहीं जुड़ता।",
   "health.ai.confidence": "AI ने इसे आपके दस्तावेज़ से पढ़ा ({pct}% निश्चित)",
+  "health.ai.read.pdf_text": "PDF के अपने टेक्स्ट से पढ़ा गया। फ़ाइल स्वयं ONIQ के पास ही रही।",
+  "health.ai.read.vertex_transcription":
+    "फ़ाइल स्वयं पढ़ने के लिए Google Cloud Vertex AI (Gemini) को भेजी गई।",
+  "health.ai.read.nothing": "उस दस्तावेज़ में कोई लैब मान या वाइटल नहीं मिला।",
   "health.ai.confirm": "समयरेखा में जोड़ें",
   "health.ai.reject": "यह नहीं",
   "health.ai.confirmed": "आपकी समयरेखा में जोड़ दिया।",
@@ -430,7 +438,7 @@ const bn: Dict = {
   "health.consent.ai": "ONIQ-এর AI-কে আমার রেকর্ড পড়তে দিন",
   // Counsel-review placeholder translation of the English detail (Phase 3).
   "health.consent.ai.detail":
-    "আপনার সংরক্ষিত রেকর্ড ব্যাখ্যা ও সারসংক্ষেপ করে। আপনি যে রেকর্ড নিয়ে জিজ্ঞাসা করেন সেগুলি উত্তর লেখার জন্য Google পরিচালিত Google Cloud Vertex AI (Gemini)-তে পাঠানো হয় — Google Cloud-এর শর্তের অধীনে, যা সেগুলি Google-এর মডেল প্রশিক্ষণে ব্যবহার করে না। ONIQ প্রতিটি উত্তর আপনাকে দেখানোর আগে যাচাই করে।",
+    "আপনার সংরক্ষিত রেকর্ড ব্যাখ্যা ও সারসংক্ষেপ করে, এবং আপনার আপলোড করা রিপোর্ট পড়ে। আপনি যে রেকর্ড নিয়ে জিজ্ঞাসা করেন, এবং যে রিপোর্ট পড়তে বলেন (তার টেক্সট, বা ছবি কিংবা PDF-টি নিজেই), সেগুলি উত্তর লেখার জন্য Google পরিচালিত Google Cloud Vertex AI (Gemini)-তে পাঠানো হয় — Google Cloud-এর শর্ত অনুযায়ী, যা সেগুলি Google-এর মডেল প্রশিক্ষণে ব্যবহার করে না। প্রতিটি উত্তর আপনাকে দেখানোর আগে ONIQ যাচাই করে।",
   "health.consent.ai.required": "প্রথমে AI সম্মতি চালু করুন।",
   // Counsel-review placeholder: a meaning-preserving translation of the owner's
   // approved English sentence (2026-09-09); no legal approval is claimed for it.
@@ -439,11 +447,15 @@ const bn: Dict = {
   // Counsel-review placeholder: a meaning-preserving translation of the
   // English recipient sentence (Phase 3, 2026-09-09).
   "health.privacy.ai_recipient":
-    "আপনি যখন সেগুলি ব্যবহার করেন, তখন আপনি যে রেকর্ড নিয়ে জিজ্ঞাসা করেন সেগুলি উত্তর তৈরির জন্য Google পরিচালিত Google Cloud Vertex AI (Gemini)-তে পাঠানো হয়, এবং সেগুলি Google-এর মডেল প্রশিক্ষণে ব্যবহার করা হয় না।",
+    "আপনি যখন সেগুলি ব্যবহার করেন, তখন আপনি যে রেকর্ড নিয়ে জিজ্ঞাসা করেন, এবং যে রিপোর্ট পড়তে বলেন (তার টেক্সট, বা ছবি কিংবা PDF-টি নিজেই), সেগুলি উত্তর তৈরির জন্য Google পরিচালিত Google Cloud Vertex AI (Gemini)-তে পাঠানো হয়, এবং Google-এর মডেল প্রশিক্ষণে ব্যবহৃত হয় না।",
   "health.ai.suggested": "প্রস্তাবিত রেকর্ড",
   "health.ai.suggested.body":
     "ONIQ আপনার নথি থেকে পড়েছে। আপনি নিশ্চিত না করা পর্যন্ত কিছুই সময়রেখায় যোগ হয় না।",
   "health.ai.confidence": "AI এটি আপনার নথি থেকে পড়েছে ({pct}% নিশ্চিত)",
+  "health.ai.read.pdf_text": "PDF-এর নিজস্ব টেক্সট থেকে পড়া হয়েছে। ফাইলটি ONIQ-এর কাছেই ছিল।",
+  "health.ai.read.vertex_transcription":
+    "ফাইলটি পড়ার জন্য Google Cloud Vertex AI (Gemini)-তে পাঠানো হয়েছে।",
+  "health.ai.read.nothing": "ওই নথিতে কোনো ল্যাব মান বা ভাইটাল পাওয়া যায়নি।",
   "health.ai.confirm": "সময়রেখায় যোগ করুন",
   "health.ai.reject": "এটি নয়",
   "health.ai.confirmed": "আপনার সময়রেখায় যোগ হয়েছে।",

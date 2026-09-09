@@ -35,6 +35,7 @@ import { auditDetail, AUDIT_DETAIL_KEYS, LOG_KEYS } from "../../redact";
 import { allHealthFlagsOff } from "../../flagNames";
 import { DATA_CATEGORIES, DOCUMENT_KINDS } from "../../domain";
 import {
+  TEXT_SOURCE_METHODS,
   AI_LANGUAGES,
   AI_PURPOSE,
   AI_RECIPIENTS,
@@ -253,6 +254,9 @@ const INJECTION_GROUPS = [
 ];
 const DETAIL_FIELDS = ["display", "valueText", "title", "text", "question"];
 const CLOSED_VALUES = new Set<string>([
+  // Phase 3b: how a document's text was obtained, on the manifest and the audit detail.
+  ...TEXT_SOURCE_METHODS,
+  "none",
   ...AI_TASKS,
   ...AI_LANGUAGES,
   ...AI_REFUSAL_REASONS,

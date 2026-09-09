@@ -25,6 +25,8 @@ import {
   type ProviderId,
   type ProviderInput,
   type ProviderOutput,
+  type TranscriptionInput,
+  type TranscriptionOutput,
 } from "./types.ts";
 import { SyntheticHealthAIProvider } from "./synthetic.ts";
 import { VertexHealthAIProvider } from "./vertex.ts";
@@ -34,6 +36,14 @@ export interface HealthAIProvider {
   readonly recipient: AiRecipient;
   readonly synthetic: boolean;
   run(input: ProviderInput): Promise<ProviderOutput>;
+  /**
+   * Phase 3b (owner directive 2026-09-09, "A, B and C"): a document's BYTES
+   * to text — a photo, a scan, a PDF with no text layer. Optional: the
+   * synthetic provider has none, so a scan answers `no_text` there for free.
+   * The gateway asks only after the caps and the receipt, because this is
+   * the one call that sends a person's file, not fields, to the provider.
+   */
+  transcribe?(input: TranscriptionInput): Promise<TranscriptionOutput>;
 }
 
 export const PROVIDER_REGISTRY: Record<ProviderId, () => HealthAIProvider> = {

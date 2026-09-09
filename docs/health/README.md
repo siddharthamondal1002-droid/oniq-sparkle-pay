@@ -32,7 +32,14 @@ the recipient sentence in `src/config/privacy.ts`, the retired
 `supabase/functions/health-scan` stub, `scripts/health-ai-cost-report.sql`,
 and the tests `ai/vertex.test.ts`, `ai/migration3.test.ts`,
 `anthropicRetired.test.ts`. Design as built: `05 §17`; report: `07`.
-Uploads and every other flag stay off.
+
+Phase 3b (owner directive 2026-09-09, later the same day, "A, B and C"):
+uploads ON; the stored-document text source `_shared/health/ai/textSource.ts`,
+the PDF reader `_shared/health/ai/pdfText.ts` (the one third-party module,
+`npm:unpdf@1.8.1`, importable from that file only), `transcribe()` in
+`vertex.ts`, the gateway's caps-then-receipt-then-transcribe step, and
+`scripts/health-pdf-text-probe.ts` (the real reader on Deno). Design as built:
+`05 §18`; record: `07`, "2026-09-09 (later)". Every other flag stays off.
 
 ## Verifying production
 

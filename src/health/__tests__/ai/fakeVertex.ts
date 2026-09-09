@@ -13,7 +13,13 @@ import {
 } from "../../../../supabase/functions/_shared/health/ai/vertex";
 import type { TokenResult } from "../../../../supabase/functions/_shared/googleAuth";
 
-export type Sent = { url: string; headers: Record<string, string>; body: Record<string, unknown> };
+export type Sent = {
+  url: string;
+  headers: Record<string, string>;
+  body: Record<string, unknown>;
+  /** The timeout the provider asked for (Phase 3b: a transcription asks for the longer one). */
+  timeoutMs?: number;
+};
 
 export const FAKE_TOKEN: TokenResult = {
   ok: true,
@@ -40,11 +46,34 @@ export class FakeVertexProvider extends VertexHealthAIProvider {
     url: string,
     headers: Record<string, string>,
     body: Record<string, unknown>,
+    timeoutMs?: number,
   ): Promise<VertexHttpResult> {
-    const s = { url, headers, body };
+    const s = { url, headers, body, timeoutMs };
     this.sent.push(s);
     return await this.reply(s);
   }
+}
+
+/** A 200 for a TRANSCRIPTION: plain text in the first candidate, the way text/plain mode answers. */
+export function vertexText(
+  text: string,
+  usage: Record<string, unknown> | null = { promptTokenCount: 300, candidatesTokenCount: 20 },
+  finishReason = "STOP",
+): VertexHttpResult {
+  return {
+    status: 200,
+    text: JSON.stringify({
+      candidates: [{ content: { role: "model", parts: [{ text }] }, finishReason }],
+      ...(usage ? { usageMetadata: usage } : {}),
+      modelVersion: "gemini-3.1-flash-lite",
+    }),
+  };
+}
+
+/** Is this request the transcription (plain text asked for) rather than a JSON-mode answer? */
+export function isTranscription(sent: Sent): boolean {
+  const cfg = sent.body.generationConfig as { responseMimeType?: unknown } | undefined;
+  return cfg?.responseMimeType === "text/plain";
 }
 
 /** A 200 the way Vertex sends one: the JSON answer inside the first candidate's text part. */

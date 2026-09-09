@@ -332,6 +332,19 @@ export const DATA_COLLECTED: CollectedData[] = [
       "Row-level security: readable and writable only by the account that created it. A two-axis UAE block enforced in Postgres by health_data_allowed() refuses the write outright where the data would be generated in the UAE. Included in data export and account deletion.",
   },
   {
+    category: "Health and fitness",
+    playType: "Health info",
+    // Phase 3b (owner directive 2026-09-09, "A, B and C"): uploads are ON.
+    // playDeclaration.test.ts requires an entry naming reports exactly when
+    // HEALTH_UPLOADS_ENABLED is true; this is that entry.
+    what: "Medical reports, prescriptions and discharge summaries the person chooses to upload to ONIQ Health (a PDF or a photo), and the readings ONIQ's AI reads out of them, which join the person's records only after they confirm each one.",
+    purpose:
+      "Keeping the person's own reports in one place and reading the values out of them at their request. Never used for advertising, never sold.",
+    optional: true,
+    protection:
+      "Stored in a private bucket under the person's own prefix, reachable only through 60-second signed URLs minted by ONIQ's server after the storage consent. Read by the AI only under the separate AI consent, after which the report's text — or, for a photo or a scan, the file itself — is sent to Google Cloud Vertex AI (Gemini), receipted and audited. Deleted on request and by the retention policy.",
+  },
+  {
     category: "Personal identifiers",
     playType: "Personal info",
     what: "Display name, username, avatar, country, and date of birth where given.",
@@ -401,7 +414,7 @@ export const DATA_COLLECTED: CollectedData[] = [
     // third-party processing, because it is.
     category: "AI processing",
     playType: "App activity / user-generated content",
-    what: "What the user types into Ting, Study Buddy, or the CV builder — including the facts they enter about themselves for a CV — is sent to Anthropic's API to generate a response. Separately, the ONIQ Health AI features send the health readings a person chooses to ask about (kind, name, value, unit, date) to Google Cloud Vertex AI (Gemini), under a consent granted in Health settings.",
+    what: "What the user types into Ting, Study Buddy, or the CV builder — including the facts they enter about themselves for a CV — is sent to Anthropic's API to generate a response. Separately, the ONIQ Health AI features send the health readings a person chooses to ask about (kind, name, value, unit, date), and any uploaded report the person asks the AI to read (its text, or the photo or PDF itself), to Google Cloud Vertex AI (Gemini), under a consent granted in Health settings.",
     purpose:
       "Producing the answer, the practice paper or the CV the user asked for. Not used to train a model, not used for advertising, not sold.",
     optional: true,
@@ -413,7 +426,7 @@ export const DATA_COLLECTED: CollectedData[] = [
     // recipient sentence Phase 3 added (HEALTH_AI_RECIPIENT_SENTENCE),
     // mirrored here so the three cannot disagree.
     protection:
-      "Health data is not part of the three Anthropic surfaces. ONIQ's AI-assisted health features may process health data only when the person chooses to use them and provides the required consent, under the privacy, security, consent, audit and safety controls the privacy notice describes. When they use them, the records they ask about are sent to Google Cloud Vertex AI (Gemini), operated by Google, to produce the answer, and are not used to train Google's models. Output is labelled AI-assisted and reportable in-app.",
+      "Health data is not part of the three Anthropic surfaces. ONIQ's AI-assisted health features may process health data only when the person chooses to use them and provides the required consent, under the privacy, security, consent, audit and safety controls the privacy notice describes. When they use them, the records they ask about, and any report they ask it to read (its text, or the photo or PDF itself), are sent to Google Cloud Vertex AI (Gemini), operated by Google, to produce the answer, and are not used to train Google's models. Output is labelled AI-assisted and reportable in-app.",
   },
 ];
 
@@ -540,9 +553,9 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
     // notice's recipient sentence (HEALTH_AI_RECIPIENT_SENTENCE).
     host: "aiplatform.googleapis.com",
     triggeredBy:
-      "Tapping Ask, Summarise or Explain on the Health tab, after granting the AI consent (src/routes/_authenticated/app.health.index.tsx, app.health.records.tsx).",
+      "Tapping Ask, Summarise or Explain on the Health tab, or Explain on an uploaded report, after granting the AI consent (src/routes/_authenticated/app.health.index.tsx, app.health.records.tsx).",
     sends:
-      "The health records the person asked about — kind, name, value, unit and date, with identifiers scrubbed and record ids replaced by per-request aliases — and the question, from ONIQ's server to Google Cloud Vertex AI (Gemini). No user IP, no account, no record id.",
+      "The health records the person asked about — kind, name, value, unit and date, with identifiers scrubbed and record ids replaced by per-request aliases — and the question, from ONIQ's server to Google Cloud Vertex AI (Gemini). When the person taps Explain on an uploaded report, the report's text (read from the PDF on ONIQ's server) or, for a photo, a scan or a PDF with no text layer, the file itself, travels the same way, after the caps and the receipt. No user IP, no account, no record id.",
     purpose:
       "Producing the AI-assisted answer, which ONIQ validates before showing. Not used to train Google's models (Vertex AI data governance), not used for advertising, not sold.",
     avoidable: true,

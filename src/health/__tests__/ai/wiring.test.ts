@@ -67,8 +67,14 @@ describe("gate order in Deno.serve", () => {
   });
 
   it("registers no text source: the literal null, and no import of one", () => {
-    expect(serve).toContain("textSource: null");
-    expect(SRC).not.toMatch(/TextSource|textSourceFor|__tests__/);
+    // Phase 3b: the STORED document is the text source, built here with the
+    // person-bound byte loader and the PDF reader; the test-only inline
+    // sources stay under __tests__ and never reach this file.
+    expect(serve).toContain("textSource: new StoredDocumentSource({");
+    expect(serve).toContain(
+      "loadBytes: (documentId: string) => loadDocumentBytes(admin, user.id, documentId),",
+    );
+    expect(SRC).not.toMatch(/InlineTextSource|InlineBytesSource|textSourceFor|__tests__/);
   });
 
   it("reads age from the private profile and the same rpc cv-generate uses; null means unverified", () => {

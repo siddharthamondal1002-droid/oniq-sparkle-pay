@@ -69,9 +69,38 @@ export const MODEL_ALLOWLIST: Record<ProviderId, readonly string[]> = {
   vertex: ["gemini-3.1-flash-lite"],
 };
 
-/** Where a document's text may come from. Phase 2 registers no source: "null" yields nothing. */
-export const TEXT_SOURCE_IDS = ["null"] as const;
+/**
+ * Where a document's text may come from. Phase 2 registered no source ("null"
+ * yields nothing). Phase 3b (owner directive 2026-09-09, "A, B and C"):
+ * "document" reads the STORED file — its PDF text layer here, on ONIQ's
+ * side (`pdf_text`), or, for a photo, a scan or a PDF with no text layer,
+ * a transcription by the registered provider (`vertex_transcription`),
+ * which is the one step where the document's own bytes leave ONIQ.
+ */
+export const TEXT_SOURCE_IDS = ["null", "document"] as const;
 export type TextSourceId = (typeof TEXT_SOURCE_IDS)[number];
+
+/** How a document's text was obtained — closed, stored on the receipt and audited. */
+export const TEXT_SOURCE_METHODS = ["pdf_text", "vertex_transcription"] as const;
+export type TextSourceMethod = (typeof TEXT_SOURCE_METHODS)[number];
+
+/** What the gateway hands a provider that can transcribe: the bytes, their type, and a ceiling. */
+export type TranscriptionInput = {
+  model: string;
+  /** One of DOCUMENT_MIMES; the gateway checks before asking. */
+  mime: string;
+  bytes: Uint8Array;
+  language: AiLanguage;
+  /** The text is cut here (LIMITS.MAX_DOCUMENT_CHARS) and marked truncated, never refused after paying. */
+  maxChars: number;
+};
+
+export type TranscriptionOutput = {
+  text: string;
+  usage: AiUsage;
+  /** The model stopped at its output ceiling, or the text was cut at maxChars. */
+  truncated: boolean;
+};
 
 export const SEGMENT_CLASSES = [
   "record_fact",
@@ -176,6 +205,14 @@ export type ContextManifest = {
   truncated: boolean;
   /** Extraction proceeds under this flag; model-bound tasks drop the field instead. */
   injectionSuspected: boolean;
+  /** Phase 3b: how a document's text was obtained; null for record tasks and for no text at all. */
+  readMethod?: TextSourceMethod | null;
+  /** True only when the document's BYTES were sent to the provider (a transcription). */
+  documentSent?: boolean;
+  /** Pages the PDF text layer reported, when it was read here. */
+  pages?: number | null;
+  /** The transcription's own usage, kept apart so the receipt can show both calls. */
+  transcription?: { inputTokens: number; outputTokens: number; truncated: boolean } | null;
 };
 
 export const LIMITS = {

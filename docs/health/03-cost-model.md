@@ -73,6 +73,13 @@ $0.003–0.005 per active user — under the $0.0117 the V1 line assumed, so the
 figures above are a ceiling, not a floor. The figure is read from the receipts
 (`scripts/health-ai-cost-report.sql`), not estimated.
 
+A document read (Phase 3b, `05 §18`) is one receipt with up to two calls on
+it: a PDF's own text layer costs nothing to read and then one extraction call
+(~840 input tokens plus the text); a photo or scan adds a transcription first,
+which Vertex bills at about 258 input tokens per image or page plus the
+transcribed text as output. Measured on the live test in `07`,
+"2026-09-09 (later)".
+
 Supabase Storage for documents (A2, A7 — steady state 36 MB per active user): 10.5 GiB / 105 GiB / 1.05 TiB / 10.5 TiB, billed by Lovable Cloud at its own rates (outside this model).
 
 ### V2 — adds a FHIR store mirror in `asia-south1` and Pub/Sub notifications

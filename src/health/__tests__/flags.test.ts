@@ -49,11 +49,16 @@ describe("the client flags", () => {
     expect(Object.keys(HEALTH_FLAGS).sort()).toEqual([...FROM_THE_BRIEF].sort());
   });
 
-  it("three are on — the master, the AI and provider sharing (Phase 3, owner directive 2026-09-09) — and nine stay off", () => {
-    const ON = ["health.enabled", "health.ai.enabled", "health.provider_sharing.enabled"];
+  it("four are on — the master, the AI, provider sharing (Phase 3) and uploads (Phase 3b, owner directive 2026-09-09 'A, B and C') — and eight stay off", () => {
+    const ON = [
+      "health.enabled",
+      "health.ai.enabled",
+      "health.provider_sharing.enabled",
+      "health.uploads.enabled",
+    ];
     for (const name of HEALTH_FLAG_NAMES) expect(HEALTH_FLAGS[name], name).toBe(ON.includes(name));
     expect(HEALTH_ENABLED).toBe(true);
-    expect(HEALTH_UPLOADS_ENABLED).toBe(false);
+    expect(HEALTH_UPLOADS_ENABLED).toBe(true);
     expect(HEALTH_AI_ENABLED).toBe(true);
   });
 

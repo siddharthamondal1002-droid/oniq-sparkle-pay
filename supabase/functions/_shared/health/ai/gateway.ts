@@ -54,6 +54,8 @@ import {
   type ContractRefusalCode,
   type ExcludedItem,
   type ExclusionReason,
+  TEXT_SOURCE_METHODS,
+  type TextSourceMethod,
 } from "./types.ts";
 import { checkConsent, checkGate, consentedCategories, type Environment } from "./policy.ts";
 import { buildMinimumContext, categoryOf, type DocRow, type RecordRow } from "./context.ts";
@@ -152,6 +154,9 @@ export type ReceiptPatch = {
   output_tokens?: number;
   cost_usd?: number;
   completed_at: string;
+  /** A receipt begun before the context existed (a transcription) is completed with the real manifest. */
+  manifest?: StorableManifest;
+  consent_id?: string | null;
 };
 
 /** What the gateway asks the store to audit; the store adds who and which request. */
@@ -208,7 +213,15 @@ export type GatewayResult =
       result:
         | { kind: "response"; response: ClientAiResponse }
         | { kind: "classification"; classification: ClassificationResult }
-        | { kind: "extraction"; candidates: number; method: string; textChars: number };
+        | {
+            kind: "extraction";
+            candidates: number;
+            method: string;
+            textChars: number;
+            /** Phase 3b: how the text was obtained, and whether the file itself left ONIQ. */
+            readMethod: TextSourceMethod | null;
+            documentSent: boolean;
+          };
     }
   | {
       ok: false;
@@ -232,6 +245,11 @@ export type StorableManifest = {
   truncated: boolean;
   injectionSuspected: boolean;
   excluded: ExcludedItem[];
+  /** Phase 3b: a closed method or null; whether the document's bytes left ONIQ; the paid step's own usage. */
+  readMethod: TextSourceMethod | null;
+  documentSent: boolean;
+  pages: number | null;
+  transcription: { inputTokens: number; outputTokens: number; truncated: boolean } | null;
 };
 
 const FIELD_NAME = /^[a-zA-Z]{1,24}$/;
@@ -276,6 +294,21 @@ export function storableManifest(m: ContextManifest): StorableManifest {
     truncated: m.truncated === true,
     injectionSuspected: m.injectionSuspected === true,
     excluded,
+    readMethod:
+      typeof m.readMethod === "string" &&
+      (TEXT_SOURCE_METHODS as readonly string[]).includes(m.readMethod)
+        ? m.readMethod
+        : null,
+    documentSent: m.documentSent === true,
+    pages: typeof m.pages === "number" && Number.isFinite(m.pages) ? num(m.pages) : null,
+    transcription:
+      m.transcription && typeof m.transcription === "object"
+        ? {
+            inputTokens: num(m.transcription.inputTokens),
+            outputTokens: num(m.transcription.outputTokens),
+            truncated: m.transcription.truncated === true,
+          }
+        : null,
   };
 }
 
@@ -394,6 +427,66 @@ export async function runHealthAi(
   let records: RecordRow[] = [];
   let document: DocRow | null = null;
   let documentText: string | null = null;
+  // Phase 3b: how the document's text was obtained, and the paid step's own usage.
+  let readMethod: TextSourceMethod | null = null;
+  let documentSent = false;
+  let pages: number | null = null;
+  let textTruncated = false;
+  let transcription: { inputTokens: number; outputTokens: number; truncated: boolean } | null =
+    null;
+  // A receipt begun BEFORE the context exists, for the one step that spends
+  // before a context can be built — a transcription. Null until then.
+  let receiptId: string | null = null;
+
+  /** The caps exactly as step 5 checks them: the house first, then the person, for THIS task. */
+  const capsRefusal = async (): Promise<AiRefusalReason | null> => {
+    const since = new Date(Date.parse(now) - DAY_MS).toISOString();
+    if ((await store.countHouseSince(since)) >= config.capHouse) return "quota_house";
+    if ((await store.countUserSince(since, task)) >= config.capPerUser) return "quota_user";
+    return null;
+  };
+  /** A manifest for a receipt written before anything was built: the id and closed names only. */
+  const provisionalManifest = (doc: DocRow): ContextManifest => ({
+    task,
+    language,
+    recordIds: [],
+    documentIds: [doc.id],
+    categories: ["documents"],
+    fields: [],
+    charCount: 0,
+    estimatedInputTokens: 0,
+    redactions: 0,
+    excluded: [],
+    truncated: false,
+    injectionSuspected: false,
+    readMethod: null,
+    documentSent: true,
+    pages: null,
+    transcription: null,
+  });
+  /** Refuse, completing a provisional receipt first: nothing may stay "started". */
+  const refusedReceipted = async (
+    reason: AiRefusalReason,
+    detail?: Record<string, string>,
+    manifest?: ContextManifest,
+  ): Promise<GatewayResult> => {
+    if (receiptId !== null) {
+      await store.completeReceipt(receiptId, {
+        status: "refused",
+        refusal_reason: reason,
+        completed_at: now,
+        ...(manifest ? { manifest: storableManifest(manifest) } : {}),
+        ...(transcription
+          ? {
+              input_tokens: transcription.inputTokens,
+              output_tokens: transcription.outputTokens,
+              cost_usd: costEstimateUsd(model, transcription),
+            }
+          : {}),
+      });
+    }
+    return refusedWith(reason, detail, manifest);
+  };
 
   if (needsDocument) {
     if (!req.documentId) return refusedWith("not_found");
@@ -422,7 +515,62 @@ export async function runHealthAi(
         }
       }
     }
-    documentText = deps.textSource ? await deps.textSource.text(document.id) : null;
+    const read = deps.textSource ? await deps.textSource.read(document.id) : null;
+    if (read?.kind === "text") {
+      documentText = read.text;
+      readMethod = read.method;
+      pages = read.pages;
+      textTruncated = read.truncated;
+    } else if (read?.kind === "bytes") {
+      // 2b. A PAID STEP BEFORE THE CONTEXT EXISTS (Phase 3b). The file has no
+      //     text layer ONIQ can read, so the registered provider must
+      //     transcribe it — the one call that sends a person's DOCUMENT, not
+      //     fields, to Google. The caps are checked and the receipt written
+      //     FIRST, exactly as steps 5 and 6 do for every other call; a provider
+      //     that cannot transcribe (the synthetic) costs nothing and the seam
+      //     answers no_text below.
+      const provider = resolve(providerId);
+      if (typeof provider.transcribe === "function") {
+        const provisional = provisionalManifest(document);
+        const capped = await capsRefusal();
+        if (capped) return refusedWith(capped, undefined, provisional);
+        receiptId = await store.beginReceipt({
+          request_id: requestId,
+          task,
+          purpose: "ai_interpretation",
+          provider: providerId,
+          model,
+          consent_id: null,
+          manifest: storableManifest(provisional),
+          status: "started",
+        });
+        try {
+          const t = await provider.transcribe({
+            model,
+            mime: read.mime,
+            bytes: read.bytes,
+            language,
+            maxChars: LIMITS.MAX_DOCUMENT_CHARS,
+          });
+          documentText = t.text;
+          readMethod = "vertex_transcription";
+          documentSent = true;
+          textTruncated = t.truncated;
+          transcription = {
+            inputTokens: t.usage.inputTokens,
+            outputTokens: t.usage.outputTokens,
+            truncated: t.truncated,
+          };
+        } catch (e) {
+          await store.completeReceipt(receiptId, {
+            status: "error",
+            refusal_reason: "provider_error",
+            completed_at: now,
+          });
+          return refusedWith("provider_error", providerCode(e), provisional);
+        }
+      }
+    }
   } else if (task === "explain_record") {
     if (!req.recordId) return refusedWith("not_found");
     const target = await store.loadRecord(req.recordId);
@@ -463,34 +611,48 @@ export async function runHealthAi(
     documentText,
     question: req.question ?? null,
   });
-  if (!built.ok) return refusedWith(built.reason, built.detail);
+  if (!built.ok) {
+    return refusedReceipted(
+      built.reason,
+      built.detail,
+      receiptId !== null && document ? provisionalManifest(document) : undefined,
+    );
+  }
   const { context, manifest } = built;
+  manifest.readMethod = readMethod;
+  manifest.documentSent = documentSent;
+  manifest.pages = pages;
+  manifest.transcription = transcription;
+  if (textTruncated) manifest.truncated = true;
 
   // 4. CONSENT, for every category the context touched, naming this provider.
   const consent = checkConsent(consents, manifest.categories, recipient, now);
-  if (!consent.allowed) return refusedWith(consent.reason, consent.detail, manifest);
+  if (!consent.allowed) return refusedReceipted(consent.reason, consent.detail, manifest);
   const consentId = consent.consentIds[0] ?? null;
 
-  // 5. CAPS. Counts do not filter on status: a refused request is still a request.
-  const since = new Date(Date.parse(now) - DAY_MS).toISOString();
-  if ((await store.countHouseSince(since)) >= config.capHouse) {
-    return refusedWith("quota_house", undefined, manifest);
-  }
-  if ((await store.countUserSince(since, task)) >= config.capPerUser) {
-    return refusedWith("quota_user", undefined, manifest);
+  // 5. CAPS. Counts do not filter on status: a refused request is still a
+  //    request. Already checked — and receipted — when a transcription ran.
+  if (receiptId === null) {
+    const capped = await capsRefusal();
+    if (capped) return refusedWith(capped, undefined, manifest);
   }
 
-  // 6. THE RECEIPT, before the provider runs.
-  const receiptId = await store.beginReceipt({
-    request_id: requestId,
-    task,
-    purpose: consent.purpose,
-    provider: providerId,
-    model,
-    consent_id: consentId,
-    manifest: storableManifest(manifest),
-    status: "started",
-  });
+  // 6. THE RECEIPT, before the provider runs; or the provisional one, which
+  //    the settle below completes with the real manifest and consent.
+  const provisional = receiptId !== null;
+  const receipt: string =
+    receiptId ??
+    (await store.beginReceipt({
+      request_id: requestId,
+      task,
+      purpose: consent.purpose,
+      provider: providerId,
+      model,
+      consent_id: consentId,
+      manifest: storableManifest(manifest),
+      status: "started",
+    }));
+  receiptId = receipt;
 
   const baseDetail = {
     task,
@@ -499,14 +661,33 @@ export async function runHealthAi(
     model,
     count: manifest.recordIds.length,
     method: gate.adminVerification ? "admin_verification" : "user",
+    // Phase 3b: how a document's text was obtained; "none" for record tasks.
+    readMethod: readMethod ?? "none",
+    documentSent,
   };
 
   // Once the receipt is settled (ok, refused or error) a throw is no longer
   // the provider's: it is an audit row that could not be written, and that
   // propagates rather than rewriting the receipt.
+  //
+  // A transcription's usage rides on the same receipt as the call it fed:
+  // one request, two provider calls, one line in the ledger with both.
   let settled = false;
   const settle = async (patch: ReceiptPatch) => {
-    await store.completeReceipt(receiptId, patch);
+    const full: ReceiptPatch = { ...patch };
+    if (transcription) {
+      full.input_tokens = (patch.input_tokens ?? 0) + transcription.inputTokens;
+      full.output_tokens = (patch.output_tokens ?? 0) + transcription.outputTokens;
+      full.cost_usd = costEstimateUsd(model, {
+        inputTokens: full.input_tokens,
+        outputTokens: full.output_tokens,
+      });
+    }
+    if (provisional) {
+      full.manifest = storableManifest(manifest);
+      full.consent_id = consentId;
+    }
+    await store.completeReceipt(receipt, full);
     settled = true;
   };
   const rejectOutput = async (code: ContractRefusalCode): Promise<GatewayResult> => {
@@ -592,7 +773,7 @@ export async function runHealthAi(
       });
       return {
         ok: true,
-        receiptId,
+        receiptId: receipt,
         manifest,
         result: {
           kind: "response",
@@ -635,7 +816,7 @@ export async function runHealthAi(
       });
       return {
         ok: true,
-        receiptId,
+        receiptId: receipt,
         manifest,
         result: { kind: "classification", classification: verdict.value },
       };
@@ -675,9 +856,16 @@ export async function runHealthAi(
     });
     return {
       ok: true,
-      receiptId,
+      receiptId: receipt,
       manifest,
-      result: { kind: "extraction", candidates: inserted, method, textChars },
+      result: {
+        kind: "extraction",
+        candidates: inserted,
+        method,
+        textChars,
+        readMethod,
+        documentSent,
+      },
     };
   } catch (e) {
     // Nothing after the receipt may leave it "started": a throw before it is
@@ -688,10 +876,17 @@ export async function runHealthAi(
     // provider's closed code.
     if (settled) throw new Error("audit_failed");
     try {
-      await store.completeReceipt(receiptId, {
+      await store.completeReceipt(receipt, {
         status: "error",
         refusal_reason: "provider_error",
         completed_at: now,
+        ...(transcription
+          ? {
+              input_tokens: transcription.inputTokens,
+              output_tokens: transcription.outputTokens,
+              cost_usd: costEstimateUsd(model, transcription),
+            }
+          : {}),
       });
     } catch {
       /* the receipt could not be completed either; the audit row below still records the failure */

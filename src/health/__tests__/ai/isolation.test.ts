@@ -113,12 +113,22 @@ const specOf = (m: RegExpMatchArray) => m[1] ?? m[2] ?? m[3];
  */
 const VERTEX_FILE = "supabase/functions/_shared/health/ai/vertex.ts";
 const VERTEX_OUTSIDE = ["../../googleAuth.ts", "../../vertexError.ts"];
+/**
+ * THE ONE THIRD-PARTY MODULE (Phase 3b, owner directive 2026-09-09 "A, B and
+ * C"): the PDF reader, pinned to an exact version, importable from exactly
+ * one file. It is handed bytes and opens no socket; M12/M13 in
+ * scripts/health-mutate-guards.sh prove a second importer and a second
+ * package both go red.
+ */
+const PDF_FILE = "supabase/functions/_shared/health/ai/pdfText.ts";
+const PDF_MODULE = "npm:unpdf@1.8.1";
 
 /** Which specifiers a file at this path may import; everything else is an escape. */
 function importAllowed(file: string, spec: string): boolean {
   if (spec === SUPABASE_JS) return true;
-  if (!spec.startsWith("./") && !spec.startsWith("../")) return false;
   const r = rel(file);
+  if (r === PDF_FILE && spec === PDF_MODULE) return true;
+  if (!spec.startsWith("./") && !spec.startsWith("../")) return false;
   if (r === VERTEX_FILE && VERTEX_OUTSIDE.includes(spec)) return true;
   if (spec.includes("../../")) return false;
   const inAi = r.startsWith("supabase/functions/_shared/health/ai/");
@@ -246,11 +256,24 @@ describe("the registry", () => {
     }
   });
 
-  it("registers no text source: null yields nothing, and any other id is null too", async () => {
+  it("registers one zero-arity text source (null); the stored-document source is built by name with its deps, and any other id is null", async () => {
     expect(Object.keys(TEXT_SOURCE_REGISTRY)).toEqual(["null"]);
-    expect([...TEXT_SOURCE_IDS]).toEqual(["null"]);
+    expect([...TEXT_SOURCE_IDS]).toEqual(["null", "document"]);
     expect(textSourceFor("inline")).toBeInstanceOf(NullTextSource);
-    expect(await textSourceFor("null").text("any")).toBeNull();
+    expect(textSourceFor("document")).toBeInstanceOf(NullTextSource);
+    expect(await textSourceFor("null").read("any")).toBeNull();
+  });
+
+  it("the PDF reader is the only file naming the one third-party module, pinned to an exact version, and it opens no socket", () => {
+    const importers = SERVER_FILES.filter((f) =>
+      stripComments(readFileSync(f, "utf8")).includes("npm:unpdf"),
+    );
+    expect(importers.map(rel)).toEqual([PDF_FILE]);
+    const src = stripComments(readFileSync(join(ROOT, PDF_FILE), "utf8"));
+    expect(src).toContain(`from "${PDF_MODULE}"`);
+    expect(src.match(/npm:/g)?.length ?? 0).toBe(1);
+    expect(src).not.toMatch(EGRESS);
+    expect(src).toContain("isEvalSupported: false");
   });
 });
 

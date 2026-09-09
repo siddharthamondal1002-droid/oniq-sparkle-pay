@@ -56,4 +56,11 @@ export const HEALTH_AI_PRIVACY_STATEMENT = HEALTH_AI_PRIVACY_SENTENCES.join(" ")
  * claim; counsel should confirm it against the current terms.
  */
 export const HEALTH_AI_RECIPIENT_NAME = "Google Cloud Vertex AI (Gemini)";
-export const HEALTH_AI_RECIPIENT_SENTENCE = `When you use them, the records you ask about are sent to ${HEALTH_AI_RECIPIENT_NAME}, operated by Google, to produce the answer, and are not used to train Google's models.`;
+/**
+ * Phase 3b (owner directive 2026-09-09, "A, B and C"): the sentence names the
+ * DOCUMENT too. A PDF with a text layer is read on ONIQ's side and only its
+ * text travels; a photo, a scan or a PDF with no text layer travels as the
+ * file itself, for transcription. Both are said here, once, and every copy
+ * (notice, consent screen, Play declaration) is pinned to this constant.
+ */
+export const HEALTH_AI_RECIPIENT_SENTENCE = `When you use them, the records you ask about, and any report you ask them to read (its text, or the photo or PDF itself), are sent to ${HEALTH_AI_RECIPIENT_NAME}, operated by Google, to produce the answer, and are not used to train Google's models.`;

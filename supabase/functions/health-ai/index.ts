@@ -14,6 +14,15 @@
 // ./-relative health modules and the Supabase client, invokes no other
 // function, and aiIsolation.test.ts fails the moment any of that changes.
 //
+// PHASE 3b (owner directive 2026-09-09, "A, B and C"): the gateway's text
+// source is the STORED DOCUMENT. `loadDocumentBytes` reads the person's own
+// file from the private bucket — the row filtered by the id the JWT proved,
+// like every other chain here — and the seam (_shared/health/ai/textSource.ts)
+// reads a PDF's text layer on ONIQ's side (pdfText.ts) or hands the bytes
+// back for the provider to transcribe, which the gateway does only after the
+// caps and the receipt. This is the one whole-file read in the health tree,
+// and it is a read of a file the person uploaded for exactly this purpose.
+//
 // THE STORE IS BOUND TO THE PERSON. `makeStore` closes over the id the JWT
 // proved and no method takes a user id, so a request naming another person's
 // record answers not_found — the same word as "absent". Every health-table
@@ -29,7 +38,14 @@ import { readHealthConfig } from "../_shared/health/flags.ts";
 import { redactForLog } from "../_shared/health/redact.ts";
 import { appendAudit } from "../_shared/health/audit.ts";
 import { expiryFor, type RetentionPolicyLike } from "../_shared/health/retention.ts";
-import { CATEGORY_FOR_KIND, type RecordKind } from "../_shared/health/domain.ts";
+import {
+  CATEGORY_FOR_KIND,
+  DOCUMENT_MIMES,
+  MAX_DOCUMENT_BYTES,
+  type RecordKind,
+} from "../_shared/health/domain.ts";
+import { StoredDocumentSource, type LoadedDocument } from "../_shared/health/ai/textSource.ts";
+import { pdfText } from "../_shared/health/ai/pdfText.ts";
 import {
   parseAiRequest,
   runHealthAi,
@@ -48,6 +64,10 @@ import type { ConsentLike } from "../_shared/health/consent.ts";
 const RATE_PER_MINUTE = 10;
 /** Same set as health-api's; isolation.test.ts pins both to the country registry. */
 const HEALTH_BLOCKED_REGIONS = ["AE"];
+/** The same private bucket health-api registers uploads into. */
+const BUCKET = "health-documents";
+/** The statuses a stored document may be read in — the same set the Store filters on. */
+const READABLE_DOCUMENT_STATUSES = ["stored", "processing", "ready"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -256,6 +276,36 @@ function capFrom(v: unknown): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 }
 
+/**
+ * The bytes of the person's OWN document (Phase 3b). The row is read with the
+ * ownership filter and only in a readable status, its type and size are
+ * checked against the same rules the upload met, and only then is the object
+ * downloaded from the private bucket. Null for anything else — the seam
+ * answers no_text, the same word as "absent".
+ */
+async function loadDocumentBytes(
+  admin: Admin,
+  userId: string,
+  documentId: string,
+): Promise<LoadedDocument | null> {
+  const { data } = await admin
+    .from("health_documents")
+    .select("storage_path, mime, size_bytes")
+    .eq("id", documentId)
+    .eq("user_id", userId)
+    .in("status", READABLE_DOCUMENT_STATUSES)
+    .maybeSingle();
+  const path = typeof data?.storage_path === "string" ? data.storage_path : "";
+  const mime = String(data?.mime ?? "");
+  if (!path || !(DOCUMENT_MIMES as readonly string[]).includes(mime)) return null;
+  if (Number(data?.size_bytes ?? 0) > MAX_DOCUMENT_BYTES) return null;
+  const dl = await admin.storage.from(BUCKET).download(path);
+  if (dl.error || !dl.data) return null;
+  const bytes = new Uint8Array(await dl.data.arrayBuffer());
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_DOCUMENT_BYTES) return null;
+  return { bytes, mime };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, reason: "method_not_allowed" }, 405);
@@ -347,11 +397,14 @@ Deno.serve(async (req: Request) => {
         store: makeStore(admin, user.id, requestId, policies),
         now,
         requestId,
-        // Phase 2 registers no text source: extraction answers no_text for
-        // everyone, and that refusal's audit row (ai.refused, reason no_text)
-        // is the proof the pipeline ran — a refusal before the receipt is
-        // audited, not receipted.
-        textSource: null,
+        // Phase 3b: the stored document itself. A PDF's text layer is read
+        // here; a photo, a scan or a text-less PDF is handed back as bytes
+        // for the provider to transcribe — after the caps and the receipt,
+        // inside the gateway, never here.
+        textSource: new StoredDocumentSource({
+          loadBytes: (documentId: string) => loadDocumentBytes(admin, user.id, documentId),
+          pdfText,
+        }),
       },
       config,
       {

@@ -623,7 +623,33 @@ describe("the closed body and the storable manifest", () => {
       truncated: false,
       injectionSuspected: true,
       excluded: [{ id: u(2), field: "display", reason: "injection_suspected" }],
+      // Phase 3b: a closed method or null, a boolean, a count or null, and the paid step's numbers or null.
+      readMethod: null,
+      documentSent: false,
+      pages: null,
+      transcription: null,
     });
     expect(JSON.stringify(s)).not.toMatch(/HbA1c|ignore all|leaked|secret/);
+    const t = storableManifest({
+      ...m,
+      readMethod: "vertex_transcription",
+      documentSent: true,
+      pages: 3.9,
+      transcription: { inputTokens: 300.5, outputTokens: -1, truncated: "yes", text: "leak" },
+    } as unknown as ContextManifest);
+    expect(t).toMatchObject({
+      readMethod: "vertex_transcription",
+      documentSent: true,
+      pages: 3,
+      transcription: { inputTokens: 300, outputTokens: 0, truncated: false },
+    });
+    expect(JSON.stringify(t)).not.toContain("leak");
+    expect(
+      storableManifest({
+        ...m,
+        readMethod: "ocr:secret",
+        documentSent: "true",
+      } as unknown as ContextManifest),
+    ).toMatchObject({ readMethod: null, documentSent: false });
   });
 });

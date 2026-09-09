@@ -26,7 +26,7 @@ with cfg as (
 ),
 expected_config(col, expected) as (values
   ('enabled',                       'true'),
-  ('uploads_enabled',               'false'),
+  ('uploads_enabled',               'true'),
   ('ai_enabled',                    'true'),
   ('ai_kill_switch',                'false'),
   ('ai_admin_verification_enabled', 'true'),

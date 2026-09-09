@@ -4,8 +4,9 @@
  * The body it sends is exactly the CLOSED shape the function accepts —
  * task, and at most a record id, a document id, a question and a language.
  * There is no text field and there never will be one from here: a document's
- * text reaches the gateway only through a server-side text source, of which
- * Phase 2 registers none. `aiIsolation.test.ts` reads this file and pins
+ * text reaches the gateway only through the server-side text source, which
+ * since Phase 3b reads the STORED file (its PDF text layer on ONIQ's side, or
+ * a transcription of the photo or scan by the provider). `aiIsolation.test.ts` reads this file and pins
  * that the only function it can invoke is "health-ai".
  *
  * It refuses locally while the client flag is off, so no request leaves a
@@ -21,6 +22,7 @@ import {
   type AiTask,
   type ClassificationResult,
   type ClientAiResponse,
+  type TextSourceMethod,
 } from "./types";
 
 export type AiRequestPayload = {
@@ -33,7 +35,15 @@ export type AiRequestPayload = {
 export type AiResult =
   | { kind: "response"; response: ClientAiResponse }
   | { kind: "classification"; classification: ClassificationResult }
-  | { kind: "extraction"; candidates: number; method: string; textChars: number };
+  | {
+      kind: "extraction";
+      candidates: number;
+      method: string;
+      textChars: number;
+      /** Phase 3b: how the text was obtained, and whether the file itself left ONIQ. */
+      readMethod?: TextSourceMethod | null;
+      documentSent?: boolean;
+    };
 
 export type AiOk = HealthOk<AiResult> & { receiptId: string | null };
 export type AiErr = HealthErr & { code?: string; recipient?: string };
