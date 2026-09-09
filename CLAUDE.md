@@ -3900,7 +3900,7 @@ took the lock first try. **Do not resend DDL through that connection on a 499.**
 
 **AND A DATA-MODIFYING CTE IS INVISIBLE TO ITS OWN STATEMENT.** The cleanup
 read `with d as (delete …) select …, (select count(*) from auth.users)` and
-got 127 — the count *before* the delete. Sibling subqueries see the statement's
+got 127 — the count _before_ the delete. Sibling subqueries see the statement's
 starting snapshot, never the CTE's writes. It read as "the delete did not
 work"; re-reading in a second statement showed 126. Verify a write in a
 separate statement from the one that made it.
@@ -4019,3 +4019,140 @@ nowhere else. A count in one file only would not distinguish "the timeline
 renders it" from "it is somewhere in the bundle", which is precisely the
 distinction the 2026-09-07 admin-tools entry says a chunk grep cannot make.
 It still does not prove the component MOUNTS — only a tap does that.
+
+### 2026-09-09 — "analyse report is gone": the control came back, and the audit said the analysis never worked
+
+The owner reported the per-document analyse capability missing. It was: the
+2026-09-09 simplification removed the "Explain" button along with the eleven
+steps, and extraction then ran at upload time **and nowhere else**, so a report
+uploaded before that day — or one whose read failed — could never be read at
+all. **Removing a capability is not the same as removing steps**, and that
+distinction is the whole report.
+
+Restored on every document row, through the SAME reader the upload path uses
+(`readStoredDocument`, extracted from `AddReport.tsx`), so there is one
+implementation of "read this document and say what landed in the timeline"
+rather than two that drift. The note it writes back carries `HEALTH_AI_LABEL`
+and `<AiOutputReport />`, so the records screen is a declared AI surface again.
+
+**RE-READING MUST NOT DUPLICATE, AND THE CLIENT IS NOT THE AUTHORITY.** A
+document can now be read twice — a retry, or a second tap — and nothing else
+stops the duplicate: the insert has no unique constraint. `insertCandidates`
+reads back what it already stored for THAT document and skips any candidate
+unchanged in code, value, unit and date; two separate uploads of the same
+report stay two documents with their own rows, which is what the person did.
+
+**AND ONE OF ITS ASSERTIONS WAS ASSERTING NOTHING.** The ownership filter on
+the dedupe read was matched over the whole file, where `.eq("user_id", userId)`
+occurs SEVEN times — so deleting it from exactly the query that needs it left
+the test green. It is scoped to that read's own chain now, bounded by the
+statement that consumes it. **A count over a whole file is not a guard when the
+thing counted is common in it** — the fourth time a source-reading assertion in
+this repo has turned out to be reading something else.
+
+LIVE AND VERIFIED. `main` at `d833c4f8`, `health-ai` deployed by ONE Lovable
+message naming the STATE and carrying its own self-check (`grep -c dedupeKey`,
+expect 3 — the agent ran it and reported 3 before deploying), **0.4 credits**;
+then the publish after `latest_commit_sha` matched HEAD. Read from inside the
+database with `pg_net`, before and after:
+
+    entry   index-BkGwc3qF.js  ->  index-BN7TlFab.js
+
+    app.health.records-BYKX4X5r.js  2,798 B  health-doc-analyse  0   <- before
+    app.health.records-DKWsz36T.js  3,645 B  health-doc-analyse  2   <- after
+                                             health-doc-analyse-note  1
+                                             health-doc-input / read-result  0
+    AddReport-D8NOUflz.js           4,597 B  health-doc-input    1
+                                             health-read-result  2
+                                             analyse markers     0
+    entry chunk                              health-doc-analyse  0
+
+The BEFORE line is the owner's report, measured on the served bundle rather
+than believed. `health-ai` answers `401 unauthorized` to an unauthenticated
+POST, so it is up and gating — but the dedupe's BEHAVIOUR is proven by
+mutation-checked unit tests, not by a live double-read: that needs bytes in the
+bucket, and **`pg_net` has no PUT**, so it would cost another Lovable message.
+Stated rather than implied.
+
+**AND THE BUNDLE CHECK PASSED ON THE BROKEN PUBLISH.** `health-bundle-markers`
+discovered the records chunk and then only asserted it EXISTED — every marker
+it checked lived in the shared `AddReport-*.js`. So the screen's own control
+could vanish and the check would say PASS, which is exactly what it did.
+`ANALYSE_MARKERS` are checked in the records chunk now, and
+`productionCheck.test.ts` asserts the check FAILS on the shape measured this
+afternoon. Mutation-checked. **A check that discovers a chunk and asserts
+nothing about it is not checking that chunk.**
+
+### 2026-09-09 — the audit answered a question nobody asked: extraction had never worked on a real report
+
+Read while verifying the above, from the owner's own rows — no document content,
+only the counts the audit already keeps:
+
+    documents.extract  10:40  count 0            readMethod pdf_text
+                              charCount 14,780, 8 pages
+    documents.extract  17:32  count 0 dropped 0  readMethod vertex_transcription
+    health_records                    0 rows
+
+Both of the owner's real reports extracted with status **ok**, cost money, and
+stored nothing. **`dropped: 0` is the decisive field**: grounding rejected
+nothing, because the extractor produced nothing to reject. My own synthetic
+smoke documents returned `count: 3` twice that morning — and they were written
+here, in the shape the code already matched.
+
+**EXTRACTION IS RULES, NOT THE MODEL** (`EXTRACT_METHOD = "rules:v1"`). The
+model transcribes an image; the CANDIDATES come from regexes over a closed
+analyte list. The rule was "the first number within 24 characters of the
+analyte name, no newline, unit optional". Measured against report LAYOUTS
+rather than the one-line fixtures this repo had invented for itself, that rule
+was wrong in BOTH directions:
+
+    padded label column             NOTHING        -> 13.2 g/dL
+    method/specimen column          NOTHING        -> 13.2 g/dL
+    reference range before result   13.0  WRONG    -> 13.2 g/dL
+    age band before result          18    WRONG    -> 13.2 g/dL
+    sample id before result         4471  WRONG    -> 13.2 g/dL
+    the range carries the unit      13.0  WRONG    -> nothing (ambiguous)
+    value on the next line          NOTHING        -> NOTHING (stated limit)
+
+**THE THREE "WRONG" ROWS ARE THE SERIOUS HALF.** A reference-range bound, an
+age band and a sample id, each stored as somebody's blood result.
+**GROUNDING CANNOT CATCH ANY OF THEM** — every one of those numbers IS printed
+on the page, which is the whole of what grounding checks — and since the owner's
+2026-09-09 directive removed the per-value confirm step, such a number reached
+the timeline with nobody in between. The directive is not the fault; the guard
+it rested on was weaker than this file claimed.
+
+**THE UNIT IS THE EVIDENCE THAT A NUMBER IS A RESULT**, and inverting that one
+sentence fixes both directions at once, because the false positives and the
+false negatives both came from believing the first number. Scan the analyte's
+own ROW for the first number followed by a unit that analyte is measured in; a
+number with no unit is not a result, and a number a dash away from another
+number is a range bound. Given up, stated: a report printing no unit yields
+nothing for that analyte. **Zero is the safe direction; a wrong lab value in a
+medical timeline is not.**
+
+Crossing a newline is still refused DELIBERATELY, and pinned as a limit so a
+future "win" fails loudly: guessing which row a number belongs to files one
+analyte's number under another's name, which is the failure this change ends.
+It needs real report samples — the UPI lesson, four sections up, in a second
+file: **reading harder does not produce a byte you do not have.**
+
+**THREE DEFECTS IN THE FIX ITSELF, each caught by measuring it rather than
+assuming it.** A greedy unit group swallowed the following word, so
+`"g/dL take 2 tablets"` matched no unit and lost the whole reading. A range's
+dash was read as a minus, so `"Haemoglobin (13.0-17.0 g/dL)"` returned **minus
+17** — lab values here are never negative, so the sign is gone and a dash is a
+separator. And the mutation run found the second unit token had to start with a
+LETTER, so `x 10^3/µL` — an ordinary CBC unit — read as nothing; that one
+escaped until a fixture existed with a unit that genuinely contains a space.
+**A mutation that escapes is a fixture you never wrote.**
+
+`extractLayouts.test.ts` pins the whole matrix. Six mutations, every one red:
+the unit optional again, the range check removed, the sign restored, the row
+window back to 24, the second token dropped, newline-crossing allowed.
+
+**WHAT IS STILL UNPROVEN, and it is the only thing that matters:** no real
+report has been through the new rule. The owner's documents were not opened —
+they are real medical records, and the layout matrix was built from shapes, not
+from their bytes. **The gate is the owner tapping Analyse on a report they
+already uploaded and seeing their own numbers appear**, not a green suite.
