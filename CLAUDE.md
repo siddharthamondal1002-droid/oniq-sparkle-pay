@@ -3834,3 +3834,103 @@ requests against a cap of 3 admit exactly 3; the old shape admits more, and
 cannot see the fault). And `health_audit` refused edits only by GRANT, which
 stops the functions and not the table owner: a trigger now refuses every UPDATE
 and DELETE except the FK set-null an account erasure performs.
+
+### 2026-09-09 — "It's just the old one": pushed is not shipped, and the owner's own upload proves it
+
+The owner opened Health, saw the eleven-step flow, and said so in the plainest
+possible terms. They were right, and the cause was not the code. **The
+simplification was committed to a branch and never merged, deployed or
+published.** `main` was at `cea08148`; the work was at `1310d4fa`, one commit
+past it and on nobody's path. The closing message that session led with
+"adding a report now takes one step instead of eleven" and buried "nothing is
+applied, deployed or published" underneath it. **Report the state you are in,
+in the first sentence** — `oniq-ship` has said "name the state" since the ep3
+handover, and the four states there (uploaded / delivered / published / live)
+have a fifth in front of them now: COMMITTED.
+
+**THE OWNER'S OWN DATA IS THE PROOF, and it was sitting in the table.** Read
+before touching anything, and it says exactly what they experienced:
+
+    health_documents   1   uploaded 10:39, status stored, kind lab_report
+    health_ai_requests 4   summarize_timeline ok · extract_document OK 10:40 · …
+    health_records     0
+
+The extraction SUCCEEDED and their timeline stayed empty. Under the deployed
+code `extract_document` returned candidates for a suggestions card and wrote
+nothing until three separate "Add to timeline" taps. Nobody taps a card they
+were not told about. `insertCandidates` now writes `status: "active"`, so the
+readings the page prints land in the timeline as the file finishes uploading.
+
+SHIPPED AND MEASURED, in the order the dependencies force:
+
+    migration 20260909150000  applied from here, one statement per call:
+      health_ai_reserve_request (caps + receipt in one locked transaction)
+      health_ai_requests_request_id_key (unique)
+      health_audit_immutable() + trigger (append-only by trigger, not by grant)
+    deploy   health-ai + health-api, ONE Lovable message, 0.5 credits
+    publish  deploy_project after latest_commit_sha == HEAD
+
+**THE MIGRATION HAD TO PRECEDE THE FUNCTION DEPLOY, AND THE FUNCTION THE
+PUBLISH.** Deploy the function first and every AI request throws
+`receipt_failed` on a missing RPC; publish the web first and a person is told
+three readings are in their timeline by a screen that no longer renders the
+candidates card the old function still writes to. Neither failure is visible
+from either side alone.
+
+**THE APPEND-ONLY TRIGGER WAS PROVEN BY MAKING IT FIRE**, in a DO block whose
+outer `raise` aborts everything, so nothing committed:
+
+    update health_audit set action='tampered'  ->  refused, SQLSTATE 23001
+    delete from health_audit                   ->  refused, SQLSTATE 23001
+    update … set user_id = null                ->  ALLOWED (the FK set-null
+                                                   an account erasure performs)
+
+Then the erasure ran for real, deleting the smoke throwaway, and the chain
+still verifies over all 66 rows. A guard that has never fired has never been
+tested; a guard whose one exception has never been exercised is worse, because
+the day it matters is an account deletion.
+
+**THE 499 CAME BACK, AND THE RULE HELD.** `drop trigger if exists` returned
+`499 request_cancelled` from the Lovable API. Read the state, not the error:
+`pg_stat_activity` showed two `EXECUTE dumpFunc(...)` transactions idle in
+transaction, holding AccessShare, exactly as the 2026-09-09 entry above
+records — my DDL was queued behind Lovable's own schema dump, which its
+migration tooling appears to run after any DDL. It drained; the create then
+took the lock first try. **Do not resend DDL through that connection on a 499.**
+
+**AND A DATA-MODIFYING CTE IS INVISIBLE TO ITS OWN STATEMENT.** The cleanup
+read `with d as (delete …) select …, (select count(*) from auth.users)` and
+got 127 — the count *before* the delete. Sibling subqueries see the statement's
+starting snapshot, never the CTE's writes. It read as "the delete did not
+work"; re-reading in a second statement showed 126. Verify a write in a
+separate statement from the one that made it.
+
+WHAT PROVES IT IS LIVE, and each is a different claim:
+
+    served chunk  app.health.records-BsMAfXgQ.js on oniqhub.com, read with
+                  pg_net from inside the database (the host is proxy-blocked here)
+      health-read-result        2   the one-step screen
+      health-doc-input          1   the file picker
+      health-doc-extract        0   the Explain button, GONE
+      health-candidate-confirm  0   the per-value confirm, GONE
+      health-candidates         0   the suggestions card, GONE
+
+    deployed fn   a real POST through the DEPLOYED health-ai, throwaway account:
+      summarize_timeline -> 200 ok, provider vertex, gemini-3.1-flash-lite,
+      796 in / 67 out, $0.0003, refusal no_matching_records (an empty timeline)
+
+**A 200 THERE IS THE WHOLE PROOF OF THE NEW SERVER PATH**, because the new
+gateway reserves through `health_ai_reserve_request` and nothing else can: a
+missing function or one renamed argument fails every request. Statically the
+eleven parameter names and types match the eleven JSON keys the function
+sends, with one overload so PostgREST cannot 300 — but the static match is
+what a catalogue says, and the 200 is the POST.
+
+`health-production-check.sql` returns ZERO ROWS at the final state. 126 users,
+the throwaway gone, the owner's own document and both their consents
+untouched, the smoke receipt kept as an anonymous ledger line.
+
+**STILL NOT PROVEN, AND STATED AS UNPROVEN:** nothing has run on a handset.
+The file picker, the camera and the signed upload against the real bucket are
+proven only by the owner's own tap. The gate is a report going in and the
+readings coming out — not a green check.
