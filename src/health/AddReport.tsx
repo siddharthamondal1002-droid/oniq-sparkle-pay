@@ -88,7 +88,18 @@ export async function readStoredDocument(
               count: String(n),
             },
           )
-        : t("health.records.nothing_new", "Nothing new was added to your timeline."),
+        : // WHAT ONIQ CAN READ, SAID OUT LOUD. Owner report 2026-09-09, "no
+          // result came up on an xray report": the note said only "nothing new
+          // was added", which reads as a failure when the truth is that there
+          // was nothing here for ONIQ to find. Extraction stores a value only
+          // when it matches one of ~28 numeric blood and urine analytes; a
+          // radiology report is findings and an impression, and names none of
+          // them. Saying so is the difference between a person retrying twice
+          // (which is what happened, and cost two paid reads) and knowing.
+          t(
+            "health.records.no_values",
+            "No lab values found. ONIQ reads numbers from blood and urine reports — a scan or X-ray report has none for it to read.",
+          ),
   };
 }
 

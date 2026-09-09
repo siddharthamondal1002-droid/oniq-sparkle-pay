@@ -38,6 +38,14 @@ export const AUDIT_DETAIL_KEYS = [
   // Phase 4: how many extracted candidates the page did not support
   // (ungrounded, implausible or duplicate) — a count, never a value.
   "dropped",
+  // How many candidates the provider PUT FORWARD, and how many of those the
+  // closed analyte table refused (an unknown code, a non-numeric value, a unit
+  // that is not that analyte's, an unreadable date). Counts, never values.
+  // Owner report 2026-09-09, "no result came up on an xray report": the row
+  // said count 0, dropped 0, and could not distinguish "the model proposed
+  // nothing" from "it proposed things the table threw away".
+  "proposed",
+  "unusable",
 ] as const;
 
 /** Keys a log line may carry. */

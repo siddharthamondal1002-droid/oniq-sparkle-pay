@@ -624,6 +624,11 @@ export type ExtractionVerdict =
  * The value returned is REBUILT from those fields; the provider's object is
  * never stored.
  */
+/** A count from a provider: a non-negative integer, or 0. Never trusted raw. */
+function countOf(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
+}
+
 export function validateExtraction(raw: unknown, usage: unknown): ExtractionVerdict {
   if (!usageOk(usage)) return refuse("usage_shape");
   if (!raw || typeof raw !== "object") return refuse("extraction_shape");
@@ -697,7 +702,13 @@ export function validateExtraction(raw: unknown, usage: unknown): ExtractionVerd
   }
   return {
     ok: true,
-    value: { candidates, method: e.method, textChars: e.textChars },
+    value: {
+      candidates,
+      method: e.method,
+      textChars: e.textChars,
+      proposed: countOf(e.proposed),
+      unusable: countOf(e.unusable),
+    },
     usage: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens },
   };
 }

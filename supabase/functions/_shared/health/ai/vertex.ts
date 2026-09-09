@@ -620,10 +620,14 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
  * display are the table's. Anything outside the table is dropped here, and
  * `validateExtraction` in the gateway would refuse it again if it were not.
  */
-function candidatesFromWire(raw: unknown, capturedDay: string): CandidateRecord[] {
+function candidatesFromWire(
+  raw: unknown,
+  capturedDay: string,
+): { candidates: CandidateRecord[]; proposed: number; unusable: number } {
   const obj = raw && typeof raw === "object" ? (raw as { candidates?: unknown }) : {};
-  if (!Array.isArray(obj.candidates)) return [];
+  if (!Array.isArray(obj.candidates)) return { candidates: [], proposed: 0, unusable: 0 };
   const out: CandidateRecord[] = [];
+  const proposed = obj.candidates.length;
   for (const c of obj.candidates) {
     if (!c || typeof c !== "object") continue;
     const x = c as Record<string, unknown>;
@@ -656,7 +660,11 @@ function candidatesFromWire(raw: unknown, capturedDay: string): CandidateRecord[
     });
     if (out.length >= LIMITS.MAX_CANDIDATES) break;
   }
-  return out;
+  // EVERY `continue` ABOVE IS A SILENT DROP, and until 2026-09-09 nothing
+  // counted them. The table is deliberately closed — a model may not invent an
+  // analyte — but a page whose values are all refused looked identical, in the
+  // audit, to a page with no values on it.
+  return { candidates: out, proposed, unusable: proposed - out.length };
 }
 
 /* ------------------------------------------------------------ provider -- */
@@ -705,12 +713,15 @@ export class VertexHealthAIProvider {
       case "extract_document": {
         const doc = input.context.documents[0];
         const textChars = Math.min(LIMITS.MAX_DOCUMENT_CHARS, doc?.text?.length ?? 0);
+        const wire = candidatesFromWire(raw, doc?.capturedDay ?? "1970-01-01");
         return {
           kind: "extraction",
           extraction: {
-            candidates: candidatesFromWire(raw, doc?.capturedDay ?? "1970-01-01"),
+            candidates: wire.candidates,
             method: methodFor(input.model),
             textChars,
+            proposed: wire.proposed,
+            unusable: wire.unusable,
           },
           usage,
         };

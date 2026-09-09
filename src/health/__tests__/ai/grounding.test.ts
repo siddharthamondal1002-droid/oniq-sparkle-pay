@@ -219,6 +219,8 @@ class ObedientProvider implements HealthAIProvider {
         candidates: this.candidates,
         method: "rules:v1",
         textChars: input.context.documents[0]?.text?.length ?? 0,
+        proposed: 1,
+        unusable: 0,
       },
       usage: { inputTokens: 10, outputTokens: 10 },
     });

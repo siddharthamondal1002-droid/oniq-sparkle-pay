@@ -115,6 +115,10 @@ describe("analysing a report that is already stored", () => {
     // other thing and would have been simply false on a re-read.
     const src = read(COMPONENT);
     expect(src).not.toContain("No lab values or vitals were found");
-    expect(src).toContain("health.records.nothing_new");
+    // And it names what ONIQ can read, so an X-ray's zero is explained rather
+    // than reported as a bare "nothing new" (owner report, "no result came up
+    // on an xray report").
+    expect(src).toContain("health.records.no_values");
+    expect(src).toMatch(/blood and urine reports/);
   });
 });

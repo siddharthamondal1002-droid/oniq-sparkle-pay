@@ -904,7 +904,13 @@ export async function runHealthAi(
       purpose: consent.purpose,
       consentId,
       outcome: "ok",
-      detail: { ...baseDetail, count: inserted, dropped: droppedCount },
+      detail: {
+        ...baseDetail,
+        count: inserted,
+        dropped: droppedCount,
+        proposed: verdict.value.proposed,
+        unusable: verdict.value.unusable,
+      },
     });
     return {
       ok: true,

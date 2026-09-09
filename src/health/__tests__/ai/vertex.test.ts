@@ -515,6 +515,14 @@ describe("the provider, through its transport", () => {
     });
     expect(e.extraction.method).toBe(methodFor(MODEL));
     expect(e.extraction.textChars).toBe(doc.text.length);
+    // THE SILENT DROPS ARE COUNTED NOW. The model proposed three; the closed
+    // table refused two (an unknown code, a non-numeric value) and said so
+    // nowhere until 2026-09-09. Owner report, "no result came up on an xray
+    // report": the audit read count 0, dropped 0, which could not distinguish
+    // a page with no values from a page whose values were all thrown away.
+    expect(e.extraction.proposed).toBe(3);
+    expect(e.extraction.unusable).toBe(2);
+    expect(e.extraction.candidates).toHaveLength(e.extraction.proposed - e.extraction.unusable);
   });
 });
 

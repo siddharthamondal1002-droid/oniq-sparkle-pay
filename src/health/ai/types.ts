@@ -296,6 +296,10 @@ export type ExtractionResult = {
   candidates: CandidateRecord[];
   method: string;
   textChars: number;
+  /** How many candidates the extraction step put forward. A count, never a value. */
+  proposed: number;
+  /** How many of those the closed analyte table refused. A count, never a value. */
+  unusable: number;
 };
 
 export type ProviderInput = {

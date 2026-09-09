@@ -371,5 +371,14 @@ export function extractCandidates(text: string, fallbackDay: string): Extraction
       },
     );
   }
-  return { candidates, method: EXTRACT_METHOD, textChars: src.length };
+  // The rules extractor builds straight from the closed table, so nothing it
+  // proposes can be refused by it: `unusable` is 0 by construction here, and
+  // the number that matters on this path is how many it found at all.
+  return {
+    candidates,
+    method: EXTRACT_METHOD,
+    textChars: src.length,
+    proposed: candidates.length,
+    unusable: 0,
+  };
 }

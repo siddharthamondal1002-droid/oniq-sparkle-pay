@@ -624,7 +624,13 @@ describe("4. ATTACK: a provider that echoes document text through the outputs th
       };
       return {
         kind: "extraction",
-        extraction: { candidates: [c], method: "rules:v1", textChars: t.length },
+        extraction: {
+          candidates: [c],
+          method: "rules:v1",
+          textChars: t.length,
+          proposed: 1,
+          unusable: 0,
+        },
         usage: { inputTokens: 1, outputTokens: 1 },
       };
     });
@@ -653,6 +659,8 @@ describe("4. ATTACK: a provider that echoes document text through the outputs th
         })),
         method: "rules:v1",
         textChars: 10,
+        proposed: 1,
+        unusable: 0,
       },
       usage: { inputTokens: 1, outputTokens: 1 },
     }));

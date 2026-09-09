@@ -474,11 +474,21 @@ describe("documents", () => {
       ins.candidates.every((c) => c.confidence > 0 && c.effectiveAt === "2026-03-14T12:00:00.000Z"),
     ).toBe(true);
     expect(store.documentPatches.at(-1)?.patch).toMatchObject({ extraction_status: "read" });
-    expect(store.audits.at(-1)).toMatchObject({
+    // THE COUNTS MUST REACH THE AUDIT ROW, which is the only place a zero can
+    // ever be explained after the fact — the transcription is not retained, by
+    // design. Owner report 2026-09-09, "no result came up on an xray report":
+    // the row said count 0, dropped 0, and nothing said whether the provider
+    // had proposed anything at all.
+    const extractRow = store.audits.at(-1);
+    expect(extractRow).toMatchObject({
       action: "documents.extract",
       objectId: ALICE_DOC.id,
       detail: { count: 4 },
     });
+    const detail = (extractRow as { detail: Record<string, unknown> }).detail;
+    expect(typeof detail.proposed).toBe("number");
+    expect(typeof detail.unusable).toBe("number");
+    expect(detail.proposed).toBeGreaterThanOrEqual(4);
   });
 
   it("classification stores a hint with the provider named", async () => {
