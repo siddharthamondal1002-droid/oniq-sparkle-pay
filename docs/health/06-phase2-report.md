@@ -376,6 +376,26 @@ What is NOT verified from here, stated as such: the served web bundle (proxy);
 the admin branch of `admin.ai_kill` / `admin.ai_caps` (needs an admin JWT — the
 owner's two taps); and everything behind `ai_enabled`, by directive.
 
+### 2026-09-09 — the privacy sentence, served
+
+Published by `deploy_project` after `latest_commit_sha` read `1fd6bed6`
+(deployment `12dda3a1`; the first read after the push still said `eb770a59`),
+and verified from inside the database with `pg_net`, before and after:
+
+```
+before   entry index-D1MRI60K.js   privacy-0rJTwbfK.js  11,906 bytes
+         "never sent to any AI"  PRESENT    new sentences  ABSENT
+after    entry index-BHxCgVpx.js   privacy-CkXIeUIO.js  12,055 bytes
+         "never sent to any AI"  ABSENT     both new sentences  PRESENT
+         "Nothing from Vitals"   ABSENT
+         (index-BHxCgVpx.js and privacy-sCfVPIfa.js carry the sentences too,
+         through the shared constant; the retired claim is in none of them)
+```
+
+The `/privacy` HTML is client-rendered (16,391 bytes, neither sentence); it is
+what named the route chunk. Section 4 still names Anthropic for the three text
+surfaces, as before.
+
 ## How to verify the publish (oniq-ship: learn the chunk from a local build first)
 
 `npx tsx scripts/health-bundle-markers.ts` runs the recipe below against a local build, and `--url https://oniqhub.com` against the served one (exit 2 = unreachable, which is UNVERIFIED and never STALE). What follows is what it does.

@@ -3555,3 +3555,20 @@ the privacy chunk and the retired claim's ABSENCE from the privacy chunk and
 the entry: run against the stale local build it failed on exactly those
 lines, and against the fresh build it passes — a check that has never failed
 has never been tested, again.
+
+PUBLISHED AND VERIFIED, 2026-09-09 05:25Z. `deploy_project` after
+`latest_commit_sha` read `1fd6bed6` — it read `eb770a59` on the first look,
+seconds after the push, and the rule held. The served bundle was read from
+inside the database with `pg_net`, before and after, the way the functions
+were the day before:
+
+    before  index-D1MRI60K.js  privacy-0rJTwbfK.js  11,906 B  old claim PRESENT
+    after   index-BHxCgVpx.js  privacy-CkXIeUIO.js  12,055 B  old claim ABSENT,
+                                                              both sentences PRESENT
+
+The `/privacy` HTML is client-rendered and carries neither sentence; it is
+the thing that NAMES the route chunk, which is what `oniq-ship` says to read.
+And the sentences now sit in the ENTRY chunk as well — `src/config/privacy.ts`
+is shared, so the constant's literal travels with it — which is why the marker
+script checks the retired claim's ABSENCE in the entry and the new sentences'
+PRESENCE in the privacy chunks, and not the other way round.
