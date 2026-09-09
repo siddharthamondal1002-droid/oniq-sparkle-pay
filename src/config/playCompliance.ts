@@ -405,8 +405,13 @@ export const DATA_COLLECTED: CollectedData[] = [
     purpose:
       "Producing the answer, the practice paper or the CV the user asked for. Not used to train a model, not used for advertising, not sold.",
     optional: true,
+    // Owner directive 2026-09-09: the absolute "never sent to any AI surface" is
+    // gone with the privacy notice's sentence. Health data is no part of these
+    // three surfaces; the health features' own position is the consent-
+    // conditioned statement the notice now carries (HEALTH_AI_PRIVACY_STATEMENT
+    // in src/config/privacy.ts), mirrored here so the two cannot disagree.
     protection:
-      "Health data is never sent to any AI surface. Output is labelled AI-generated and reportable in-app. Disclosed in the privacy notice.",
+      "Health data is not part of these three surfaces. ONIQ's AI-assisted health features may process health data only when the person chooses to use them and provides the required consent, under the privacy, security, consent, audit and safety controls the privacy notice describes. Output is labelled AI-generated and reportable in-app.",
   },
 ];
 

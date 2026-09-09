@@ -129,6 +129,12 @@ const en: Dict = {
   "health.consent.ai.detail":
     "Explains and summarises what you have stored. In this phase only ONIQ's own built-in checker runs; nothing is sent to Google or any outside company.",
   "health.consent.ai.required": "Turn on the AI consent first.",
+  // The privacy DISCLOSURE beside the AI consent — owner directive 2026-09-09,
+  // verbatim; src/config/privacy.ts HEALTH_AI_PRIVACY_STATEMENT is the copy the
+  // tests pin this to. Not the consent sentence, which stays a counsel-review
+  // placeholder (docs/health/04 D3).
+  "health.privacy.ai_processing":
+    "Health data may be processed by ONIQ's AI-assisted health features when you choose to use them and provide the required consent. AI-assisted features are subject to ONIQ's privacy, security, consent, audit, and safety controls.",
   "health.ai.suggested": "Suggested records",
   "health.ai.suggested.body":
     "Read from your documents by ONIQ. Nothing joins your timeline until you confirm it.",
@@ -270,6 +276,10 @@ const hi: Dict = {
   "health.consent.ai.detail":
     "आपके सहेजे रिकॉर्ड को समझाता और सारांश देता है। इस चरण में केवल ONIQ का अपना अंदरूनी जाँचकर्ता चलता है; Google या किसी बाहरी कंपनी को कुछ नहीं भेजा जाता।",
   "health.consent.ai.required": "पहले AI सहमति चालू करें।",
+  // Counsel-review placeholder: a meaning-preserving translation of the owner's
+  // approved English sentence (2026-09-09); no legal approval is claimed for it.
+  "health.privacy.ai_processing":
+    "जब आप ONIQ की AI-सहायता वाली स्वास्थ्य सुविधाओं का उपयोग करना चुनते हैं और आवश्यक सहमति देते हैं, तब आपका स्वास्थ्य डेटा उन सुविधाओं द्वारा प्रोसेस किया जा सकता है। AI-सहायता वाली सुविधाएँ ONIQ के गोपनीयता, सुरक्षा, सहमति, ऑडिट और सेफ़्टी नियंत्रणों के अधीन हैं।",
   "health.ai.suggested": "सुझाए गए रिकॉर्ड",
   "health.ai.suggested.body":
     "ONIQ ने आपके दस्तावेज़ों से पढ़ा है। आपकी पुष्टि के बिना कुछ भी समयरेखा में नहीं जुड़ता।",
@@ -409,6 +419,10 @@ const bn: Dict = {
   "health.consent.ai.detail":
     "আপনার সংরক্ষিত রেকর্ড ব্যাখ্যা ও সারসংক্ষেপ করে। এই পর্যায়ে শুধু ONIQ-এর নিজস্ব অভ্যন্তরীণ পরীক্ষক চলে; Google বা কোনো বাইরের কোম্পানিকে কিছু পাঠানো হয় না।",
   "health.consent.ai.required": "প্রথমে AI সম্মতি চালু করুন।",
+  // Counsel-review placeholder: a meaning-preserving translation of the owner's
+  // approved English sentence (2026-09-09); no legal approval is claimed for it.
+  "health.privacy.ai_processing":
+    "আপনি যখন ONIQ-এর AI-সহায়িত স্বাস্থ্য ফিচার ব্যবহার করতে বেছে নেন এবং প্রয়োজনীয় সম্মতি দেন, তখন আপনার স্বাস্থ্য ডেটা সেই ফিচারগুলির মাধ্যমে প্রক্রিয়া করা হতে পারে। AI-সহায়িত ফিচারগুলি ONIQ-এর গোপনীয়তা, নিরাপত্তা, সম্মতি, অডিট ও সুরক্ষা নিয়ন্ত্রণের অধীন।",
   "health.ai.suggested": "প্রস্তাবিত রেকর্ড",
   "health.ai.suggested.body":
     "ONIQ আপনার নথি থেকে পড়েছে। আপনি নিশ্চিত না করা পর্যন্ত কিছুই সময়রেখায় যোগ হয় না।",

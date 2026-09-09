@@ -15,8 +15,10 @@ trees; the provider input captured through the real gateway carrying no id, no
 user, no path; every recipient `oniq`; the privacy sentence tied to that) and
 by `src/health/__tests__/isolation.test.ts` (no other edge function names a
 health table, the bucket or `"health-ai"`, or imports from `_shared/health`).
-The production privacy promise — "Health data is never sent to any AI
-feature" — is unchanged and still asserted.
+The production privacy promise was "Health data is never sent to any AI
+feature" until 2026-09-09, when the owner replaced it with the
+consent-conditioned statement (see Privacy checks); the new statement is
+asserted in its place.
 
 ## Files changed
 
@@ -159,8 +161,14 @@ red-team files are kept under `src/health/__tests__/ai/redteam*.test.ts`.
 
 ## Privacy checks
 
-- The privacy notice is unchanged and its test still passes; the sentence is
-  now tied to `RECIPIENT_FOR_PROVIDER`.
+- The privacy notice changed on 2026-09-09 by owner directive: the absolute
+  sentence is replaced by the consent-conditioned statement
+  (`src/config/privacy.ts`), rendered in the notice, beside the AI consent in
+  en/hi/bn (translations are counsel-review placeholders) and mirrored in the
+  Play declaration. `privacyDisclosure.test.ts` pins every copy, bans the
+  retired claim from every user-facing source, and ties the statement to
+  `RECIPIENT_FOR_PROVIDER` and the consent rules. The consent sentence (D3) is
+  untouched.
 - The manifest says what was SENT: an `excluded` entry means the field is absent
   from the provider input (classify drops injected text; extract flags it).
 - The person's own `health_ai_output` rows in `public.reports` — the one trace
@@ -194,13 +202,18 @@ message was sent).
 2. DONE by the autonomous loop, by audited `UPDATE` through the Lovable database connection — `enabled = true` (seq 1), the house cap **500** (seq 2), `ai_admin_verification_enabled = true` (seq 3). The admin screen's Daily caps route remains available and would add a `config.ai_caps` row on top of the trigger's.
 3. DONE except the admin's own taps — the kill switch was flipped on and off by SQL (seq 5, 6) and each position was read back through the deployed `health-api` by a throwaway non-admin account; that same account's `admin.ai_kill` was refused 403 and audited `refused` (seq 4). What only the owner can add: **Stop Health AI now** / **Allow Health AI again** on `/app/admin/health-ai` as an admin, which exercises the `is_admin = true` branch and leaves `config.ai_kill … ok` rows. Free; two taps each way.
 4. `ai_enabled` stays OFF (owner directive 2026-09-08, later): the synthetic-answer verification waits with it, behind the Phase 3 authorization and legal gate. B12 is decided ("AI-assisted") and built.
+5. Counsel, from the 2026-09-09 privacy change: the report scan's Anthropic processing (disclose or gate — `04 D4`), the Hindi and Bengali placeholder translations of the new statement, and the Play Data safety form to match it.
 
 ## Legal actions
 
 - D3: the `ai_interpretation` consent sentence is a PLACEHOLDER
   (`health-ai-terms-v1`, recipient ONIQ only); counsel's wording replaces it.
 - D1: `ai_requests` retention placeholder (365 days).
-- D6/D4 remain Phase 3 gates and are untouched by Phase 2.
+- D4 was decided on 2026-09-09 (the statement above); what remains under it
+  is counsel's: the Vitals report scan (`health-scan`) is configured in
+  production and sends an uploaded report to Anthropic with no consent step,
+  which neither the old sentence nor the new one names (`02 §16`).
+- D6 remains a Phase 3 gate and is untouched by Phase 2.
 
 ## Remaining risks
 

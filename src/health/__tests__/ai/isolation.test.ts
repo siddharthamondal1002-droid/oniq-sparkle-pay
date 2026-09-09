@@ -27,6 +27,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { executableText, stripComments } from "@/test/sourceText";
+import { HEALTH_AI_PRIVACY_STATEMENT } from "@/config/privacy";
 import { RECIPIENTS } from "../../domain";
 import {
   AI_RECIPIENTS,
@@ -382,12 +383,19 @@ describe("what a provider is handed", () => {
   });
 });
 
-describe("the promise stands", () => {
-  it("the privacy notice still says health data never reaches an AI feature, and no recipient leaves ONIQ", () => {
-    const privacy = readFileSync(join(ROOT, "src/routes/privacy.tsx"), "utf8").toLowerCase();
-    expect(privacy).toMatch(/health data is never sent to any ai/);
-    // The two facts are tied: this assertion is what must change, with the
-    // notice, the day a provider that leaves ONIQ is registered (05 §13).
+describe("the disclosure stands", () => {
+  it("the privacy notice carries the owner's consent-conditioned statement, the absolute claim is gone, and no recipient leaves ONIQ", () => {
+    // Owner directive 2026-09-09 replaced "never sent to any AI feature".
+    const privacy = readFileSync(join(ROOT, "src/routes/privacy.tsx"), "utf8")
+      .replace(/\{"\s*"\}/g, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ");
+    expect(privacy).toContain(HEALTH_AI_PRIVACY_STATEMENT);
+    expect(privacy.toLowerCase()).not.toMatch(/never sent to any ai/);
+    // The two facts are still tied: "provide the required consent" and
+    // "subject to ONIQ's … controls" are true while every recipient is ONIQ;
+    // the day a provider that leaves ONIQ is registered, the notice must name
+    // it (05 §13) and this assertion changes with it.
     expect(Object.values(RECIPIENT_FOR_PROVIDER).every((r) => r === "oniq")).toBe(true);
   });
 

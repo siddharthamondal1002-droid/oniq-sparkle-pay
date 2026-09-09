@@ -18,6 +18,7 @@
 // renamed control or a reworded promise fails the test before it fails here.
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { HEALTH_AI_PRIVACY_SENTENCES } from "../src/config/privacy";
 
 export const ROUTE_CHUNK = /^app\.admin_\.health-ai-[\w-]+\.js$/;
 export const ROUTE_MARKERS = [
@@ -27,7 +28,10 @@ export const ROUTE_MARKERS = [
   "health-ai-admin-house-cap",
 ];
 export const PRIVACY_CHUNK = /^privacy-[\w-]+\.js$/;
-export const PRIVACY_SENTENCE = "Health data is never sent to any AI feature";
+/** The two sentences of the health-AI disclosure (owner directive 2026-09-09), each a marker of its own. */
+export const PRIVACY_SENTENCES = HEALTH_AI_PRIVACY_SENTENCES;
+/** The absolute claim that disclosure replaced; in a served chunk it means the build is STALE. */
+export const OLD_PRIVACY_CLAIM = "never sent to any AI";
 export const ENTRY_CHUNK = /^index-[\w-]+\.js$/;
 
 function count(hay: string, needle: string): number {
@@ -51,18 +55,20 @@ export function check(chunks: Record<string, string>): Verdict[] {
     }
   }
   const privacyChunks = Object.keys(chunks).filter((n) => PRIVACY_CHUNK.test(n));
-  const hits: Array<[string, number]> = privacyChunks.map((n) => [
-    n,
-    count(chunks[n], PRIVACY_SENTENCE),
-  ]);
-  const carried = hits.filter(([, c]) => c >= 1);
   if (privacyChunks.length === 0)
     out.push({ ok: false, line: `privacy chunk privacy-*.js  ABSENT` });
-  else
+  for (const sentence of PRIVACY_SENTENCES) {
+    const hits: Array<[string, number]> = privacyChunks.map((n) => [n, count(chunks[n], sentence)]);
     out.push({
-      ok: carried.length >= 1,
-      line: `privacy sentence             ${hits.map(([n, c]) => `${n}=${c}`).join(" ")}`,
+      ok: hits.some(([, c]) => c >= 1),
+      line: `privacy "${sentence.slice(0, 38)}…"  ${hits.map(([n, c]) => `${n}=${c}`).join(" ")}`,
     });
+  }
+  const entryChunks = Object.keys(chunks).filter((n) => ENTRY_CHUNK.test(n));
+  for (const name of [...privacyChunks, ...entryChunks]) {
+    const c = count(chunks[name], OLD_PRIVACY_CLAIM);
+    out.push({ ok: c === 0, line: `old claim "${OLD_PRIVACY_CLAIM}" ABSENT   ${name}  ${c}` });
+  }
   for (const name of Object.keys(chunks).filter((n) => ENTRY_CHUNK.test(n))) {
     const c = count(chunks[name], ROUTE_MARKERS[0]);
     out.push({ ok: c === 0, line: `${ROUTE_MARKERS[0]} NOT in entry   ${name}  ${c}` });

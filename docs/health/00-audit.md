@@ -39,6 +39,8 @@ So two things follow for ONIQ Health:
 1. Phase 1 may not reference those three table names from any edge function (it does not; Health has its own tables).
 2. **`health.ai.enabled` cannot be turned on without first changing the public privacy notice and the Play Data safety form.** That is a user-visible policy change and belongs to the owner, with counsel. The architecture document records the exact wording that has to move.
 
+**Superseded 2026-09-09 (owner directive).** The sentence is now the consent-conditioned statement in `src/config/privacy.ts` (`HEALTH_AI_PRIVACY_STATEMENT`), rendered in the notice, beside the AI consent in English, Hindi and Bengali, and mirrored in the Play declaration; `src/health/__tests__/privacyDisclosure.test.ts` keeps the retired claim out of every user-facing source and ties the new statement to the controls it names. Measured the same day: the report scan above IS configured in production (`ANTHROPIC_API_KEY` present — an authenticated call with an empty attachment answers 400 rather than `configured: false`), so an uploaded report reaches Anthropic today, with no consent step; the old sentence never covered it and the new one does not name it. Counsel's — `04 D4`.
+
 ## 3. Consent, audit, deletion and legal machinery already in place
 
 | Precedent             | Where                                                                                                                                                                                                   | Reused by Health                                                                                                                                                                                                                |

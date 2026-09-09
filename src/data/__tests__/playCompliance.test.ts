@@ -8,6 +8,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { HEALTH_AI_PRIVACY_STATEMENT } from "@/config/privacy";
 import {
   AI_CONTENT_MODULES,
   AI_LABEL_OVERRIDES,
@@ -304,9 +305,17 @@ describe("third-party AI integrations are disclosed", () => {
     expect(lower).toMatch(/not.{0,20}sold/);
   });
 
-  it("says health data never reaches a model, and means it", () => {
-    expect(privacyPage.toLowerCase()).toMatch(/health data is never sent to any ai/);
-    // Verified rather than asserted: no edge function reads a health table.
+  it("states the health-AI position the owner approved, and the Vitals tables still reach no function", () => {
+    // Owner directive 2026-09-09: the absolute "never sent to any AI feature"
+    // is retired; the notice carries the consent-conditioned statement
+    // VERBATIM (whitespace-normalised, tags stripped — JSX wraps the line).
+    const text = privacyPage
+      .replace(/\{"\s*"\}/g, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ");
+    expect(text).toContain(HEALTH_AI_PRIVACY_STATEMENT);
+    expect(privacyPage.toLowerCase()).not.toMatch(/never sent to any ai/);
+    // Still verified rather than asserted: no edge function reads a Vitals table.
     const fnDir = join(ROOT, "supabase/functions");
     const offenders = walk(fnDir).filter((p) =>
       /health_checkins|cycle_logs|health_profiles/.test(readFileSync(p, "utf8")),

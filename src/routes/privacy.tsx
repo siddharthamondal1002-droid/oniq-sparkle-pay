@@ -149,8 +149,12 @@ function PrivacyPage() {
               and <strong>not</strong> sold.
             </li>
             <li>
-              <strong>Health data is never sent to any AI feature.</strong> Nothing from Vitals
-              reaches a model.
+              <strong>
+                Health data may be processed by ONIQ's AI-assisted health features when you choose
+                to use them and provide the required consent.
+              </strong>{" "}
+              AI-assisted features are subject to ONIQ's privacy, security, consent, audit, and
+              safety controls.
             </li>
             <li>
               Generated output is labelled as AI-generated, and you can report a bad answer from

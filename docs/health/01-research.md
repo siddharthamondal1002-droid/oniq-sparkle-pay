@@ -206,5 +206,5 @@ See `03-cost-model.md` for the 1K/10K/100K/1M-user tables and every assumption.
 - Healthcare NLP and Agent Search for Healthcare are priced for hospitals, not consumer apps: at 100,000 users they are the two largest lines in the cost model by a wide margin.
 - MedGemma is a fixed monthly cost with no scaling benefit at ONIQ's size; evaluation runs can use an endpoint for hours and delete it.
 - ABDM certification is a months-long external process with audit fees **[UNKNOWN amount]**.
-- The privacy notice's "never sent to any AI feature" sentence must change before Phase 3; that is a policy decision with a Play Data safety consequence.
+- The privacy notice's "never sent to any AI feature" sentence must change before Phase 3; that is a policy decision with a Play Data safety consequence. **Changed 2026-09-09 by owner directive — `04 D4`, `02 §16`.**
 - Every third-party snippet above (ABDM, DPDP timelines, Health Connect policy) needs confirmation from the primary source before anyone builds against it.

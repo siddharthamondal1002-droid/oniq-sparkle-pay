@@ -168,6 +168,15 @@ function HealthConsent() {
                   "Explains and summarises what you have stored. In this phase only ONIQ's own built-in checker runs; nothing is sent to Google or any outside company.",
                 )}
               </div>
+              <p
+                className="mt-1 text-xs text-muted-foreground"
+                data-testid="health-consent-ai-privacy"
+              >
+                {t(
+                  "health.privacy.ai_processing",
+                  "Health data may be processed by ONIQ's AI-assisted health features when you choose to use them and provide the required consent. AI-assisted features are subject to ONIQ's privacy, security, consent, audit, and safety controls.",
+                )}
+              </p>
               <div
                 className="mt-1 text-xs text-muted-foreground"
                 data-testid="health-consent-ai-state"

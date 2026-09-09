@@ -11,7 +11,8 @@ import { stripSqlComments } from "../../test/sourceText";
 import {
   ENTRY_CHUNK,
   PRIVACY_CHUNK,
-  PRIVACY_SENTENCE,
+  OLD_PRIVACY_CLAIM,
+  PRIVACY_SENTENCES,
   ROUTE_CHUNK,
   ROUTE_MARKERS,
   check,
@@ -141,8 +142,13 @@ describe("health-bundle-markers.ts", () => {
     expect(PRIVACY_CHUNK.test("privacy-CuFNK7FV.js")).toBe(true);
   });
 
-  it("the privacy sentence is the one the privacy page makes", () => {
-    expect(read("src/routes/privacy.tsx")).toContain(PRIVACY_SENTENCE);
+  it("the privacy sentences are the ones the privacy page makes, and the retired claim is what it no longer makes", () => {
+    const page = read("src/routes/privacy.tsx")
+      .replace(/\{"\s*"\}/g, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ");
+    for (const sentence of PRIVACY_SENTENCES) expect(page).toContain(sentence);
+    expect(page.toLowerCase()).not.toContain(OLD_PRIVACY_CLAIM.toLowerCase());
   });
 });
 
@@ -150,7 +156,7 @@ describe("health-bundle-markers.ts check()", () => {
   const good = {
     "index-AAAA.js": "entry without the marker",
     "app.admin_.health-ai-BBBB.js": ROUTE_MARKERS.join(" "),
-    "privacy-CCCC.js": `x ${PRIVACY_SENTENCE} y`,
+    "privacy-CCCC.js": `x ${PRIVACY_SENTENCES.join(" ")} y`,
   };
   const pass = (chunks: Record<string, string>) => check(chunks).every((r) => r.ok);
 
@@ -173,9 +179,25 @@ describe("health-bundle-markers.ts check()", () => {
     expect(pass({ ...good, "index-AAAA.js": `entry ${ROUTE_MARKERS[0]}` })).toBe(false);
   });
 
-  it("fails a reworded privacy promise", () => {
+  it("fails a reworded privacy disclosure, and one that carries only its first sentence", () => {
     expect(
       pass({ ...good, "privacy-CCCC.js": "Health data is sometimes sent to an AI feature" }),
+    ).toBe(false);
+    expect(pass({ ...good, "privacy-CCCC.js": PRIVACY_SENTENCES[0] })).toBe(false);
+  });
+
+  it("fails a build that still serves the retired absolute claim — the shape of a publish that never happened", () => {
+    expect(
+      pass({
+        ...good,
+        "privacy-CCCC.js": `${PRIVACY_SENTENCES.join(" ")} Health data is never sent to any AI feature.`,
+      }),
+    ).toBe(false);
+    expect(
+      pass({
+        ...good,
+        "index-AAAA.js": "entry saying health data is never sent to any AI feature",
+      }),
     ).toBe(false);
   });
 });

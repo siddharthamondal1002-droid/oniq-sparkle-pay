@@ -3485,3 +3485,73 @@ caps = B11, `ai_admin_verification_enabled` true, `ai_kill_switch` false,
 user-visible; six audit rows, chain intact under the erasure-proof verifier;
 126 users, the throwaway gone; three migrations recorded from here:
 20260908181500 and 20260908190000 (plus Lovable's two copies).
+
+## Owner directive, 2026-09-09 — the privacy sentence changes; the report scan was never covered by the old one
+
+_"Locate the active user-facing privacy notice and replace the old absolute
+statement with exactly: «Health data may be processed by ONIQ's AI-assisted
+health features when you choose to use them and provide the required consent.
+AI-assisted features are subject to ONIQ's privacy, security, consent, audit,
+and safety controls.»"_ — with `ai_enabled`, the caps, the kill switch,
+uploads, the gateway authorization and consent all untouched, and the AI
+consent sentence left as counsel's placeholder. Recorded as given; this
+SUPERSEDES "the privacy sentence is unchanged" in every entry above.
+
+WHERE THE OLD CLAIM LIVED, measured by grep before anything moved: the public
+notice (`src/routes/privacy.tsx`, the one user-facing place), the Play
+declaration's `protection` string in `playCompliance.ts` ("never sent to any
+AI surface"), three tests that pinned it, my own marker script, and the docs.
+**No Hindi or Bengali version of the privacy notice exists** — the public page
+is English-only and the in-app consent notice (`src/lib/consent/notice.ts`)
+carries `en` and `hi` with no health-AI claim and no `bn` at all — so there was
+no localized sentence to replace. The statement now lives ONCE, in
+`src/config/privacy.ts` (`HEALTH_AI_PRIVACY_STATEMENT`), is rendered inline in
+the notice (inline so it stays in the privacy route chunk the bundle check
+reads), sits beside the AI consent on `app.health.consent.tsx` as
+`health.privacy.ai_processing` in English, Hindi and Bengali — the two
+translations are meaning-preserving and labelled counsel-review placeholders
+in the source, and no legal approval is claimed for them — and is mirrored in
+the Play string. `privacyDisclosure.test.ts` pins every copy to the constant,
+bans `never … sent to any AI` and `nothing from Vitals reaches a model` from
+every user-facing source (routes, components, health, consent notice, i18n,
+config, data, `public/`, Android resources — code files with comments
+stripped, because the comments beside the constant QUOTE the retired claim to
+explain it: the ninth prose match), and ties the statement's claims to the
+code: the AI purpose is grantable for ONIQ only under terms that disclose
+ONIQ, a revoked grant covers nothing, `RECIPIENT_FOR_PROVIDER` is
+`{synthetic: oniq}`. Mutation-checked: the retired claim put back into the
+notice fails three tests in three files.
+
+**THE OLD SENTENCE WAS ALREADY FALSE, AND THE NEW ONE DOES NOT NAME WHAT MADE
+IT SO.** `docs/health/00-audit.md` had recorded it on day one: the Vitals
+report scan (`supabase/functions/health-scan`) sends an uploaded lab report to
+Anthropic, Claude Haiku, ephemeral. The playCompliance test "and means it"
+verified the claim by scanning functions for the three Vitals TABLE names, and
+the scan reads none of them — an image travels as base64 — so the test was
+green while the sentence was false. What nobody had measured was whether the
+key exists in production. It does: a throwaway account (the smoke-test
+pattern, signed up and deleted from inside the database, no health audit rows
+written) called `health-scan` with an EMPTY attachment and got
+`400 attach a report photo or PDF` — a line the function reaches only after
+`if (!key) return {configured: false}` has passed. No report was sent and
+nothing was spent: the key check precedes the body check, so an empty body
+answers the question for free. So today a person who taps "reports" in Vitals
+sends their lab report to Anthropic with no consent step, outside the health
+audit, and section 4 of the notice lists three Anthropic surfaces and not this
+one; the approved statement's "provide the required consent" is not asked
+there either. **That is a disclosure decision beyond the approved sentence —
+disclose it in section 4, or put it behind consent first — and the directive
+said to isolate exactly that and continue.** Isolated in `04 D4` and `02 §16`;
+the feature was not touched, and "real health → external AI: BLOCKED" is true
+of the Phase 2 gateway and NOT of that one pre-existing path.
+
+Everything else measured on the way: `health_config` unchanged before and
+after (`enabled` true, house 500, admin verification true, kill off,
+`ai_enabled` false, uploads false); six audit rows, chain intact; the
+throwaway gone (126 users); no key, provider or dependency added — the diff
+greps clean for every credential shape; `supabase/`, `.env`, `src/health/ai`
+and the flags untouched. The marker script now checks BOTH new sentences in
+the privacy chunk and the retired claim's ABSENCE from the privacy chunk and
+the entry: run against the stale local build it failed on exactly those
+lines, and against the fresh build it passes — a check that has never failed
+has never been tested, again.

@@ -7,6 +7,11 @@ provider that exists is synthetic; no health byte reaches Gemini, Vertex,
 MedGemma, Healthcare Search or any external service, and a test proves the
 direct path is impossible.
 
+(The promise was replaced on 2026-09-09 by owner directive with the
+consent-conditioned statement in `src/config/privacy.ts` — `02 §16`, `04 D4`.
+`ai/isolation.test.ts` now ties the NEW statement to `RECIPIENT_FOR_PROVIDER`
+holding no recipient but ONIQ; nothing else in this document changes.)
+
 Status: **BUILT DARK.** Reviewed by five adversarial lenses before code (§14),
 implemented, red-teamed through the real gateway in vitest, and green. Nothing
 is applied, deployed or published; the go sequence is `04 §A-2`.
