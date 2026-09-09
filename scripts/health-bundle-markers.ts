@@ -129,6 +129,7 @@ function fromDir(dir: string): Record<string, string> {
     if (
       ROUTE_CHUNK.test(name) ||
       RECORDS_CHUNK.test(name) ||
+      ADD_REPORT_CHUNK.test(name) ||
       PRIVACY_CHUNK.test(name) ||
       ENTRY_CHUNK.test(name)
     ) {
@@ -147,7 +148,11 @@ async function fromUrl(base: string): Promise<Record<string, string>> {
   const chunks: Record<string, string> = { [entry[1]]: entryText };
   const wanted = new Set<string>();
   for (const m of entryText.matchAll(
-    /(app\.admin_\.health-ai-[\w-]+\.js|app\.health\.records-[\w-]+\.js|privacy-[\w-]+\.js)/g,
+    // AddReport-*.js is the shared "Add a report" chunk both health routes
+    // import. Verified 2026-09-09 that the ENTRY names it, so it is
+    // discoverable here; a chunk the entry never mentions would need walking
+    // the route chunks too.
+    /(app\.admin_\.health-ai-[\w-]+\.js|app\.health\.records-[\w-]+\.js|AddReport-[\w-]+\.js|privacy-[\w-]+\.js)/g,
   ))
     wanted.add(m[1]);
   for (const name of wanted) chunks[name] = await (await fetch(`${root}/assets/${name}`)).text();
