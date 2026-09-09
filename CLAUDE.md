@@ -4101,10 +4101,23 @@ here, in the shape the code already matched.
 
 **EXTRACTION IS RULES, NOT THE MODEL** (`EXTRACT_METHOD = "rules:v1"`). The
 model transcribes an image; the CANDIDATES come from regexes over a closed
-analyte list. The rule was "the first number within 24 characters of the
-analyte name, no newline, unit optional". Measured against report LAYOUTS
-rather than the one-line fixtures this repo had invented for itself, that rule
-was wrong in BOTH directions:
+analyte list.
+
+> **CORRECTED THE SAME EVENING — THAT SENTENCE IS FALSE OF PRODUCTION.**
+> `extractCandidates` is imported by ONE file, `synthetic.ts`. Production runs
+> the `vertex` provider, which asks the MODEL for candidates and rebuilds them
+> from the closed table in `candidatesFromWire`. So everything below hardened
+> the SYNTHETIC path and the tests that exercise it, and changed nothing about
+> what production does. **"Built and unit-tested is not reachable", for the
+> fourth time in this repo — and this time written down as a finding by the
+> agent that had just written that lesson down.** The grep that settles it is
+> one line and was not run: `grep -rn extractCandidates supabase/functions/`.
+> What survives the correction: the closed 28-analyte table bounds BOTH paths,
+> so the conclusions about an X-ray, and about grounding being unable to catch
+> a wrong-but-printed number, hold. See the entry below. The rule was "the first number within 24 characters of the
+> analyte name, no newline, unit optional". Measured against report LAYOUTS
+> rather than the one-line fixtures this repo had invented for itself, that rule
+> was wrong in BOTH directions:
 
     padded label column             NOTHING        -> 13.2 g/dL
     method/specimen column          NOTHING        -> 13.2 g/dL
@@ -4156,3 +4169,62 @@ report has been through the new rule. The owner's documents were not opened —
 they are real medical records, and the layout matrix was built from shapes, not
 from their bytes. **The gate is the owner tapping Analyse on a report they
 already uploaded and seeing their own numbers appear**, not a green suite.
+
+### 2026-09-09 — "no result came up on an xray report": the answer, and a correction to the entry above it
+
+The owner tapped Analyse on a stored document. It RAN — twice, 19:11 and
+19:12, with no register/confirm rows between them, which is the restored
+capability working on their own handset. Both returned `count 0, dropped 0`.
+
+**FIRST, THE CORRECTION, because the previous entry sent the fix to the wrong
+place.** `extractCandidates` has exactly one importer, `synthetic.ts`.
+Production runs `vertex`, which asks the MODEL for candidates and rebuilds
+them from the closed table in `candidatesFromWire`; the receipts say
+`provider vertex`. So the layout/unit work in `94b57c04` improved the SYNTHETIC
+path and the tests, and did not change production behaviour — and it was
+reported as "the extractor" without that qualification. **One grep would have
+caught it before the commit, not after:**
+
+    grep -rn extractCandidates supabase/functions/   ->  synthetic.ts only
+
+That is the fourth "built and unit-tested is not reachable" in this repo, and
+the first one committed by the agent that had just written the lesson down two
+sections earlier. **Reading a lesson is not applying it; running its grep is.**
+
+**WHAT THE X-RAY ANSWER ACTUALLY IS, and it is the same on both paths.** The
+closed table is 28 numeric blood and urine analytes plus blood pressure. A
+radiology report is findings and an impression: it names none of them, and no
+code exists that could hold one. **Zero from an X-ray is the design, not a
+fault**, and no change to any extractor alters that — it is what the closed
+table means.
+
+**WHAT WAS GENUINELY MISSING, on the path production runs.** Every rejection in
+`candidatesFromWire` is a bare `continue` — an unknown code, a non-numeric
+value, a unit that is not that analyte's, an unreadable date — and nothing
+counted them. So `count 0, dropped 0` read identically for "the model proposed
+nothing" and "it proposed things the table threw away", and since the
+transcription is deliberately NOT retained, the question could never be
+answered afterwards. `proposed` and `unusable` now travel to the audit row
+through the contract, clamped to non-negative integers because they come from a
+provider, and added to `AUDIT_DETAIL_KEYS` deliberately — counts, never values.
+**A closed list is a good guard and a bad silence: count what it refuses.**
+
+**AND THE NOTE NOW NAMES THE LIMIT.** It said "Nothing new was added to your
+timeline" — which reads as a failure, and is why the same document was
+analysed twice more at cost. It now says ONIQ reads numbers from blood and
+urine reports and that a scan or X-ray report has none for it to read. Five
+mutations, every one red, including the note reverting to the bare sentence.
+
+MEASURED, from the owner's own rows and no document content:
+
+    19:11 / 19:12  documents.extract  count 0  dropped 0  vertex_transcription
+    receipts       1,831 in / 129 out, charCount 224, transcription 1,289/125
+                   — byte-identical across all three runs, so it is one
+                   document re-read, not a new upload
+
+**STILL THE OWNER'S CALL, and it is a feature not a fix:** whether ONIQ should
+read radiology reports at all. It would store findings and an impression as
+TEXT, which is a different data shape from `health_records` (analyte + number +
+unit) and a different safety profile — summarising a radiologist's impression
+is interpretation, not transcription. Do not build it as an extension of the
+analyte table.
