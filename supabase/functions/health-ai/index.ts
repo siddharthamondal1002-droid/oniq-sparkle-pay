@@ -256,7 +256,36 @@ function makeStore(
           policies,
         ),
       }));
-      const { data, error } = await admin.from("health_records").insert(rows).select("id");
+      // RE-READING A DOCUMENT MUST NOT DUPLICATE ITS READINGS. "Analyse" is
+      // back on every stored document (owner report 2026-09-09, "analysis is
+      // gone"), so the same report can be read twice — by a retry after a
+      // failure, or by a second tap. Nothing else stops that: the insert has
+      // no unique constraint, and the client must never be the authority on
+      // it. A candidate already stored for THIS document, unchanged in code,
+      // value, unit and date, is skipped; two separate uploads of the same
+      // report stay two documents with their own rows, which is what the
+      // person did.
+      const dedupeKey = (r: {
+        code_system: string;
+        code: string;
+        value_num: number | null;
+        value_unit: string | null;
+        effective_at: string;
+      }) => {
+        const t = Date.parse(r.effective_at);
+        const when = Number.isNaN(t) ? r.effective_at : new Date(t).toISOString();
+        return [r.code_system, r.code, String(r.value_num), r.value_unit ?? "", when].join("|");
+      };
+      const { data: already } = await admin
+        .from("health_records")
+        .select("code_system, code, value_num, value_unit, effective_at")
+        .eq("user_id", userId)
+        .eq("document_id", documentId)
+        .eq("status", "active");
+      const seen = new Set((already ?? []).map(dedupeKey));
+      const fresh = rows.filter((r) => !seen.has(dedupeKey(r)));
+      if (fresh.length === 0) return 0;
+      const { data, error } = await admin.from("health_records").insert(fresh).select("id");
       if (error) return 0;
       return (data ?? []).length;
     },

@@ -3,12 +3,19 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { OniqCard, OniqChip, OniqEmpty, OniqSkeletonRows } from "@/components/oniq";
+import { AiOutputReport } from "@/components/safety/AiOutputReport";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { HEALTH_UPLOADS_ENABLED } from "@/health/flags";
-import { HealthAddReport } from "@/health/AddReport";
+import { HealthAddReport, readStoredDocument } from "@/health/AddReport";
 import { healthApi, type DocumentRow } from "@/health/api";
 
-import { documentKindLabel, formatDate, provenanceLabel, reasonText } from "@/health/labels";
+import {
+  documentKindLabel,
+  formatDate,
+  provenanceLabel,
+  reasonText,
+  HEALTH_AI_LABEL,
+} from "@/health/labels";
 
 /**
  * ONIQ HEALTH — your reports. ONE ACTION: pick a file, and what it says is in
@@ -60,6 +67,15 @@ function HealthDocuments() {
   const { t, lang } = useT();
   const qc = useQueryClient();
   const [armed, setArmed] = useState<string | null>(null);
+  // ANALYSE A DOCUMENT ALREADY STORED. The upload path reads a report as it
+  // arrives; this is the same read, on demand, for everything uploaded before
+  // that existed — and for a retry when a read failed. Owner report
+  // 2026-09-09, "analysis is gone": the simplification removed the per-document
+  // Explain button and left no way to read a stored report at all. Re-reading
+  // is safe because the SERVER skips readings it already stored for the
+  // document (health-ai insertCandidates); the client is not the authority.
+  const [reading, setReading] = useState<string | null>(null);
+  const [readNote, setReadNote] = useState<{ id: string; note: string } | null>(null);
 
   const docs = useQuery({
     queryKey: ["health", "documents"],
@@ -134,6 +150,26 @@ function HealthDocuments() {
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <button
                       type="button"
+                      className="text-xs underline disabled:opacity-50"
+                      data-testid="health-doc-analyse"
+                      disabled={reading !== null}
+                      onClick={() => {
+                        setReading(d.id);
+                        setReadNote(null);
+                        void readStoredDocument(d.id, t)
+                          .then((r) => setReadNote({ id: d.id, note: r.note }))
+                          .finally(() => {
+                            setReading(null);
+                            void qc.invalidateQueries({ queryKey: ["health"] });
+                          });
+                      }}
+                    >
+                      {reading === d.id
+                        ? t("health.records.reading", "Reading the report…")
+                        : t("health.records.analyse", "Analyse")}
+                    </button>
+                    <button
+                      type="button"
                       className="text-xs underline"
                       data-testid="health-doc-open"
                       onClick={() => open.mutate(d.id)}
@@ -152,6 +188,21 @@ function HealthDocuments() {
                     </button>
                   </div>
                 </div>
+                {readNote?.id === d.id ? (
+                  <div className="mt-2" data-testid="health-doc-analyse-note">
+                    <p className="text-sm" role="status">
+                      {readNote.note}
+                    </p>
+                    {/* The label goes where the output goes (owner directive
+                        B12): this sentence is what the AI read back, so it
+                        carries HEALTH_AI_LABEL and its report control exactly
+                        as the upload path's note does. */}
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      🤖 {t("health.ai.label", HEALTH_AI_LABEL)}
+                    </p>
+                    <AiOutputReport surface="health_ai_output" targetId={d.id} />
+                  </div>
+                ) : null}
               </OniqCard>
             </li>
           ))}

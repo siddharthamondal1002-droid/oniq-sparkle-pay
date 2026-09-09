@@ -54,6 +54,44 @@ import { reasonText, HEALTH_AI_LABEL } from "@/health/labels";
  * under `health_ai_output` — the declaration moved here with the output.
  */
 
+/** The shape of `t` from useT, narrowed to what this module needs. */
+type Translate = (key: string, fallback?: string) => string;
+
+/**
+ * READ ONE STORED DOCUMENT AND SAY WHAT HAPPENED, in one sentence.
+ *
+ * Shared by the upload path here and the "Analyse" control on every stored
+ * document (app.health.records.tsx), so the two cannot describe the same
+ * outcome differently — the wording is the part a person reads, and two copies
+ * of it drift the first time one is edited.
+ *
+ * THE ZERO CASE NO LONGER CLAIMS WHY. It used to say "No lab values or vitals
+ * were found in that document." Since a document can be read TWICE and the
+ * server now skips readings it already stored, zero can equally mean "found,
+ * already yours" — and the old sentence would then be simply false. This says
+ * only what is true in both cases.
+ */
+export async function readStoredDocument(
+  documentId: string,
+  t: Translate,
+): Promise<{ ok: boolean; note: string }> {
+  const res = await healthAi("extract_document", { documentId });
+  if (!res.ok) return { ok: false, note: reasonText(t, res) };
+  const n = res.data.kind === "extraction" ? res.data.candidates : 0;
+  return {
+    ok: true,
+    note:
+      n > 0
+        ? fill(
+            t("health.records.read", "{count} readings from that report are in your timeline."),
+            {
+              count: String(n),
+            },
+          )
+        : t("health.records.nothing_new", "Nothing new was added to your timeline."),
+  };
+}
+
 /** Everything ONIQ can read values out of arrives as one of these; the kind is metadata. */
 const DEFAULT_KIND = "lab_report";
 
@@ -156,21 +194,9 @@ export function HealthAddReport({ showTimelineLink = true }: { showTimelineLink?
     }
 
     setBusy("reading");
-    const res = await healthAi("extract_document", { documentId });
-    if (!res.ok) {
-      // The report is stored; only the reading failed. Say exactly that.
-      setNote(`${t("health.records.uploaded", "Stored.")} ${reasonText(t, res)}`);
-    } else {
-      const n = res.data.kind === "extraction" ? res.data.candidates : 0;
-      setNote(
-        n > 0
-          ? fill(
-              t("health.records.read", "{count} readings from that report are in your timeline."),
-              { count: String(n) },
-            )
-          : t("health.ai.read.nothing", "No lab values or vitals were found in that document."),
-      );
-    }
+    const read = await readStoredDocument(documentId, t);
+    // The report is stored either way; only the reading can fail. Say which.
+    setNote(read.ok ? read.note : `${t("health.records.uploaded", "Stored.")} ${read.note}`);
     setBusy(null);
     if (inputRef.current) inputRef.current.value = "";
     void qc.invalidateQueries({ queryKey: ["health"] });

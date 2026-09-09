@@ -34,6 +34,9 @@ describe("AI_SURFACES", () => {
       ADD_REPORT,
       "src/routes/_authenticated/app.admin_.health-ai.tsx",
       "src/routes/_authenticated/app.health.index.tsx",
+      // "Analyse" on a stored document renders what the AI read back, so the
+      // documents screen is a declared surface again (2026-09-09).
+      "src/routes/_authenticated/app.health.records.tsx",
     ]);
   });
 
@@ -111,10 +114,16 @@ describe("add a report", () => {
       "HEALTH_AI_ENABLED && (status.data?.ok ? status.data.data.aiAvailable === true : false)",
     );
     // The read happens inside the one action, after the upload is confirmed.
+    // ORDERED BY THE CALL SITE, NOT THE DEFINITION: the request moved into
+    // readStoredDocument (shared with the documents screen's "Analyse"), which
+    // is declared ABOVE the component — so indexOf of the request itself now
+    // points at the helper and orders before everything. What must come after
+    // the confirm and the gate is the CALL.
     const confirm = src.indexOf('"documents.confirm"');
     const gate = src.indexOf("if (!aiAvailable)");
-    const read = src.indexOf('healthAi("extract_document"');
+    const read = src.indexOf("await readStoredDocument(documentId, t)");
     expect(confirm).toBeGreaterThan(-1);
+    expect(read).toBeGreaterThan(-1);
     expect(gate).toBeGreaterThan(confirm);
     expect(read).toBeGreaterThan(gate);
   });

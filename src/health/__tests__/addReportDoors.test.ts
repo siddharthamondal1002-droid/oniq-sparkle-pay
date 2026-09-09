@@ -64,3 +64,57 @@ describe("adding a report is reachable from where the Health tile lands", () => 
     expect(src).toMatch(/stream\(\)\.getReader\(\)/);
   });
 });
+
+describe("analysing a report that is already stored", () => {
+  /**
+   * Owner report, 2026-09-09: _"analyse report is gone"_. The simplification
+   * removed the per-document "Explain" button along with the eleven steps, and
+   * with it the ONLY way to read a document that was already uploaded —
+   * extraction ran at upload time and nowhere else. Removing a capability is
+   * not the same as removing steps, and this is the assertion that says so.
+   */
+  it("every stored document offers Analyse, through the shared reader", () => {
+    const src = read(DOCUMENTS);
+    expect(src).toMatch(/data-testid="health-doc-analyse"/);
+    expect(src).toContain("readStoredDocument(d.id, t)");
+  });
+
+  it("what the AI read back carries the label and the report control", () => {
+    const src = read(DOCUMENTS);
+    const i = src.indexOf('data-testid="health-doc-analyse-note"');
+    expect(i).toBeGreaterThan(-1);
+    const block = src.slice(i, src.indexOf("</div>", src.indexOf("<AiOutputReport", i)));
+    expect(block).toContain("HEALTH_AI_LABEL");
+    expect(block).toContain('surface="health_ai_output"');
+  });
+
+  it("the SERVER refuses to store a reading it already stored for that document", () => {
+    // A document can now be read twice — a retry, or a second tap. Nothing
+    // else stops the duplicate: the insert has no unique constraint. The
+    // client must never be the authority on it, so the filter is asserted in
+    // the edge function, with the caller's id on the chain.
+    const fn = stripComments(
+      readFileSync(join(ROOT, "supabase/functions/health-ai/index.ts"), "utf8"),
+    );
+    expect(fn).toContain("dedupeKey");
+    expect(fn).toContain("rows.filter((r) => !seen.has(dedupeKey(r)))");
+    expect(fn).toContain(".insert(fresh)");
+
+    // THE OWNERSHIP FILTER IS ASSERTED INSIDE THIS READ'S OWN CHAIN, not
+    // anywhere in the file. Mutation-checked: `.eq("user_id", userId)` occurs
+    // seven times in health-ai, so a whole-file match passed with the filter
+    // deleted from exactly the query that needs it. The window is the chain,
+    // bounded by the statement that consumes it.
+    const chain = fn.slice(fn.indexOf("const { data: already }"), fn.indexOf("const seen ="));
+    expect(chain).toContain('.eq("user_id", userId)');
+    expect(chain).toContain('.eq("document_id", documentId)');
+  });
+
+  it("the zero case never claims nothing was found", () => {
+    // Zero can mean "found, and already yours". The old sentence asserted the
+    // other thing and would have been simply false on a re-read.
+    const src = read(COMPONENT);
+    expect(src).not.toContain("No lab values or vitals were found");
+    expect(src).toContain("health.records.nothing_new");
+  });
+});

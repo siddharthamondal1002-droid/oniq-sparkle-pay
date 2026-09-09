@@ -233,6 +233,15 @@ export const AI_SURFACES = [
     file: "src/health/AddReport.tsx",
   },
   {
+    // "Analyse" on a stored document, and the sentence it reads back. Back on
+    // the documents screen after the owner reported the analysis gone
+    // (2026-09-09), so the screen renders AI output again and is declared
+    // again — the label follows the output, in both directions.
+    id: "health_ai_output",
+    screen: "Health — documents (analysing a stored report)",
+    file: "src/routes/_authenticated/app.health.records.tsx",
+  },
+  {
     // The admin verification door for the Health AI gateway. An admin screen
     // still shows generated output, and the label goes where the output goes.
     // Underscore in the filename: opts out of nesting under app.admin.tsx,
