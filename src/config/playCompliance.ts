@@ -223,11 +223,14 @@ export const AI_SURFACES = [
     file: "src/routes/_authenticated/app.health.index.tsx",
   },
   {
-    // The Documents tab's "Suggested records": what the extractor read,
-    // waiting on the person's confirm or reject. AI output by definition.
+    // "Add a report" — the one action, and what the extractor read back from
+    // it. Rendered on BOTH health screens from one component, so the
+    // declaration follows the OUTPUT to the file that renders it rather than
+    // naming either host screen (owner report 2026-09-09, "nowhere to
+    // upload": the picker moved onto the timeline, where the 🩺 tile lands).
     id: "health_ai_output",
-    screen: "Health — documents (suggested records)",
-    file: "src/routes/_authenticated/app.health.records.tsx",
+    screen: "Health — add a report (what the AI read back)",
+    file: "src/health/AddReport.tsx",
   },
   {
     // The admin verification door for the Health AI gateway. An admin screen

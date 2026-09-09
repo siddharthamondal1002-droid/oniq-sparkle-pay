@@ -3934,3 +3934,66 @@ untouched, the smoke receipt kept as an anonymous ledger line.
 The file picker, the camera and the signed upload against the real bucket are
 proven only by the owner's own tap. The gate is a report going in and the
 readings coming out — not a green check.
+
+### 2026-09-09 — "nowhere to upload": the picker was one tab across, which is the same as absent
+
+The owner opened Health and found no way to add a report. Asked which screen,
+they answered **Health (🩺) → Timeline** — the screen the Home tile lands on.
+
+**EVERYTHING ABOUT THE PICKER WAS CORRECT.** It was ungated (the file input
+renders unconditionally; `consentNeeded` only changes the line beneath it), it
+was in the served `app.health.records-BsMAfXgQ.js`, the Documents tab that
+leads to it was in the served shell, and every flag was on. It was simply one
+tab across, behind a label — "Documents" — that nobody looking to add a report
+reads as the way to add a report.
+
+**THAT IS THE THIRD TIME IN THIS REPO, and the second time by the agent that
+wrote the lesson down.** `upiDoors` (2026-09-06: "active" and unreachable,
+reported as _"no tabs, no icons"_) and `/app/creations` (2026-09-07: delete
+built on a screen with one inbound link) are the other two. This file already
+says **"before calling a UI change done, grep for what LINKS to the screen it
+lives on"** — and the grep was even run this time. It came back with only the
+route's own definition, which read as "no door at all", because the tab is
+built from a template literal (`` `${HEALTH_ROUTE}/records` ``) that a literal
+grep cannot see. **A door assembled at runtime is invisible to a text search
+for the path** — the same class as the `health-tab-records` marker that counts
+zero in every build. The honest check is to read the nav source, not to grep
+for the URL.
+
+FIXED BY MOVING THE DOOR, NOT BY HANGING A SIGN. `src/health/AddReport.tsx` is
+one component owning its own busy/error/consent/note state — the
+`OniqDeleteCreation` pattern — rendered by BOTH health screens, first on the
+timeline. Two copies of an upload path would drift silently, because both
+would still compile and both would still upload.
+
+**THE MARKER MOVED TO A CHUNK NOBODY WAS WATCHING.** Both routes import the
+component, so Rolldown split it into its own shared `AddReport-*.js`: the
+picker's markers are NOT in `app.health.records-*.js` any more. Greping the
+records chunk would report ABSENT on a healthy deploy — the Episode 4 false
+negative exactly. Measured from a local build before the line was written, and
+`health-bundle-markers.ts` now reads `ADD_REPORT_CHUNK`. **When code moves into
+a shared component, its chunk moves too; re-learn it from a build.**
+
+THREE GUARDS WENT RED FOR THE RIGHT REASON, AND ONE FOR THE WRONG ONE:
+
+- `playCompliance`'s "none missed" read my new header comment — which
+  explains that `<AiOutputReport />` moved out — as a render of it. **The tenth
+  prose match in this repo.** It strips comments now, and the strip is
+  mutation-checked: undeclaring the component still names it and goes red.
+- `surfaces.test.ts` sliced the result card from `health-read-result` to the
+  first `") : null"`. The card grew an inner conditional (the timeline link is
+  hidden on the timeline itself), that literal matched INSIDE it, and the test
+  reported a missing label on source that carries one. It slices to
+  `</OniqCard>` now — the `marketingCopy.ts` 400-character-window lesson, in a
+  second file.
+- `routes.test.ts` and the marker pin followed the code to the component
+  rather than being deleted; the hook-order rule is asserted on BOTH files,
+  each with the hooks it actually has.
+
+`addReportDoors.test.ts` is the new guard, and it asserts the DOOR rather than
+the component: the timeline renders the picker, both screens share one
+implementation, and neither grows its own `type="file"`. Mutation-checked both
+ways — removing it from the timeline goes red, and so does a whole-file read.
+
+6,089 tests, tsc, lint:ci and Prettier green. Web-only: no migration, no edge
+function, no Lovable message.

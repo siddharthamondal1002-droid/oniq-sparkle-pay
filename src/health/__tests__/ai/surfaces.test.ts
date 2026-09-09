@@ -16,15 +16,24 @@ import { HEALTH_AI_DISCLOSURE, HEALTH_AI_LABEL } from "@/health/labels";
 const ROOT = join(__dirname, "..", "..", "..", "..");
 const ROUTES = join(ROOT, "src/routes/_authenticated");
 const read = (f: string) => stripComments(readFileSync(join(ROUTES, f), "utf8"));
+/** Repo-relative, for surfaces that are components rather than routes. */
+const readRel = (rel: string) => stripComments(readFileSync(join(ROOT, rel), "utf8"));
+/**
+ * "Add a report" moved out of the Documents screen and onto BOTH health
+ * screens as one component — owner report 2026-09-09, "nowhere to upload",
+ * from the timeline. The AI output, its label and its declaration went with
+ * it, so the assertions below follow it rather than the screen that hosts it.
+ */
+const ADD_REPORT = "src/health/AddReport.tsx";
 
 const HEALTH_SURFACES = AI_SURFACES.filter((s) => s.id === "health_ai_output");
 
 describe("AI_SURFACES", () => {
   it("declares the timeline, the documents tab and the admin door under health_ai_output", () => {
     expect(HEALTH_SURFACES.map((s) => s.file).sort()).toEqual([
+      ADD_REPORT,
       "src/routes/_authenticated/app.admin_.health-ai.tsx",
       "src/routes/_authenticated/app.health.index.tsx",
-      "src/routes/_authenticated/app.health.records.tsx",
     ]);
   });
 
@@ -70,18 +79,15 @@ describe("the timeline", () => {
   });
 
   it("passes no content to a report: the report carries an id, never a segment or a display", () => {
-    for (const f of [
-      "app.health.index.tsx",
-      "app.health.records.tsx",
-      "app.admin_.health-ai.tsx",
-    ]) {
+    for (const f of ["app.health.index.tsx", "app.admin_.health-ai.tsx"]) {
       expect(read(f), f).not.toMatch(/<AiOutputReport[^>]*context=/);
     }
+    expect(readRel(ADD_REPORT), ADD_REPORT).not.toMatch(/<AiOutputReport[^>]*context=/);
   });
 });
 
-describe("the documents tab", () => {
-  const src = read("app.health.records.tsx");
+describe("add a report", () => {
+  const src = readRel(ADD_REPORT);
 
   // ONE ACTION (owner directive 2026-09-09, "make it simple"): the screen no
   // longer asks for a type, a title, an Explain tap, or a confirm per value.
@@ -121,7 +127,13 @@ describe("the documents tab", () => {
     expect(src).toMatch(/Google Cloud Vertex AI \(Gemini\)/);
     const i = src.indexOf('testId="health-read-result"');
     expect(i).toBeGreaterThan(-1);
-    const section = src.slice(i, src.indexOf(") : null", i));
+    // TO THE CARD'S CLOSING TAG, NOT THE FIRST ") : null". The card grew an
+    // inner conditional (the timeline link is hidden on the timeline itself)
+    // and that literal then matched INSIDE it, cutting the slice before the
+    // label and reporting a missing label on source that carries one. Same
+    // shape as marketingCopy.test.ts's fixed 400-character window: where a
+    // test reads source by offset, bound it by structure.
+    const section = src.slice(i, src.indexOf("</OniqCard>", i));
     expect(section).toContain("HEALTH_AI_LABEL");
     expect(section).not.toContain("AI_OUTPUT_LABEL");
     expect(section).toContain('surface="health_ai_output"');
@@ -193,7 +205,9 @@ describe("the consent tab", () => {
 });
 
 describe("the label — owner directive 2026-09-08, B12", () => {
-  const FILES = ["app.health.index.tsx", "app.health.records.tsx", "app.admin_.health-ai.tsx"];
+  const FILES = ["app.health.index.tsx", "app.admin_.health-ai.tsx"];
+  const withComponent = (f: string) => (f === ADD_REPORT ? readRel(f) : read(f));
+  const ALL = [...FILES, ADD_REPORT];
 
   it('is "AI-assisted", one constant, rendered on every health AI surface in place of the app-wide label', () => {
     expect(HEALTH_AI_LABEL).toBe("AI-assisted");
@@ -201,8 +215,8 @@ describe("the label — owner directive 2026-09-08, B12", () => {
       "AI-assisted information — check your medical records and a qualified healthcare professional for medical decisions.",
     );
     expect(AI_LABEL_OVERRIDES.health_ai_output).toBe("HEALTH_AI_LABEL");
-    for (const f of FILES) {
-      const src = read(f);
+    for (const f of ALL) {
+      const src = withComponent(f);
       expect(src, f).toContain("HEALTH_AI_LABEL");
       expect(src, f).not.toContain("AI_OUTPUT_LABEL");
     }
@@ -212,7 +226,7 @@ describe("the label — owner directive 2026-09-08, B12", () => {
 
   it("never claims clinical authority: no 'AI Doctor', 'Medical AI' or 'Diagnosis' label on a health screen or in the label module", () => {
     const banned = /AI Doctor|Medical AI|AI Diagnos|Diagnosis:|Diagnosed by/i;
-    for (const f of FILES) expect(read(f), f).not.toMatch(banned);
+    for (const f of ALL) expect(withComponent(f), f).not.toMatch(banned);
     const labels = stripComments(readFileSync(join(ROOT, "src/health/labels.ts"), "utf8"));
     expect(labels).not.toMatch(banned);
     expect(labels).not.toMatch(/AI-generated —/);

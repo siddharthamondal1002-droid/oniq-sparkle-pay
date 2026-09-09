@@ -17,6 +17,7 @@ import {
   ROUTE_CHUNK,
   ROUTE_MARKERS,
   RECORDS_CHUNK,
+  ADD_REPORT_CHUNK,
   RECORDS_MARKERS,
   check,
 } from "../../../scripts/health-bundle-markers";
@@ -198,13 +199,22 @@ describe("health-bundle-markers.ts", () => {
   });
 
   it("every records marker is a data-testid the Records screen renders, or a literal it carries (Phase 3b)", () => {
-    const records = read("src/routes/_authenticated/app.health.records.tsx");
+    // The picker moved into src/health/AddReport.tsx, rendered by BOTH health
+    // screens (owner report 2026-09-09, "nowhere to upload"). The markers are
+    // its data-testids now; the screen keeps the document list's own.
+    const records =
+      read("src/routes/_authenticated/app.health.records.tsx") + read("src/health/AddReport.tsx");
     const ids = [...records.matchAll(/data-testid="([^"]+)"/g)].map((m) => m[1]);
     for (const m of RECORDS_MARKERS) {
       expect(ids.includes(m) || records.includes(m), m).toBe(true);
     }
     expect(RECORDS_CHUNK.test("app.health.records-Dq8cIP7N.js")).toBe(true);
     expect(RECORDS_CHUNK.test("app.health.index-DiTriFPE.js")).toBe(false);
+    // The picker's markers live in the SHARED component chunk now, measured
+    // from a local build — both health routes import it, so Rolldown splits it
+    // out and the records chunk no longer carries them.
+    expect(ADD_REPORT_CHUNK.test("AddReport-BXFVkKxv.js")).toBe(true);
+    expect(ADD_REPORT_CHUNK.test("app.health.records-Dq8cIP7N.js")).toBe(false);
   });
 
   it("looks for them in the chunk named after the route file, never the entry", () => {
@@ -228,7 +238,10 @@ describe("health-bundle-markers.ts check()", () => {
   const good = {
     "index-AAAA.js": "entry without the marker",
     "app.admin_.health-ai-BBBB.js": ROUTE_MARKERS.join(" "),
-    "app.health.records-DDDD.js": RECORDS_MARKERS.join(" "),
+    // The records chunk still ships; the PICKER's markers moved to the shared
+    // component chunk both health routes import.
+    "app.health.records-DDDD.js": "the document list",
+    "AddReport-EEEE.js": RECORDS_MARKERS.join(" "),
     "privacy-CCCC.js": `x ${PRIVACY_SENTENCES.join(" ")} y`,
   };
   const pass = (chunks: Record<string, string>) => check(chunks).every((r) => r.ok);
@@ -237,10 +250,15 @@ describe("health-bundle-markers.ts check()", () => {
     expect(pass(good)).toBe(true);
   });
 
-  it("fails a records chunk from before Phase 3b — the read-method note is the marker no earlier build had", () => {
-    expect(
-      pass({ ...good, "app.health.records-DDDD.js": "health-doc-input health-doc-extract" }),
-    ).toBe(false);
+  it("fails an add-report chunk from before Phase 3b — the read-method note is the marker no earlier build had", () => {
+    expect(pass({ ...good, "AddReport-EEEE.js": "health-doc-input health-doc-extract" })).toBe(
+      false,
+    );
+    const { "AddReport-EEEE.js": _gone, ...rest } = good;
+    expect(pass(rest)).toBe(false);
+  });
+
+  it("fails when the records chunk is absent — the documents screen left the build", () => {
     const { "app.health.records-DDDD.js": _gone, ...rest } = good;
     expect(pass(rest)).toBe(false);
   });

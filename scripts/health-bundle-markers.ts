@@ -28,6 +28,15 @@ export const ROUTE_CHUNK = /^app\.admin_\.health-ai-[\w-]+\.js$/;
  * leftover; the two data-testids are the upload input and the Explain button.
  */
 export const RECORDS_CHUNK = /^app\.health\.records-[\w-]+\.js$/;
+/**
+ * "Add a report" is imported by BOTH health route files, so Rolldown splits it
+ * into its own SHARED chunk — it is not in app.health.records-*.js any more,
+ * and greping that chunk for the picker would report ABSENT on a perfectly
+ * healthy deploy. Measured from a local build 2026-09-09 before this line was
+ * written; the chunk that carries a marker is learned, never assumed
+ * (oniq-ship, and the Episode 4 false negative it records).
+ */
+export const ADD_REPORT_CHUNK = /^AddReport-[\w-]+\.js$/;
 export const RECORDS_MARKERS = [
   "health-doc-input",
   // The one-action flow (owner directive 2026-09-09, "make it simple"): the
@@ -82,7 +91,11 @@ export function check(chunks: Record<string, string>): Verdict[] {
   if (recordsChunks.length === 0) {
     out.push({ ok: false, line: `records chunk app.health.records-*.js  ABSENT` });
   }
-  for (const name of recordsChunks) {
+  const addReportChunks = Object.keys(chunks).filter((n) => ADD_REPORT_CHUNK.test(n));
+  if (addReportChunks.length === 0) {
+    out.push({ ok: false, line: `add-report chunk AddReport-*.js  ABSENT` });
+  }
+  for (const name of addReportChunks) {
     for (const m of RECORDS_MARKERS) {
       const c = count(chunks[name], m);
       out.push({ ok: c >= 1, line: `${m}  ${name}  ${c}` });

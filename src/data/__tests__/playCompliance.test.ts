@@ -9,6 +9,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { HEALTH_AI_PRIVACY_STATEMENT } from "@/config/privacy";
+import { stripComments } from "@/test/sourceText";
 import {
   AI_CONTENT_MODULES,
   AI_LABEL_OVERRIDES,
@@ -63,7 +64,17 @@ describe("AI-Generated Content policy", () => {
     // A file that renders AI output but is absent from AI_SURFACES is the
     // failure mode: shipped, unlabelled, unreportable.
     const declared = new Set(AI_SURFACES.map((s) => join(ROOT, s.file)));
-    const renderers = tsxFiles.filter((p) => /AiOutputReport/.test(readFileSync(p, "utf8")));
+    // COMMENTS STRIPPED FIRST. A file whose header EXPLAINS that it used to
+    // render <AiOutputReport />, or that a sibling now does, is not a
+    // generative surface — and this guard read exactly that as one
+    // (2026-09-09, when the picker moved into src/health/AddReport.tsx). It is
+    // the same prose match this repo has now made ten times: good comments
+    // quote the code they discuss, so any grep strict enough to be useful
+    // hits them. A real render survives the strip; a sentence about one does
+    // not.
+    const renderers = tsxFiles.filter((p) =>
+      /AiOutputReport/.test(stripComments(readFileSync(p, "utf8"))),
+    );
     const undeclared = renderers
       .filter(
         (p) =>

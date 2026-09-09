@@ -13,6 +13,7 @@ import { AiOutputReport } from "@/components/safety/AiOutputReport";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { HEALTH_AI_ENABLED, HEALTH_ENABLED } from "@/health/flags";
 import { healthApi, type HealthStatus, type TimelineRow } from "@/health/api";
+import { HealthAddReport } from "@/health/AddReport";
 import { healthAi, languageFor } from "@/health/ai/client";
 import type { ClientAiResponse } from "@/health/ai/types";
 import { RECORD_KINDS, validateRecordInput, type RecordKind } from "@/health/domain";
@@ -162,6 +163,7 @@ function HealthTimeline() {
 
   return (
     <div className="space-y-4">
+      <HealthAddReport showTimelineLink={false} />
       {aiAvailable ? (
         <OniqCard variant="surface" padding="md" testId="health-ai-panel">
           <OniqSectionHeader title={t("health.ai.ask", "Ask about my records")} />

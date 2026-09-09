@@ -16,6 +16,12 @@ const FILES = {
   consent: "app.health.consent.tsx",
 } as const;
 const read = (f: string) => stripComments(readFileSync(join(ROUTES, f), "utf8"));
+/**
+ * "Add a report" is a component, not a screen: it renders on the timeline AND
+ * on the documents tab (owner report 2026-09-09, "nowhere to upload", from the
+ * timeline). The upload rules follow the code that uploads.
+ */
+const ADD_REPORT = stripComments(readFileSync(join(__dirname, "..", "AddReport.tsx"), "utf8"));
 
 describe("every health screen", () => {
   it.each(Object.values(FILES))("%s reads no table directly", (f) => {
@@ -60,6 +66,28 @@ describe("the documents screen", () => {
     expect(src).not.toMatch(/\.text\(\)/);
   });
 
+  it("keeps every hook above the uploads-off early return", () => {
+    const gate = src.indexOf("if (!HEALTH_UPLOADS_ENABLED)");
+    expect(gate).toBeGreaterThan(0);
+    // The hooks THIS screen has, now that the picker (and its useRef) live in
+    // the component. rules-of-hooks is a release blocker in this repo.
+    for (const hook of ["useT(", "useQueryClient(", "useState", "useQuery(", "useMutation("]) {
+      const last = src.lastIndexOf(hook);
+      expect(last, hook).toBeGreaterThan(-1);
+      expect(last, `${hook} sits below the early return`).toBeLessThan(gate);
+    }
+  });
+});
+
+describe("the add-a-report component", () => {
+  const src = ADD_REPORT;
+
+  it("never reads the file whole", () => {
+    expect(src).not.toMatch(/\.arrayBuffer\(\)/);
+    expect(src).not.toMatch(/readAsDataURL|readAsArrayBuffer|readAsBinaryString/);
+    expect(src).not.toMatch(/\.text\(\)/);
+  });
+
   it("sniffs the head, uploads by signed token, then confirms", () => {
     expect(src).toContain("sniffDocumentMime(");
     expect(src).toContain("uploadToSignedUrl(");
@@ -70,17 +98,15 @@ describe("the documents screen", () => {
     expect(upload).toBeLessThan(confirm);
   });
 
+  it("reads no table directly", () => {
+    expect(src).not.toMatch(/\.from\("health_/);
+    expect(src).not.toMatch(/\.rpc\(/);
+  });
+
   it("keeps every hook above the uploads-off early return", () => {
     const gate = src.indexOf("if (!HEALTH_UPLOADS_ENABLED)");
     expect(gate).toBeGreaterThan(0);
-    for (const hook of [
-      "useT(",
-      "useQueryClient(",
-      "useRef",
-      "useState",
-      "useQuery(",
-      "useMutation(",
-    ]) {
+    for (const hook of ["useT(", "useQueryClient(", "useRef", "useState", "useQuery("]) {
       const last = src.lastIndexOf(hook);
       expect(last, hook).toBeGreaterThan(-1);
       expect(last, `${hook} sits below the early return`).toBeLessThan(gate);
