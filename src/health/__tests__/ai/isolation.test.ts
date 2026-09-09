@@ -168,6 +168,9 @@ const SERVER_RPC_ALLOWED = [
   "is_admin",
   "is_adult_18",
   "has_active_legal_hold",
+  // Phase 4: the caps and the receipt in one locked transaction (migration
+  // 20260909150000); service role only, and reserve.test.ts reads its body.
+  "health_ai_reserve_request",
 ];
 
 describe("the registry", () => {

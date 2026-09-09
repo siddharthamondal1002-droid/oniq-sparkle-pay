@@ -33,7 +33,7 @@ const en: Dict = {
   "health.delete.confirm": "Delete for good?",
   "health.deleted": "Deleted.",
   "health.records.empty": "No documents yet.",
-  "health.records.pick": "Upload a report",
+  "health.records.pick": "Add a report",
   "health.records.kind": "Document type",
   "health.records.title": "Title",
   "health.records.open": "Open",
@@ -150,6 +150,12 @@ const en: Dict = {
   "health.ai.read.vertex_transcription":
     "The file itself was sent to Google Cloud Vertex AI (Gemini) to be read.",
   "health.ai.read.nothing": "No lab values or vitals were found in that document.",
+  "health.records.ai_note":
+    "Pick a report and ONIQ reads it: its text \u2014 or, for a photo or scan, the file itself \u2014 goes to Google Cloud Vertex AI (Gemini), and the readings it states go into your timeline, labelled AI-assisted. Nothing is sent until you pick a file.",
+  "health.records.plain_note": "Your reports are stored privately. Only you can open them.",
+  "health.records.reading": "Reading the report\u2026",
+  "health.records.read": "{count} readings from that report are in your timeline.",
+  "health.records.see_timeline": "See your timeline",
   "health.ai.confirm": "Add to timeline",
   "health.ai.reject": "Not this",
   "health.ai.confirmed": "Added to your timeline.",
@@ -191,7 +197,7 @@ const hi: Dict = {
   "health.delete.confirm": "हमेशा के लिए हटाएँ?",
   "health.deleted": "हटा दिया।",
   "health.records.empty": "अभी कोई दस्तावेज़ नहीं।",
-  "health.records.pick": "रिपोर्ट अपलोड करें",
+  "health.records.pick": "रिपोर्ट जोड़ें",
   "health.records.kind": "दस्तावेज़ का प्रकार",
   "health.records.title": "शीर्षक",
   "health.records.open": "खोलें",
@@ -304,6 +310,13 @@ const hi: Dict = {
   "health.ai.read.vertex_transcription":
     "फ़ाइल स्वयं पढ़ने के लिए Google Cloud Vertex AI (Gemini) को भेजी गई।",
   "health.ai.read.nothing": "उस दस्तावेज़ में कोई लैब मान या वाइटल नहीं मिला।",
+  "health.records.ai_note":
+    "रिपोर्ट चुनिए और ONIQ उसे पढ़ लेगा: उसका टेक्स्ट \u2014 या फ़ोटो/स्कैन होने पर फ़ाइल स्वयं \u2014 Google Cloud Vertex AI (Gemini) को जाती है, और उसमें दर्ज रीडिंग आपकी समयरेखा में AI-सहायित लेबल के साथ आ जाती हैं। फ़ाइल चुनने से पहले कुछ नहीं भेजा जाता।",
+  "health.records.plain_note":
+    "आपकी रिपोर्ट निजी रूप से रखी जाती हैं। उन्हें केवल आप ही खोल सकते हैं।",
+  "health.records.reading": "रिपोर्ट पढ़ी जा रही है\u2026",
+  "health.records.read": "उस रिपोर्ट की {count} रीडिंग आपकी समयरेखा में हैं।",
+  "health.records.see_timeline": "अपनी समयरेखा देखें",
   "health.ai.confirm": "समयरेखा में जोड़ें",
   "health.ai.reject": "यह नहीं",
   "health.ai.confirmed": "आपकी समयरेखा में जोड़ दिया।",
@@ -347,7 +360,7 @@ const bn: Dict = {
   "health.delete.confirm": "চিরতরে মুছবেন?",
   "health.deleted": "মুছে ফেলা হয়েছে।",
   "health.records.empty": "এখনও কোনো নথি নেই।",
-  "health.records.pick": "রিপোর্ট আপলোড করুন",
+  "health.records.pick": "রিপোর্ট যোগ করুন",
   "health.records.kind": "নথির ধরন",
   "health.records.title": "শিরোনাম",
   "health.records.open": "খুলুন",
@@ -456,6 +469,13 @@ const bn: Dict = {
   "health.ai.read.vertex_transcription":
     "ফাইলটি পড়ার জন্য Google Cloud Vertex AI (Gemini)-তে পাঠানো হয়েছে।",
   "health.ai.read.nothing": "ওই নথিতে কোনো ল্যাব মান বা ভাইটাল পাওয়া যায়নি।",
+  "health.records.ai_note":
+    "একটি রিপোর্ট বেছে নিন, ONIQ সেটি পড়ে নেবে: তার টেক্সট \u2014 বা ছবি/স্ক্যান হলে ফাইলটি নিজেই \u2014 Google Cloud Vertex AI (Gemini)-তে যায়, আর তাতে লেখা রিডিংগুলি AI-সহায়ক লেবেল-সহ আপনার সময়রেখায় চলে আসে। ফাইল বেছে নেওয়ার আগে কিছুই পাঠানো হয় না।",
+  "health.records.plain_note":
+    "আপনার রিপোর্ট ব্যক্তিগতভাবে সংরক্ষিত থাকে। কেবল আপনিই সেগুলি খুলতে পারেন।",
+  "health.records.reading": "রিপোর্ট পড়া হচ্ছে\u2026",
+  "health.records.read": "ওই রিপোর্টের {count}টি রিডিং আপনার সময়রেখায় আছে।",
+  "health.records.see_timeline": "আপনার সময়রেখা দেখুন",
   "health.ai.confirm": "সময়রেখায় যোগ করুন",
   "health.ai.reject": "এটি নয়",
   "health.ai.confirmed": "আপনার সময়রেখায় যোগ হয়েছে।",

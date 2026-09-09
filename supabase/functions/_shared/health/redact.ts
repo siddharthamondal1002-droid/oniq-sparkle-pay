@@ -35,6 +35,9 @@ export const AUDIT_DETAIL_KEYS = [
   // and whether the file itself was sent to the provider. Names and a boolean.
   "readMethod",
   "documentSent",
+  // Phase 4: how many extracted candidates the page did not support
+  // (ungrounded, implausible or duplicate) — a count, never a value.
+  "dropped",
 ] as const;
 
 /** Keys a log line may carry. */
@@ -50,6 +53,10 @@ export const LOG_KEYS = [
   "outcome",
   "task",
   "provider",
+  // Phase 4 observability: the model the row named and the CLOSED failure
+  // code (vertex_timeout, forbidden_dose, …) — never a sentence from anyone.
+  "model",
+  "code",
 ] as const;
 
 const MAX_STRING = 64;

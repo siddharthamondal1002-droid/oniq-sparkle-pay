@@ -13,6 +13,8 @@ import type {
   GatewayAuditInput,
   ReceiptPatch,
   ReceiptRow,
+  ReserveResult,
+  ReserveWindow,
   Store,
 } from "../../../../supabase/functions/_shared/health/ai/gateway";
 import type { AiTask, CandidateRecord } from "../../ai/types";
@@ -95,28 +97,45 @@ export class FakeStore implements Store {
     return [...this.priorReceipts, ...own];
   }
 
-  countUserSince(sinceIso: string, task: AiTask) {
-    this.log.push("countUserSince");
-    return Promise.resolve(
-      this.allReceipts().filter(
-        (r) =>
-          r.userId === this.userId &&
-          r.createdAt >= sinceIso &&
-          (r.task === undefined || r.task === task),
-      ).length,
-    );
+  /** The house window: every receipt, every person, every task, whatever its status. */
+  countHouseSince(sinceIso: string): number {
+    return this.allReceipts().filter((r) => r.createdAt >= sinceIso).length;
   }
 
-  countHouseSince(sinceIso: string) {
-    this.log.push("countHouseSince");
-    return Promise.resolve(this.allReceipts().filter((r) => r.createdAt >= sinceIso).length);
+  /** The person's window for ONE task, whatever the status. */
+  countUserSince(sinceIso: string, task: AiTask): number {
+    return this.allReceipts().filter(
+      (r) =>
+        r.userId === this.userId &&
+        r.createdAt >= sinceIso &&
+        (r.task === undefined || r.task === task),
+    ).length;
   }
 
-  beginReceipt(row: ReceiptRow) {
-    this.log.push("beginReceipt");
+  /**
+   * The same rules the SQL function health_ai_reserve_request() applies, in
+   * the same order: a zero cap refuses, the house window first, then the
+   * person's window for the row's task, and only then a started receipt.
+   * One log entry, `reserveReceipt:<outcome>`, because the deployed step is
+   * one locked transaction rather than three round trips.
+   */
+  reserveReceipt(row: ReceiptRow, window: ReserveWindow): Promise<ReserveResult> {
+    const refuse = (reason: "quota_house" | "quota_user" | "caps_unset"): ReserveResult => {
+      this.log.push(`reserveReceipt:${reason}`);
+      return { ok: false, reason };
+    };
+    if (!(window.capHouse > 0) || !(window.capPerUser > 0))
+      return Promise.resolve(refuse("caps_unset"));
+    if (this.countHouseSince(window.since) >= window.capHouse) {
+      return Promise.resolve(refuse("quota_house"));
+    }
+    if (this.countUserSince(window.since, row.task) >= window.capPerUser) {
+      return Promise.resolve(refuse("quota_user"));
+    }
+    this.log.push("reserveReceipt:ok");
     const id = `receipt-${this.receipts.length + 1}`;
     this.receipts.push({ id, row, patches: [] });
-    return Promise.resolve(id);
+    return Promise.resolve({ ok: true, id });
   }
 
   completeReceipt(id: string, patch: ReceiptPatch) {
@@ -148,4 +167,9 @@ export class FakeStore implements Store {
     this.audits.push(input);
     return Promise.resolve();
   }
+}
+
+/** The reservation calls a run made, in order — `reserveReceipt:ok`, `reserveReceipt:quota_house`, … */
+export function reservations(store: FakeStore): string[] {
+  return store.log.filter((l) => l.startsWith("reserveReceipt:"));
 }

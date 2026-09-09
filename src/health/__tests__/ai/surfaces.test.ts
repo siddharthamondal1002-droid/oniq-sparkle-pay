@@ -83,25 +83,48 @@ describe("the timeline", () => {
 describe("the documents tab", () => {
   const src = read("app.health.records.tsx");
 
-  it("lists candidates whenever they exist, with confirm and reject, labelled", () => {
-    expect(src).toContain('healthApi<CandidateRow[]>("records.candidates")');
-    expect(src).toContain('"records.confirm" : "records.reject"');
-    const i = src.indexOf("suggested.length > 0 ? (");
+  // ONE ACTION (owner directive 2026-09-09, "make it simple"): the screen no
+  // longer asks for a type, a title, an Explain tap, or a confirm per value.
+  // What it must still do is say what will happen BEFORE the file is picked,
+  // and label what came back.
+  it("takes a file and nothing else: no type dropdown, no title field, no per-value confirm", () => {
+    expect(src).not.toContain("records.candidates");
+    expect(src).not.toContain("records.confirm");
+    expect(src).not.toContain("records.reject");
+    expect(src).not.toContain("health-candidate");
+    expect(src).not.toContain("health-doc-extract");
+    expect(src).not.toMatch(/setKind|setTitle/);
+    // The one input, and the one thing it triggers.
+    expect(src).toContain('data-testid="health-doc-input"');
+    expect(src).toContain("if (f) void attachFile(f);");
+  });
+
+  it("reads the report as part of the upload, gated on aiAvailable AND the client flag", () => {
+    expect(src).toContain('healthAi("extract_document", { documentId })');
+    expect(src).toContain(
+      "HEALTH_AI_ENABLED && (status.data?.ok ? status.data.data.aiAvailable === true : false)",
+    );
+    // The read happens inside the one action, after the upload is confirmed.
+    const confirm = src.indexOf('"documents.confirm"');
+    const gate = src.indexOf("if (!aiAvailable)");
+    const read = src.indexOf('healthAi("extract_document"');
+    expect(confirm).toBeGreaterThan(-1);
+    expect(gate).toBeGreaterThan(confirm);
+    expect(read).toBeGreaterThan(gate);
+  });
+
+  it("says what will be sent BEFORE the file is picked, and labels what came back", () => {
+    const disclosure = src.indexOf('"health.records.ai_note"');
+    const picker = src.indexOf('data-testid="health-doc-input"');
+    expect(disclosure).toBeGreaterThan(-1);
+    expect(disclosure).toBeLessThan(picker);
+    expect(src).toMatch(/Google Cloud Vertex AI \(Gemini\)/);
+    const i = src.indexOf('testId="health-read-result"');
     expect(i).toBeGreaterThan(-1);
     const section = src.slice(i, src.indexOf(") : null", i));
     expect(section).toContain("HEALTH_AI_LABEL");
     expect(section).not.toContain("AI_OUTPUT_LABEL");
     expect(section).toContain('surface="health_ai_output"');
-    expect(section).toContain("health-candidate-confirm");
-    expect(section).toContain("health-candidate-reject");
-  });
-
-  it("has a caller for extraction, shown only on aiAvailable AND the client flag", () => {
-    expect(src).toContain('healthAi("extract_document", { documentId })');
-    expect(src).toMatch(/aiAvailable \? \(/);
-    expect(src).toContain(
-      "HEALTH_AI_ENABLED && (status.data?.ok ? status.data.data.aiAvailable === true : false)",
-    );
   });
 
   it("keeps every hook above the uploads-off early return", () => {

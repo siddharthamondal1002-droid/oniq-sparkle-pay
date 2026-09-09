@@ -76,3 +76,16 @@ select
   round(coalesce(sum(cost_usd), 0)::numeric, 4) as cost_usd
 from public.health_ai_requests
 where created_at >= date_trunc('month', now());
+
+-- 6. Phase 4: what extraction kept and what the page did not support. `count`
+--    is candidates stored, `dropped` the ones refused as ungrounded,
+--    implausible or duplicate (plausibility.ts) — counts only, never a value.
+select date_trunc('day', created_at) as day,
+  count(*)                                        as extractions,
+  coalesce(sum((detail->>'count')::int), 0)       as candidates_stored,
+  coalesce(sum((detail->>'dropped')::int), 0)     as candidates_dropped,
+  count(*) filter (where detail->>'readMethod' = 'vertex_transcription') as scans_transcribed
+from public.health_audit
+where action = 'documents.extract' and created_at >= now() - interval '30 days'
+group by 1
+order by 1 desc;

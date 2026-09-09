@@ -30,8 +30,11 @@ export const ROUTE_CHUNK = /^app\.admin_\.health-ai-[\w-]+\.js$/;
 export const RECORDS_CHUNK = /^app\.health\.records-[\w-]+\.js$/;
 export const RECORDS_MARKERS = [
   "health-doc-input",
-  "health-doc-extract",
-  "was sent to Google Cloud Vertex AI (Gemini) to be read",
+  // The one-action flow (owner directive 2026-09-09, "make it simple"): the
+  // result card and the disclosure that sits ABOVE the file picker. Both
+  // literals existed in no earlier build, so a 1 is this publish.
+  "health-read-result",
+  "goes to Google Cloud Vertex AI (Gemini)",
 ];
 export const ROUTE_MARKERS = [
   "health-ai-admin-kill",

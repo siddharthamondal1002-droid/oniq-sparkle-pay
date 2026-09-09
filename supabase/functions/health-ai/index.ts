@@ -54,6 +54,7 @@ import {
   type GatewayAuditInput,
   type ReceiptPatch,
   type ReceiptRow,
+  type ReserveWindow,
   type Store,
 } from "../_shared/health/ai/gateway.ts";
 import { capForTask, resolveEnvironment } from "../_shared/health/ai/policy.ts";
@@ -193,34 +194,35 @@ function makeStore(
         .maybeSingle();
       return (data ?? null) as DocRow | null;
     },
-    async countUserSince(sinceIso, task) {
-      // The person's own window, for THIS task (caps are per task). No status
-      // filter: a refused request is a request.
-      const { count } = await admin
-        .from("health_ai_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .eq("task", task)
-        .gte("created_at", sinceIso);
-      return count ?? 0;
-    },
-    async countHouseSince(sinceIso) {
-      // THE HOUSE CAP: the whole app's window, deliberately unscoped, and
-      // again with no status filter.
-      const { count } = await admin
-        .from("health_ai_requests")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", sinceIso);
-      return count ?? 0;
-    },
-    async beginReceipt(row: ReceiptRow) {
-      const { data, error } = await admin
-        .from("health_ai_requests")
-        .insert({ user_id: userId, ...row })
-        .select("id")
-        .single();
-      if (error || !data) throw new Error("receipt_failed");
-      return String(data.id);
+    async reserveReceipt(row: ReceiptRow, window: ReserveWindow) {
+      // THE CAPS AND THE RECEIPT IN ONE LOCKED TRANSACTION (Phase 4). The SQL
+      // function counts the HOUSE window (every task, every person — the one
+      // deliberately unscoped read in this file) and then the person's window
+      // for THIS task, neither filtered on status, and inserts the started
+      // receipt only when both are under their cap. The person's id is the
+      // one this store closed over; the row never names one.
+      const { data, error } = await admin.rpc("health_ai_reserve_request", {
+        _user_id: userId,
+        _request_id: row.request_id,
+        _task: row.task,
+        _purpose: row.purpose,
+        _provider: row.provider,
+        _model: row.model,
+        _consent_id: row.consent_id,
+        _manifest: row.manifest,
+        _cap_house: window.capHouse,
+        _cap_user: window.capPerUser,
+        _since: window.since,
+      });
+      if (error) throw new Error("receipt_failed");
+      const first = (Array.isArray(data) ? data[0] : data) as
+        { receipt_id?: unknown; refusal?: unknown } | null | undefined;
+      const refusal = first?.refusal;
+      if (refusal === "quota_house" || refusal === "quota_user" || refusal === "caps_unset") {
+        return { ok: false as const, reason: refusal };
+      }
+      if (typeof first?.receipt_id !== "string" || refusal) throw new Error("receipt_failed");
+      return { ok: true as const, id: first.receipt_id };
     },
     async completeReceipt(id, patch: ReceiptPatch) {
       await admin.from("health_ai_requests").update(patch).eq("id", id).eq("user_id", userId);
@@ -237,7 +239,14 @@ function makeStore(
         value_unit: c.valueUnit ?? null,
         value_text: null,
         effective_at: c.effectiveAt,
-        status: "candidate",
+        // STRAIGHT INTO THE TIMELINE (owner directive 2026-09-09, "make it
+        // simple"): a report reaches the timeline in one action, so a value
+        // the page states is stored as an ordinary record rather than waiting
+        // on a per-value confirm tap. It carries provenance
+        // document_extraction, which isAiDerived() reads, so every one of
+        // these rows renders with the AI-assisted label and a one-tap delete.
+        // Only values PRINTED on the page get this far (ai/grounding.ts).
+        status: "active",
         confidence: c.confidence,
         provenance: { ...base, confidence: c.confidence },
         document_id: documentId,
@@ -391,6 +400,10 @@ Deno.serve(async (req: Request) => {
   const now = new Date().toISOString();
   let res: Response;
   let outcome = "ok";
+  // The CLOSED code behind a refusal, when there is one: a provider failure's
+  // (vertex_timeout, vertex_http_429_resource_exhausted) or the contract's
+  // (forbidden_dose). Read from the gateway's detail, which carries codes only.
+  let code: string | undefined;
   try {
     const result = await runHealthAi(
       {
@@ -418,6 +431,7 @@ Deno.serve(async (req: Request) => {
       res = json({ ok: true, data: result.result, receiptId: result.receiptId, requestId }, 200);
     } else {
       outcome = result.reason;
+      code = typeof result.detail?.code === "string" ? result.detail.code : undefined;
       res = json(
         { ok: false, reason: result.reason, requestId, ...(result.detail ?? {}) },
         STATUS_FOR_REASON[result.reason] ?? 403,
@@ -433,10 +447,12 @@ Deno.serve(async (req: Request) => {
   logSafe({
     task: parsed.request.task,
     provider: String(config.provider),
+    model: String(config.model),
     status: res.status,
     ms: Date.now() - started,
     requestId,
     outcome,
+    code,
   });
   return res;
 });

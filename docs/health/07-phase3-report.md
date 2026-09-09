@@ -461,8 +461,14 @@ Phase 3b spend: 3 receipts, 2,485 input / 407 output tokens, **$0.001233**.
 Month to date (all of it today, all of it throwaways): 9 requests, 7,541 /
 1,032 tokens, $0.003433. The one thing NOT measured, stated as such: a real
 handset choosing a file on the Records screen — the client path from the file
-picker to `documents.register` and the signed PUT is Phase 1 code that the
-Playwright suite exercises, and the server half of it ran live above.
+picker to `documents.register` and the signed PUT is Phase 1 code, and the
+server half of it ran live above. (Corrected 2026-09-09, Phase 4 §1: this
+paragraph first said "the Playwright suite exercises" that path. No Playwright
+suite exists in this repository — no config, no spec, no `@playwright/test`;
+`routes.test.ts` reads the screen's SOURCE. The client path had never been run
+by anything but a person. Phase 4 §11 adds a mocked-backend browser walk,
+`scripts/health-records-browser-walk.mjs`, and `docs/health/08` records the
+boundary a real device still owns.)
 
 WHAT THE CHECK THEN FOUND, and what it cost to make it pass honestly.
 `scripts/health-production-check.sql` at the final state returned:

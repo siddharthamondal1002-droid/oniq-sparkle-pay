@@ -61,6 +61,7 @@ expected_triggers(name, tbl) as (values
   ('health_config_audit_ai_controls', 'health_config'),
   ('health_config_touch',             'health_config'),
   ('health_audit_chain_before_insert', 'health_audit'),
+  ('health_audit_immutable_before_change', 'health_audit'),
   ('health_records_ae_guard',         'health_records'),
   ('health_documents_ae_guard',       'health_documents'),
   ('health_consents_ae_guard',        'health_consents')
@@ -74,7 +75,7 @@ expected_retention(category) as (values
 ),
 expected_versions(version) as (values
   ('20260908170834'), ('20260908171017'), ('20260908181500'), ('20260908190000'),
-  ('20260909100000'), ('20260909130000')
+  ('20260909100000'), ('20260909130000'), ('20260909150000')
 ),
 audit_fn as (
   select pg_get_functiondef(p.oid) as def
@@ -157,6 +158,33 @@ where not exists (select 1 from pg_indexes where schemaname = 'public' and table
 union all
 select 'CHAIN_SEQ_NOT_UNDER_LOCK', 'new.seq := coalesce(last_seq, 0) + 1 inside health_audit_chain()', 'the trigger leaves seq to the sequence default'
 from chain_fn where def not like '%new.seq := coalesce(last_seq, 0) + 1%'
+-- Phase 4 (migration 20260909150000): the caps are reserved in one locked
+-- transaction by a function only the service role may call; one request holds
+-- at most one receipt; the audit log refuses edits and deletes by trigger.
+union all
+select 'RESERVE_FN_MISSING', 'health_ai_reserve_request(uuid, uuid, text, text, text, text, uuid, jsonb, integer, integer, timestamptz)', 'absent'
+where not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                  where n.nspname = 'public' and p.proname = 'health_ai_reserve_request')
+union all
+select 'RESERVE_FN_NOT_LOCKED', 'pg_advisory_xact_lock(7700000000000030) before the counts', 'the function counts without the lock'
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.proname = 'health_ai_reserve_request'
+  and pg_get_functiondef(p.oid) not like '%pg_advisory_xact_lock(7700000000000030)%'
+union all
+select 'RESERVE_FN_CALLABLE_BY_CLIENT', 'no EXECUTE for anon or authenticated', r.rolname
+from pg_roles r where r.rolname in ('anon', 'authenticated')
+  and exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'public' and p.proname = 'health_ai_reserve_request')
+  and has_function_privilege(r.rolname, 'public.health_ai_reserve_request(uuid, uuid, text, text, text, text, uuid, jsonb, integer, integer, timestamptz)', 'EXECUTE')
+union all
+select 'MISSING_INDEX', 'health_ai_requests_request_id_key (unique on request_id)', 'absent or not unique'
+where not exists (select 1 from pg_indexes where schemaname = 'public' and tablename = 'health_ai_requests' and indexname = 'health_ai_requests_request_id_key' and indexdef like 'CREATE UNIQUE INDEX%')
+union all
+select 'AUDIT_IMMUTABLE_FN_CALLABLE_BY_CLIENT', 'no EXECUTE for anon or authenticated', r.rolname
+from pg_roles r where r.rolname in ('anon', 'authenticated')
+  and exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'public' and p.proname = 'health_audit_immutable')
+  and has_function_privilege(r.rolname, 'public.health_audit_immutable()', 'EXECUTE')
 union all
 select 'PROVIDER_NOT_LOCKED', 'CHECK ((ai_provider = ANY (ARRAY[''synthetic''::text, ''vertex''::text])))', coalesce((select pg_get_constraintdef(k.oid) from pg_constraint k where k.conname = 'health_config_ai_provider_check'), 'absent')
 where coalesce((select pg_get_constraintdef(k.oid) from pg_constraint k where k.conname = 'health_config_ai_provider_check'), '') <> 'CHECK ((ai_provider = ANY (ARRAY[''synthetic''::text, ''vertex''::text])))'

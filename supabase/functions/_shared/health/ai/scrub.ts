@@ -212,7 +212,16 @@ function nfkc(groups: readonly InjectionGroup[]): readonly InjectionGroup[] {
   }));
 }
 
-const EVERY: readonly InjectionGroup[] = [...EN, ...nfkc(SCRIPTS)];
+/**
+ * EVERY LIST RUNS ON EVERY LANGUAGE (Phase 4, owner directive 2026-09-09 §6).
+ * The first version ran the Hindi and Bengali lists only when the REQUEST
+ * was in that language — and a document is read under the request's
+ * language, so a Hindi instruction printed on a report opened from an
+ * English phone walked past the detector (documentRedteam.test.ts, "A.
+ * Hindi override"). A page's script is not the request's language, exactly
+ * the argument SCRIPTS already made for Tamil, Urdu, Gujarati and Marathi.
+ */
+const EVERY: readonly InjectionGroup[] = [...EN, ...nfkc(SCRIPTS), ...nfkc(HI), ...nfkc(BN)];
 
 export const INJECTION_PATTERNS: Record<AiLanguage, readonly InjectionGroup[]> = {
   en: EVERY,
@@ -222,15 +231,15 @@ export const INJECTION_PATTERNS: Record<AiLanguage, readonly InjectionGroup[]> =
 
 export type InjectionResult = { suspected: boolean; matched: string[]; obfuscation: boolean };
 
-/** English runs on every language (code-switching is the norm); the language's own list runs too. */
+/** The same groups whatever the language: the text decides, not the request. */
 export function detectInjection(
   input: string | null | undefined,
-  language: AiLanguage = "en",
+  _language: AiLanguage = "en",
 ): InjectionResult {
   if (!input) return { suspected: false, matched: [], obfuscation: false };
   const obfuscation = hasObfuscation(input);
   const text = normalizeForMatch(input);
-  const groups = language === "en" ? EVERY : [...EVERY, ...INJECTION_PATTERNS[language]];
+  const groups = EVERY;
   const matched = new Set<string>();
   for (const g of groups) if (g.re.test(text)) matched.add(g.id);
   if (obfuscation) matched.add("obfuscation");

@@ -3,9 +3,10 @@
  * run in vitest (Deno.serve, esm.sh), so its properties are read from source
  * with comments stripped: flags before identity, identity before the body,
  * the CLOSED body before the actor, every health-table query scoped to the
- * caller (the house cap being the one named exception), the cap counts
- * asking nothing about status, no delete on a health table, one redacted
- * log line, body-first json, a per-minute rate, and no text source.
+ * caller, the caps and the receipt reserved through the ONE locked SQL
+ * function (Phase 4 — reserve.test.ts reads that function), no delete on a
+ * health table, one redacted log line, body-first json, a per-minute rate,
+ * and no text source but the stored document.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -97,43 +98,45 @@ describe("the Store is bound to the caller", () => {
       m[2],
       m[3],
     ]);
-    expect(methods.length).toBeGreaterThanOrEqual(11);
+    expect(methods.length).toBeGreaterThanOrEqual(9);
     for (const [name, params] of methods) expect(params, name).not.toMatch(/user/i);
   });
 
-  it("every store method that touches a health table scopes it to the caller — except the house count, by name", () => {
+  it("every store method that touches a health table scopes it to the caller — no exceptions", () => {
     // Split the Store into its methods; each method that names a health
     // table must filter on the caller's id or write it, inside THAT method.
+    // (The house cap, the one deliberately unscoped count, moved into the
+    // SQL function in Phase 4; this file no longer counts anything.)
     const parts = store.split(/\n    (?=(?:async )?\w+\()/).slice(1);
-    expect(parts.length).toBeGreaterThanOrEqual(11);
+    expect(parts.length).toBeGreaterThanOrEqual(9);
     let touching = 0;
-    let houseCount = 0;
     for (const body of parts) {
       const name = body.match(/^(?:async )?(\w+)\(/)?.[1] ?? "?";
       if (!/\.from\("health_\w+"\)/.test(body)) continue;
       touching++;
       const scoped = body.includes('.eq("user_id", userId)') || body.includes("user_id: userId");
-      if (name === "countHouseSince") {
-        expect(scoped, "the house count must not be scoped to one person").toBe(false);
-        houseCount++;
-      } else {
-        expect(scoped, `${name} touches a health table without the ownership filter`).toBe(true);
-      }
+      expect(scoped, `${name} touches a health table without the ownership filter`).toBe(true);
     }
-    expect(touching).toBeGreaterThanOrEqual(9);
-    expect(houseCount).toBe(1);
+    expect(touching).toBeGreaterThanOrEqual(7);
+    expect(store).not.toMatch(/countHouseSince|countUserSince|beginReceipt/);
   });
 
-  it("both cap counts window on created_at and never on status; the person's is per TASK, the house's is not", () => {
-    for (const name of ["countUserSince", "countHouseSince"]) {
-      const body = fnBody(name);
-      expect(body).toContain('.from("health_ai_requests")');
-      expect(body).toContain('.gte("created_at", sinceIso)');
-      expect(body).not.toContain('.eq("status"');
-      expect(body).not.toContain('.in("status"');
-    }
-    expect(fnBody("countUserSince")).toContain('.eq("task", task)');
-    expect(fnBody("countHouseSince")).not.toContain('.eq("task"');
+  it("reserves the caps and the receipt through the one locked SQL function, as the caller, with the window the gateway computed", () => {
+    const body = fnBody("reserveReceipt");
+    expect(body).toContain('admin.rpc("health_ai_reserve_request"');
+    expect(body).toContain("_user_id: userId");
+    expect(body).toContain("_task: row.task");
+    expect(body).toContain("_cap_house: window.capHouse");
+    expect(body).toContain("_cap_user: window.capPerUser");
+    expect(body).toContain("_since: window.since");
+    // A refusal is one of three closed reasons; anything else is a failure, never an open door.
+    expect(body).toContain(
+      'refusal === "quota_house" || refusal === "quota_user" || refusal === "caps_unset"',
+    );
+    expect(body).toContain('throw new Error("receipt_failed")');
+    // No count and no insert of its own: the function is the whole step.
+    expect(body).not.toContain('.from("health_ai_requests")');
+    expect(SRC).not.toMatch(/\.from\("health_ai_requests"\)\s*\.insert\(/);
   });
 
   it("reads only active records, and documents only in stored states", () => {
@@ -141,9 +144,14 @@ describe("the Store is bound to the caller", () => {
     expect(fnBody("loadDocument")).toContain('.in("status", ["stored", "processing", "ready"])');
   });
 
-  it("inserts candidates with status candidate, numeric only, and the confidence on both the column and the provenance", () => {
+  it("inserts what a report states as an ACTIVE record (one action, 2026-09-09), numeric only, with the confidence on both the column and the provenance", () => {
     const body = fnBody("insertCandidates");
-    expect(body).toContain('status: "candidate"');
+    // No confirm step stands between this row and the person's timeline, so
+    // the label is what carries the honesty: provenance document_extraction
+    // makes isAiDerived() true, which is what renders "AI-assisted".
+    expect(body).toContain('status: "active"');
+    expect(body).not.toContain('status: "candidate"');
+    expect(body).toContain("provenance: { ...base, confidence: c.confidence }");
     expect(body).toContain("value_text: null");
     expect(body).toContain("confidence: c.confidence");
     expect(body).toContain("provenance: { ...base, confidence: c.confidence }");

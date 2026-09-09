@@ -3780,3 +3780,57 @@ Smaller things worth their lines:
 - The two `health_consents` rows left after the throwaways were gone are the
   OWNER's own, granted at 07:53Z that morning from the app. Nothing of theirs
   was touched, and it is the first sign of the screens being used.
+
+### Owner directive, 2026-09-09 — "the system is very complicated make it simple"
+
+Asked which complexity, the owner chose **the app's steps**. Adding a report
+took ELEVEN: pick a type from a dropdown, type a title, pick a file, wait, find
+Explain, tap it, read a note, scroll to a suggestions card, tap "Add to
+timeline" three times, switch tabs to see them. It now takes **one**: pick a
+file. The type defaults, the title is the filename, the report is read the
+moment it uploads, and the readings it states land in the timeline.
+
+**THE PER-VALUE CONFIRM STEP IS GONE, and the owner made that call with the
+cost stated** — the question named it: "this drops the rule that a person
+confirms anything the AI read before it is kept". Three things carry the weight
+instead, none of them a tap: a value is stored only if it is PRINTED on the page
+(`_shared/health/ai/grounding.ts`); every one renders with the AI-assisted label,
+because its provenance is `document_extraction` and `isAiDerived()` reads that;
+and each deletes in one tap beside the document it came from. A wrongly-kept
+value is therefore visible and removable — which is the whole trade, and why
+grounding is not optional here.
+
+**THE INVENTED LAB RANGES WERE DELETED, because the new flow inverts what they
+cost.** An earlier draft the same day carried physiological windows for thirty
+analytes, written from memory rather than taken from a source, and dropped any
+value outside them. Behind a confirm step that was merely unnecessary; in front
+of the timeline it points the wrong way. A wrongly KEPT value is visible,
+labelled, one tap from gone. A wrongly DROPPED one is invisible — and a guessed
+range rejects exactly the extreme values that matter most.
+`ai/grounding.test.ts` now pins the opposite: a haemoglobin of 2.1 g/dL and a
+glucose of 611 mg/dL both reach the timeline, because the page prints them.
+**Guessing a bound and silently discarding what falls outside it is not a safety
+control.** What is left in that file is arithmetic, not medicine: printed or
+not, a date after tomorrow, the same value twice.
+
+Also deleted: `health-records-browser-walk.mjs` — 400 lines that had never been
+run and walked the eleven-step flow.
+
+**A MUTATION THAT DOES NOT OPEN THE HOLE IT NAMES IS NOT A VERDICT.** The new
+`scripts/health-mutate-enforcement.sh` reported E5 (provider validation removed)
+as ESCAPED. It had not: the mutation deleted `isProviderId` and left the
+recipient-consistency check below it, which throws for every unknown id.
+Defence in depth caught the mutation, and the script read that as a hole in the
+tests. It removes both guards now. Sixteen mutations, every one RED — consent
+bypass, caps bypass, kill switch, ownership filter, audit write, storage authz,
+chain ordering, minimum-necessary, output validation, grounding, unsafe retry.
+
+**TWO REAL BUGS FIXED IN THE SAME PASS, both in `20260909150000`.** The caps
+were a count-then-insert across three round trips, so two requests arriving
+together could both read "N-1" and both spend — `health_ai_reserve_request()`
+now counts and writes the receipt in one locked transaction (20 concurrent
+requests against a cap of 3 admit exactly 3; the old shape admits more, and
+`ai/reserve.test.ts` runs both so the fix is distinguishable from a test that
+cannot see the fault). And `health_audit` refused edits only by GRANT, which
+stops the functions and not the table owner: a trigger now refuses every UPDATE
+and DELETE except the FK set-null an account erasure performs.

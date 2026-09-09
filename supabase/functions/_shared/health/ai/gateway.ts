@@ -6,8 +6,9 @@
  *     → consents (read once; the categories they cover decide what is READ)
  *     → context (minimum data, aliased, scrubbed, quarantined, capped)
  *     → consent (purpose × every category the context touched × recipient)
- *     → caps (per person, house; counts never filter on status)
- *     → RECEIPT (health_ai_requests row, before the provider runs)
+ *     → RESERVATION: caps (house, then per person per task; counts never
+ *       filter on status) and the RECEIPT (health_ai_requests row) in ONE
+ *       locked transaction, before the provider runs
  *     → provider.run(structured input)
  *     → contract (refuse, never trim)
  *     → persist (classification / candidates)
@@ -64,6 +65,7 @@ import { providerFor as defaultProviderFor, type HealthAIProvider } from "./prov
 import type { DocumentTextSource } from "./textSource.ts";
 import { costEstimateUsd } from "./cost.ts";
 import { isProviderError } from "./vertex.ts";
+import { groundCandidates } from "./grounding.ts";
 import { findCovering, type ConsentLike } from "../consent.ts";
 import type { HealthFlags } from "../flags.ts";
 import {
@@ -177,15 +179,33 @@ export type CandidateProvenance = {
   method: string;
 };
 
+/** The rolling window and the two caps a reservation is checked against. */
+export type ReserveWindow = {
+  /** ISO instant: receipts created at or after this count. */
+  since: string;
+  capHouse: number;
+  /** THIS task's per-person cap (`capForTask`), never a total. */
+  capPerUser: number;
+};
+
+export type ReserveResult =
+  { ok: true; id: string } | { ok: false; reason: "quota_house" | "quota_user" | "caps_unset" };
+
 export interface Store {
   loadConsents(): Promise<(ConsentLike & { id: string })[]>;
   loadRecord(id: string): Promise<RecordRow | null>;
   loadActiveRecords(kinds: readonly string[], limit: number): Promise<RecordRow[]>;
   loadDocument(id: string): Promise<DocRow | null>;
-  /** The person's receipts for THIS task in the window — caps are per task (B11). */
-  countUserSince(sinceIso: string, task: AiTask): Promise<number>;
-  countHouseSince(sinceIso: string): Promise<number>;
-  beginReceipt(row: ReceiptRow): Promise<string>;
+  /**
+   * THE CAPS AND THE RECEIPT IN ONE STEP (Phase 4). Counts the house window
+   * (every task, every person) and then the person's window for the row's
+   * task — neither filtered on status — and writes the STARTED receipt only
+   * if both are under their cap, all inside one locked transaction, so two
+   * requests arriving together cannot both pass on the same count. The
+   * deployed implementation is the SQL function health_ai_reserve_request();
+   * a zero cap on either side is refused there too (caps_unset).
+   */
+  reserveReceipt(row: ReceiptRow, window: ReserveWindow): Promise<ReserveResult>;
   completeReceipt(id: string, patch: ReceiptPatch): Promise<void>;
   insertCandidates(
     documentId: string,
@@ -401,6 +421,14 @@ export async function runHealthAi(
   const providerCode = (e: unknown): Record<string, string> | undefined =>
     isProviderError(e) ? { code: e.code } : undefined;
 
+  // 0. THE LANGUAGE IS ONE OF THREE. parseAiRequest refuses anything else at
+  //    the door; this is the same rule one layer down, so a caller that
+  //    reaches the gateway by another road (a test, a future function) can
+  //    never carry a language the templates and the contract do not know.
+  if (!(AI_LANGUAGES as readonly string[]).includes(language)) {
+    return refusedWith("question_rejected", { field: "language" });
+  }
+
   // 1. THE GATE, before any row about the person is read.
   const gate = checkGate({
     flags: config.flags,
@@ -438,13 +466,19 @@ export async function runHealthAi(
   // before a context can be built — a transcription. Null until then.
   let receiptId: string | null = null;
 
-  /** The caps exactly as step 5 checks them: the house first, then the person, for THIS task. */
-  const capsRefusal = async (): Promise<AiRefusalReason | null> => {
-    const since = new Date(Date.parse(now) - DAY_MS).toISOString();
-    if ((await store.countHouseSince(since)) >= config.capHouse) return "quota_house";
-    if ((await store.countUserSince(since, task)) >= config.capPerUser) return "quota_user";
-    return null;
-  };
+  /**
+   * The window every reservation is checked against: rolling 24h from `now`,
+   * the house cap (the owner's ceiling, B11) and THIS task's per-person cap.
+   * The check itself — house first, then the person, neither count filtered
+   * on status — runs INSIDE the store's reservation, under one lock, in the
+   * same transaction as the receipt it writes (Phase 4: a count followed by
+   * an insert was two statements and one race).
+   */
+  const reserveWindow = (): ReserveWindow => ({
+    since: new Date(Date.parse(now) - DAY_MS).toISOString(),
+    capHouse: config.capHouse,
+    capPerUser: config.capPerUser,
+  });
   /** A manifest for a receipt written before anything was built: the id and closed names only. */
   const provisionalManifest = (doc: DocRow): ContextManifest => ({
     task,
@@ -532,18 +566,21 @@ export async function runHealthAi(
       const provider = resolve(providerId);
       if (typeof provider.transcribe === "function") {
         const provisional = provisionalManifest(document);
-        const capped = await capsRefusal();
-        if (capped) return refusedWith(capped, undefined, provisional);
-        receiptId = await store.beginReceipt({
-          request_id: requestId,
-          task,
-          purpose: "ai_interpretation",
-          provider: providerId,
-          model,
-          consent_id: null,
-          manifest: storableManifest(provisional),
-          status: "started",
-        });
+        const reserved = await store.reserveReceipt(
+          {
+            request_id: requestId,
+            task,
+            purpose: "ai_interpretation",
+            provider: providerId,
+            model,
+            consent_id: null,
+            manifest: storableManifest(provisional),
+            status: "started",
+          },
+          reserveWindow(),
+        );
+        if (!reserved.ok) return refusedWith(reserved.reason, undefined, provisional);
+        receiptId = reserved.id;
         try {
           const t = await provider.transcribe({
             model,
@@ -630,29 +667,30 @@ export async function runHealthAi(
   if (!consent.allowed) return refusedReceipted(consent.reason, consent.detail, manifest);
   const consentId = consent.consentIds[0] ?? null;
 
-  // 5. CAPS. Counts do not filter on status: a refused request is still a
-  //    request. Already checked — and receipted — when a transcription ran.
-  if (receiptId === null) {
-    const capped = await capsRefusal();
-    if (capped) return refusedWith(capped, undefined, manifest);
-  }
-
-  // 6. THE RECEIPT, before the provider runs; or the provisional one, which
-  //    the settle below completes with the real manifest and consent.
+  // 5+6. THE RESERVATION: the caps checked and the receipt written in ONE
+  //    locked step, before the provider runs. Counts do not filter on
+  //    status: a refused request is still a request. Already reserved when a
+  //    transcription ran — that provisional receipt is what the settle below
+  //    completes with the real manifest and consent.
   const provisional = receiptId !== null;
-  const receipt: string =
-    receiptId ??
-    (await store.beginReceipt({
-      request_id: requestId,
-      task,
-      purpose: consent.purpose,
-      provider: providerId,
-      model,
-      consent_id: consentId,
-      manifest: storableManifest(manifest),
-      status: "started",
-    }));
-  receiptId = receipt;
+  if (receiptId === null) {
+    const reserved = await store.reserveReceipt(
+      {
+        request_id: requestId,
+        task,
+        purpose: consent.purpose,
+        provider: providerId,
+        model,
+        consent_id: consentId,
+        manifest: storableManifest(manifest),
+        status: "started",
+      },
+      reserveWindow(),
+    );
+    if (!reserved.ok) return refusedWith(reserved.reason, undefined, manifest);
+    receiptId = reserved.id;
+  }
+  const receipt: string = receiptId;
 
   const baseDetail = {
     task,
@@ -826,8 +864,22 @@ export async function runHealthAi(
     const raw = out as { extraction?: unknown; usage?: unknown };
     const verdict = validateExtraction(raw.extraction, raw.usage);
     if (!verdict.ok) return rejectOutput(verdict.code);
-    const { candidates, method, textChars } = verdict.value;
+    const { method, textChars } = verdict.value;
     const cost = costEstimateUsd(model, verdict.usage);
+    // THE PAGE IS THE AUTHORITY, NOT THE PROVIDER. A value is stored only if
+    // it is PRINTED in the text the provider was given — a number a model
+    // wrote under an instruction on the page, or invented, is dropped here.
+    // Since 2026-09-09 these values go straight into the timeline with no
+    // confirm tap, so this is the only thing between a sentence on a page and
+    // a person's record. Counts only travel to the audit row.
+    const grounded = groundCandidates(
+      verdict.value.candidates,
+      context.documents[0]?.text ?? "",
+      context.documents[0]?.capturedDay ?? now.slice(0, 10),
+      now,
+    );
+    const candidates = grounded.kept;
+    const droppedCount = grounded.dropped.ungrounded + grounded.dropped.duplicate;
     const inserted = await store.insertCandidates(doc.id, candidates, {
       source: "document_extraction",
       sourceRef: doc.id,
@@ -835,7 +887,7 @@ export async function runHealthAi(
       method,
     });
     await store.updateDocument(doc.id, {
-      extraction_status: inserted > 0 ? "candidates" : "empty",
+      extraction_status: inserted > 0 ? "read" : "empty",
       text_chars: textChars,
     });
     await settle({
@@ -852,7 +904,7 @@ export async function runHealthAi(
       purpose: consent.purpose,
       consentId,
       outcome: "ok",
-      detail: { ...baseDetail, count: inserted },
+      detail: { ...baseDetail, count: inserted, dropped: droppedCount },
     });
     return {
       ok: true,

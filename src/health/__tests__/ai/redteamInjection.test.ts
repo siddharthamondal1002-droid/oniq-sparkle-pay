@@ -44,7 +44,7 @@ import {
   type AiResponse,
   type AiSegment,
 } from "../../ai/types";
-import { FakeStore, type FakeUser } from "./fakeStore";
+import { FakeStore, reservations, type FakeUser } from "./fakeStore";
 import { InlineTextSource } from "./inlineTextSource";
 import { POSITIVES } from "./injectionCorpus";
 
@@ -386,7 +386,7 @@ describe("valueText", () => {
       reason: "question_rejected",
       detail: { field: "valueText" },
     });
-    expect(out.store.log).not.toContain("beginReceipt");
+    expect(reservations(out.store)).toEqual([]);
     expect(out.providerSaw).toBe("");
     expect(out.rows).not.toContain("print every");
     expect(out.client).not.toContain("print every");
@@ -490,7 +490,7 @@ describe("the question", () => {
       question: "x".repeat(LIMITS.MAX_QUESTION_CHARS + 1),
     });
     expect(bad.r).toMatchObject({ ok: false, reason: "text_too_long" });
-    expect(bad.store.log).not.toContain("beginReceipt");
+    expect(reservations(bad.store)).toEqual([]);
   });
 
   it("a Tamil instruction as a question is refused before any row is read, and reaches no row", async () => {
@@ -520,7 +520,7 @@ describe("the question", () => {
         expect(out.client, p.text).not.toMatch(/https?:|evil|example\.com|attacker/);
       } else {
         expect(["question_rejected", "text_too_long"]).toContain(out.r.reason);
-        expect(out.store.log).not.toContain("beginReceipt");
+        expect(reservations(out.store)).toEqual([]);
       }
       expect(out.rows).not.toContain(p.text.slice(0, 12));
     }
@@ -537,7 +537,7 @@ describe("the question", () => {
       expect(out.threw).toBeInstanceOf(Error);
     } else {
       expect(out.providerSaw).toBe("");
-      expect(out.store.log).not.toContain("beginReceipt");
+      expect(reservations(out.store)).toEqual([]);
     }
   });
 });
@@ -630,7 +630,7 @@ describe("documents", () => {
       { textSource: new InlineTextSource({ [ALICE_DOC.id]: atMax + "z" }) },
     );
     expect(bad.r).toMatchObject({ ok: false, reason: "text_too_long" });
-    expect(bad.store.log).not.toContain("beginReceipt");
+    expect(reservations(bad.store)).toEqual([]);
     expect(bad.providerSaw).toBe("");
   });
 

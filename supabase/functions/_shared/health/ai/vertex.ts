@@ -50,6 +50,14 @@
  * sentence, because an audit detail is a whitelist of closed values and a
  * client answer must never carry Google's words about ONIQ's project.
  *
+ * WHAT IS RETRIED, AND WHAT NEVER IS (Phase 4). A 429 or a 503 is Vertex
+ * saying it did not serve the request — nothing was generated, nothing was
+ * billed — so it is retried ONCE after a short pause. A timeout, a network
+ * failure or any other status may have been billed and is reported as its
+ * closed code, never repeated: "never blindly retry an operation that could
+ * create duplicate billable work" is the owner's rule and this is its shape.
+ * A reply body past VERTEX_MAX_RESPONSE_BYTES is refused unread.
+ *
  * NO SPECIAL MODES. The class has no constructor and no options; the registry
  * factory is zero-arity; the two things a test needs to replace — the token
  * and the transport — are protected methods a TEST-ONLY subclass overrides
@@ -104,6 +112,26 @@ export const VERTEX_TRANSCRIPTION_TIMEOUT_MS = 60_000;
 export const VERTEX_TRANSCRIPTION_MAX_OUTPUT_TOKENS = 8192;
 /** The bucket's own limit; as base64 that is 13.4 MB, under the request ceiling. */
 export const VERTEX_INLINE_MAX_BYTES = 10 * 1024 * 1024;
+/**
+ * The most of a reply this file will read. 8,192 output tokens is well under
+ * a megabyte; a body past this is not an answer and is refused unread rather
+ * than parsed into the isolate's memory (Phase 4).
+ */
+export const VERTEX_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
+/**
+ * RETRIES ARE CLASSIFIED, AND ONLY THE SAFE CLASS IS RETRIED (Phase 4, owner
+ * directive: "never blindly retry an operation that could create duplicate
+ * billable work"). Vertex answers 429 RESOURCE_EXHAUSTED and 503 UNAVAILABLE
+ * for a request it did NOT serve — no tokens were generated, so a second
+ * attempt cannot bill twice. A timeout, a network failure after the body was
+ * sent, or any other status is UNSAFE: the first attempt may have been
+ * served and billed, so it is reported as the closed code and never repeated.
+ * One retry, after a short pause, never more — a stalled region should fail
+ * fast and be read from the audit row, not be hammered.
+ */
+export const VERTEX_RETRYABLE_STATUSES: readonly number[] = [429, 503];
+export const VERTEX_MAX_ATTEMPTS = 2;
+export const VERTEX_RETRY_PAUSE_MS = 400;
 
 export function vertexGenerateUrl(projectId: string, model: string): string {
   return `https://${VERTEX_HOST}/${VERTEX_API_VERSION}/projects/${encodeURIComponent(projectId)}/locations/${VERTEX_LOCATION}/publishers/google/models/${encodeURIComponent(model)}:generateContent`;
@@ -637,6 +665,9 @@ export type VertexHttpResult = { status: number; text: string };
 
 /** A 2xx body as the reply, or a ProviderError carrying Google's status as a closed code. */
 function replyOf(res: VertexHttpResult): VertexReply {
+  if (res.text.length > VERTEX_MAX_RESPONSE_BYTES) {
+    throw new ProviderError("vertex_response_too_large", String(res.text.length));
+  }
   let parsed: unknown = null;
   try {
     parsed = res.text ? JSON.parse(res.text) : null;
@@ -659,7 +690,7 @@ export class VertexHealthAIProvider {
     const auth = await this.token();
     if (!auth.ok) throw new ProviderError("vertex_no_token", auth.reason);
     const url = vertexGenerateUrl(auth.projectId, input.model);
-    const res = await this.send(url, vertexHeaders(auth.token, auth.projectId), requestBody(input));
+    const res = await this.post(url, vertexHeaders(auth.token, auth.projectId), requestBody(input));
     const reply = replyOf(res);
     const text = candidateText(reply);
     const usage = usageFrom(reply, input, text);
@@ -704,7 +735,7 @@ export class VertexHealthAIProvider {
     const auth = await this.token();
     if (!auth.ok) throw new ProviderError("vertex_no_token", auth.reason);
     const url = vertexGenerateUrl(auth.projectId, input.model);
-    const res = await this.send(
+    const res = await this.post(
       url,
       vertexHeaders(auth.token, auth.projectId),
       transcriptionBody(input.mime, bytesToBase64(input.bytes)),
@@ -715,6 +746,33 @@ export class VertexHealthAIProvider {
     const usage = transcriptionUsage(reply, wire.text);
     const cut = capText(wire.text, input.maxChars);
     return { text: cut.text, usage, truncated: wire.truncated || cut.truncated };
+  }
+
+  /**
+   * One request, retried ONCE and only when Vertex said it did not serve it
+   * (VERTEX_RETRYABLE_STATUSES). A throw from `send` — a timeout, a network
+   * failure — is the unsafe class and propagates untouched: the first
+   * attempt may have been billed. Every attempt goes through the same
+   * `send`, so a test sees each one.
+   */
+  private async post(
+    url: string,
+    headers: Record<string, string>,
+    body: Record<string, unknown>,
+    timeoutMs: number = VERTEX_TIMEOUT_MS,
+  ): Promise<VertexHttpResult> {
+    let res = await this.send(url, headers, body, timeoutMs);
+    for (let attempt = 2; attempt <= VERTEX_MAX_ATTEMPTS; attempt++) {
+      if (!VERTEX_RETRYABLE_STATUSES.includes(res.status)) break;
+      await this.pause(VERTEX_RETRY_PAUSE_MS);
+      res = await this.send(url, headers, body, timeoutMs);
+    }
+    return res;
+  }
+
+  /** The wait before the one retry. Overridden only by tests, so they do not sleep. */
+  protected pause(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /** The service-account token, minted or reused by `_shared/googleAuth.ts`. Overridden only by tests. */
@@ -738,8 +796,15 @@ export class VertexHealthAIProvider {
         body: JSON.stringify(body),
         signal: controller.signal,
       });
+      // A body declared past the ceiling is refused before it is read; one
+      // that arrives past it is refused by replyOf() before it is parsed.
+      const declared = Number(res.headers.get("content-length") ?? 0);
+      if (Number.isFinite(declared) && declared > VERTEX_MAX_RESPONSE_BYTES) {
+        throw new ProviderError("vertex_response_too_large", String(declared));
+      }
       return { status: res.status, text: await res.text().catch(() => "") };
     } catch (e) {
+      if (isProviderError(e)) throw e;
       const aborted = e instanceof Error && e.name === "AbortError";
       throw new ProviderError(aborted ? "vertex_timeout" : "vertex_network", "unreachable");
     } finally {

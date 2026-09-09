@@ -6,11 +6,11 @@
  * A passing test is a defended attack; a failing test is a finding, kept in
  * place so it stays red until the code answers it.
  *
- *   1  no provider.run before beginReceipt, on every task
+ *   1  no provider.run before the reservation (the receipt), on every task
  *   2  no receipt left "started": provider throw, contract refusal, a store
  *      method throwing AFTER the receipt, costEstimateUsd throwing, the
  *      audit throwing, providerFor throwing
- *   3  the cap counts run before the receipt and never look at status
+ *   3  the reservation counts before it writes and never looks at status
  *   4  refusals BEFORE the receipt are audited and uncounted; refusals AFTER
  *      are counted — measured both ways so the inconsistency is on record
  *   5  storableManifest and auditDetail strip content, for every task
@@ -66,7 +66,7 @@ import {
   type ProviderInput,
   type ProviderOutput,
 } from "../../ai/types";
-import { FakeStore, type FakeUser } from "./fakeStore";
+import { FakeStore, reservations, type FakeUser } from "./fakeStore";
 import { InlineTextSource } from "./inlineTextSource";
 import { MisbehavingProvider } from "./misbehavingProvider";
 
@@ -210,21 +210,21 @@ function lastStatus(store: FakeStore, i = 0): ReceiptPatch["status"] | "started"
 
 /* ------------------------------------------------------ 1. ordering ---- */
 
-describe("1. no provider.run before beginReceipt, on any task", () => {
+describe("1. no provider.run before the reservation, on any task", () => {
   it("every task writes exactly one receipt, and it precedes the one provider.run", async () => {
     for (const { task, req, deps: d } of everyTask([])) {
       const store = d.store as FakeStore;
       const r = await runHealthAi(d, config(), actor, { task, ...req });
       expect(r.ok, task).toBe(true);
-      const begins = store.log.filter((l) => l === "beginReceipt");
+      const begins = store.log.filter((l) => l === "reserveReceipt:ok");
       const runs = store.log.filter((l) => l === "provider.run");
       expect(begins.length, task).toBe(1);
       expect(runs.length, task).toBe(1);
-      expect(store.log.indexOf("beginReceipt"), task).toBeLessThan(
+      expect(store.log.indexOf("reserveReceipt:ok"), task).toBeLessThan(
         store.log.indexOf("provider.run"),
       );
       // The receipt is written before the provider even RESOLVES — the
-      // factory runs inside the try, after beginReceipt.
+      // factory runs inside the try, after the reservation.
       expect(store.receipts[0].row.status, task).toBe("started");
       expect(lastStatus(store), task).toBe("ok");
     }
@@ -244,7 +244,9 @@ describe("1. no provider.run before beginReceipt, on any task", () => {
       { task: "summarize_timeline" },
     );
     expect(r).toMatchObject({ ok: false, reason: "provider_error" });
-    expect(store.log.indexOf("beginReceipt")).toBeLessThan(store.log.indexOf("providerFor.throw"));
+    expect(store.log.indexOf("reserveReceipt:ok")).toBeLessThan(
+      store.log.indexOf("providerFor.throw"),
+    );
     expect(store.log).not.toContain("provider.run");
     expect(lastStatus(store)).toBe("error");
   });
@@ -415,7 +417,7 @@ describe("2. no receipt is ever left started", () => {
     ).rejects.toThrow(/^audit_failed$/);
     expect(lastStatus(store)).toBe("ok");
     expect(store.log.filter((l) => l === "provider.run").length).toBe(1);
-    expect(store.log.filter((l) => l === "beginReceipt").length).toBe(1);
+    expect(reservations(store)).toEqual(["reserveReceipt:ok"]);
     expect(store.receipts[0].patches.map((p) => p.status)).toEqual(["ok"]);
     expect(store.audits).toEqual([]);
   });
@@ -423,8 +425,8 @@ describe("2. no receipt is ever left started", () => {
 
 /* ----------------------------------------------------------- 3. caps ---- */
 
-describe("3. the cap counts run before the receipt and ignore status", () => {
-  it("a prior receipt still 'started' counts; house then person, both before beginReceipt", async () => {
+describe("3. the reservation counts before it writes, and ignores status", () => {
+  it("a prior receipt still 'started' counts; the refusal is the reservation's own, and it wrote nothing", async () => {
     const store = new FakeStore(alice(), ALICE);
     store.priorReceipts = [{ userId: ALICE, createdAt: NOW, status: "started" }];
     const r = await runHealthAi(deps(store), config({ capPerUser: 1 }), actor, {
@@ -432,8 +434,7 @@ describe("3. the cap counts run before the receipt and ignore status", () => {
     });
     expect(r).toMatchObject({ ok: false, reason: "quota_user" });
     expect(store.receipts.length).toBe(0);
-    expect(store.log.indexOf("countHouseSince")).toBeLessThan(store.log.indexOf("countUserSince"));
-    expect(store.log).not.toContain("beginReceipt");
+    expect(reservations(store)).toEqual(["reserveReceipt:quota_user"]);
   });
 
   it("the house count is not scoped to the person: another account's error receipts exhaust it", async () => {
@@ -547,7 +548,7 @@ describe("4. a refusal before the receipt is audited and does not count; after, 
       const r = await runHealthAi(d, cfg, actor, req);
       expect(r, name).toMatchObject({ ok: false, reason });
       expect(store.receipts.length, name).toBe(0);
-      expect(store.log, name).not.toContain("beginReceipt");
+      expect(reservations(store), name).toEqual([]);
       expect(store.audits.length, name).toBe(1);
       expect(store.audits[0], name).toMatchObject({
         action: "ai.refused",
@@ -582,7 +583,7 @@ describe("4. a refusal before the receipt is audited and does not count; after, 
     ).toMatchObject({ reason: "quota_user" });
     expect(post.receipts.length).toBe(2);
     // Nothing above spent: no provider ran before any receipt in either store.
-    expect(pre.log).not.toContain("beginReceipt");
+    expect(reservations(pre)).toEqual([]);
   });
 });
 
@@ -1126,7 +1127,7 @@ describe("10. the synthetic provider against adversarial and awkward contexts", 
     );
     expect(r).toMatchObject({ ok: false, reason: "text_too_long" });
     expect(seen.length).toBe(0);
-    expect(store.log).not.toContain("beginReceipt");
+    expect(reservations(store)).toEqual([]);
     // The control: the same shape that stays under the cap after scrubbing runs.
     const ok = await runHealthAi(
       deps(store, { providerFor: () => wrapProvider(store, seen) }),
@@ -1153,7 +1154,7 @@ describe("10. the synthetic provider against adversarial and awkward contexts", 
     );
     expect(r).toMatchObject({ ok: false, reason: "text_too_long" });
     expect(seen.length).toBe(0);
-    expect(store.log).not.toContain("beginReceipt");
+    expect(reservations(store)).toEqual([]);
   });
 
   it("MEASURED: the person's own unit field can make the synthetic output fail the contract (safe: refused, receipt refused)", async () => {

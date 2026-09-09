@@ -99,7 +99,7 @@ describe("health-production-check.sql", () => {
     expect(valuesList("expected_retention").sort()).toEqual([...seeded].sort());
   });
 
-  it("expects exactly the versions production recorded: Lovable's two copies, the every-column trigger, the erasure-proof verifier, Phase 3, the seq-under-lock fix", () => {
+  it("expects exactly the versions production recorded: Lovable's two copies, the every-column trigger, the erasure-proof verifier, Phase 3, the seq-under-lock fix, the Phase 4 hardening", () => {
     const files = readdirSync(join(ROOT, "supabase", "migrations"));
     const versions = valuesList("expected_versions");
     expect(versions).toEqual([
@@ -109,6 +109,7 @@ describe("health-production-check.sql", () => {
       "20260908190000",
       "20260909100000",
       "20260909130000",
+      "20260909150000",
     ]);
     for (const v of versions) {
       expect(
@@ -166,6 +167,21 @@ describe("health-production-check.sql", () => {
 
   it("names the every-column property the trigger migration pins", () => {
     expect(CHECK_SQL).toContain("jsonb_each(to_jsonb(new) - ''updated_at'')");
+  });
+
+  it("expects the Phase 4 hardening: the locked reservation function (service role only), one receipt per request, the append-only audit trigger", () => {
+    const phase4 = stripSqlComments(
+      read("supabase/migrations/20260909150000_oniq_health_phase4_hardening.sql"),
+    );
+    expect(phase4).toContain("perform pg_advisory_xact_lock(7700000000000030);");
+    expect(CHECK_SQL).toContain("pg_advisory_xact_lock(7700000000000030)");
+    expect(CHECK_SQL).toContain("select 'RESERVE_FN_CALLABLE_BY_CLIENT'");
+    expect(CHECK_SQL).toContain("select 'RESERVE_FN_NOT_LOCKED'");
+    expect(CHECK_SQL).toContain(
+      "indexname = 'health_ai_requests_request_id_key' and indexdef like 'CREATE UNIQUE INDEX%'",
+    );
+    expect(CHECK_SQL).toContain("('health_audit_immutable_before_change', 'health_audit')");
+    expect(CHECK_SQL).toContain("select 'AUDIT_IMMUTABLE_FN_CALLABLE_BY_CLIENT'");
   });
 });
 

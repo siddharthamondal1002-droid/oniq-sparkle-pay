@@ -13,62 +13,74 @@ import {
 import { AiOutputReport } from "@/components/safety/AiOutputReport";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { HEALTH_AI_ENABLED, HEALTH_UPLOADS_ENABLED } from "@/health/flags";
+import { HEALTH_ROUTE } from "@/health/doors";
 import {
   healthApi,
-  type CandidateRow,
   type DocumentRow,
   type HealthStatus,
   type RegisteredUpload,
 } from "@/health/api";
 import { healthAi } from "@/health/ai/client";
 import {
-  DOCUMENT_KINDS,
   DOCUMENT_MIMES,
   MAX_DOCUMENT_BYTES,
   sniffDocumentMime,
-  type DocumentKind,
   type DocumentMime,
 } from "@/health/domain";
 import { fill } from "@/health/i18n";
 import {
   documentKindLabel,
   formatDate,
-  formatValue,
-  kindLabel,
   provenanceLabel,
   reasonText,
   HEALTH_AI_LABEL,
 } from "@/health/labels";
 
 /**
- * ONIQ HEALTH — documents: a report, a prescription, a discharge summary.
+ * ONIQ HEALTH — your reports. ONE ACTION: pick a file, and what it says is in
+ * your timeline.
+ *
+ * OWNER DIRECTIVE, 2026-09-09: "the system is very complicated make it
+ * simple", and, asked which complexity, they chose the app's steps. This
+ * screen used to take eleven: choose a type from a dropdown, type a title,
+ * choose a file, wait, find and tap Explain, read a note, scroll to a
+ * suggestions card, tap Add to timeline three times, then switch tabs to see
+ * them. It now takes one. The type defaults, the title is the filename, the
+ * report is read the moment it finishes uploading, and the values it states
+ * land in the timeline as ordinary records.
+ *
+ * WHAT WAS GIVEN UP, AND WHAT REPLACED IT. The per-value confirm step is
+ * gone — the owner made that call with the cost stated. Three things carry
+ * the weight instead, and none of them is a tap:
+ *   - a value is stored only if it is PRINTED on the page
+ *     (_shared/health/ai/grounding.ts), so a sentence on a report cannot talk
+ *     the reader into a number the report does not carry;
+ *   - every stored value renders with the AI-assisted label on the timeline,
+ *     because its provenance is document_extraction (isAiDerived);
+ *   - each one deletes in one tap, and the document it came from stays open
+ *     next to it.
+ * A wrongly-kept value is therefore visible and removable. That is the trade
+ * the shape rests on, and it is why grounding is not optional here.
  *
  * THE BYTES NEVER PASS THROUGH THE SERVER. `documents.register` writes the
  * metadata row and hands back a signed-upload token for one path under the
  * person's own prefix; the file goes straight to the private bucket with
  * `uploadToSignedUrl`, which streams the Blob; `documents.confirm` checks the
- * object exists at the declared size. Reads are 60-second signed URLs minted
- * per request and audited.
+ * object arrived at the declared size. Reads are 60-second signed URLs.
  *
  * THE FILE IS NEVER READ WHOLE. Only a 12-byte head is pulled through a
- * stream reader to check the magic bytes against the declared type; the
- * whole-file reads are banned on upload paths repo-wide (actorPhoto.test.ts
- * records why) and `routes.test.ts` bans them here.
+ * stream reader to check the magic bytes against the declared type
+ * (`routes.test.ts` bans whole-file reads here).
  *
- * PHASE 2 — SUGGESTED RECORDS. What the extractor read from a document waits
- * here as a CANDIDATE until the person confirms it (it joins the timeline,
- * labelled as AI-read) or rejects it. The list shows whenever candidates
- * exist, whatever the AI flag says, because a person whose AI switch was
- * turned off must still be able to clear what it suggested — reject sits
- * above every AI gate server-side. "Read values" offers extraction only when
- * the server's `status.aiAvailable` says it would answer; in Phase 2
- * production that is never, and the button is absent rather than broken.
- * This is an AI surface: it carries HEALTH_AI_LABEL ("AI-assisted", B12) and <AiOutputReport />
- * and is declared in src/config/playCompliance.ts.
+ * This is an AI surface: it carries HEALTH_AI_LABEL ("AI-assisted", owner
+ * directive B12) and <AiOutputReport />, and is declared in playCompliance.ts.
  */
 export const Route = createFileRoute("/_authenticated/app/health/records")({
   component: HealthDocuments,
 });
+
+/** Everything ONIQ can read values out of arrives as one of these; the kind is metadata. */
+const DEFAULT_KIND = "lab_report";
 
 async function headBytes(file: Blob, n = 12): Promise<Uint8Array> {
   const reader = file.stream().getReader();
@@ -92,13 +104,11 @@ function HealthDocuments() {
   const { t, lang } = useT();
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [kind, setKind] = useState<DocumentKind>("lab_report");
-  const [title, setTitle] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"uploading" | "reading" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [consentNeeded, setConsentNeeded] = useState(false);
   const [armed, setArmed] = useState<string | null>(null);
-  const [aiNote, setAiNote] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
 
   const docs = useQuery({
     queryKey: ["health", "documents"],
@@ -109,12 +119,6 @@ function HealthDocuments() {
   const status = useQuery({
     queryKey: ["health", "status"],
     queryFn: () => healthApi<HealthStatus>("status"),
-    enabled: HEALTH_UPLOADS_ENABLED,
-  });
-
-  const candidates = useQuery({
-    queryKey: ["health", "candidates"],
-    queryFn: () => healthApi<CandidateRow[]>("records.candidates"),
     enabled: HEALTH_UPLOADS_ENABLED,
   });
 
@@ -144,60 +148,6 @@ function HealthDocuments() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const extract = useMutation({
-    mutationFn: async (documentId: string) => {
-      setAiNote(null);
-      const res = await healthAi("extract_document", { documentId });
-      if (!res.ok) throw new Error(reasonText(t, res));
-      return res.data;
-    },
-    onSuccess: (data) => {
-      const n = data.kind === "extraction" ? data.candidates : 0;
-      // Phase 3b: say HOW it was read, because the two ways differ in what
-      // left ONIQ — a PDF's text layer stays here; a photo or scan travels.
-      const source = data.kind === "extraction" ? (data.readMethod ?? null) : null;
-      const how =
-        source === "vertex_transcription"
-          ? t(
-              "health.ai.read.vertex_transcription",
-              "The file itself was sent to Google Cloud Vertex AI (Gemini) to be read.",
-            )
-          : source === "pdf_text"
-            ? t(
-                "health.ai.read.pdf_text",
-                "Read from the PDF's own text. The file itself stayed with ONIQ.",
-              )
-            : "";
-      const head =
-        n > 0
-          ? `${t("health.ai.suggested", "Suggested records")}: ${n}`
-          : t("health.ai.read.nothing", "No lab values or vitals were found in that document.");
-      setAiNote(how ? `${head} ${how}` : head);
-      void qc.invalidateQueries({ queryKey: ["health"] });
-    },
-    onError: (e: Error) => setAiNote(e.message),
-  });
-
-  const decide = useMutation({
-    mutationFn: async (input: { id: string; confirm: boolean }) => {
-      const res = await healthApi<{ id: string }>(
-        input.confirm ? "records.confirm" : "records.reject",
-        { id: input.id },
-      );
-      if (!res.ok) throw new Error(reasonText(t, res));
-      return input;
-    },
-    onSuccess: (input) => {
-      toast.success(
-        input.confirm
-          ? t("health.ai.confirmed", "Added to your timeline.")
-          : t("health.ai.rejected", "Removed."),
-      );
-      void qc.invalidateQueries({ queryKey: ["health"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   if (!HEALTH_UPLOADS_ENABLED) {
     return (
       <OniqEmpty
@@ -207,11 +157,21 @@ function HealthDocuments() {
     );
   }
 
+  const aiAvailable =
+    HEALTH_AI_ENABLED && (status.data?.ok ? status.data.data.aiAvailable === true : false);
+
   const badFile = () =>
     setError(t("health.records.badfile", "Only PDF, JPEG, PNG or WebP, under 10 MB."));
 
+  /**
+   * THE ONE ACTION. Validate, upload, and — when the AI is available — read
+   * the report, all from a single file choice. A failure to READ is not a
+   * failure to STORE: the document is safely uploaded either way, and the
+   * note says which happened.
+   */
   async function attachFile(file: File) {
     setError(null);
+    setNote(null);
     setConsentNeeded(false);
     const declared = file.type as DocumentMime;
     if (!(DOCUMENT_MIMES as readonly string[]).includes(declared)) return badFile();
@@ -219,12 +179,13 @@ function HealthDocuments() {
     const sniffed = sniffDocumentMime(await headBytes(file));
     if (sniffed !== declared) return badFile();
 
-    setBusy(true);
+    setBusy("uploading");
+    let documentId: string | null = null;
     try {
       const reg = await healthApi<RegisteredUpload>("documents.register", {
         document: {
-          kind,
-          title: title.trim() || file.name.slice(0, 120),
+          kind: DEFAULT_KIND,
+          title: file.name.slice(0, 120),
           mime: declared,
           sizeBytes: file.size,
         },
@@ -239,57 +200,67 @@ function HealthDocuments() {
       if (up.error) throw new Error(t("health.error.generic", "Something went wrong. Try again."));
       const confirmed = await healthApi<{ id: string }>("documents.confirm", { id: reg.data.id });
       if (!confirmed.ok) throw new Error(reasonText(t, confirmed));
-      toast.success(t("health.records.uploaded", "Stored."));
-      setTitle("");
-      void qc.invalidateQueries({ queryKey: ["health"] });
+      documentId = reg.data.id;
     } catch (e) {
       setError(e instanceof Error ? e.message : t("health.error.generic", "Something went wrong."));
-    } finally {
-      setBusy(false);
+      setBusy(null);
       if (inputRef.current) inputRef.current.value = "";
+      return;
     }
+
+    if (!aiAvailable) {
+      toast.success(t("health.records.uploaded", "Stored."));
+      setBusy(null);
+      if (inputRef.current) inputRef.current.value = "";
+      void qc.invalidateQueries({ queryKey: ["health"] });
+      return;
+    }
+
+    setBusy("reading");
+    const res = await healthAi("extract_document", { documentId });
+    if (!res.ok) {
+      // The report is stored; only the reading failed. Say exactly that.
+      setNote(`${t("health.records.uploaded", "Stored.")} ${reasonText(t, res)}`);
+    } else {
+      const n = res.data.kind === "extraction" ? res.data.candidates : 0;
+      setNote(
+        n > 0
+          ? fill(
+              t("health.records.read", "{count} readings from that report are in your timeline."),
+              { count: String(n) },
+            )
+          : t("health.ai.read.nothing", "No lab values or vitals were found in that document."),
+      );
+    }
+    setBusy(null);
+    if (inputRef.current) inputRef.current.value = "";
+    void qc.invalidateQueries({ queryKey: ["health"] });
   }
 
   const rows = docs.data?.ok ? docs.data.data : [];
-  // Both halves: the server's word, and the client constant that is the rollback.
-  const aiAvailable =
-    HEALTH_AI_ENABLED && (status.data?.ok ? status.data.data.aiAvailable === true : false);
-  const suggested = candidates.data?.ok ? candidates.data.data : [];
 
   return (
     <div className="space-y-4">
       <OniqCard variant="surface" padding="md" testId="health-upload">
-        <OniqSectionHeader title={t("health.records.pick", "Upload a report")} />
+        <OniqSectionHeader title={t("health.records.pick", "Add a report")} />
+        <p className="mt-1 text-xs text-muted-foreground">
+          {aiAvailable
+            ? t(
+                "health.records.ai_note",
+                "Pick a report and ONIQ reads it: its text — or, for a photo or scan, the file itself — goes to Google Cloud Vertex AI (Gemini), and the readings it states go into your timeline, labelled AI-assisted. Nothing is sent until you pick a file.",
+              )
+            : t(
+                "health.records.plain_note",
+                "Your reports are stored privately. Only you can open them.",
+              )}
+        </p>
         <div className="mt-3 grid gap-2">
-          <label className="text-xs text-muted-foreground" htmlFor="health-doc-kind">
-            {t("health.records.kind", "Document type")}
-          </label>
-          <select
-            id="health-doc-kind"
-            className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
-            value={kind}
-            onChange={(e) => setKind(e.target.value as DocumentKind)}
-          >
-            {DOCUMENT_KINDS.map((k) => (
-              <option key={k} value={k}>
-                {documentKindLabel(t, k)}
-              </option>
-            ))}
-          </select>
-          <input
-            aria-label={t("health.records.title", "Title")}
-            placeholder={t("health.records.title", "Title")}
-            className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
-            value={title}
-            maxLength={120}
-            onChange={(e) => setTitle(e.target.value)}
-          />
           <input
             ref={inputRef}
             type="file"
             accept={DOCUMENT_MIMES.join(",")}
             className="text-sm"
-            disabled={busy}
+            disabled={busy !== null}
             data-testid="health-doc-input"
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -297,8 +268,10 @@ function HealthDocuments() {
             }}
           />
           {busy ? (
-            <p className="text-sm text-muted-foreground">
-              {t("health.records.uploading", "Uploading…")}
+            <p className="text-sm text-muted-foreground" role="status">
+              {busy === "uploading"
+                ? t("health.records.uploading", "Uploading…")
+                : t("health.records.reading", "Reading the report…")}
             </p>
           ) : consentNeeded ? (
             <Link
@@ -316,72 +289,19 @@ function HealthDocuments() {
         </div>
       </OniqCard>
 
-      {suggested.length > 0 ? (
-        <OniqCard variant="surface" padding="md" testId="health-candidates">
-          <OniqSectionHeader title={t("health.ai.suggested", "Suggested records")} />
-          <p className="mt-1 text-xs text-muted-foreground">
-            {t(
-              "health.ai.suggested.body",
-              "Read from your documents by ONIQ. Nothing joins your timeline until you confirm it.",
-            )}
+      {note ? (
+        <OniqCard variant="surface" padding="md" testId="health-read-result">
+          <p className="text-sm" data-testid="health-ai-note" role="status">
+            {note}
           </p>
-          <ul className="mt-3 space-y-2">
-            {suggested.map((c) => (
-              <li key={c.id} data-testid="health-candidate">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <OniqChip>{kindLabel(t, c.kind)}</OniqChip>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDate(c.effectiveAt, lang)}
-                      </span>
-                    </div>
-                    <div className="mt-1 truncate text-sm font-medium">{c.display}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {formatValue(c.valueNum, c.valueUnit, null)}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {fill(
-                        t("health.ai.confidence", "AI read this from your document ({pct}% sure)"),
-                        { pct: String(Math.round((c.confidence ?? 0) * 100)) },
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <button
-                      type="button"
-                      data-testid="health-candidate-confirm"
-                      className="rounded-full bg-foreground px-3 py-1 text-xs text-background disabled:opacity-50"
-                      disabled={decide.isPending}
-                      onClick={() => decide.mutate({ id: c.id, confirm: true })}
-                    >
-                      {t("health.ai.confirm", "Add to timeline")}
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="health-candidate-reject"
-                      className="text-xs text-muted-foreground underline"
-                      disabled={decide.isPending}
-                      onClick={() => decide.mutate({ id: c.id, confirm: false })}
-                    >
-                      {t("health.ai.reject", "Not this")}
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <Link to={HEALTH_ROUTE} className="mt-2 inline-block text-sm underline">
+            {t("health.records.see_timeline", "See your timeline")}
+          </Link>
           <p className="mt-3 text-[11px] text-muted-foreground">
             🤖 {t("health.ai.label", HEALTH_AI_LABEL)}
           </p>
-          <AiOutputReport surface="health_ai_output" targetId="health-candidates" />
+          <AiOutputReport surface="health_ai_output" targetId="health-read-result" />
         </OniqCard>
-      ) : null}
-
-      {aiNote ? (
-        <p className="text-sm text-muted-foreground" data-testid="health-ai-note" role="status">
-          {aiNote}
-        </p>
       ) : null}
 
       {docs.isPending ? (
@@ -416,17 +336,6 @@ function HealthDocuments() {
                     >
                       {t("health.records.open", "Open")}
                     </button>
-                    {aiAvailable ? (
-                      <button
-                        type="button"
-                        className="text-xs underline"
-                        data-testid="health-doc-extract"
-                        disabled={extract.isPending}
-                        onClick={() => extract.mutate(d.id)}
-                      >
-                        {t("health.ai.explain", "Explain")}
-                      </button>
-                    ) : null}
                     <button
                       type="button"
                       data-testid="health-doc-delete"

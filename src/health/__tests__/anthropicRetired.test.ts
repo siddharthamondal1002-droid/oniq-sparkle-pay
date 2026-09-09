@@ -17,6 +17,15 @@ import { describe, expect, it } from "vitest";
 import { stripComments } from "@/test/sourceText";
 import { THIRD_PARTY_REQUESTS } from "@/config/playCompliance";
 import { HEALTH_AI_RECIPIENT_NAME } from "@/config/privacy";
+import {
+  PROVIDER_REGISTRY,
+  providerFor,
+} from "../../../supabase/functions/_shared/health/ai/provider";
+import { checkGate, type GateInput } from "../../../supabase/functions/_shared/health/ai/policy";
+import { VertexHealthAIProvider } from "../../../supabase/functions/_shared/health/ai/vertex";
+import { googleAuthStatus } from "../../../supabase/functions/_shared/googleAuth";
+import { allHealthFlagsOff } from "../flagNames";
+import { MODEL_ALLOWLIST, PROVIDER_IDS, RECIPIENT_FOR_PROVIDER } from "../ai/types";
 
 const ROOT = join(__dirname, "..", "..", "..");
 const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8");
@@ -101,5 +110,141 @@ describe("the health path names no Anthropic anywhere", () => {
     expect(vertex!.sends).toMatch(/health records/i);
     expect(vertex!.triggeredBy).toMatch(/app\.health\.index\.tsx/);
     expect(THIRD_PARTY_REQUESTS.some((r) => /anthropic/i.test(r.host))).toBe(false);
+  });
+});
+
+/* ------------------------------------------ Phase 4 §3: selection is explicit -- */
+
+describe("provider selection is explicit, closed, and fails closed (Phase 4 §3)", () => {
+  function gate(patch: Partial<GateInput>): ReturnType<typeof checkGate> {
+    const flags = allHealthFlagsOff();
+    flags["health.enabled"] = true;
+    flags["health.ai.enabled"] = true;
+    flags["health.provider_sharing.enabled"] = true;
+    return checkGate({
+      flags,
+      environment: "production",
+      actor: { isAdmin: false, isAdult: true },
+      adminVerificationEnabled: false,
+      regionBlocked: false,
+      providerId: "vertex",
+      model: MODEL_ALLOWLIST.vertex[0],
+      task: "summarize_timeline",
+      capPerUser: 3,
+      capHouse: 500,
+      ...patch,
+    });
+  }
+
+  it("the registry has exactly two providers, neither of them Anthropic, and each names the recipient the table names", () => {
+    expect(Object.keys(PROVIDER_REGISTRY).sort()).toEqual(["synthetic", "vertex"]);
+    expect([...PROVIDER_IDS].sort()).toEqual(["synthetic", "vertex"]);
+    expect(RECIPIENT_FOR_PROVIDER).toEqual({ synthetic: "oniq", vertex: "google_vertex" });
+    for (const id of PROVIDER_IDS) {
+      const p = providerFor(id);
+      expect(p.id).toBe(id);
+      expect(p.recipient).toBe(RECIPIENT_FOR_PROVIDER[id]);
+      expect(JSON.stringify(p)).not.toMatch(ANTHROPIC);
+    }
+  });
+
+  it("Health AI cannot route to Anthropic under any spelling: the registry throws and the gate refuses", () => {
+    for (const id of [
+      "anthropic",
+      "claude",
+      "claude-haiku",
+      "Anthropic",
+      " vertex",
+      "vertex ",
+      "",
+      null,
+      undefined,
+      0,
+      ["vertex"],
+      { toString: () => "vertex" },
+    ]) {
+      expect(() => providerFor(id), String(id)).toThrow(/provider_not_allowed/);
+      expect(gate({ providerId: id }), String(id)).toMatchObject({
+        allowed: false,
+        reason: "provider_not_allowed",
+      });
+    }
+  });
+
+  it("a provider that is not selected is not defaulted: an absent row value is a refusal, never synthetic and never vertex", () => {
+    expect(gate({ providerId: undefined })).toMatchObject({
+      allowed: false,
+      reason: "provider_not_allowed",
+    });
+    expect(gate({ model: undefined })).toMatchObject({
+      allowed: false,
+      reason: "model_not_allowed",
+    });
+  });
+
+  it("missing Vertex configuration fails closed: no service account means no token, a closed code, and no request", async () => {
+    const status = googleAuthStatus(() => undefined);
+    expect(status).toMatchObject({ mode: "none", ready: false, projectId: null });
+    expect(status.reason).toMatch(/missing/);
+    class NoNet extends VertexHealthAIProvider {
+      sends = 0;
+      protected override token() {
+        return Promise.resolve({ ok: false as const, reason: status.reason ?? "none" });
+      }
+      protected override send(): never {
+        this.sends++;
+        throw new Error("must not be reached");
+      }
+    }
+    const p = new NoNet();
+    await expect(
+      p.run({
+        task: "summarize_timeline",
+        model: MODEL_ALLOWLIST.vertex[0],
+        context: {
+          task: "summarize_timeline",
+          language: "en",
+          records: [],
+          documents: [],
+          question: null,
+        },
+        counts: { records: 0, documents: 0 },
+      }),
+    ).rejects.toMatchObject({ code: "vertex_no_token" });
+    expect(p.sends).toBe(0);
+  });
+
+  it("no Health production path reads an Anthropic credential: the only secrets the health tree names are Supabase's and the Google service account's", () => {
+    const secrets = new Set<string>();
+    const healthTrees = [
+      "src/health",
+      "supabase/functions/health-api",
+      "supabase/functions/health-ai",
+      "supabase/functions/_shared/health",
+    ];
+    for (const t of healthTrees) {
+      for (const f of walk(join(ROOT, t))) {
+        const text = stripComments(readFileSync(f, "utf8"));
+        for (const m of text.matchAll(/Deno\.env\.get\("([A-Z0-9_]+)"\)/g)) secrets.add(m[1]);
+      }
+    }
+    const google = stripComments(read("supabase/functions/_shared/googleAuth.ts"));
+    for (const m of google.matchAll(/env\("([A-Z0-9_]+)"\)/g)) secrets.add(m[1]);
+    expect([...secrets].sort()).toEqual(
+      [
+        "SUPABASE_URL",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "SUPABASE_ANON_KEY",
+        "GOOGLE_SERVICE_ACCOUNT_JSON",
+        "GOOGLE_VERTEX_USE_FIREBASE_SA",
+        "FIREBASE_SERVICE_ACCOUNT",
+        "GOOGLE_CLOUD_PROJECT",
+        "GOOGLE_PROJECT_ID",
+        "GOOGLE_OAUTH_REFRESH_TOKEN",
+        "GOOGLE_OAUTH_CLIENT_ID",
+        "GOOGLE_OAUTH_CLIENT_SECRET",
+      ].sort(),
+    );
+    expect([...secrets].some((s) => /ANTHROPIC|CLAUDE/.test(s))).toBe(false);
   });
 });

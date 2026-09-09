@@ -58,6 +58,8 @@
 declare const Deno: { env: { get(key: string): string | undefined } } | undefined;
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
+/** A token exchange that has not answered in this long is down; the caller decides, not the wall clock. */
+export const TOKEN_TIMEOUT_MS = 10_000;
 
 /** Vertex needs this scope; it is the broad one Google's own examples use. */
 const SCOPE = "https://www.googleapis.com/auth/cloud-platform";
@@ -341,14 +343,25 @@ export async function googleAccessToken(
   }
 
   let res: Response;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TOKEN_TIMEOUT_MS);
   try {
     res = await fetch(TOKEN_URL, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body,
+      signal: controller.signal,
     });
-  } catch {
-    return { ok: false, reason: "could not reach Google's token endpoint" };
+  } catch (e) {
+    const aborted = e instanceof Error && e.name === "AbortError";
+    return {
+      ok: false,
+      reason: aborted
+        ? "Google's token endpoint did not answer in time"
+        : "could not reach Google's token endpoint",
+    };
+  } finally {
+    clearTimeout(timer);
   }
   const parsed = (await res.json().catch(() => null)) as {
     access_token?: unknown;

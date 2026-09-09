@@ -42,6 +42,14 @@ export class FakeVertexProvider extends VertexHealthAIProvider {
     return Promise.resolve(this.tokenResult);
   }
 
+  /** Every pause the provider asked for, in ms; the test does not actually wait. */
+  readonly pauses: number[] = [];
+
+  protected override pause(ms: number): Promise<void> {
+    this.pauses.push(ms);
+    return Promise.resolve();
+  }
+
   protected override async send(
     url: string,
     headers: Record<string, string>,

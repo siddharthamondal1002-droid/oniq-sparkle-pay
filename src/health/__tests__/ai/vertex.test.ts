@@ -13,6 +13,7 @@ import {
   ProviderError,
   VERTEX_HOST,
   VERTEX_INLINE_MAX_BYTES,
+  VERTEX_RETRY_PAUSE_MS,
   VERTEX_TIMEOUT_MS,
   VERTEX_TRANSCRIPTION_MAX_OUTPUT_TOKENS,
   VERTEX_TRANSCRIPTION_TIMEOUT_MS,
@@ -49,7 +50,7 @@ import {
   type ContextManifest,
   type ProviderInput,
 } from "../../ai/types";
-import { FakeStore, type FakeUser } from "./fakeStore";
+import { FakeStore, reservations, type FakeUser } from "./fakeStore";
 import {
   FakeVertexProvider,
   isTranscription,
@@ -1013,15 +1014,12 @@ describe("the gateway with a scan behind it (Phase 3b): caps, receipt, transcrip
       readMethod: "vertex_transcription",
       documentSent: true,
     });
-    // ORDER: house cap, person cap, receipt — then the file leaves, then the extraction.
+    // ORDER: the reservation (caps and receipt, one step) — then the file leaves, then the extraction.
     const at = (name: string) => store.log.indexOf(name);
-    expect(at("countHouseSince")).toBeGreaterThan(-1);
-    expect(at("countHouseSince")).toBeLessThan(at("countUserSince"));
-    expect(at("countUserSince")).toBeLessThan(at("beginReceipt"));
-    expect(at("beginReceipt")).toBeLessThan(at("vertex.transcribe"));
+    expect(at("reserveReceipt:ok")).toBeGreaterThan(-1);
+    expect(at("reserveReceipt:ok")).toBeLessThan(at("vertex.transcribe"));
     expect(at("vertex.transcribe")).toBeLessThan(at("vertex.run"));
-    expect(store.log.filter((l) => l === "beginReceipt")).toHaveLength(1);
-    expect(store.log.filter((l) => l === "countHouseSince")).toHaveLength(1);
+    expect(reservations(store)).toEqual(["reserveReceipt:ok"]);
     expect(fake.sent).toHaveLength(2);
     expect(isTranscription(fake.sent[0])).toBe(true);
     expect(isTranscription(fake.sent[1])).toBe(false);
@@ -1103,7 +1101,12 @@ describe("the gateway with a scan behind it (Phase 3b): caps, receipt, transcrip
       reason: "provider_error",
       detail: { code: "vertex_http_429_resource_exhausted" },
     });
-    expect(fake.sent).toHaveLength(1);
+    // Phase 4: a 429 is the one class Vertex did not serve, so it is retried
+    // ONCE — two sends of the transcription, both 429, then the closed code.
+    // No extraction call follows either of them.
+    expect(fake.sent).toHaveLength(2);
+    expect(fake.sent.every((s) => isTranscription(s))).toBe(true);
+    expect(fake.pauses).toEqual([VERTEX_RETRY_PAUSE_MS]);
     expect(store.receipts).toHaveLength(1);
     expect(store.receipts[0].patches.at(-1)).toMatchObject({
       status: "error",
