@@ -606,3 +606,93 @@ statements and reading between them rather than walking away.
   person's medical record, which is precisely what must not happen.
 - **A handset.** Nothing here tapped the button. The gate is the owner opening
   a scan report and reading what it says.
+
+## 2026-09-10 (later) — "make it automatic": the description runs itself on the zero case
+
+Owner directive, verbatim: _"make it automatic using google health and med gamma
+api"_. Two halves, and only the first is buildable today.
+
+### The automatic half — B14, answered
+
+`04 §B14` was the decision this session put to the owner: whether a description
+should run on its own when a read files nothing, given that it is a SECOND paid
+read of the same document. They answered it. It now fires by itself, and only in
+the zero case:
+
+    upload path        a read filed 0 readings  ->  describes automatically
+    Analyse on a row   the read filed 0         ->  describes automatically
+    either one         the read DID file values ->  the button, as before
+
+A read that filed readings has already answered the person; describing it as
+well would be a second charge for a question nobody asked. The zero case is
+exactly the one the owner reported (_"no result came up on an xray report"_) and
+the one where they are otherwise told nothing.
+
+**Spend, unchanged in shape from what was costed in B14.** At most a second
+describe leg on a document that yielded no lab values — ~$0.0006 measured, on
+top of the extraction's ~$0.0004 — bounded by the per-task cap of 10/person/day
+and the house cap of 500. Nothing about the caps, the consent, the kill switch,
+the gateway order or the provider moved.
+
+**It fires from an EFFECT behind a ref, never from render.** React StrictMode
+double-invokes effects in development, and a second invocation here is a second
+billed call on the metered Google key. The ref holds the DOCUMENT ID rather than
+a boolean: a boolean would let the same document describe twice across a
+remount, or block a different document from describing at all. The effect's
+dependency list is the id alone, deliberately — `describe` closes over the
+language, and re-running on a language change would bill a re-read of a report
+already described. The hook sits above every early return
+(`react-hooks/rules-of-hooks` is a release blocker here).
+
+The button stays and relabels to **"Read it again"** once an answer is on
+screen, so a genuine re-read is still a deliberate act rather than something the
+screen does on its own.
+
+Four new mutations, all RED: **D16** every document row reading itself on mount
+(an unguarded `auto`), **D17** Analyse describing even when it DID file
+readings, **D18** the upload path no longer reading itself, **D19** the
+once-per-document ref removed. D11 and D12 first reported `NOTAPPLIED` because
+the `auto` edit moved their python anchors — repaired, and both RED again. **A
+mutation that did not apply is not a verdict**, for the second time in two days.
+
+### The provider half — MEASURED, NOT BUILT
+
+The directive names two Google surfaces. Neither is a drop-in for
+`gemini-3.1-flash-lite`, and the reason is not preference:
+
+**MedGemma is not an API.** It is OPEN WEIGHTS — Gemma 3 variants published on
+Hugging Face and Vertex Model Garden, per Google's own model card. There is no
+per-token endpoint to point `vertex.ts` at. Using it means DEPLOYING it: a
+Vertex endpoint held up continuously, because a health question arriving at
+11pm cannot wait for a cold model to load. From `01-research.md`'s **[PAGE]**
+-labelled Vertex machine prices, that is roughly **$840/month** for the 4B on an
+L4 and **$3,081/month** for the 27B on an A100 — against **$0.000628** for the
+X-ray description that is already live. Three orders of magnitude, for a model
+whose card describes it as a research/developer starting point requiring
+validation before clinical use.
+
+**Healthcare NLP is real, and is a different shape.** The live discovery
+document carries `POST v1/{+nlpService}:analyzeEntities` — it is ENTITY
+EXTRACTION (medical concepts, relations, FHIR-ish output), not prose that says
+what a report states. At the **[PAGE]** price of $0.10 per 1,000 characters, the
+owner's own 14,780-character report would cost about **$1.48** to run once, ~2,400×
+what today's read costs. It is a candidate for a future structured-extraction
+path, not for "what does this report say".
+
+Neither is enabled on `oniq-309bd` today, and turning either on is console work
+plus a standing bill — a provider-and-payment choice, and the owner's under
+CLAUDE.md's first rule. Recorded in `04` as a costed option; nothing was built
+against it, and no probe was run that would spend.
+
+### Gates
+
+tsc clean; `lint:ci` clean on the changed files; Prettier clean on them (the
+repo-wide 372-file report is the pre-existing state this repo carries); health
+suite 52 files / 1,111 tests; full suite 356 files / 6,138 tests (the one known
+`arapStep11dDiagnosis` timing flake under load, green on a re-run); `deno check`
+green on both functions; the build green and `health-bundle-markers` PASS on
+every marker; 19/19 describe mutations RED.
+
+**Web-only.** No migration, no edge function, no Lovable deploy message, no
+credits. The server already knows `describe_document`; what changed is who asks
+it and when.

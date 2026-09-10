@@ -151,7 +151,7 @@ cp "$BAK" $F
 F=src/health/AddReport.tsx; cp $F "$BAK"
 mutate <<'PY'
 p='src/health/AddReport.tsx'; s=open(p).read()
-old='          {nothingFiled ? <HealthReportDescription documentId={nothingFiled} /> : null}\n'
+old='          {nothingFiled ? <HealthReportDescription documentId={nothingFiled} auto /> : null}\n'
 assert s.count(old)==1
 s=s.replace(old,'')
 open(p,'w').write(s)
@@ -163,7 +163,7 @@ cp "$BAK" $F
 F=src/routes/_authenticated/app.health.records.tsx; cp $F "$BAK"
 mutate <<'PY'
 p='src/routes/_authenticated/app.health.records.tsx'; s=open(p).read()
-old='                <HealthReportDescription documentId={d.id} />\n'
+old='                <HealthReportDescription documentId={d.id} auto={nothingFiled === d.id} />\n'
 assert s.count(old)==1
 s=s.replace(old,'')
 open(p,'w').write(s)
@@ -208,6 +208,54 @@ s=s.replace(old,'')
 open(p,'w').write(s)
 PY
 report "D15 no HTTP status for document_rejected" "$(run $T/ai/wiring.test.ts)"
+cp "$BAK" $F
+
+# D16-D19: the AUTOMATIC read (owner directive 2026-09-10). The spend shape is
+# the risk - `auto` unguarded on the records screen fires one PAID read per
+# document the moment the Documents tab mounts, and a render-time call bills
+# again on every re-render.
+F=src/routes/_authenticated/app.health.records.tsx; cp $F "$BAK"
+mutate <<'PY'
+p='src/routes/_authenticated/app.health.records.tsx'; s=open(p).read()
+old='auto={nothingFiled === d.id}'
+assert s.count(old)==1
+s=s.replace(old,'auto')
+open(p,'w').write(s)
+PY
+report "D16 every document row reads itself on mount (unguarded auto)" "$(run $T/ai/describeDocument.test.ts)"
+cp "$BAK" $F
+
+cp $F "$BAK"
+mutate <<'PY'
+p='src/routes/_authenticated/app.health.records.tsx'; s=open(p).read()
+old='setNothingFiled(r.ok && r.count === 0 ? d.id : null)'
+assert s.count(old)==1
+s=s.replace(old,'setNothingFiled(d.id)')
+open(p,'w').write(s)
+PY
+report "D17 Analyse describes even when it DID file readings" "$(run $T/ai/describeDocument.test.ts)"
+cp "$BAK" $F
+
+F=src/health/AddReport.tsx; cp $F "$BAK"
+mutate <<'PY'
+p='src/health/AddReport.tsx'; s=open(p).read()
+old='documentId={nothingFiled} auto'
+assert s.count(old)==1
+s=s.replace(old,'documentId={nothingFiled}')
+open(p,'w').write(s)
+PY
+report "D18 the upload path stops reading itself" "$(run $T/ai/describeDocument.test.ts)"
+cp "$BAK" $F
+
+F=src/health/ReportDescription.tsx; cp $F "$BAK"
+mutate <<'PY'
+p='src/health/ReportDescription.tsx'; s=open(p).read()
+old='    if (describedRef.current === documentId) return;\n    describedRef.current = documentId;\n'
+assert s.count(old)==1
+s=s.replace(old,'')
+open(p,'w').write(s)
+PY
+report "D19 the once-per-document ref removed (StrictMode bills twice)" "$(run $T/ai/describeDocument.test.ts)"
 cp "$BAK" $F
 
 echo "done."

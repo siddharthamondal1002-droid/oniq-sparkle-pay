@@ -77,6 +77,11 @@ function HealthDocuments() {
   // document (health-ai insertCandidates); the client is not the authority.
   const [reading, setReading] = useState<string | null>(null);
   const [readNote, setReadNote] = useState<{ id: string; note: string } | null>(null);
+  // The document an Analyse just filed NOTHING from. It describes itself,
+  // without a second tap — owner directive 2026-09-10, "make it automatic".
+  // Set only on the zero case, so a report that yielded readings is not read
+  // (and billed) a second time.
+  const [nothingFiled, setNothingFiled] = useState<string | null>(null);
 
   const docs = useQuery({
     queryKey: ["health", "documents"],
@@ -157,8 +162,12 @@ function HealthDocuments() {
                       onClick={() => {
                         setReading(d.id);
                         setReadNote(null);
+                        setNothingFiled(null);
                         void readStoredDocument(d.id, t)
-                          .then((r) => setReadNote({ id: d.id, note: r.note }))
+                          .then((r) => {
+                            setReadNote({ id: d.id, note: r.note });
+                            setNothingFiled(r.ok && r.count === 0 ? d.id : null);
+                          })
                           .finally(() => {
                             setReading(null);
                             void qc.invalidateQueries({ queryKey: ["health"] });
@@ -194,7 +203,7 @@ function HealthDocuments() {
                     found nothing: a scan report is exactly the file a person
                     re-opens later, and a door that appears only after a
                     disappointing note is a door most people never see. */}
-                <HealthReportDescription documentId={d.id} />
+                <HealthReportDescription documentId={d.id} auto={nothingFiled === d.id} />
                 {readNote?.id === d.id ? (
                   <div className="mt-2" data-testid="health-doc-analyse-note">
                     <p className="text-sm" role="status">

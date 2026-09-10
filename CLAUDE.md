@@ -4356,3 +4356,85 @@ the real gateway rather than live (the second deliberately — running it agains
 the owner's real documents is the one experiment that must not be tried), and
 **the gate is the owner tapping "What does this report say?" on a scan they
 already uploaded.**
+
+### Owner directive, 2026-09-10 — "make it automatic using google health and med gamma api"
+
+Two halves. The first is decision **B14**, which this repo had deliberately left
+to the owner; the second names two Google surfaces that are measured below and
+NOT built, because neither is what it sounds like.
+
+**THE AUTOMATIC HALF IS SHIPPED, AND IT FIRES ONLY ON THE ZERO CASE.** A
+description now runs by itself when a read files NOTHING — the upload path's
+"no lab values" note, and a records row whose Analyse has just returned zero.
+A read that DID file readings has already answered the person, so describing it
+as well would be a second charge for a question nobody asked; there the button
+stays. The zero case is exactly what the owner reported (_"no result came up on
+an xray report"_) and the one where they are otherwise told nothing.
+
+**B14 WAS THE RIGHT THING TO HAVE ASKED.** A description is a SECOND paid read
+of the same document on the metered Google key, so chaining it was a spend
+decision under this file's first rule and not an engineering call. It was put to
+them in `docs/health/04 §B14` with the cost stated, and their answer is recorded
+there. The shape of the spend is unchanged from what was costed: ~$0.0006 on top
+of the extraction's ~$0.0004, on documents that yielded no lab values, bounded
+by the per-task cap of 10/person/day and the house cap of 500. Nothing about the
+caps, consent, kill switch, gateway order or provider moved.
+
+**AN EFFECT BEHIND A REF, NEVER A RENDER-TIME CALL — and the ref holds the
+DOCUMENT ID, not a boolean.** React StrictMode double-invokes effects in
+development, and a second invocation here is a second billed call. A boolean ref
+would let the same document describe twice across a remount AND block a
+different document from describing at all; the id gets both right. The
+dependency list is the id alone, deliberately: `describe` closes over the
+language too, and re-running on a language change would bill a re-read of a
+report already described. The hook is above every early return. The button
+relabels to "Read it again" once an answer is on screen, so a real re-read stays
+a deliberate act.
+
+**AND D11/D12 WENT `NOTAPPLIED`, WHICH IS THE ONLY REASON THIS PARAGRAPH IS
+HERE.** The `auto` edit moved two python anchors in
+`scripts/health-mutate-describe.sh`, so two existing mutations stopped applying.
+The script prints `NOTAPPLIED` rather than a verdict — the fix made on
+2026-09-09 for exactly this — so it announced itself instead of quietly
+reporting GREEN. Both anchors repaired; 19/19 RED, including the four new ones
+(an unguarded `auto` on every row, Analyse describing a report that DID file
+readings, the upload path no longer reading itself, the ref removed). **A
+mutation that did not apply is not a verdict**, for the second time in two days,
+and the second time it was the script's own honesty that said so.
+
+**THE PROVIDER HALF: "MED GAMMA API" IS NOT AN API, AND THAT CHANGES THE COST BY
+THREE ORDERS OF MAGNITUDE.** Measured against Google's own material rather than
+argued:
+
+    MedGemma          OPEN WEIGHTS (Gemma 3 variants on Hugging Face / Vertex
+                      Model Garden), per Google's own model card. There is no
+                      per-token endpoint. Using it means DEPLOYING it and
+                      holding the endpoint up continuously — a health question
+                      at 11pm cannot wait for a cold load. From 01-research's
+                      [PAGE]-labelled Vertex machine prices: ~$840/month for
+                      the 4B on an L4, ~$3,081/month for the 27B on an A100.
+                      Against $0.000628 for the X-ray description already live.
+    Healthcare NLP    REAL, and a different SHAPE. The live discovery document
+                      carries POST v1/{+nlpService}:analyzeEntities — entity
+                      extraction (concepts, relations, FHIR-ish output), not
+                      prose saying what a report states. At the [PAGE] price of
+                      $0.10 per 1,000 characters, the owner's own 14,780-char
+                      report costs ~$1.48 to run ONCE: ~2,400x today's read.
+
+Neither is enabled on `oniq-309bd`, and turning either on is console work plus a
+standing monthly bill — a provider-and-payment choice, the owner's under this
+file's first rule. **So it is costed in `04` and not built**, and no probe was
+run that would spend. What MedGemma would be genuinely good at is a later
+question with a real answer (its card describes it as a developer starting point
+needing validation before clinical use); what it is not is a swap for one
+constant in `vertex.ts`.
+
+**WEB-ONLY.** No migration, no edge function, no Lovable message, no credits —
+the server has known `describe_document` since this morning; what changed is who
+asks it and when. `main` at the commit below, published after
+`latest_commit_sha` matched HEAD, and verified on the served bundle by a string
+that existed in NO earlier build: **"Read it again"**, in the shared
+`AddReport-*.js` chunk. Learned from a local build first — the component is
+imported by both health screens, so Rolldown keeps it in the shared chunk and
+greping `app.health.records-*.js` for it would report ABSENT on a healthy
+deploy.

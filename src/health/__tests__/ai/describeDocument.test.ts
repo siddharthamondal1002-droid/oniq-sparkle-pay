@@ -486,6 +486,41 @@ describe("the door — a feature is where its doors are", () => {
     expect(component).toContain('healthAi("describe_document"');
   });
 
+  it("reads itself ONLY on the zero case, and never on a row that filed readings", () => {
+    // Owner directive 2026-09-10, "make it automatic". The spend shape is the
+    // whole risk here: `auto` passed unconditionally on the records screen
+    // would fire one PAID read per document the moment the Documents tab
+    // mounts. Both call sites are therefore asserted CONDITIONAL, by effect.
+    const add = src("src/health/AddReport.tsx");
+    const records = src("src/routes/_authenticated/app.health.records.tsx");
+
+    // The upload path holds the id only when the read filed nothing, so the
+    // `auto` there is guarded by the value existing at all.
+    expect(add).toContain("read.ok && read.count === 0");
+    expect(add).toContain("nothingFiled ? <HealthReportDescription documentId={nothingFiled} auto");
+
+    // The records screen renders one per row, so its `auto` must name THIS row.
+    expect(records).toContain("setNothingFiled(r.ok && r.count === 0 ? d.id : null)");
+    expect(records).toContain("auto={nothingFiled === d.id}");
+    expect(records).not.toMatch(/<HealthReportDescription[^>]*\sauto\s*(\/|>)/);
+  });
+
+  it("spends once per document: an EFFECT behind a ref, never a render-time call", () => {
+    // A call made during render bills again on every re-render, and React
+    // StrictMode double-invokes effects in development — so the guard is a ref
+    // keyed by DOCUMENT ID rather than a boolean, or a second document would
+    // never be described.
+    const i = component.indexOf("useEffect(");
+    expect(i, "the auto read runs from an effect").toBeGreaterThan(-1);
+    const effect = component.slice(i, component.indexOf("}, [", i));
+    expect(effect).toContain("describedRef.current === documentId");
+    expect(effect).toContain("describedRef.current = documentId");
+    expect(effect).toContain("void describe()");
+    expect(component).toContain("useRef<string | null>(null)");
+    // Hooks above the early return — a release blocker in this repo.
+    expect(i).toBeLessThan(component.indexOf("if (!HEALTH_AI_ENABLED) return null;"));
+  });
+
   it("the upload path offers it exactly when the read filed nothing", () => {
     const add = src("src/health/AddReport.tsx");
     expect(add).toContain("read.ok && read.count === 0");
@@ -514,6 +549,7 @@ describe("the door — a feature is where its doors are", () => {
       "health.records.describing",
       "health.records.describe.not_stored",
       "health.records.describe.nothing",
+      "health.records.describe.again",
       "health.ai.class.document_fact",
       "health.reason.document_rejected",
     ]) {

@@ -162,6 +162,7 @@ const en: Dict = {
   "health.records.no_values":
     "No lab values found. ONIQ reads numbers from blood and urine reports \u2014 a scan or X-ray report has none for it to read.",
   "health.records.describe": "What does this report say?",
+  "health.records.describe.again": "Read it again",
   "health.records.describing": "Reading what it says\u2026",
   "health.records.describe.not_stored":
     "Shown here only \u2014 nothing from this reading was added to your timeline.",
@@ -334,6 +335,7 @@ const hi: Dict = {
   "health.records.no_values":
     "कोई लैब मान नहीं मिला। ONIQ ख़ून और पेशाब की रिपोर्ट से संख्याएँ पढ़ता है \u2014 स्कैन या एक्स-रे रिपोर्ट में उसके पढ़ने लायक़ कोई संख्या नहीं होती।",
   "health.records.describe": "इस रिपोर्ट में क्या लिखा है?",
+  "health.records.describe.again": "फिर से पढ़ें",
   "health.records.describing": "जो लिखा है वह पढ़ा जा रहा है\u2026",
   "health.records.describe.not_stored":
     "यह केवल यहीं दिखाया गया है \u2014 इसमें से कुछ भी आपकी समयरेखा में नहीं जोड़ा गया।",
@@ -504,6 +506,7 @@ const bn: Dict = {
   "health.records.no_values":
     "কোনো ল্যাব মান পাওয়া যায়নি। ONIQ রক্ত ও প্রস্রাবের রিপোর্ট থেকে সংখ্যা পড়ে \u2014 স্ক্যান বা এক্স-রে রিপোর্টে পড়ার মতো কোনো সংখ্যা থাকে না।",
   "health.records.describe": "এই রিপোর্টে কী লেখা আছে?",
+  "health.records.describe.again": "আবার পড়ুন",
   "health.records.describing": "যা লেখা আছে তা পড়া হচ্ছে\u2026",
   "health.records.describe.not_stored":
     "এটি কেবল এখানেই দেখানো হয়েছে \u2014 এর কিছুই আপনার সময়রেখায় যোগ করা হয়নি।",

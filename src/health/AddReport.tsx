@@ -282,12 +282,13 @@ export function HealthAddReport({ showTimelineLink = true }: { showTimelineLink?
           <p className="text-sm" data-testid="health-ai-note" role="status">
             {note}
           </p>
-          {/* Nothing could be filed — a scan, an X-ray, an ultrasound. The
-              door goes where the disappointment lands, rather than on a
-              screen the person would have to go looking for: `upiDoors`,
-              `/app/creations` and "nowhere to upload" are the three times
-              this repo has shipped a feature nobody could reach. */}
-          {nothingFiled ? <HealthReportDescription documentId={nothingFiled} /> : null}
+          {/* Nothing could be filed — a scan, an X-ray, an ultrasound. It
+              READS ITSELF here (owner directive 2026-09-10, "make it
+              automatic"): the person asked ONIQ to read the report, and
+              answering "no lab values" and stopping is the complaint that
+              started this. `auto` is set only on this zero case, so a report
+              that did file readings is never charged twice. */}
+          {nothingFiled ? <HealthReportDescription documentId={nothingFiled} auto /> : null}
           {showTimelineLink ? (
             <Link to={HEALTH_ROUTE} className="mt-2 inline-block text-sm underline">
               {t("health.records.see_timeline", "See your timeline")}

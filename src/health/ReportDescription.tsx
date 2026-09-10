@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { OniqCard } from "@/components/oniq";
 import { AiOutputReport } from "@/components/safety/AiOutputReport";
 import { useT } from "@/lib/i18n/LanguageProvider";
@@ -38,24 +38,57 @@ import { reasonText, HEALTH_AI_LABEL, HEALTH_AI_DISCLOSURE } from "@/health/labe
  * would have been the one-line version of this feature and would have applied
  * NO number rule at all.
  *
- * IT IS A TAP, NOT AN AUTOMATIC SECOND CALL. Chaining it onto every
- * zero-reading extraction would read the report twice on ONIQ's metered
- * Google key without the person asking — a spend decision, and the owner's
- * under CLAUDE.md's first rule. So the control sits exactly where the
- * disappointment lands (the "no lab values" note, and every document row) and
- * the tap is the authorization. Making it automatic on zero is one line if the
- * owner wants it.
+ * IT RUNS AUTOMATICALLY WHEN A READ FILED NOTHING — owner directive
+ * 2026-09-10 (later), "make it automatic". That is exactly the spend decision
+ * B14 put to them: a description is a SECOND paid read of the same document,
+ * so chaining it was theirs to authorise and never an agent's call. It fires
+ * only on the ZERO case, because that is the one the owner reported ("no
+ * result came up on an xray report") and the one where the person is otherwise
+ * told nothing. A read that DID file readings has already answered them, and
+ * describing it as well would be a second charge for a question nobody asked —
+ * so the button stays for that case, and for a re-read.
+ *
+ * ONCE, AND ONLY ONCE. `auto` fires from an EFFECT behind a ref, never from
+ * render: React StrictMode double-invokes effects in development, and a second
+ * invocation here is a second billed call on the metered Google key. The ref
+ * holds the document id rather than a boolean, so a different document still
+ * describes and the same one never twice.
  *
  * This is an AI surface: HEALTH_AI_LABEL (owner directive B12),
  * <AiOutputReport />, and the answer disclosure, declared in playCompliance.ts
  * under `health_ai_output`.
  */
-export function HealthReportDescription({ documentId }: { documentId: string }) {
+export function HealthReportDescription({
+  documentId,
+  /**
+   * Read the document without waiting to be asked. Set by both callers on the
+   * ZERO case only (owner directive 2026-09-10, "make it automatic").
+   */
+  auto = false,
+}: {
+  documentId: string;
+  auto?: boolean;
+}) {
   const { t, lang } = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [answer, setAnswer] = useState<ClientAiResponse | null>(null);
   const [receipt, setReceipt] = useState<string | null>(null);
+  /** The document this component has already spent a call on. */
+  const describedRef = useRef<string | null>(null);
+
+  // EVERY HOOK ABOVE EVERY EARLY RETURN — react-hooks/rules-of-hooks is a
+  // release blocker in this repo (CLAUDE.md, 2026-08-04).
+  useEffect(() => {
+    if (!auto || !HEALTH_AI_ENABLED) return;
+    if (describedRef.current === documentId) return;
+    describedRef.current = documentId;
+    void describe();
+    // The document id is the WHOLE dependency on purpose: `describe` closes
+    // over the language too, and re-running on a language change would bill a
+    // second read of a report already described.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auto, documentId]);
 
   if (!HEALTH_AI_ENABLED) return null;
 
@@ -92,7 +125,9 @@ export function HealthReportDescription({ documentId }: { documentId: string }) 
       >
         {busy
           ? t("health.records.describing", "Reading what it says…")
-          : t("health.records.describe", "What does this report say?")}
+          : answer
+            ? t("health.records.describe.again", "Read it again")
+            : t("health.records.describe", "What does this report say?")}
       </button>
 
       {error ? (

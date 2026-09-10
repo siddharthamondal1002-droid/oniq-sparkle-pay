@@ -867,7 +867,23 @@ two places: on **every document row** on the Records screen, and inside the
 exact screen where the disappointment lands. One component, so the two cannot
 drift.
 
-**It is a tap, not an automatic second call.** Chaining a description onto every
-zero-reading extraction would read the report twice on the metered Google key
-without the person asking — a spend decision, and the owner's under CLAUDE.md's
-first rule. It is offered in `04 §D7`; making it automatic is one line.
+**It was a tap; the owner made it automatic (2026-09-10, _"make it automatic"_).**
+Chaining a description onto every zero-reading extraction reads the report twice
+on the metered Google key, which is a spend decision and was theirs under
+CLAUDE.md's first rule — `04 §B14` is where it was put to them and where their
+answer is recorded. It now fires by itself, and only in the ZERO case: the
+`auto` prop is set by the upload note (which exists only when a read filed
+nothing) and by a records row whose Analyse has just returned zero. A read that
+DID file readings has already answered the person, so describing it as well
+would be a second charge for a question nobody asked; there the button stays.
+
+**Once, and only once, and from an effect.** `auto` fires from a `useEffect`
+behind a ref holding the DOCUMENT ID, above every early return — React
+StrictMode double-invokes effects in development, and a second invocation here
+is a second billed call on the metered key. A ref holding a boolean would block
+a different document from ever describing; the id lets a second document run
+and never lets the same one run twice. The effect's dependency is the id alone,
+deliberately: `describe` closes over the language too, and re-running on a
+language change would bill a re-read of a report already described. The button
+relabels to "Read it again" once an answer is on screen, so a genuine re-read is
+still a deliberate act.
