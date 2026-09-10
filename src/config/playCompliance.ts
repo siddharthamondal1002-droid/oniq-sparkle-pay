@@ -242,6 +242,16 @@ export const AI_SURFACES = [
     file: "src/routes/_authenticated/app.health.records.tsx",
   },
   {
+    // "What does this report say?" — the reports ONIQ cannot file as numbers
+    // (owner directive 2026-09-10, "show it, don't store it"). Rendered on the
+    // documents screen and under a read that filed nothing, from one
+    // component, so the declaration follows the OUTPUT here rather than naming
+    // either host screen.
+    id: "health_ai_output",
+    screen: "Health — what a scan or X-ray report says (shown, never stored)",
+    file: "src/health/ReportDescription.tsx",
+  },
+  {
     // The admin verification door for the Health AI gateway. An admin screen
     // still shows generated output, and the label goes where the output goes.
     // Underscore in the filename: opts out of nesting under app.admin.tsx,

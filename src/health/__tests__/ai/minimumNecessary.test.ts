@@ -201,6 +201,11 @@ describe("the four operations the brief names but ONIQ does not run (architectur
         "explain_record",
         "extract_document",
         "summarize_timeline",
+        // Owner directive 2026-09-10, "show it, don't store it" — reading a
+        // scan report the closed analyte table has no code for. It is not one
+        // of the four unbuilt operations above: it describes ONE document the
+        // person already uploaded, and writes nothing.
+        "describe_document",
       ].sort(),
     );
   });

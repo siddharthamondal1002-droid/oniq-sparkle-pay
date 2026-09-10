@@ -38,7 +38,7 @@ expected_config(col, expected) as (values
   ('ai_model',                      'gemini-3.1-flash-lite'),
   ('environment',                   'production'),
   ('ai_daily_cap_house',            '500'),
-  ('ai_daily_caps',                 '{"answer_question": 10, "explain_record": 5, "summarize_timeline": 3, "classify_document": 10, "extract_document": 10}')
+  ('ai_daily_caps',                 '{"answer_question": 10, "explain_record": 5, "summarize_timeline": 3, "classify_document": 10, "extract_document": 10, "describe_document": 10}')
 ),
 actual_config(col, actual) as (
   select 'enabled', enabled::text from cfg

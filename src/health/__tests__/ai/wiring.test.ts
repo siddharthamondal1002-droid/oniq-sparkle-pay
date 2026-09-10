@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { stripComments } from "@/test/sourceText";
+import { AI_REFUSAL_REASONS } from "../../ai/types";
 
 const ROOT = join(__dirname, "..", "..", "..", "..");
 const RAW = readFileSync(join(ROOT, "supabase/functions/health-ai/index.ts"), "utf8");
@@ -187,6 +188,14 @@ describe("hygiene", () => {
       SRC.indexOf("const CONSENT_COLUMNS"),
     );
     expect(map).toContain("Record<AiRefusalReason, number>");
+    // EVERY reason, not a sample of three. `Record<AiRefusalReason, number>`
+    // does enforce this — but only under `deno check`, which is a hand-run
+    // command and not a CI step, and vitest never loads this file as a module.
+    // Measured 2026-09-10: adding `document_rejected` left this test green
+    // while the deployed function had no status for it, and only a manual
+    // deno check said so. A type nothing runs is not a guard.
+    const keys = [...map.matchAll(/^\s{2}(\w+): (\d{3}),$/gm)].map((m) => m[1]);
+    expect(keys.sort()).toEqual([...AI_REFUSAL_REASONS].sort());
     expect(map).toMatch(/output_rejected: 502/);
     expect(map).toMatch(/quota_user: 429/);
     expect(map).toMatch(/synthetic_in_production: 403/);

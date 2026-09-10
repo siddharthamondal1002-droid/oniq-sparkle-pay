@@ -8,7 +8,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { stripSqlComments } from "../../test/sourceText";
-import { MODEL_ALLOWLIST } from "../ai/types";
+import { AI_TASKS, MODEL_ALLOWLIST } from "../ai/types";
 import {
   ENTRY_CHUNK,
   PRIVACY_CHUNK,
@@ -20,6 +20,7 @@ import {
   ADD_REPORT_CHUNK,
   RECORDS_MARKERS,
   ANALYSE_MARKERS,
+  DESCRIBE_MARKERS,
   check,
 } from "../../../scripts/health-bundle-markers";
 
@@ -40,6 +41,27 @@ const VERIFIER = stripSqlComments(
 /** Owner directive 2026-09-08 (later the same day): the house cap is 500, a ceiling. */
 const HOUSE_CAP_OWNER_VALUE = 500;
 
+/**
+ * The `ai_daily_caps` default the migrations leave in place, reading them in
+ * filename (= application) order: the Phase 2 column default, then any later
+ * `alter column … set default`. The LAST one wins, exactly as Postgres does.
+ */
+function latestCapsDefault(): string {
+  const dir = join(ROOT, "supabase", "migrations");
+  let latest: string | null = null;
+  for (const f of readdirSync(dir).sort()) {
+    if (!/oniq_health/.test(f)) continue;
+    const sql = stripSqlComments(readFileSync(join(dir, f), "utf8"));
+    for (const m of sql.matchAll(
+      /ai_daily_caps (?:jsonb not null default|set default)\s+'([^']+)'::jsonb/g,
+    )) {
+      latest = m[1];
+    }
+  }
+  expect(latest, "no ai_daily_caps default in any health migration").not.toBeNull();
+  return latest!;
+}
+
 function valuesList(cte: string): string[] {
   const start = CHECK_SQL.indexOf(`${cte}(`);
   expect(start, cte).toBeGreaterThan(-1);
@@ -57,12 +79,15 @@ describe("health-production-check.sql", () => {
     expect(valuesList("expected_tables").sort()).toEqual([...created].sort());
   });
 
-  it("expects the B11 per-task caps exactly as the migration defaults them", () => {
-    const def = PHASE2.match(/ai_daily_caps jsonb not null default\s+'([^']+)'::jsonb/);
-    expect(def).not.toBeNull();
+  it("expects the per-task caps the migrations CURRENTLY default to, one key per AI task", () => {
+    // Phase 2 is APPLIED and may not be edited (appliedCopies.test.ts), so a
+    // new task's cap arrives as a later `alter column … set default`. The
+    // check must expect the LATEST default, not Phase 2's — and it must cover
+    // every task, or a task nobody capped is a 503 nobody notices.
     const inCheck = CHECK_SQL.match(/\('ai_daily_caps',\s+'([^']+)'\)/);
     expect(inCheck).not.toBeNull();
-    expect(JSON.parse(inCheck![1])).toEqual(JSON.parse(def![1]));
+    expect(JSON.parse(inCheck![1])).toEqual(JSON.parse(latestCapsDefault()));
+    expect(Object.keys(JSON.parse(inCheck![1])).sort()).toEqual([...AI_TASKS].sort());
   });
 
   it("expects the owner's house cap, AI ON with the vertex provider and its one model, sharing on, and production (Phase 3)", () => {
@@ -218,6 +243,23 @@ describe("health-bundle-markers.ts", () => {
     expect(ADD_REPORT_CHUNK.test("app.health.records-Dq8cIP7N.js")).toBe(false);
   });
 
+  it("every describe marker is a data-testid the shared component renders, and lives in ITS chunk", () => {
+    // "What does this report say?" is its own component, imported by both
+    // health screens, so Rolldown folds it into the SAME shared chunk as
+    // AddReport — measured from a local build 2026-09-10, where every one of
+    // these appears in AddReport-*.js and in no other. Greping the records
+    // chunk for them would report ABSENT on a healthy deploy.
+    const component = read("src/health/ReportDescription.tsx");
+    // BOTH SPELLINGS. A bare element carries `data-testid`; an OniqCard takes
+    // `testId` and renders the attribute itself, so a `data-testid`-only match
+    // would miss the card that holds the answer — which is the one marker that
+    // proves the description RENDERED rather than the button merely existing.
+    const ids = [...component.matchAll(/(?:data-testid|testId)="([^"]+)"/g)].map((m) => m[1]);
+    for (const m of DESCRIBE_MARKERS) expect(ids, m).toContain(m);
+    const screen = read("src/routes/_authenticated/app.health.records.tsx");
+    for (const m of DESCRIBE_MARKERS) expect(screen, m).not.toContain(m);
+  });
+
   it("every analyse marker is a data-testid the Records screen itself renders", () => {
     // These stay in the records chunk while the picker's live in the shared
     // one, so they are pinned to the screen's own source. Owner report
@@ -255,7 +297,7 @@ describe("health-bundle-markers.ts check()", () => {
     // The records chunk still ships; the PICKER's markers moved to the shared
     // component chunk both health routes import.
     "app.health.records-DDDD.js": `the document list ${ANALYSE_MARKERS.join(" ")}`,
-    "AddReport-EEEE.js": RECORDS_MARKERS.join(" "),
+    "AddReport-EEEE.js": [...RECORDS_MARKERS, ...DESCRIBE_MARKERS].join(" "),
     "privacy-CCCC.js": `x ${PRIVACY_SENTENCES.join(" ")} y`,
   };
   const pass = (chunks: Record<string, string>) => check(chunks).every((r) => r.ok);
@@ -270,6 +312,10 @@ describe("health-bundle-markers.ts check()", () => {
     );
     const { "AddReport-EEEE.js": _gone, ...rest } = good;
     expect(pass(rest)).toBe(false);
+  });
+
+  it("fails an add-report chunk with no way to read a scan report — the 2026-09-10 control", () => {
+    expect(pass({ ...good, "AddReport-EEEE.js": RECORDS_MARKERS.join(" ") })).toBe(false);
   });
 
   it("fails when the records chunk is absent — the documents screen left the build", () => {

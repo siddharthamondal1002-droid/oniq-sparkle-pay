@@ -766,3 +766,108 @@ trigger's order of operations, the unchanged digest, the unique index, the
 adoption rules and the retained erasure fallback; the production check gains
 `MISSING_INDEX`, `CHAIN_SEQ_NOT_UNDER_LOCK`, `AUDIT_ADOPTED_ROW_ALTERED` and
 `AUDIT_ADOPTION_INVALID`.
+
+## 20. `describe_document` as built — "show it, don't store it" (owner directive 2026-09-10)
+
+The owner reported _"no result came up on an xray report"_, was shown that zero
+from an X-ray is what the closed 28-analyte table MEANS rather than an extractor
+fault, and was asked what ONIQ should do with a radiology report. They chose
+**"Show it, don't store it"**: the AI reads the report and shows what it says on
+screen; nothing enters the timeline.
+
+### 20.1 The shape
+
+A sixth task, `describe_document`, on the SAME gateway, in the same order:
+gate → consents → document read → context → consent → reserve → provider →
+contract → **no persist** → settle → audit. It differs from the other five in
+exactly three places, and nowhere else:
+
+|                        | `extract_document`                                          | `describe_document`              |
+| ---------------------- | ----------------------------------------------------------- | -------------------------------- |
+| output kind            | `extraction` (candidates)                                   | `response` (prose segments)      |
+| what is written        | `health_records` rows, `health_documents.extraction_status` | **nothing**                      |
+| injected document text | read anyway (see 20.4)                                      | **refused**, `document_rejected` |
+
+The context fields are extraction's (`DOCUMENT_BASE` + `text`) and no record
+field: describing one file does not put the person's timeline in scope, and
+`loadActiveRecords` is never called for this task.
+
+### 20.2 `document_fact` — a segment class of its own, and why the one-line
+
+version would have been wrong
+
+The obvious implementation emits the description as `general_info`.
+`general_info` **forbids citations and applies no number rule at all**, so such
+a description could state any figure it liked about somebody's scan. Nothing
+being stored is not a reason to loosen the check: a wrong figure shown to a
+person about their own report is still a wrong figure.
+
+So `document_fact` is its own class, and the contract holds it to:
+
+- **every number PRINTED in the cited document** — `documentNumbers(text)`, the
+  same `extractNumbers` the record grounding uses, over the document's own text
+  (digits AND number words);
+- **at least one document citation** (`fact_without_source` otherwise);
+- **no advice** (`advises`);
+- and the whole text-safety pass that runs for every class: dose, prescribe,
+  med-change, diagnosis phrasing, impersonation, care avoidance, off-app,
+  identifiers, obfuscation, and the joined second pass. `maskCited` is a no-op
+  here (nothing record-shaped is cited), so those regexes run on the RAW text —
+  stricter than for a record fact, not looser.
+
+**Two alias spaces, paired once.** `document_fact` cites `d1…`; every other
+class cites `r1…`. The pairing is done ONCE, in the citation loop, rather than
+per class: a record class naming `d1` fails the `r` pattern and a document class
+naming `r1` fails the `d` pattern, both as `citation_outside_manifest`. The
+first draft added a `citedDocuments > 0` guard to each of the four other classes
+as well; those branches were UNREACHABLE (only the `document_fact` arm ever
+increments the counter), and an unreachable guard makes a mutation run lie — it
+was deleted rather than kept as decoration.
+
+### 20.3 Nothing is stored, asserted by effect
+
+`describeDocument.test.ts` runs the task through the real gateway with a fake
+store and asserts `store.inserted` and `store.documentPatches` are empty and
+`insertCandidates` never appears in the ordered log. The audit row names the
+DOCUMENT (`objectType: "document"`, `objectId` = its id) and keeps
+`action: "ai.request"` — `documents.*` actions mark a document being written to,
+and this one writes nothing.
+
+### 20.4 The one place it is stricter than extraction, and why
+
+`describe_document` refuses a document whose text trips the injection detector
+(`document_rejected`, HTTP 422). `extract_document` keeps reading the same
+bytes. That is a difference of OUTPUT SHAPE, not of input trust: extraction's
+answer is rebuilt from a closed 28-analyte table, so an injected line cannot
+become a word of output; a description IS the model's prose, read by a person
+under ONIQ's label. This is the first path in ONIQ where document text becomes
+prose, so it fails closed and the person is told to open the file.
+`describeDocument.test.ts` proves both halves on the SAME bytes.
+
+### 20.5 The cap, and why the migration must land before the function
+
+`capForTask` returns 0 for a task with no key, and the gate reads 0 as
+`caps_unset` — so a sixth task with no cap is a 503 for everyone, always. The
+number is **inferred from B11, not picked**: the owner's table set "document
+extraction 10 documents", and `classify_document`/`extract_document` both carry
+10 because they are two calls of one operation. Describing that same file is the
+same act, so 10. Changing it is one audited UPDATE from `/app/admin/health-ai`.
+
+`20260910120000_oniq_health_describe_document_cap.sql` also widens two closed
+CHECKs on `health_ai_requests` — `task` and `refusal_reason` — the way Phase 3
+widened the provider list. Without the task widening the receipt insert, which
+happens BEFORE the provider runs, violates a constraint on every request.
+
+### 20.6 The door
+
+`upiDoors`, `/app/creations` and "nowhere to upload" are three features this
+repo shipped that nobody could reach. `HealthReportDescription` is rendered in
+two places: on **every document row** on the Records screen, and inside the
+**"no lab values" note** the upload path shows when a read filed nothing — the
+exact screen where the disappointment lands. One component, so the two cannot
+drift.
+
+**It is a tap, not an automatic second call.** Chaining a description onto every
+zero-reading extraction would read the report twice on the metered Google key
+without the person asking — a spend decision, and the owner's under CLAUDE.md's
+first rule. It is offered in `04 §D7`; making it automatic is one line.

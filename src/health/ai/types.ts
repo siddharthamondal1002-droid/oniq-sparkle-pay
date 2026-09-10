@@ -26,6 +26,12 @@ export const AI_TASKS = [
   "answer_question",
   "classify_document",
   "extract_document",
+  // Owner directive 2026-09-10, "show it, don't store it": read a document and
+  // say what it states, storing NOTHING. It exists because the closed analyte
+  // table has no code a radiology finding could occupy, so an X-ray, a scan or
+  // an ultrasound extracted to zero readings and the person was told only that
+  // nothing was added. This task answers in prose and writes no record.
+  "describe_document",
 ] as const;
 export type AiTask = (typeof AI_TASKS)[number];
 
@@ -104,6 +110,13 @@ export type TranscriptionOutput = {
 
 export const SEGMENT_CLASSES = [
   "record_fact",
+  // A statement of what THE DOCUMENT says, citing it, with every number
+  // grounded in the document's own text. It exists because neither existing
+  // class could carry one safely: `record_fact` grounds numbers against a
+  // cited RECORD's value, and `general_info` forbids citations and applies no
+  // number rule at all — so a description written as general_info could state
+  // any figure it liked about somebody's scan.
+  "document_fact",
   "general_info",
   "ai_interpretation",
   "unknown",
@@ -112,8 +125,8 @@ export type SegmentClass = (typeof SEGMENT_CLASSES)[number];
 
 /** The classes each provider may emit. A class no provider may emit cannot appear. */
 export const PROVIDER_CLASS_ALLOWLIST: Record<ProviderId, readonly SegmentClass[]> = {
-  synthetic: ["record_fact", "general_info", "unknown"],
-  vertex: ["record_fact", "general_info", "ai_interpretation", "unknown"],
+  synthetic: ["record_fact", "document_fact", "general_info", "unknown"],
+  vertex: ["record_fact", "document_fact", "general_info", "ai_interpretation", "unknown"],
 };
 
 /* ------------------------------------------------------------- context -- */
@@ -337,6 +350,11 @@ export const AI_REFUSAL_REASONS = [
   "question_rejected",
   "not_found",
   "no_text",
+  // The document's own text reads as an instruction. `describe_document`
+  // refuses rather than handing it to a prose task (owner directive
+  // 2026-09-10); extraction, whose output is rebuilt from a closed table,
+  // keeps reading and only flags the manifest.
+  "document_rejected",
   "text_too_long",
   "quota_user",
   "quota_house",

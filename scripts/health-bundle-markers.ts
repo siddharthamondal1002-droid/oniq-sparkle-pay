@@ -54,6 +54,22 @@ export const RECORDS_MARKERS = [
  * disappear from a publish with every marker green.
  */
 export const ANALYSE_MARKERS = ["health-doc-analyse", "health-doc-analyse-note"];
+/**
+ * "What does this report say?" — shown, never stored (owner directive
+ * 2026-09-10). It is its OWN component, rendered from both health screens, so
+ * Rolldown folds it into the same shared AddReport chunk rather than the
+ * records one. Measured from a local build before this line was written:
+ * `health-doc-describe` appears in AddReport-*.js and in NO other chunk, and
+ * greping app.health.records-*.js for it would report ABSENT on a healthy
+ * deploy. Re-learn the chunk from a build whenever code moves into or out of a
+ * shared component (oniq-ship; the 2026-09-09 AddReport split is the same
+ * lesson one file earlier).
+ */
+export const DESCRIBE_MARKERS = [
+  "health-doc-describe",
+  "health-doc-description",
+  "health-doc-describe-note",
+];
 export const ROUTE_MARKERS = [
   "health-ai-admin-kill",
   "health-ai-admin-unkill",
@@ -111,7 +127,7 @@ export function check(chunks: Record<string, string>): Verdict[] {
     out.push({ ok: false, line: `add-report chunk AddReport-*.js  ABSENT` });
   }
   for (const name of addReportChunks) {
-    for (const m of RECORDS_MARKERS) {
+    for (const m of [...RECORDS_MARKERS, ...DESCRIBE_MARKERS]) {
       const c = count(chunks[name], m);
       out.push({ ok: c >= 1, line: `${m}  ${name}  ${c}` });
     }

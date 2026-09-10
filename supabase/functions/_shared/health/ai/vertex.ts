@@ -173,6 +173,7 @@ export function errorCodeFor(status: number, detail: string): string {
 const CLASS_RULES = [
   `"record_fact": a plain statement of what a cited record says. List the alias of every record it draws on in sourceRefs. Use ONLY numbers that appear in those records (their value and unit) and write the date exactly as the record's dateLabel. It must not advise the reader.`,
   `"ai_interpretation": what the cited records may mean in general terms, with the aliases in sourceRefs. No advice, no diagnosis, no medicine names with quantities.`,
+  `"document_fact": a plain statement of what the cited DOCUMENT says, with the document's alias (d1) in sourceRefs. Use ONLY numbers printed in that document's text, exactly as printed. It must not advise the reader, and it must not diagnose.`,
   `"general_info": general background with an EMPTY sourceRefs. Never address the reader — no "you", "your", "आप", "तुम", "আপনি", "তুমি"; write impersonally, for example "Readings like these are best discussed with a doctor who knows the history."`,
   `"unknown": the records do not answer. Empty sourceRefs and NO digits or number words in the text.`,
 ];
@@ -202,6 +203,8 @@ const TASK_LINE: Record<string, string> = {
     "Task: summarise the person's timeline — the most notable recent readings, each as a record_fact citing its alias.",
   answer_question:
     "Task: answer the person's question from the records only. Cite the records the answer draws on.",
+  describe_document:
+    "Task: say what the document (d1) STATES, in plain language, as document_fact segments citing d1. This is a report ONIQ cannot file as measurements — a scan, an X-ray, an ultrasound, a discharge note — so report its findings and its stated impression, attributed to the report (\x22the report states…\x22), never addressed to the reader. Copy any number exactly as the document prints it and use no number the document does not print. Do not reproduce section headings such as \x22Diagnosis:\x22, do not add a diagnosis, a recommendation or a dose of your own, and do not add anything the document does not say.",
 };
 
 /** The user turn: the task, the language, and the context as it was built — nothing else. */

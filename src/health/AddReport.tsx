@@ -17,6 +17,7 @@ import {
   type DocumentMime,
 } from "@/health/domain";
 import { fill } from "@/health/i18n";
+import { HealthReportDescription } from "@/health/ReportDescription";
 import { reasonText, HEALTH_AI_LABEL } from "@/health/labels";
 
 /**
@@ -74,12 +75,17 @@ type Translate = (key: string, fallback?: string) => string;
 export async function readStoredDocument(
   documentId: string,
   t: Translate,
-): Promise<{ ok: boolean; note: string }> {
+): Promise<{ ok: boolean; note: string; count: number }> {
   const res = await healthAi("extract_document", { documentId });
-  if (!res.ok) return { ok: false, note: reasonText(t, res) };
+  if (!res.ok) return { ok: false, note: reasonText(t, res), count: 0 };
   const n = res.data.kind === "extraction" ? res.data.candidates : 0;
   return {
     ok: true,
+    // THE COUNT TRAVELS BACK, not only the sentence. Zero is the case the
+    // "what does this report say?" control exists for (owner directive
+    // 2026-09-10), and a caller cannot recover it by reading the note without
+    // parsing prose in three languages.
+    count: n,
     note:
       n > 0
         ? fill(
@@ -136,6 +142,12 @@ export function HealthAddReport({ showTimelineLink = true }: { showTimelineLink?
   const [error, setError] = useState<string | null>(null);
   const [consentNeeded, setConsentNeeded] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // The document just read, kept ONLY when the read filed nothing. That is the
+  // case "what does this report say?" exists for (owner directive 2026-09-10,
+  // "show it, don't store it"), and offering it after a read that DID file
+  // readings would invite a second paid read of a report ONIQ has already
+  // understood.
+  const [nothingFiled, setNothingFiled] = useState<string | null>(null);
 
   const status = useQuery({
     queryKey: ["health", "status"],
@@ -160,6 +172,7 @@ export function HealthAddReport({ showTimelineLink = true }: { showTimelineLink?
   async function attachFile(file: File) {
     setError(null);
     setNote(null);
+    setNothingFiled(null);
     setConsentNeeded(false);
     const declared = file.type as DocumentMime;
     if (!(DOCUMENT_MIMES as readonly string[]).includes(declared)) return badFile();
@@ -208,6 +221,7 @@ export function HealthAddReport({ showTimelineLink = true }: { showTimelineLink?
     const read = await readStoredDocument(documentId, t);
     // The report is stored either way; only the reading can fail. Say which.
     setNote(read.ok ? read.note : `${t("health.records.uploaded", "Stored.")} ${read.note}`);
+    setNothingFiled(read.ok && read.count === 0 ? documentId : null);
     setBusy(null);
     if (inputRef.current) inputRef.current.value = "";
     void qc.invalidateQueries({ queryKey: ["health"] });
@@ -268,6 +282,12 @@ export function HealthAddReport({ showTimelineLink = true }: { showTimelineLink?
           <p className="text-sm" data-testid="health-ai-note" role="status">
             {note}
           </p>
+          {/* Nothing could be filed — a scan, an X-ray, an ultrasound. The
+              door goes where the disappointment lands, rather than on a
+              screen the person would have to go looking for: `upiDoors`,
+              `/app/creations` and "nowhere to upload" are the three times
+              this repo has shipped a feature nobody could reach. */}
+          {nothingFiled ? <HealthReportDescription documentId={nothingFiled} /> : null}
           {showTimelineLink ? (
             <Link to={HEALTH_ROUTE} className="mt-2 inline-block text-sm underline">
               {t("health.records.see_timeline", "See your timeline")}

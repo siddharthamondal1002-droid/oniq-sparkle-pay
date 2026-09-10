@@ -406,6 +406,18 @@ function advises(norm: string, language: AiLanguage): boolean {
 }
 
 const ALIAS = /^r\d{1,3}$/;
+/**
+ * A DOCUMENT alias. Only a `document_fact` may cite one, and only a
+ * `document_fact` may cite a document — the two are checked against each other
+ * so a record class cannot borrow a document's looser grounding, nor the
+ * reverse.
+ */
+const DOC_ALIAS = /^d\d{1,3}$/;
+
+/** Every number printed in the document, as the set a description may draw on. */
+export function documentNumbers(text: string): Set<string> {
+  return new Set(extractNumbers(text ?? ""));
+}
 
 export type ContractExpectation = {
   task: AiTask;
@@ -424,6 +436,12 @@ export function validateAiResponse(
   manifest: ContextManifest,
   expect: ContractExpectation,
   contextRecords: readonly ContextRecord[],
+  /**
+   * The text of the document in context, for `document_fact` grounding. Empty
+   * for every record task, which is why an empty set refuses every number: a
+   * description with no document to check against is not checkable.
+   */
+  documentText = "",
 ): ContractVerdict {
   if (!raw || typeof raw !== "object") return refuse("not_an_object");
   const r = raw as Partial<AiResponse>;
@@ -494,11 +512,27 @@ export function validateAiResponse(
       return refuse("segment_shape");
     if (refs.length > LIMITS.MAX_CITATIONS_PER_SEGMENT) return refuse("too_many_citations");
     const cited: ContextRecord[] = [];
+    let citedDocuments = 0;
+    // TWO ALIAS SPACES, AND EXACTLY ONE CLASS LIVES IN THE SECOND. A
+    // `document_fact` cites `d1…` and nothing else; every other class cites
+    // `r1…` and nothing else. Pairing them here rather than per class is what
+    // makes the exclusion total in BOTH directions with no unreachable
+    // branch: a record class naming `d1` fails the `r` pattern, and a
+    // document class naming `r1` fails the `d` pattern, and both come back as
+    // one code. `cited` stays empty for a document_fact on purpose — it feeds
+    // record masking and the record-field escape hatch below, and a document
+    // is neither of those.
+    const wantsDocument = s.class === "document_fact";
     for (const ref of refs) {
-      if (!ALIAS.test(ref)) return refuse("citation_outside_manifest");
-      const index = Number(ref.slice(1)) - 1;
-      if (index < 0 || index >= manifest.recordIds.length)
+      if (!(wantsDocument ? DOC_ALIAS : ALIAS).test(ref))
         return refuse("citation_outside_manifest");
+      const index = Number(ref.slice(1)) - 1;
+      const pool = wantsDocument ? manifest.documentIds : manifest.recordIds;
+      if (index < 0 || index >= pool.length) return refuse("citation_outside_manifest");
+      if (wantsDocument) {
+        citedDocuments += 1;
+        continue;
+      }
       const rec = contextRecords[index];
       if (!rec || rec.ref !== ref) return refuse("citation_mismatch");
       cited.push(rec);
@@ -517,6 +551,20 @@ export function validateAiResponse(
         }
         for (const n of [...extractNumbers(stripped), ...extractNumberWords(stripped)]) {
           if (!allowed.has(n)) return refuse("ungrounded_number");
+        }
+        if (advises(norm, language)) return refuse("fact_advises_reader");
+        break;
+      }
+      case "document_fact": {
+        // THE PAGE IS THE AUTHORITY HERE TOO. Nothing from this task is
+        // stored, so a wrong figure cannot enter a timeline — but it would
+        // still be a wrong figure shown to a person about their own scan, so
+        // every number must be PRINTED in the document the segment cites.
+        // `general_info` would have applied no number rule whatever.
+        if (citedDocuments === 0) return refuse("fact_without_source");
+        const printed = documentNumbers(documentText);
+        for (const n of [...extractNumbers(norm), ...extractNumberWords(norm)]) {
+          if (!printed.has(n)) return refuse("ungrounded_number");
         }
         if (advises(norm, language)) return refuse("fact_advises_reader");
         break;

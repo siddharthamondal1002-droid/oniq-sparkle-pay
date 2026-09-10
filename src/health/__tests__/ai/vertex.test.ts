@@ -163,6 +163,10 @@ describe("the request", () => {
     };
     expect(schema.properties.segments.items.properties.class.enum).toEqual([
       "record_fact",
+      // A statement of what a cited DOCUMENT says, grounded in the document's
+      // own printed numbers (owner directive 2026-09-10). It is in the schema
+      // because describe_document runs on this provider.
+      "document_fact",
       "general_info",
       "ai_interpretation",
       "unknown",

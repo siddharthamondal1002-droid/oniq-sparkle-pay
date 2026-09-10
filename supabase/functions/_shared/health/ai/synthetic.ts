@@ -42,6 +42,14 @@ type Templates = {
   noneYet: string;
   noAnswer: string;
   verification: string;
+  /**
+   * DELIBERATELY DIGIT-FREE. `document_fact` grounds every number in the
+   * DOCUMENT text, so a synthetic sentence carrying a number would pass
+   * grounding whenever the fixture happened to print it and prove nothing
+   * about the rule. The rule is exercised directly against
+   * `validateAiResponse` in `contract.test.ts`.
+   */
+  described: string;
 };
 
 const T: Record<AiLanguage, Templates> = {
@@ -53,6 +61,7 @@ const T: Record<AiLanguage, Templates> = {
     noneYet: "There are no records to summarise yet.",
     noAnswer: "The records do not carry an answer to that question.",
     verification: "This is a synthetic verification answer produced inside ONIQ.",
+    described: "This report was read inside ONIQ; it states findings rather than measurements.",
   },
   hi: {
     fact: (d, when, v) => `${when} को ${d} ${v} दर्ज किया गया था।`,
@@ -61,6 +70,7 @@ const T: Record<AiLanguage, Templates> = {
     noneYet: "सारांश के लिए अभी कोई रिकॉर्ड नहीं है।",
     noAnswer: "रिकॉर्ड में इस सवाल का जवाब नहीं है।",
     verification: "यह ONIQ के भीतर बना एक सिंथेटिक सत्यापन उत्तर है।",
+    described: "यह रिपोर्ट ONIQ के भीतर पढ़ी गई; इसमें माप के बजाय निष्कर्ष दर्ज हैं।",
   },
   bn: {
     fact: (d, when, v) => `${when} তারিখে ${d} ${v} হিসেবে নথিভুক্ত হয়েছিল।`,
@@ -69,6 +79,7 @@ const T: Record<AiLanguage, Templates> = {
     noneYet: "সারসংক্ষেপের জন্য এখনও কোনো রেকর্ড নেই।",
     noAnswer: "রেকর্ডে এই প্রশ্নের উত্তর নেই।",
     verification: "এটি ONIQ-এর ভিতরে তৈরি একটি সিন্থেটিক যাচাই উত্তর।",
+    described: "এই রিপোর্ট ONIQ-এর ভিতরে পড়া হয়েছে; এতে পরিমাপের বদলে পর্যবেক্ষণ রয়েছে।",
   },
 };
 
@@ -162,6 +173,15 @@ export class SyntheticHealthAIProvider {
     } else if (input.task === "summarize_timeline") {
       for (const r of records.slice(0, 10)) out.push(this.fact(r, t));
       if (records.length === 0) out.push({ class: "unknown", text: t.noneYet });
+    } else if (input.task === "describe_document") {
+      // Deliberately DIGIT-FREE. A synthetic that quoted a number would pass
+      // grounding by construction and prove nothing about it; the grounding
+      // rule is exercised directly against validateAiResponse in the tests.
+      if (input.context.documents[0]) {
+        out.push({ class: "document_fact", text: t.described, sourceRefs: ["d1"] });
+      } else {
+        out.push({ class: "unknown", text: t.noAnswer });
+      }
     } else if (input.task === "answer_question") {
       const words = (question ?? "")
         .toLowerCase()

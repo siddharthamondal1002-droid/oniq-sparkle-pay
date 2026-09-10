@@ -25,6 +25,7 @@ const readRel = (rel: string) => stripComments(readFileSync(join(ROOT, rel), "ut
  * it, so the assertions below follow it rather than the screen that hosts it.
  */
 const ADD_REPORT = "src/health/AddReport.tsx";
+const DESCRIBE_REPORT = "src/health/ReportDescription.tsx";
 
 const HEALTH_SURFACES = AI_SURFACES.filter((s) => s.id === "health_ai_output");
 
@@ -32,6 +33,10 @@ describe("AI_SURFACES", () => {
   it("declares the timeline, the documents tab and the admin door under health_ai_output", () => {
     expect(HEALTH_SURFACES.map((s) => s.file).sort()).toEqual([
       ADD_REPORT,
+      // "What does this report say?" — shown, never stored (2026-09-10). Its
+      // own component, so the declaration is its own too: the label follows
+      // the output, and this output is rendered from two screens.
+      DESCRIBE_REPORT,
       "src/routes/_authenticated/app.admin_.health-ai.tsx",
       "src/routes/_authenticated/app.health.index.tsx",
       // "Analyse" on a stored document renders what the AI read back, so the

@@ -380,6 +380,9 @@ const READABLE_DOCUMENT_STATUSES = ["stored", "processing", "ready"];
 function outputKindFor(task: AiTask): "response" | "classification" | "extraction" {
   if (task === "classify_document") return "classification";
   if (task === "extract_document") return "extraction";
+  // describe_document answers in PROSE and stores nothing, so it produces the
+  // same "response" kind the record tasks do — it simply reads a document
+  // instead of records.
   return "response";
 }
 
@@ -450,7 +453,8 @@ export async function runHealthAi(
   const consents = await store.loadConsents();
   const covered = consentedCategories(consents, recipient, now, DATA_CATEGORIES);
   const uncovered = DATA_CATEGORIES.find((c) => !covered.includes(c)) ?? "vitals";
-  const needsDocument = task === "classify_document" || task === "extract_document";
+  const needsDocument =
+    task === "classify_document" || task === "extract_document" || task === "describe_document";
 
   let records: RecordRow[] = [];
   let document: DocRow | null = null;
@@ -782,6 +786,7 @@ export async function runHealthAi(
           classAllowlist: PROVIDER_CLASS_ALLOWLIST[providerId],
         },
         context.records,
+        context.documents[0]?.text ?? "",
       );
       if (!verdict.ok) return rejectOutput(verdict.code);
       const accepted = response as AiResponse;
@@ -800,10 +805,15 @@ export async function runHealthAi(
         task === "explain_record" && req.recordId && manifest.recordIds.includes(req.recordId)
           ? req.recordId
           : null;
+      // A description READ a document, so the audit names it — the same rule
+      // the comment above states, applied to the other object type. The action
+      // stays `ai.request`: `documents.*` actions mark a document being
+      // written to, and this one writes nothing.
+      const describedId = task === "describe_document" ? (document?.id ?? null) : null;
       await audit({
         action: "ai.request",
-        objectType: objectId ? "record" : "account",
-        objectId,
+        objectType: describedId ? "document" : objectId ? "record" : "account",
+        objectId: describedId ?? objectId,
         purpose: consent.purpose,
         consentId,
         outcome: "ok",

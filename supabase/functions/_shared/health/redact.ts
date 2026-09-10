@@ -130,6 +130,8 @@ export const REASON_MESSAGES: Record<string, string> = {
   ai_consent_required: "Turn on the AI consent in Health settings first.",
   question_rejected: "That question couldn't be used. Try asking it differently.",
   no_text: "There's no readable text for that document yet.",
+  document_rejected:
+    "ONIQ won't read that document out loud \u2014 its text contains something written as an instruction. Open the file to see what it says.",
   text_too_long: "That's too long. Keep it shorter.",
   quota_user: "You've reached today's limit for Health AI. Try again tomorrow.",
   quota_house: "Health AI is busy right now. Try again later.",

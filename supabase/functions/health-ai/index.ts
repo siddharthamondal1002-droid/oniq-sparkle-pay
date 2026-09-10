@@ -120,6 +120,10 @@ const STATUS_FOR_REASON: Record<AiRefusalReason, number> = {
   question_rejected: 400,
   not_found: 404,
   no_text: 409,
+  // 422: the document is there and readable, and ONIQ will not describe it
+  // (its text reads as an instruction). Not a 400 — the caller's request was
+  // well formed — and not a 409, which says "not yet".
+  document_rejected: 422,
   text_too_long: 400,
   quota_user: 429,
   quota_house: 429,

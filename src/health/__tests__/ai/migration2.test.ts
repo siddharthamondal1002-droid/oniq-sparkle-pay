@@ -44,7 +44,18 @@ describe("the receipts table", () => {
   });
 
   it("stores only closed codes", () => {
-    expect(listIn("task text not null check (task in (", RECEIPTS)).toEqual([...AI_TASKS].sort());
+    // Phase 2's five tasks. The sixth (describe_document, owner directive
+    // 2026-09-10) widens this constraint in its own migration, exactly as
+    // Phase 3 widened the provider list below — this APPLIED file keeps its
+    // text, and `migrationDescribe.test.ts` asserts the widened list is
+    // AI_TASKS entire.
+    expect(listIn("task text not null check (task in (", RECEIPTS)).toEqual([
+      "answer_question",
+      "classify_document",
+      "explain_record",
+      "extract_document",
+      "summarize_timeline",
+    ]);
     // Phase 2 shipped one provider; Phase 3's migration widens this check to
     // PROVIDER_IDS (migration3.test.ts). The historical file keeps its text.
     expect(listIn("provider text not null check (provider in (", RECEIPTS)).toEqual(["synthetic"]);
@@ -52,8 +63,12 @@ describe("the receipts table", () => {
     expect(listIn("purpose text not null check (purpose in (", RECEIPTS)).toEqual([
       "ai_interpretation",
     ]);
+    // Phase 2's own list, frozen with the file. `document_rejected` arrives
+    // with describe_document (2026-09-10) and widens this constraint in its
+    // own migration; `migrationDescribe.test.ts` asserts the widened list is
+    // AI_REFUSAL_REASONS entire.
     expect(listIn("refusal_reason is null or refusal_reason in (", RECEIPTS)).toEqual(
-      [...AI_REFUSAL_REASONS].sort(),
+      [...AI_REFUSAL_REASONS].filter((r) => r !== "document_rejected").sort(),
     );
     expect(listIn("contract_code is null or contract_code in (", RECEIPTS)).toEqual(
       [...CONTRACT_REFUSAL_CODES].sort(),
@@ -120,7 +135,11 @@ describe("the config row", () => {
       classify_document: 10,
       extract_document: 10,
     });
-    expect(Object.keys(caps).sort()).toEqual([...AI_TASKS].sort());
+    // Phase 2's own default covers Phase 2's five tasks. It cannot cover a
+    // task added later — this file is APPLIED and may not be edited
+    // (appliedCopies.test.ts) — so "every task has a cap" is asserted against
+    // the EFFECTIVE default in productionCheck.test.ts, over every migration.
+    expect(Object.keys(caps).every((k) => (AI_TASKS as readonly string[]).includes(k))).toBe(true);
     // The house cap stays the owner's to set: still 0 = refuse.
     expect(alter).toContain("ai_daily_cap_house integer not null default 0");
   });

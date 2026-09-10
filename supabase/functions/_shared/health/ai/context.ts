@@ -120,6 +120,9 @@ export const FIELDS_FOR_TASK: Record<AiTask, readonly ContextField[]> = {
   answer_question: [...RECORD_BASE, "question"],
   classify_document: [...DOCUMENT_BASE, "text"],
   extract_document: [...DOCUMENT_BASE, "text"],
+  // The same fields extraction sees, and no more: describing a document reads
+  // the document. No record of the person's is in scope, so none is sent.
+  describe_document: [...DOCUMENT_BASE, "text"],
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -374,11 +377,14 @@ export function buildMinimumContext(input: ContextInput): ContextResult {
       break;
     }
     case "classify_document":
-    case "extract_document": {
+    case "extract_document":
+    case "describe_document": {
       const doc = input.document;
       if (!doc) return { ok: false, reason: "not_found" };
       const raw = input.documentText ?? "";
-      if (task === "extract_document") {
+      // A description with no text would be prose about a title. Extraction's
+      // rule, for the same reason: nothing to read is a refusal, not an answer.
+      if (task === "extract_document" || task === "describe_document") {
         if (!raw.trim()) return { ok: false, reason: "no_text" };
         if (raw.length > LIMITS.MAX_DOCUMENT_CHARS) return { ok: false, reason: "text_too_long" };
       }
@@ -392,7 +398,7 @@ export function buildMinimumContext(input: ContextInput): ContextResult {
       if (excerpt.length < raw.length) truncated = true;
       const text = cleanField(excerpt, LIMITS.MAX_DOCUMENT_CHARS, language);
       redactions += text.redactions;
-      if (task === "extract_document" && text.tooLong)
+      if ((task === "extract_document" || task === "describe_document") && text.tooLong)
         return { ok: false, reason: "text_too_long" };
       let docText: string | null = text.text || null;
       if (docText && text.injection.suspected) {
@@ -401,6 +407,17 @@ export function buildMinimumContext(input: ContextInput): ContextResult {
           excluded.push({ id: doc.id, field: "text", reason: "injection_suspected" });
           docText = null;
         }
+        // DESCRIBE REFUSES OUTRIGHT, and the difference from extraction beside
+        // it is the OUTPUT SHAPE, not the input. Extraction's answer is
+        // rebuilt from a closed 28-analyte table, so an injected document
+        // cannot make it emit a word of its own; a description IS the model's
+        // prose, read by a person under ONIQ's label. The contract still
+        // bounds it (every number printed, no advice, no diagnosis phrasing,
+        // no identifiers), but a document that already reads as an instruction
+        // is not one to hand a prose task. Refuse and let the person open the
+        // file; under-showing is recoverable, and this is the first path in
+        // ONIQ where document text becomes prose.
+        if (task === "describe_document") return { ok: false, reason: "document_rejected" };
       }
       const entry: ContextDocument = {
         ref: "d1",

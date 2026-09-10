@@ -7,6 +7,7 @@ import { AiOutputReport } from "@/components/safety/AiOutputReport";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { HEALTH_UPLOADS_ENABLED } from "@/health/flags";
 import { HealthAddReport, readStoredDocument } from "@/health/AddReport";
+import { HealthReportDescription } from "@/health/ReportDescription";
 import { healthApi, type DocumentRow } from "@/health/api";
 
 import {
@@ -188,6 +189,12 @@ function HealthDocuments() {
                     </button>
                   </div>
                 </div>
+                {/* "Show it, don't store it" (owner directive 2026-09-10). The
+                    control sits on every document row, not only where a read
+                    found nothing: a scan report is exactly the file a person
+                    re-opens later, and a door that appears only after a
+                    disappointing note is a door most people never see. */}
+                <HealthReportDescription documentId={d.id} />
                 {readNote?.id === d.id ? (
                   <div className="mt-2" data-testid="health-doc-analyse-note">
                     <p className="text-sm" role="status">
