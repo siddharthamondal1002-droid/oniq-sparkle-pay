@@ -323,5 +323,9 @@ was sent and no credits were spent.
 
 ## 17. Final SHA
 
-Recorded at the end of the session in `docs/oqca/README.md` and in the commit
-message. Nothing is deployed, published or merged.
+**`a729b5b5`** on `claude/check-56jtg5`, pushed. Parent `2f464617` (OQCA v1.3 +
+failure recovery). 57 files, +11,263 lines.
+
+Nothing is deployed, published or merged to `main`. The flag state of every
+other subsystem is unchanged: `OQCA_STORY_DISPATCH` still ships off, the health
+config row is untouched, and no edge function was redeployed.
