@@ -137,6 +137,10 @@ describe("health-production-check.sql", () => {
       "20260909100000",
       "20260909130000",
       "20260909150000",
+      // "Show it, don't store it" (owner directive 2026-09-10): the
+      // describe_document cap and the two widened receipt CHECKs, applied from
+      // here through the Lovable database connection and recorded in history.
+      "20260910120000",
     ]);
     for (const v of versions) {
       expect(

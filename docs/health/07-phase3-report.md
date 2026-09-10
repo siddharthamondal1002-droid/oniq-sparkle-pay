@@ -490,3 +490,119 @@ linking, and refuse an adopt row that names a hash with no earlier row behind
 it. No hash was rewritten. The check at the final state: **zero rows**. The two
 crossed rows also carry IDENTICAL created_at values to the microsecond
 (08:54:20.985808), which is recorded as an observation and not explained.
+
+---
+
+## 2026-09-10 — "show it, don't store it": the sixth task, LIVE and measured
+
+Owner directive, asked what ONIQ should do with a radiology report after
+reporting _"no result came up on an xray report"_: **"Show it, don't store
+it."** Design as built: `05 §20`. Go sequence: `04 §A-5`. Everything below is
+measured on production.
+
+### It works, and it stores nothing
+
+A throwaway account, a synthetic one-page chest X-ray PDF generated here (906
+bytes, sha256 `5110cbfd…`, the words "SYNTHETIC TEST REPORT - NOT A REAL
+PATIENT" on its first line), through the DEPLOYED `health-ai`:
+
+    03:59Z  describe_document  ->  200
+      provider vertex   model gemini-3.1-flash-lite   1,084 in / 238 out   $0.000628
+      document_fact "The report states that the lung fields are clear, with no
+                     focal consolidation and no pleural effusion."
+      document_fact "The report states that the bony thorax is intact and the
+                     costophrenic angles are clear."
+      document_fact "The report states an impression of a normal chest radiograph."
+      receipt 4f7b1a3d-…   audit seq 79  ai.request / document / 03ab2f72-… / ok
+
+    health_records for that account            0      <- the whole point
+    health_documents.extraction_status         none   <- the row was not patched
+    receipt row  describe_document / vertex / gemini-3.1-flash-lite / ok
+
+**Every sentence is attributed to the report and none addresses the reader** —
+which is what the task line asks for and what keeps the contract's diagnosis
+and advice guards from firing on a radiologist's own words.
+
+### The free probe that settled the deploy before a byte was uploaded
+
+Before the upload, the same account called `describe_document` with a document
+id that does not exist:
+
+    404 {"ok":false,"reason":"not_found"}
+
+That single answer rules out four different failures at once, for zero credits
+and zero spend: `task_not_allowed` (the deployed function knows the sixth
+task), `caps_unset` (the migration's cap resolved — the gate reads caps FIRST,
+so a missing key would have answered 503 before the lookup),
+`ai_consent_required`, and a `needsDocument` that had not been widened.
+**Reach for this shape first whenever a new task is deployed.**
+
+### The rest of the sequence
+
+    migration 20260910120000  applied from here, statement by statement:
+      ai_daily_caps default + row (audit seq 75 config.changed, caps 6 tasks)
+      health_ai_requests_task_check            widened to six tasks
+      health_ai_requests_refusal_reason_check  widened with document_rejected
+      recorded in supabase_migrations.schema_migrations
+    deploy   ONE Lovable message, 0.4 credits, self-check reported (2 and 1)
+             "Successfully deployed edge_functions: health-ai, health-api"
+    publish  deploy_project after latest_commit_sha == HEAD (37870eab)
+    upload   ONE Lovable message (pg_net has no PUT), the PDF byte-exact at the
+             registered path — confirmed by storage.objects, 906 bytes,
+             application/pdf, NOT by the queue accepting
+
+    served bundle, read from inside the database with pg_net:
+      entry  index-BN7TlFab.js -> index-CEXQNSUq.js
+      AddReport-qq5ndT9r.js        6,726 B  health-doc-describe      2
+                                            health-doc-description   1
+                                            health-doc-describe-note 1
+                                            health-doc-input         1
+                                            health-doc-analyse       0
+      app.health.records-CiNbUU9Z.js 3,683 B  every describe marker  0
+                                              health-doc-analyse     2
+
+**The cross-pattern is the evidence.** The describe markers are in the SHARED
+component chunk and in no other; the records chunk keeps its own control and
+carries none of them. Greping `app.health.records-*.js` for the describe
+markers would report ABSENT on this perfectly healthy publish — the chunk was
+learned from a local build first, exactly as `oniq-ship` and the 2026-09-09
+AddReport split say to.
+
+### Cleanup, and the check
+
+`purge` removed the document and its bytes (`{"records":0,"documents":1}`,
+zero objects left under that prefix); the auth user was deleted. Final state:
+**126 users** (baseline), no smoke account, **0 `health_records` anywhere**,
+the describe receipt kept as an anonymous ledger line with `user_id` null, and
+the owner's own two documents and two consents untouched. The production check
+returns **zero rows**, chain intact under the erasure-proof verifier.
+
+Total spend for the whole proof: **$0.000628** on the metered key, **0.4 + one
+upload message** in Lovable credits.
+
+### Two 499s, both of which had LANDED
+
+`alter table … drop constraint` and `alter table … add constraint` each came
+back `499 request_cancelled` from the Lovable API while still RUNNING on the
+backend, queued behind two `idle in transaction` schema-dump sessions —
+`pg_stat_activity` showed my own DDL as the active query in both cases. Neither
+was resent; both committed on their own within a minute. **The 2026-09-09 rule
+held exactly as written: read the state, never resend DDL on a 499.** Worth
+noting that the drop landing while the add had not left the table briefly with
+no `task` CHECK at all, which is the argument for doing drop+add as adjacent
+statements and reading between them rather than walking away.
+
+### What is NOT proven live, stated as unproven
+
+- **A document whose text reads as an instruction → 422 `document_rejected`.**
+  Proven only by `describeDocument.test.ts` against the real gateway and the
+  real context builder. Proving it live needs a second poisoned file in the
+  bucket, i.e. a second Lovable upload message, and the refusal happens before
+  the provider so it would cost nothing but a credit.
+- **Another person's document → 404.** Proven by `gateway`/`describeDocument`
+  tests with two users in the store, and live only for a document id that does
+  not exist. It was NOT run against the owner's real documents on purpose: if
+  the ownership filter were broken, that experiment would describe a real
+  person's medical record, which is precisely what must not happen.
+- **A handset.** Nothing here tapped the button. The gate is the owner opening
+  a scan report and reading what it says.

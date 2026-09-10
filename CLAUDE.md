@@ -4228,3 +4228,131 @@ TEXT, which is a different data shape from `health_records` (analyte + number +
 unit) and a different safety profile — summarising a radiologist's impression
 is interpretation, not transcription. Do not build it as an extension of the
 analyte table.
+
+### Owner directive, 2026-09-10 — "Show it, don't store it": ONIQ reads a scan report and shows what it says
+
+Asked what ONIQ should do with a radiology report — after _"no result came up
+on an xray report"_ and after being shown that zero from an X-ray is what the
+closed 28-analyte table MEANS rather than an extractor fault — the owner chose
+**"Show it, don't store it"**: the AI reads the report and shows what it states
+on screen; nothing enters the timeline. Built, migrated, deployed, published
+and **proven live on production the same hour**. `docs/health/07`
+("2026-09-10") is the record, `05 §20` the design, `04 §A-5` the sequence.
+
+**IT WORKS, AND IT STORES NOTHING.** Through the DEPLOYED `health-ai`, from a
+throwaway account, on a synthetic one-page chest X-ray PDF written here:
+
+    describe_document -> 200  vertex / gemini-3.1-flash-lite  1,084 in / 238 out  $0.000628
+      "The report states that the lung fields are clear, with no focal
+       consolidation and no pleural effusion."
+      "The report states that the bony thorax is intact and the costophrenic
+       angles are clear."
+      "The report states an impression of a normal chest radiograph."
+    health_records for that account   0     <- the whole point
+    extraction_status                 none  <- the document row was not patched
+    audit seq 79   ai.request / document / <the document> / ok
+
+**THE ANSWER WAS NEVER A BETTER EXTRACTOR.** The 2026-09-09 layout work
+improved the SYNTHETIC path and changed nothing about production, and even a
+perfect extractor returns zero from a scan: `health_records` is analyte +
+number + unit and a radiology report names none. A different TASK was the only
+shape that could answer, which is why "do not build it as an extension of the
+analyte table" was the right note to leave.
+
+**`document_fact` IS ITS OWN SEGMENT CLASS, AND THE ONE-LINE VERSION WOULD HAVE
+BEEN THE WRONG ONE.** Emitting the description as `general_info` is the obvious
+implementation — and `general_info` **forbids citations and applies no number
+rule at all**, so it could have stated any figure it liked about somebody's
+scan. Nothing being stored is not a reason to loosen a check: a wrong number
+shown to a person about their own report is still a wrong number. So every
+number in a `document_fact` must be PRINTED in the document it cites, it must
+cite one, it may not advise, and it takes the whole text-safety pass with
+`maskCited` a no-op — the dose, diagnosis, prescribe, impersonation,
+care-avoidance and identifier regexes run on the RAW text, which is stricter
+than for a record fact, not looser.
+
+**AND FOUR OF ITS FIRST GUARDS WERE UNREACHABLE.** The first draft also added
+`citedDocuments > 0` to `record_fact`, `ai_interpretation`, `general_info` and
+`unknown`. Only the `document_fact` arm ever increments that counter, so all
+four branches were dead. The two alias spaces are paired ONCE in the citation
+loop instead — a record class naming `d1` fails the `r` pattern, a document
+class naming `r1` fails the `d` pattern — and the dead branches were deleted.
+**An unreachable guard makes a mutation run lie**, which is the same lesson as
+2026-09-09's "a mutation that does not open the hole it names is not a verdict",
+from the other side.
+
+**IT IS STRICTER THAN EXTRACTION IN EXACTLY ONE PLACE, and the difference is the
+OUTPUT shape, not the input trust.** A document whose text trips the injection
+detector is refused (`document_rejected`, 422) rather than described;
+`extract_document` keeps reading the same bytes. Extraction's answer is rebuilt
+from a closed 28-analyte table, so an injected line cannot become a word of
+output. A description IS the model's prose, read by a person under ONIQ's
+label. This is the first path in ONIQ where document text becomes prose, so it
+fails closed.
+
+**THE DOOR IS ON BOTH SCREENS, AND IT IS A TAP RATHER THAN AN AUTOMATIC SECOND
+CALL.** `HealthReportDescription` renders on every document row AND inside the
+"no lab values" note the upload path shows when a read filed nothing — the
+exact screen where the disappointment lands (`upiDoors`, `/app/creations` and
+"nowhere to upload" are three features this repo shipped that nobody could
+reach). Chaining it automatically onto every zero-reading extraction would read
+the report twice on the metered Google key without the person asking, which is
+a spend decision and the owner's under this file's first rule. It is one line
+if they want it — `04 §B14`.
+
+**THE CAP IS INFERRED FROM B11, NOT PICKED.** `capForTask` returns 0 for a task
+with no key and the gate reads 0 as `caps_unset`, so a sixth task with no cap
+is a 503 for everyone, always. B11 set "document extraction 10 documents", and
+`classify_document`/`extract_document` both carry 10 because they are two calls
+of one operation; describing that same file is the same act, so 10. Changing it
+is one audited UPDATE (`04 §B13`).
+
+**THE FREE PROBE THAT SETTLED THE DEPLOY BEFORE A SINGLE BYTE WAS UPLOADED.**
+`describe_document` on a document id that does not exist answered
+`404 not_found` — and that one answer rules out four separate failures at once:
+`task_not_allowed` (the deployed function knows the task), `caps_unset` (the
+gate reads caps FIRST, so a missing key answers 503 before the lookup),
+`ai_consent_required`, and an un-widened `needsDocument`. Zero credits, zero
+spend. **Reach for this shape first whenever a new task is deployed.**
+
+**TWO ASSERTIONS WERE VACUOUS AND THE MUTATION RUN IS WHAT SAID SO.** A
+whole-file `toContain` for the document-text argument stayed GREEN with that
+argument deleted, because `context.documents[0]?.text ?? ""` appears TWICE in
+`gateway.ts` (the other is `groundCandidates`); and one for `HEALTH_AI_LABEL`
+stayed green with the label deleted from the JSX, because the IMPORT line still
+carries the identifier. Both are bound by structure now. That is the fifth and
+sixth time a source-reading assertion in this repo has been asserting something
+other than what it named — **and both were found by mutation, not by reading.**
+
+**AND `deno check` CAUGHT A MISSING HTTP STATUS THAT `tsc` CANNOT SEE.**
+`STATUS_FOR_REASON` is `Record<AiRefusalReason, number>` in
+`health-ai/index.ts` — a file `tsc` never loads, and vitest never imports as a
+module. Adding `document_rejected` left the map incomplete, every test green,
+and only the hand-run `deno check` said so. `wiring.test.ts` no longer samples
+three keys: it asserts EVERY reason has a status. **A type that nothing runs is
+not a guard.**
+
+**TWO 499s, BOTH OF WHICH HAD LANDED.** The drop and the add of the `task`
+CHECK each returned `499 request_cancelled` while still RUNNING on the backend,
+queued behind Lovable's own schema-dump transactions —`pg_stat_activity` showed
+my own DDL as the active query both times. Neither was resent; both committed
+within a minute. The 2026-09-09 rule held verbatim. Worth adding: the drop
+landing while the add had not left the table briefly with NO `task` check at
+all, so do drop+add as adjacent statements and read between them.
+
+MEASURED AT THE FINAL STATE: 126 users (baseline), the throwaway gone, **0
+`health_records` anywhere**, the describe receipt kept as an anonymous ledger
+line, the owner's own two documents and two consents untouched, and
+`health-production-check.sql` **zero rows**. Served bundle: entry
+`index-BN7TlFab.js` -> `index-CEXQNSUq.js`; the describe markers in
+`AddReport-qq5ndT9r.js` (2/1/1) and **zero** in `app.health.records-CiNbUU9Z.js`,
+which keeps `health-doc-analyse` at 2 — the cross-pattern, not either line
+alone. Whole spend for the proof: **$0.000628** on the metered key and 0.4
+credits plus one upload message.
+
+**STILL UNPROVEN, AND STATED AS UNPROVEN:** nothing here ran on a handset, the
+422 refusal and the another-person's-document 404 are proven by tests against
+the real gateway rather than live (the second deliberately — running it against
+the owner's real documents is the one experiment that must not be tried), and
+**the gate is the owner tapping "What does this report say?" on a scan they
+already uploaded.**
