@@ -1025,4 +1025,296 @@ PY
 report "M62 controlled_autonomy becomes settable from the environment" "$(run src/oqca/__tests__/v13Wiring.test.ts)"
 restore $F
 
+# ─────────────────────────────────────────────────────────────────────────────
+# QUANTUM KNOWLEDGE SUBSTRATE + OKS (quantum brief §7/§16/§20/§21/§23/§26; the
+# upgradation spec's §7/§8/§10/§21). Every mutation below opens a hole a
+# careless edit really could open, and most of them restore a defect that was
+# genuinely present until a test asked the right question. The quantum tree is
+# NOT mirrored — nothing in the runtime imports it — so `mirror` is a no-op for
+# these and `restore` still calls it harmlessly.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# M65: the promotion threshold goes back above what any single item can reach.
+# `w/(w+1)` caps one perfect source at 0.5, so 0.6 refuses everything — which
+# is the state the quantum ingestion was found in: 113/113 CANDIDATE at 0.500.
+F=src/oqca/knowledge/substrate/promotion.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/knowledge/substrate/promotion.ts'; s=open(p).read()
+old='  minConfidence: 0.45,'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  minConfidence: 0.6,')
+open(p,'w').write(s)
+PY
+report "M65 minConfidence rises above what one first-hand item can reach" "$(run src/oqca/__tests__/oksSubstrate.test.ts src/oqca/__tests__/quantumKnowledge.test.ts)"
+restore $F
+
+# M66: recalled evidence stops being worthless, so a confident memory of a good
+# source promotes a claim nobody ever read. §21's load-bearing number.
+F=src/oqca/knowledge/substrate/evidence.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/knowledge/substrate/evidence.ts'; s=open(p).read()
+old='  recalled: 0,'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  recalled: 0.8,')
+open(p,'w').write(s)
+PY
+report "M66 recalled evidence gains weight" "$(run src/oqca/__tests__/oksSubstrate.test.ts)"
+restore $F
+
+# M67: a model's own extraction becomes sufficient alone — §21's "Do not let an
+# LLM alone decide factual truth", removed.
+F=src/oqca/knowledge/substrate/promotion.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/knowledge/substrate/promotion.ts'; s=open(p).read()
+old='  allowModelOnlyEvidence: false,'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  allowModelOnlyEvidence: true,')
+open(p,'w').write(s)
+PY
+report "M67 a model alone may decide factual truth" "$(run src/oqca/__tests__/oksSubstrate.test.ts)"
+restore $F
+
+# M68: the store overwrites the retired row with its replacement — the defect
+# that held for every supersession until a test asked for the history back.
+F=src/oqca/knowledge/substrate/store.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/knowledge/substrate/store.ts'; s=open(p).read()
+old='          m.set(historyKey(older.id, older.version), {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'          m.set(older.id, {')
+open(p,'w').write(s)
+PY
+report "M68 a supersession erases the row it replaced" "$(run src/oqca/__tests__/oksSubstrate.test.ts)"
+restore $F
+
+# M69: rollbackIntegrity goes back to comparing a prefix against another replay
+# instead of against the journal, so a store that ignores its journal scores a
+# perfect 1. Measured: it did.
+F=src/oqca/knowledge/substrate/metrics.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/knowledge/substrate/metrics.ts'; s=open(p).read()
+old='    const expected = new Set(journal.slice(0, i).map((op) => op.record.id));'
+assert s.count(old)==1, s.count(old)
+i=s.index(old); j=s.index('    if (reproducible && matches)', i)
+s = s[:i] + '    const matches = i === n || a.length <= store.replayTo(n).length;\n' + s[j:]
+open(p,'w').write(s)
+PY
+report "M69 rollback integrity stops reading the journal" "$(run src/oqca/__tests__/oksSubstrate.test.ts)"
+restore $F
+
+# M70: the ground-truth metrics report 0 instead of null, so a dashboard shows
+# fabricated numbers as if they were measured.
+F=src/oqca/knowledge/substrate/metrics.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/knowledge/substrate/metrics.ts'; s=open(p).read()
+# The anchor is scoped to `knowledgePrecision`: the bare line appears TWICE
+# (resolutionAccuracy has the same shape), so the unscoped version matched two
+# and asserted its way to NOTAPPLIED. The script said so rather than printing a
+# verdict, which is the whole reason that branch exists.
+i=s.index('export function knowledgePrecision')
+j=s.index('export function knowledgeRecall')
+old='  if (scored.length === 0) return null;'
+assert s[i:j].count(old)==1, s[i:j].count(old)
+s=s[:i]+s[i:j].replace(old,'  if (scored.length === 0) return 0;')+s[j:]
+open(p,'w').write(s)
+PY
+report "M70 an unmeasured metric reports 0 instead of unknown" "$(run src/oqca/__tests__/oksSubstrate.test.ts)"
+restore $F
+
+# M71: an escalated conflict is scored as a WRONG answer, which pushes the
+# resolver towards guessing — exactly backwards.
+F=src/oqca/knowledge/substrate/metrics.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/knowledge/substrate/metrics.ts'; s=open(p).read()
+old='  const decided = scored.filter((l) => !byId.get(l.conflictId)?.escalated);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  const decided = scored;')
+open(p,'w').write(s)
+PY
+report "M71 a refusal to guess is scored as a wrong answer" "$(run src/oqca/__tests__/oksSubstrate.test.ts)"
+restore $F
+
+# M72: the metric re-derives staleness beside decay.ts instead of delegating.
+F=src/oqca/knowledge/substrate/metrics.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/knowledge/substrate/metrics.ts'; s=open(p).read()
+old='  return decayStalenessRate(store.all(), nowMs);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  const active = store.all().filter((r) => r.status === "VERIFIED");\n  if (active.length === 0) return 0;\n  return active.filter((r) => freshness(r, nowMs).stale).length / active.length;')
+# THE MUTATION MUST COMPILE, or it goes RED on a missing import rather than on
+# the assertion it exists to test — caught red for the wrong reason is not a
+# verdict either.
+s=s.replace('import { stalenessRate as decayStalenessRate } from "./decay.ts";','import { freshness, stalenessRate as decayStalenessRate } from "./decay.ts";')
+open(p,'w').write(s)
+PY
+report "M72 staleness is re-derived beside the policy" "$(run src/oqca/__tests__/oksSubstrate.test.ts src/oqca/__tests__/oksLoopIntegration.test.ts)"
+restore $F
+
+# M73: a divergence stops carrying refuting evidence, so §23's "never silently
+# normalize" collapses into one side winning.
+F=src/oqca/quantum/knowledge.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/quantum/knowledge.ts'; s=open(p).read()
+old='conventionEvidence(p, `${d.topic}: ${d.theirConvention}`, at, false),'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'conventionEvidence(p, `${d.topic}: ${d.theirConvention}`, at, true),')
+open(p,'w').write(s)
+PY
+report "M73 a library disagreement is silently normalised" "$(run src/oqca/__tests__/quantumKnowledge.test.ts src/oqca/__tests__/oksLoopIntegration.test.ts)"
+restore $F
+
+# M74: §7's benchmark requirement is dropped, so an advantage can be asserted
+# with nothing behind it.
+F=src/oqca/quantum/knowledge.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/quantum/knowledge.ts'; s=open(p).read()
+old='  if (!benchmark.trim()) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  if (benchmark === "\\u0000never") {')
+open(p,'w').write(s)
+PY
+report "M74 an advantage may be claimed with no benchmark" "$(run src/oqca/__tests__/quantumKnowledge.test.ts)"
+restore $F
+
+# M75: the ingestion stops recording WHEN a fact was verified, so every record
+# is born stale and the decay metric reads 1.0000 forever — indistinguishable
+# from a metric that computes nothing.
+F=src/oqca/quantum/knowledge.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/quantum/knowledge.ts'; s=open(p).read()
+old='    validity: { validFrom: null, validUntil: null, lastVerifiedAt: verifiedAt },'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    validity: { validFrom: null, validUntil: null, lastVerifiedAt: null },')
+open(p,'w').write(s)
+PY
+report "M75 the ingestion forgets when it verified anything" "$(run src/oqca/__tests__/oksLoopIntegration.test.ts)"
+restore $F
+
+# M76: the ingestion starts writing the PROSE in as belief — ~200 rows that can
+# never be promoted, and the temptation to relabel recall so that they can.
+F=src/oqca/quantum/knowledge.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/quantum/knowledge.ts'; s=open(p).read()
+old='    ...advantageFacts(at),\n  ];'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    ...advantageFacts(at),\n    ...CONCEPT_PROSE.map((cc) =>\n      record(cc.id, "hasDefinition", cc.definition, [QUANTUM_DOMAIN], [computedEvidence("prose", cc.id, at)], "stable", EMPTY_PROVENANCE, at),\n    ),\n  ];')
+s=s.replace('import { DOMAINS, DIVERGENCES } from "./domains.ts";','import { DOMAINS, DIVERGENCES } from "./domains.ts";\nimport { CONCEPTS as CONCEPT_PROSE } from "./concepts.ts";')
+open(p,'w').write(s)
+PY
+report "M76 the prose is ingested as belief" "$(run src/oqca/__tests__/quantumKnowledge.test.ts)"
+restore $F
+
+# M77: the fairness gate stops reporting a denied baseline, so §16's refusal
+# disappears and an unfair comparison reads as a clean win.
+F=src/oqca/quantum/experiments.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/quantum/experiments.ts'; s=open(p).read()
+old='    if (e.quantumInformation[k] && !b.informationGiven[k]) denied.push(k);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    void k;')
+open(p,'w').write(s)
+PY
+report "M77 a baseline denied information is reported as fair" "$(run src/oqca/__tests__/quantumMethod.test.ts)"
+restore $F
+
+# M78: the growth test goes back to `last > first`, which reads a saturating
+# curve as growth and reported both DJ experiments as disagreeing with their
+# own numbers.
+F=src/oqca/quantum/experiments.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/quantum/experiments.ts'; s=open(p).read()
+old='  const grows = tail.every((v, k) => k === 0 || v > tail[k - 1]);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  const grows = costs[costs.length - 1] > costs[0];')
+open(p,'w').write(s)
+PY
+report "M78 a saturating classical cost is read as growth" "$(run src/oqca/__tests__/quantumMethod.test.ts)"
+restore $F
+
+# M79: discovery reads "a fair experiment mentions this algorithm" as support
+# again, so Deutsch and Deutsch-Jozsa are recommended off the back of the
+# experiment that refutes them. The real defect, restored.
+F=src/oqca/quantum/discovery.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/quantum/discovery.ts'; s=open(p).read()
+old='        e.establishes === "advantage" &&\n'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'')
+open(p,'w').write(s)
+PY
+report "M79 a no-advantage experiment is read as support" "$(run src/oqca/__tests__/quantumMethod.test.ts)"
+restore $F
+
+# M80: the simulator keys its counts by the whole quantum register again, so an
+# unmeasured ancilla appears in every answer. Every amplitude stays right and
+# every comparison goes wrong.
+F=src/oqca/quantum/backends/statevector.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/quantum/backends/statevector.ts'; s=open(p).read()
+old='      if (measured.length === 0) return yes(sampleCounts(probs, shots, seed, circuit.qubits));'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      if (measured.length >= 0) return yes(sampleCounts(probs, shots, seed, circuit.qubits));')
+open(p,'w').write(s)
+PY
+report "M80 counts are keyed by the quantum register, not the declared one" "$(run src/oqca/__tests__/quantumKernel.test.ts src/oqca/__tests__/quantumMethod.test.ts)"
+restore $F
+
+# M81: the §21 policy defaults open a QPU and a budget. Nothing else in the tree
+# would notice, because no vendor is configured — which is exactly why the
+# DEFAULT has to be guarded rather than the call site.
+F=src/oqca/quantum/policy.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/quantum/policy.ts'; s=open(p).read()
+old='  remoteQuantumExecution: false,'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  remoteQuantumExecution: true,')
+old2='  maxQuantumCostUsd: 0,'
+assert s.count(old2)==1, s.count(old2)
+s=s.replace(old2,'  maxQuantumCostUsd: 10,')
+open(p,'w').write(s)
+PY
+report "M81 remote quantum execution and a cost budget are on by default" "$(run src/oqca/__tests__/quantumKernel.test.ts)"
+restore $F
+
+# M82: a domain claims an implementation it does not have. The capability
+# record must go FALSE rather than the claim standing.
+F=src/oqca/quantum/domains.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/quantum/domains.ts'; s=open(p).read()
+old='    id: "qec",'
+assert s.count(old)==1, s.count(old)
+i=s.index(old); j=s.index('    implementedHere: [],', i)
+s = s[:j] + '    implementedHere: ["decodeSurfaceCode"],' + s[j+len('    implementedHere: [],'):]
+open(p,'w').write(s)
+PY
+report "M82 a domain claims an implementation that does not exist" "$(run src/oqca/__tests__/quantumKnowledge.test.ts)"
+restore $F
+
+# M83: a domain declares itself finished by emptying its gap list — §27's
+# outstanding column, deleted.
+F=src/oqca/quantum/domains.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/quantum/domains.ts'; s=open(p).read()
+old='    notImplemented: [\n      "no optimiser, no training loop, no autodiff'
+assert s.count(old)==1, s.count(old)
+i=s.index(old); j=s.index('    ],', i)
+s = s[:i] + '    notImplemented: [\n' + s[j:]
+open(p,'w').write(s)
+PY
+report "M83 a domain declares itself complete" "$(run src/oqca/__tests__/quantumKnowledge.test.ts)"
+restore $F
+
+# M84: the URL-ban exemption widens from the two locator files to the whole
+# tree. The compensating check must fire.
+F=src/oqca/__tests__/security.test.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/__tests__/security.test.ts'; s=open(p).read()
+old='const URL_DATA = ["src/oqca/quantum/sources.ts", "src/oqca/quantum/knowledge.ts"];'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'const URL_DATA = ["src/oqca/quantum/sources.ts", "src/oqca/quantum/knowledge.ts", "src/oqca/quantum/policy.ts"];')
+open(p,'w').write(s)
+PY
+report "M84 the URL exemption widens to a file that carries no URL" "$(run src/oqca/__tests__/security.test.ts)"
+restore $F
+
 echo "done"

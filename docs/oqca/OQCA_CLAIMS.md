@@ -143,3 +143,22 @@ Nothing here supports any of these, and the brief requires them listed.
 > probability vector given the same fact, or a real vector with one extra
 > channel, reaches the identical answer on every trial. The representation was
 > not measured to add anything.
+
+## The Quantum Knowledge Substrate — ESTABLISHED / EXPERIMENTAL / UNPROVEN
+
+| Claim                                                                                                         | Status                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| The substrate is reached by the REAL 23-station loop, and answers quantum queries with a source on every fact | **ESTABLISHED** — `oksLoopIntegration.test.ts` runs `runCognitiveLoop` against `makeSubstrateKnowledgeAdapter` over the real ingestion  |
+| Every gate in the registry is unitary, with its inverse equal to its dagger                                   | **ESTABLISHED** — computed over `GATE_NAMES`, not a sample; also ingested as 19 `isUnitary` records                                     |
+| Every noise channel is CPTP, with the p=1 and gamma=1 limits correct                                          | **ESTABLISHED** — Choi matrix PSD, computed per channel                                                                                 |
+| The 18 source versions and licences are what PyPI returned                                                    | **ESTABLISHED** — harvested 2026-09-10T15:12:30Z, reproducible by `scripts/quantum-harvest-sources.mjs`                                 |
+| Deutsch-Jozsa's exponential separation does NOT survive a randomised classical baseline                       | **ESTABLISHED** — deterministic 5 → 1,025 over n=4..12; randomised 6 → 8, flat. Measured on the local simulator, $0                     |
+| Bernstein-Vazirani's separation DOES survive, and is linear                                                   | **ESTABLISHED** — quantum 1 query recovers `1011` exactly; classical bound is n and randomness cannot beat it                           |
+| No quantum method is recommended for any problem ONIQ actually has                                            | **ESTABLISHED** — `discoverAll()` returns `classical` or `no_matching_structure` for all four                                           |
+| Nothing in `src/oqca/**` reaches a network, a credential or a clock                                           | **ESTABLISHED** — `security.test.ts` walks the tree; 84 mutations RED                                                                   |
+| A recalled-only or model-only claim can never be promoted                                                     | **ESTABLISHED** — refused BY NAME; mutations M66/M67 red                                                                                |
+| A library disagreement is preserved rather than normalised                                                    | **ESTABLISHED** — 4 CONTESTED records, unreachable through the ordinary lookup; M73 red                                                 |
+| ONIQ has quantum error correction or ZX calculus                                                              | **FALSE, and asserted false** — `coverage().knowledgeOnly` is exactly `["qec", "zx"]`                                                   |
+| Any quantum method here has a demonstrated advantage over its classical alternative                           | **UNPROVEN, and unassertable** — `assertAdvantage` throws without a named benchmark; all 18 records are negative                        |
+| Knowledge precision, recall, resolution accuracy, upgrade gain, false-promotion rate                          | **UNMEASURED** — they need a labelled ground-truth set and return `null`, never 0                                                       |
+| The parser/extractor knowledge is correct against real ecosystem behaviour                                    | **UNPROVEN** — the documentation hosts are unreachable from this container; every ecosystem convention is `spec_cited`, never `fetched` |

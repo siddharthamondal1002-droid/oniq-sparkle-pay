@@ -5161,3 +5161,134 @@ GREEN, none NOTAPPLIED**; tsc, `lint:ci`, Prettier, the mirror check and
 chain, episode, comparison and station log written to `docs/oqca/shadow-run/`.
 Still nothing deployed, published or merged, the flag still ships off, and a
 shadow tick at the shipped defaults still costs $0.
+
+### 2026-09-10 — the Knowledge Substrate, and the quantum domain that sits UNDER it
+
+Two documents arrived together — a 28-section "ONIQ QUANTUM KNOWLEDGE
+SUBSTRATE" brief and a 9-page "Knowledge Upgradation" spec — and **§15 of the
+second settled the architecture between them**: _"The Quantum Knowledge
+Substrate should become one domain adapter under the general Knowledge
+Substrate."_ So there is ONE substrate, `src/oqca/knowledge/substrate/`, and
+`src/oqca/quantum/` is a domain that feeds it. Quantum facts go through the
+same promotion policy, conflict resolution and decay rules as anything else
+ONIQ will ever learn. `docs/oqca/OQCA_QUANTUM_KNOWLEDGE_REPORT.md` is the
+record; `docs/oqca/quantum/` is seventeen pages, one per brief section.
+
+**THE MILESTONE IS REACHED, and it is the first sentence rather than the last.**
+`ingestQuantumKnowledge` fills a store, `makeSubstrateKnowledgeAdapter` wraps
+it, `runCognitiveLoop` runs all 23 stations against it, and the knowledge seam
+answers real quantum queries with a source reference on every fact — the
+upgradation spec's phases 8 and 9. Nothing is deployed, published or merged to
+`main`; **$0 spent, no Lovable message, no credits, no new dependency.**
+
+**WHAT ONIQ HAS ENCOUNTERED STAYS PROSE; ONLY WHAT IT HAS VERIFIED BECOMES A
+RECORD.** 113 records ingested — 109 VERIFIED, 4 CONTESTED, 0 REJECTED — and
+roughly two hundred rows DELIBERATELY NOT ingested. The 27 concept
+definitions, 18 algorithm descriptions and 8 domain summaries were written from
+training with no document fetched, which is `recalled`: weight zero, and the
+gate refuses a claim whose every support is recalled, by name. Ingesting them
+would produce two hundred unbelievable rows and then invite the fix that ruins
+it — relabelling recall as a citation to make the numbers look better.
+`NOT_INGESTED` says so in code rather than only in a comment.
+
+**§16's RESULT IS THE ONE WORTH CARRYING, and it cost $0 on the local
+simulator.** _"The system must never call a quantum method superior merely
+because the classical baseline was denied equivalent information."_ Measured:
+
+    Deutsch-Jozsa, deterministic classical baseline   5 -> 1025 over n=4..12
+    Deutsch-Jozsa, randomised classical baseline      6 -> 8      FLAT
+    Bernstein-Vazirani, randomised                    4 -> 12     grows with n
+
+So **DJ's exponential separation is a fact about the classical machine being
+denied a coin**, not about the problem; BV's survives the same treatment and is
+LINEAR. Same textbook chapter, same circuit shape, opposite conclusions once
+the baseline is treated fairly. An unfair pair still RUNS and still reports its
+numbers — hiding the comparison would hide the thing §16 exists to expose;
+what is refused is the VERDICT.
+
+**AND §18's DISCOVERY PIPELINE ANSWERS "CLASSICAL" FOR EVERY PROBLEM ONIQ
+ACTUALLY HAS** — `story_dispatch` and `health_extraction` match no quantum
+structure at all; `shot_allocation` and `vault_retrieval` match and have no
+fair experiment behind them. That IS the answer for this codebase, not a
+placeholder. A pipeline that could not return it would be a recommendation
+engine rather than a decision procedure.
+
+**NINE DEFECTS, EVERY ONE FOUND BY RUNNING IT RATHER THAN READING IT**, and
+each shipped green:
+
+- **The promotion threshold was unreachable.** `w/(w+1)` caps one perfect
+  source at 0.5 and `minConfidence` was 0.6, so the substrate refused
+  everything at exactly 0.500 — while the module's own comment said one
+  authoritative registry should suffice. The prose and the number disagreed and
+  the number wins in production. Found by 113/113 coming back CANDIDATE.
+- **The store lost every retired row.** `supersede()` REQUIRES both records to
+  share an id (the id hashes the assertion, not the belief), and the store
+  wrote the retired row and its replacement under that same key — so the second
+  write always won. §21's "do not erase historical knowledge" was broken for
+  every supersession there had ever been, and the branch LOOKS correct: it is
+  dead only in the case that matters.
+- **`rollbackIntegrity` could not detect a store that ignores its journal.** It
+  compared a prefix against another replay; a stub returning the current state
+  scored a perfect 1. It derives the expected id set from the JOURNAL now —
+  data the store hands over rather than a computation it performs, which is the
+  one check a dishonest replay cannot pass.
+- **The simulator keyed counts by the whole quantum register.** A
+  Bernstein-Vazirani circuit's unmeasured ancilla appeared in every answer:
+  every amplitude right, every comparison wrong.
+- **Discovery read "a fair experiment mentions this algorithm" as support.**
+  `dj_fair` is a fair experiment whose entire finding is that DJ has NO
+  advantage — and both DJ algorithms were being recommended off the back of it.
+  **Fairness says the comparison is honest; it says nothing about which way it
+  came out.**
+- **The growth test read a saturating curve as growth.** `last > first` on
+  6,7,8,8,8 says "grows". The TAIL is what says "bounded", and it needs no
+  magic ratio.
+- **The ingestion never recorded WHEN it verified anything**, so every record
+  was born stale and the decay metric read 1.0000 forever — indistinguishable
+  from a metric that computes nothing.
+- **A category lookup used a key that can never be in the map**, and the `??`
+  fallback returned the right answer for the wrong reason.
+- **Two implementations of `stalenessRate`** — one in `decay.ts`, one
+  re-derived in `metrics.ts`. "Never re-derive a policy beside the policy",
+  which the health work has a receipt for.
+
+**THREE GUARDS WERE NARROWED AND EVERY NARROWING IS PROVEN IN THE SAME FILE.**
+The clock ban flagged three files whose only use is `Date.parse(iso)` — a pure
+function that cannot make a replay differ — so it bans the CLOCK now
+(`Date.now`, argless `new Date()`, `performance.now`) with seven assertions
+proving both directions. The credential ban flagged `secret`, which was
+Bernstein-Vazirani's hidden string: **renamed `hiddenString`, guard untouched.**
+And a URL literal in a test became a regex literal so the URL ban keeps full
+width rather than gaining a third exemption for convenience.
+
+**TWO FILES ARE EXEMPT FROM THE URL BAN ONLY**, because §9 requires every piece
+of evidence to carry a locator and `sources.ts`/`knowledge.ts` hold them. Every
+other ban still applies to both, asserted file by file — and the compensating
+check's LIMIT is asserted rather than described: a URL assembled from string
+pieces passes it, measured, so the real guarantee is that every network
+primitive is banned there without exemption.
+
+**84 MUTATIONS, 84 RED, 0 GREEN, 0 NOTAPPLIED.** M70 reported NOTAPPLIED on its
+first run because its anchor matched twice — the script announced it instead of
+printing a verdict, for the fourth time. And M72 was rewritten to re-add the
+import its mutation needs: **a mutation caught red on a compile error is not a
+verdict either.**
+
+**AND A DOC-READING TEST WENT RED ON CORRECT NUMBERS** because `prettier
+--write` padded a markdown table's columns and the assertion matched
+`| (\d+) |` with exactly one space. That is the `marketingCopy.ts`
+400-character-window lesson in a third file: **where a test reads a document,
+it must read its CONTENT and not its layout.** Mutation-checked afterwards on
+the real formatting — a wrong count still fails.
+
+**WHAT IS DELIBERATELY NOT BUILT, and §27 forbids pretending otherwise.**
+`coverage()` computes the gap ledger: 8 domains, 6 with some implementation,
+**2 knowledge-only (QEC and ZX) and 24 named gaps**. No transpiler, no MPS, no
+decoder, no rewrite engine, no optimiser, no Hamiltonian construction, no
+device. No Python service, no standing endpoint, no QPU vendor, no cloud spend,
+no `package.json` change, no network research, no autonomous acquisition. And
+**no advantage claim is assertable without a named benchmark** — `assertAdvantage`
+throws, so all 18 advantage records are negative.
+
+Numbers: 579 tests across 22 files in `src/oqca`; tsc, `lint:ci`, Prettier, the
+mirror check and `deno check` of the runtime chain all clean.

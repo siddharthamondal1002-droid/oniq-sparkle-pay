@@ -1,5 +1,38 @@
 # OQCA — what was built, and what it is worth
 
+> ## The Quantum Knowledge Substrate is the newest layer, and it sits UNDER the general one.
+>
+> - **[`OQCA_QUANTUM_KNOWLEDGE_REPORT.md`](OQCA_QUANTUM_KNOWLEDGE_REPORT.md)** — the §28 report.
+> - **[`quantum/`](quantum/)** — seventeen pages, one per brief section.
+>
+> The upgradation spec's §15 settled the architecture: _"The Quantum Knowledge
+> Substrate should become one domain adapter under the general Knowledge
+> Substrate."_ So there is ONE substrate — `src/oqca/knowledge/substrate/` —
+> and `src/oqca/quantum/` is a domain that feeds it. Quantum facts go through
+> the same promotion policy as anything else ONIQ will ever learn.
+>
+> **The milestone IS reached here:** the substrate is read by the real
+> 23-station loop. `ingestQuantumKnowledge` fills a store, the store is wrapped
+> as the v1.3 knowledge seam, `runCognitiveLoop` runs all 23 stations against
+> it, and every fact comes back with a source reference.
+>
+> ### Three numbers worth carrying
+>
+> - **113 records ingested; 109 VERIFIED, 4 CONTESTED, 0 REJECTED.** The four
+>   contested ones are the library disagreements §23 forbids normalising.
+> - **~200 rows deliberately NOT ingested.** The concept, algorithm and domain
+>   PROSE was written from training with no document fetched, which is
+>   `recalled` — weight zero, unpromotable. What ONIQ has _encountered_ stays
+>   prose; only what it has _verified_ becomes a record.
+> - **Deutsch-Jozsa's exponential separation does not survive a fair
+>   baseline.** Measured: the deterministic classical cost runs 5 → 1,025 over
+>   n = 4..12 and the randomised one runs 6 → 8, flat. Bernstein-Vazirani's
+>   separation does survive, and it is LINEAR.
+>
+> **Nothing is deployed, published or merged to `main`. $0 spent.**
+>
+> ---
+
 > ## v1.2 is the current state. It made OQCA REACHABLE.
 >
 > - **[`OQCA_V1_2_REPORT.md`](OQCA_V1_2_REPORT.md)** — the full v1.2 report.

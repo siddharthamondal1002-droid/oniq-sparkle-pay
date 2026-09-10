@@ -160,12 +160,29 @@ function codeResidue(source: string): string {
 }
 
 /** Files whose executable text (comments gone, strings kept) matches. */
-function offenders(pattern: RegExp): string[] {
+function offenders(pattern: RegExp, alsoExempt: readonly string[] = []): string[] {
   return [...SOURCE]
-    .filter(([file]) => !GUARDS.includes(file))
+    .filter(([file]) => !GUARDS.includes(file) && !alsoExempt.includes(file))
     .filter(([, text]) => new RegExp(pattern).test(text))
     .map(([f]) => f);
 }
+
+/**
+ * TWO FILES CARRY URLs AS DATA, AND THEY ARE EXEMPT FROM THE URL BAN ONLY.
+ *
+ * The OKS spec's §9 requires every piece of evidence to carry a LOCATOR — "a
+ * URL, a file path, a registry endpoint. Never invented" — so a provenance
+ * record without one is untraceable by construction. `sources.ts` holds the
+ * eighteen ecosystems' repository and documentation addresses as harvested
+ * from PyPI, and `knowledge.ts` holds the harvest endpoint it reads them from.
+ *
+ * THE EXEMPTION IS NARROW AND THE COMPENSATION IS STRICTER, not looser. Every
+ * other ban still applies to both files unchanged — a `fetch` in either still
+ * goes red, asserted by mutation below — and a dedicated assertion requires
+ * that their URLs appear ONLY inside string literals, so nothing is composing
+ * one into a call. A URL no code can reach is a citation.
+ */
+const URL_DATA = ["src/oqca/quantum/sources.ts", "src/oqca/quantum/knowledge.ts"];
 
 /**
  * The banned shapes. Each entry is one capability the brief forbids, and the
@@ -238,6 +255,16 @@ const FORBIDDEN: readonly { readonly what: string; readonly pattern: RegExp }[] 
   },
 ];
 
+/**
+ * A CLOCK READING, not the `Date` namespace. `Date.now()`, an argless
+ * `new Date()` and `performance.now()` return something different on every
+ * call and destroy deterministic replay; `Date.parse`, `Date.UTC` and
+ * `new Date(<string>)` are pure functions of their arguments and cannot.
+ * Every branch is exercised both ways in the assertion that uses it.
+ */
+const CLOCK =
+  /\bDate\s*\.\s*now\b|\bnew\s+Date\s*\(\s*\)|(?<![.\w$])Date\s*\(\s*\)|performance\s*\.\s*now\b/;
+
 describe("brief section 18 — Security", () => {
   it("walks a tree that actually has files in it", () => {
     // A walker that silently returned nothing would pass every ban below. This
@@ -252,9 +279,49 @@ describe("brief section 18 — Security", () => {
 
   for (const { what, pattern } of FORBIDDEN) {
     it(`no file names ${what}`, () => {
-      expect(offenders(pattern)).toEqual([]);
+      expect(offenders(pattern, what === "an http(s) URL" ? URL_DATA : [])).toEqual([]);
     });
   }
+
+  it("the two URL-carrying files hold citations, not reachable addresses", () => {
+    for (const file of URL_DATA) {
+      const text = SOURCE.get(file);
+      expect(text, `${file} is not in the walk`).toBeDefined();
+      // It really does carry one, or the exemption is dead weight sitting
+      // there weakening a ban for nothing.
+      expect(/https?:\/\//.test(text!)).toBe(true);
+      // With strings and regexes masked, no whole scheme survives — so no URL
+      // is spelled out in executable position.
+      expect(executableText(readFileSync(file, "utf8"))).not.toMatch(/https?:\/\//);
+      // Every OTHER ban still applies here, unchanged. THIS LOOP IS THE REAL
+      // GUARANTEE and the line above is a secondary signal: see the limit
+      // asserted directly below.
+      for (const { what, pattern } of FORBIDDEN) {
+        if (what === "an http(s) URL") continue;
+        expect(new RegExp(pattern).test(text!), `${file} names ${what}`).toBe(false);
+      }
+    }
+  });
+
+  it("the executable-text signal has a stated limit, and it is asserted not described", () => {
+    // MEASURED BY MUTATION, NOT REASONED. Appending
+    //   export const built = "https" + "://pypi.org/" + HARVESTED_AT;
+    // to `sources.ts` left all 50 tests GREEN: `executableText` masks BOTH
+    // string literals, so a URL assembled from pieces leaves no scheme in the
+    // residue. The assertion above therefore proves "no URL is written out in
+    // executable position" and NOT "no URL can be assembled".
+    //
+    // That is fine, and the reason is worth being explicit about rather than
+    // leaving to a reader: an assembled URL is inert here because EVERY
+    // network primitive is banned in these files without exemption — `fetch`,
+    // `XMLHttpRequest`, `WebSocket`, `import(`, `Deno.connect`. A string that
+    // no call can consume is a citation whatever it is made of. The mutation
+    // that adds a real `fetch` to `sources.ts` goes red on two tests.
+    //
+    // Pinned so the limit cannot quietly become a claim: this IS the gap.
+    expect(executableText('const u = "https" + "://x.example/";')).not.toMatch(/https?:\/\//);
+    expect(executableText("const u = fetch;")).toMatch(/\bfetch\b/);
+  });
 
   it.each(GUARDS)("%s is subject to every ban it declares", (guard) => {
     // The three files excluded from the SUBSTRING scan, checked by the
@@ -356,8 +423,23 @@ describe("brief section 18 — Security", () => {
     // Math.random makes a benchmark unreproducible — so both are banned in
     // code, and both are DISCUSSED in comments by the two files that avoid
     // them. Stripping comments is what separates the mention from the use.
-    expect(offenders(/\bDate\s*[.(]|\bnew\s+Date\b|performance\s*\.\s*now/)).toEqual([]);
+    expect(offenders(CLOCK)).toEqual([]);
     expect(offenders(/Math\s*\.\s*random/)).toEqual([]);
+
+    // THE NARROWING, PROVEN HERE RATHER THAN ASSERTED (CLAUDE.md, 2026-09-10).
+    // `Date.parse` and `new Date(<a string>)` are PURE — same input, same
+    // output, forever — so neither can make a replay differ, and the substrate
+    // needs them to read an ISO instant off a piece of evidence. The first
+    // pattern banned the whole `Date` namespace and flagged three files whose
+    // only use is `Date.parse(e.retrievedAt)`. What destroys replay is a
+    // READING of the clock, and that is what is banned.
+    expect(CLOCK.test("Date.now()")).toBe(true);
+    expect(CLOCK.test("new Date()")).toBe(true);
+    expect(CLOCK.test("new Date( )")).toBe(true);
+    expect(CLOCK.test("performance.now()")).toBe(true);
+    expect(CLOCK.test("Date.parse(iso)")).toBe(false);
+    expect(CLOCK.test("new Date(iso)")).toBe(false);
+    expect(CLOCK.test("Date.UTC(2026, 8, 10)")).toBe(false);
   });
 });
 
