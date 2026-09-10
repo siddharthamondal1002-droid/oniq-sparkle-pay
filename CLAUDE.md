@@ -4620,3 +4620,113 @@ end against a real stored object, the JPEG-passthrough branch on production, and
 anything at all on a handset or on a real scanner's output. Worth ONE upload
 message on the next turn that needs the agent anyway; not worth a turn of its
 own now that the runtime question is closed.
+
+### 2026-09-10 — OQCA: the spec's own operator drains the hypotheses it does not touch, and the benchmark's honest answer is 7–6
+
+A 40-section architecture document ("OQCA v1.0 — ONIQ Quantum Cognitive
+Architecture", authored by another AI: its citations carry
+`utm_source=chatgpt.com`) was pasted in with no imperative attached. Asked where
+it should live and what to wire it to, the owner answered **"[No preference]"**
+to both. Everything below is therefore an **ENGINEERING** call, recorded as one
+the way the 2026-09-06 direct-Play-Billing decision was — not an owner
+directive. `docs/oqca/README.md` is the record.
+
+**"NO PREFERENCE" IS NOT AUTHORIZATION TO START A BILL, and that is what set
+the scope.** The document asks for a standing Python/FastAPI service, a
+continuous "Mega Quantum Loop" and a QPU backend. A standing service and a
+continuous loop each spend money every hour they exist. Under this file's first
+rule those are provider-and-payment choices, so they were excluded **by the
+rule, not by taste** — and what remains is the part that can be measured for
+zero money: the kernel, in TypeScript, in `src/oqca/`, benchmarked offline
+against a Bayesian control. TypeScript because ONIQ's only deployable surfaces
+are the Lovable bundle and 64 Deno functions; the one Python tree here,
+`runtime/arap-cpu/`, has a README saying its image has never been built, and a
+second unbuilt runtime is not an architecture.
+
+**THE SPEC'S `interfere` DRAINS EVERY HYPOTHESIS IT DOES NOT TOUCH — measured,
+not argued.** Its operation on the pair is `a_i' = a_i + s·a_j`,
+`a_j' = a_j − s·a_i`, then a GLOBAL renormalize. `M = [[1,s],[−s,1]]` satisfies
+`MᵀM = (1+s²)I`, so it inflates the pair's norm and the global divide takes that
+inflation out of every OTHER hypothesis. Three equal hypotheses, `s = 0.5`,
+interfering only the first two:
+
+    start 0.3333 -> 0.2857 -> 0.2424 -> ... -> 0.0774 after 8 rounds
+
+H2 loses 77% of its probability with no evidence about it at all, and §18's loop
+interferes every iteration. `gates.ts` divides the PAIR by `√(1+s²)`; H2 then
+holds 0.3333 through the same eight rounds. **And the same correction is what
+makes the document's own §23–24 QPU adapter possible** — hardware runs
+UNITARIES, and a linear map plus a renormalize is not one, so the specced
+operator could never have been lifted at all.
+
+**THE VERDICT IS 7–6, AND THE ONE ROW IS A CHANNEL, NOT AN INFERENCE.** Four
+tasks use only `reweight`, which IS Bayes — asserted as identical distributions
+to 12 decimal places, not merely the same answer — so they must tie. The single
+divergent row hands OQCA a third fact, as a half-turn of phase, that Bayes is
+never given; Bayes reaches a dead tie (A = B = 0.4630) and breaks it by index
+order. The control that keeps this honest is asserted in the same file: **give
+Bayes the same fact as an ordinary likelihood and it reaches B at over 0.8.** So
+the measured claim is that the amplitude state has SOMEWHERE TO PUT a piece of
+context a probability vector has nowhere to put — not that it decides better.
+
+**THE FIXTURE WAS WRONG THREE TIMES AND THE GATE WAS RIGHT ALL THREE**, which is
+the part worth carrying. Each time the honest move was to measure the parameter
+rather than reason about it a fourth time:
+
+    asserted A, measured B    the operator is ANTISYMMETRIC, so a half-turn on B
+                              cancels A and amplifies B. Flipping `truth` to match
+                              would have been the "fixture built to flatter it"
+                              trap this repo already has a receipt for; the task
+                              was restructured instead.
+    moved the phase A<->B     NO EFFECT. Only RELATIVE phase is observable, so a
+                              half-turn on A and one on B are the same state up to
+                              a global phase. The "same numbers, other instrument
+                              discredited" pair was incoherent and is gone.
+    "ORDER MATTERS"           wrong in BOTH directions. Reversing the two steps of
+                              the tie tasks is byte-identical (2.8e-17), because a
+                              reweight scaling both members of the pair EQUALLY is
+                              a scalar on that subspace and commutes with the
+                              rotation. The first correction — "reversal never
+                              matters" — was then falsified by the corroboration
+                              task, whose pair takes 0.6 and 0.4.
+
+The test derives that condition from the task now rather than hard-coding it, so
+a future task lands in whichever arm it belongs to. Stated as a limit: order
+changes an answer only when the pair is reweighted UNEQUALLY, and on **every**
+scored task it moves a confidence and never an answer.
+
+**AND THE SHARPEST LIMIT IS THAT THE CONFIDENT NUMBER IS THE CALLER'S.** On a
+genuine tie, `interfere(state, a, b, s)` rotates mass from `b` into `a`, so
+naming the pair `(B, A)` instead of `(A, B)` returns the opposite label at the
+identical 0.9234 from evidence that has not changed by one bit. 0.9234 is a fact
+about the operator's orientation; a reader will take it for a fact about the
+evidence.
+
+**TWO THINGS THE MUTATION SCRIPT SAID ABOUT ITSELF.** `scripts/oqca-mutate.sh`
+runs seven, all RED — and the two most important are the ones that would make
+OQCA look BETTER than it is (a control task handed an interference; a summary
+sentence that always claims a win). Both were found by writing them:
+
+- **It printed `NOTAPPLIED` on a stale anchor** — `measure`'s default is
+  `{ kind: "maximum" }`, not `{ maximum: true }` — so it announced that nothing
+  had been mutated instead of reporting GREEN. That is the 2026-09-09 /
+  2026-09-10 fix working in a third script, on its first run.
+- **One "mutation" was a tautology and had to be deleted.** M7 weakened an
+  assertion and then checked by grepping for the string it had just removed, so
+  it could only ever print RED. A weakened assertion cannot be caught by running
+  the suite — a weaker assertion passes — so the real answer was to make the
+  thing it guarded checkable: `runSuite`'s summary is now pinned to the scores
+  it computed, and the mutation makes the sentence lie. The old assertion
+  (`/TIE|OQCA \d/`) would have passed a summary that always claimed a win.
+
+**THE DOCUMENT'S OWN CLOSING STATUS WAS FALSE HERE**, and it is worth noticing
+because it would have justified doing nothing: it says the GitHub integration
+"returns no accessible repositories, so I cannot safely modify or claim to
+deploy your ONIQ code". In this session the repo is present and was shipped to
+twice the same morning. A second-hand claim about what a tool can reach is a
+catalogue, not a probe.
+
+Nothing imports `src/oqca` — it is a measured subsystem, not a feature, so there
+is no migration, no edge function, no Lovable message and no publish. 33 tests
+in the module; whole suite 360 files / 6,233 green; tsc, `lint:ci` and Prettier
+clean.
