@@ -1,0 +1,162 @@
+{
+  "enforcedBackoffMs": 600000,
+  "productionDecision": "8f2c1a",
+  "k0": {
+    "belief": {
+      "windowMs": 3600000,
+      "evidence": [
+        {
+          "sourceId": "oniq-codebase",
+          "sourceType": "release_notes",
+          "locator": "docs/oqca/knowledge-upgrade#stale-release-note-a",
+          "excerpt": "the dispatcher waits an hour before offering the same film again",
+          "directness": "fetched",
+          "extraction": "human_authored"
+        },
+        {
+          "sourceId": "oniq-codebase",
+          "sourceType": "repository_readme",
+          "locator": "docs/oqca/knowledge-upgrade#stale-release-note-b",
+          "excerpt": "backoff: 60 minutes between dispatches of one job",
+          "directness": "fetched",
+          "extraction": "human_authored"
+        }
+      ]
+    },
+    "recordId": "kr_94a9100d243e77cb97f9b1dff94ea632",
+    "confidence": 0.6153846153846154,
+    "availableActions": ["dispatch story job b71e04", "hold: dispatch nothing this tick"],
+    "gaps": [
+      {
+        "conceptId": "runner-availability",
+        "status": "UNKNOWN"
+      },
+      {
+        "conceptId": "dispatch-backoff",
+        "status": "UNCERTAIN"
+      },
+      {
+        "conceptId": "queue-eligibility",
+        "status": "VERIFIED"
+      }
+    ],
+    "comparison": {
+      "runId": "upgrade-k0",
+      "mode": "shadow",
+      "productionDecision": "8f2c1a",
+      "oqcaDecision": "dispatch story job b71e04",
+      "oqcaConfidence": 0.8130099808069396,
+      "oqcaMargin": 0.6260199616138794,
+      "agreed": false,
+      "latencyMs": 154,
+      "modelCalls": 0,
+      "modelCallsRefused": 0,
+      "toolAttempts": 0,
+      "toolsRefused": 0,
+      "estimatedCostUsd": 0,
+      "costUsd": 0,
+      "terminated": "max_tool_calls",
+      "undecidedReason": null,
+      "failure": null,
+      "persistedEpisodes": 0,
+      "persistedStates": 8,
+      "knowledgeLookups": 1,
+      "researchRefusals": 1,
+      "stateTransitions": 8,
+      "knowledgeRecords": 123,
+      "knowledgeVerified": 116,
+      "quantumFactsUsed": 1,
+      "knowledgeGapsOpen": 2,
+      "knowledgeGapsTotal": 3,
+      "substrateBuildMs": 0,
+      "believedBackoffMs": 3600000,
+      "enforcedBackoffMs": 600000
+    }
+  },
+  "conflict": {
+    "id": "cf_dispatch-backoff|windowMs",
+    "subject": "dispatch-backoff",
+    "predicate": "windowMs",
+    "kind": "value_disagreement",
+    "competing": ["kr_4f89fbfeff6c6a986664d634283617f1", "kr_94a9100d243e77cb97f9b1dff94ea632"],
+    "canonical": "kr_4f89fbfeff6c6a986664d634283617f1",
+    "strategy": "measured_precedence",
+    "rationale": "one side rests on a direct observation of the subject system and every rival on documents about it; an observation is not out-voted by descriptions",
+    "escalated": false
+  },
+  "dependents": [
+    {
+      "id": "kr_b9afa36fd8bada99ebbc617b9512739e",
+      "subject": "queue-eligibility",
+      "predicate": "ruleIs"
+    }
+  ],
+  "k1": {
+    "belief": {
+      "windowMs": 600000,
+      "evidence": [
+        {
+          "sourceId": "oniq-codebase",
+          "sourceType": "measurement",
+          "locator": "_shared/oqcaRuntime/dispatchJob.ts:DISPATCH_BACKOFF_MS",
+          "excerpt": "DISPATCH_BACKOFF_MS = 600000: a job dispatched within the last 10 minute(s) is inside its backoff window",
+          "directness": "fetched",
+          "extraction": "computed"
+        }
+      ]
+    },
+    "recordId": "kr_4f89fbfeff6c6a986664d634283617f1",
+    "confidence": 0.48717948717948717,
+    "availableActions": [
+      "dispatch story job 8f2c1a",
+      "dispatch story job b71e04",
+      "hold: dispatch nothing this tick"
+    ],
+    "gaps": [
+      {
+        "conceptId": "runner-availability",
+        "status": "UNKNOWN"
+      },
+      {
+        "conceptId": "queue-eligibility",
+        "status": "VERIFIED"
+      },
+      {
+        "conceptId": "dispatch-backoff",
+        "status": "VERIFIED"
+      }
+    ],
+    "comparison": {
+      "runId": "upgrade-k1",
+      "mode": "shadow",
+      "productionDecision": "8f2c1a",
+      "oqcaDecision": "dispatch story job 8f2c1a",
+      "oqcaConfidence": 0.5882981355683689,
+      "oqcaMargin": 0.2123143372072656,
+      "agreed": true,
+      "latencyMs": 154,
+      "modelCalls": 0,
+      "modelCallsRefused": 0,
+      "toolAttempts": 0,
+      "toolsRefused": 0,
+      "estimatedCostUsd": 0,
+      "costUsd": 0,
+      "terminated": "max_tool_calls",
+      "undecidedReason": null,
+      "failure": null,
+      "persistedEpisodes": 0,
+      "persistedStates": 8,
+      "knowledgeLookups": 1,
+      "researchRefusals": 1,
+      "stateTransitions": 8,
+      "knowledgeRecords": 123,
+      "knowledgeVerified": 116,
+      "quantumFactsUsed": 1,
+      "knowledgeGapsOpen": 1,
+      "knowledgeGapsTotal": 3,
+      "substrateBuildMs": 0,
+      "believedBackoffMs": 600000,
+      "enforcedBackoffMs": 600000
+    }
+  }
+}

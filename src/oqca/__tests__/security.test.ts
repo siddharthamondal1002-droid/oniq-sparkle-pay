@@ -111,6 +111,12 @@ const GUARDS = [
   // are REDACTED from a failure record, so it must contain one of each. A
   // redaction test that may not name a secret cannot test a redactor.
   "src/oqca/__tests__/recovery.test.ts",
+  // v1.4-R. It asserts that the runtime substrate opens no network, holds no
+  // credential and queries no database — so it must carry the whole ban table
+  // as regex literals, plus one real-looking example of each shape to prove
+  // the narrowing catches them. A guard that may not name a `fetch` cannot
+  // check for one, and its own narrowing test is checked in that same file.
+  "src/oqca/__tests__/reachableKnowledge.test.ts",
   "src/oqca/recovery/classify.ts",
   "supabase/functions/_shared/oqca/recovery/classify.ts",
 ];
@@ -182,7 +188,16 @@ function offenders(pattern: RegExp, alsoExempt: readonly string[] = []): string[
  * that their URLs appear ONLY inside string literals, so nothing is composing
  * one into a call. A URL no code can reach is a citation.
  */
-const URL_DATA = ["src/oqca/quantum/sources.ts", "src/oqca/quantum/knowledge.ts"];
+const URL_DATA_REL = ["quantum/sources.ts", "quantum/knowledge.ts"];
+
+/**
+ * BOTH TREES, AND THE MIRROR IS THE COPY THAT SHIPS. Naming only the `src/`
+ * paths exempted the source and left the byte-identical mirror flagged — which
+ * is the right way round for a guard to fail, and still the wrong list. An
+ * exemption asserted over one copy of a file and not the other is not an
+ * exemption; it is a guard that goes red on every `node scripts/oqca-mirror.mjs`.
+ */
+const URL_DATA = URL_DATA_REL.flatMap((rel) => [`src/oqca/${rel}`, `${MIRROR}/${rel}`]);
 
 /**
  * The banned shapes. Each entry is one capability the brief forbids, and the
@@ -385,13 +400,17 @@ describe("brief section 18 — Security", () => {
 
   it("the exclusion list is exactly the guard files, and every one is walked", () => {
     // AN EXCLUSION THAT GREW WOULD BE A HOLE. Each of these must NAME the
-    // banned shapes to do its job; nothing else may join them, and all three
-    // are still in FILES so the residue rule above actually runs on them.
+    // banned shapes to do its job; nothing else may join them, and every one is
+    // still in FILES so the residue rule above actually runs on them.
+    //
+    // The list is pinned as a LITERAL and not derived, so adding a file to it
+    // is a deliberate edit in two places rather than a side effect of one.
     expect(GUARDS).toEqual([
       "src/oqca/__tests__/security.test.ts",
       "src/oqca/__tests__/runtimeWiring.test.ts",
       "src/oqca/__tests__/runtime.test.ts",
       "src/oqca/__tests__/recovery.test.ts",
+      "src/oqca/__tests__/reachableKnowledge.test.ts",
       "src/oqca/recovery/classify.ts",
       "supabase/functions/_shared/oqca/recovery/classify.ts",
     ]);

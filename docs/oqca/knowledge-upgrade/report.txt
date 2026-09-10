@@ -1,0 +1,42 @@
+ONE CONTROLLED KNOWLEDGE UPGRADE — K0 -> K1
+
+  enforced backoff (code)  10 min   <- never moves
+  production decision      8f2c1a
+
+  K0 — the stale release note
+    believed backoff       60 min (2 x fetched/human_authored)
+    record                 kr_94a9100d243e77cb97f9b1dff94ea632 VERIFIED conf 0.615
+    actions available      2  [dispatch story job b71e04, hold: dispatch nothing this tick]
+    unavailable            2
+    gaps                   runner-availability=UNKNOWN dispatch-backoff=UNCERTAIN queue-eligibility=VERIFIED
+    OQCA decision          dispatch story job b71e04
+    agreed with production false
+
+  NEW EVIDENCE — the deployed constant, read here
+    rival pairs detected   1
+    strategy               measured_precedence
+    canonical              kr_4f89fbfeff6c6a986664d634283617f1
+    rationale              one side rests on a direct observation of the subject system and every rival on documents about it; an observation is not out-voted by descriptions
+    competing kept         2 (nothing deleted)
+
+  OLD DEPENDENT KNOWLEDGE
+    derived from K0        1
+      queue-eligibility ruleIs
+
+  K1 — after the upgrade
+    believed backoff       10 min (measurement/fetched)
+    record                 kr_4f89fbfeff6c6a986664d634283617f1 conf 0.487
+    actions available      3  [dispatch story job 8f2c1a, dispatch story job b71e04, hold: dispatch nothing this tick]
+    gaps                   runner-availability=UNKNOWN queue-eligibility=VERIFIED dispatch-backoff=VERIFIED
+    OQCA decision          dispatch story job 8f2c1a
+    agreed with production true
+
+  DECISION CHANGED         true
+  UPGRADE RESTORED AGREEMENT true
+
+  SAFETY — the belief never reached an authorization site
+    productionChoice(K0 belief ignored)  8f2c1a
+    believed vs enforced, K0            3600000 vs 600000
+    production writes, both runs        sent=0 stamped=0 (maxToolCalls 0)
+
+  artifacts                docs/oqca/knowledge-upgrade/

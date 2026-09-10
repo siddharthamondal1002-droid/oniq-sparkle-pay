@@ -186,8 +186,11 @@ describe("phase 9 — the quantum domain under the general substrate", () => {
     // is written. Everything else is fresh. Measured, and pinned to the exact
     // share so the number cannot drift into meaninglessness in either
     // direction: a metric that read a constant would pass a looser assertion.
+    // 18 advantage records + 4 discovery verdicts (v1.4-R): "story_dispatch
+    // matches no quantum structure" is event_driven for the same reason — it
+    // is re-derived the moment a fair benchmark lands, not when a clock ticks.
     const eventDriven = store.all().filter((r) => r.volatility === "event_driven").length;
-    expect(eventDriven).toBe(18);
+    expect(eventDriven).toBe(22);
     expect(m.stalenessRate).toBeCloseTo(eventDriven / store.all().length, 9);
 
     // A DAY ON the `fast` package versions join them, and a year on everything

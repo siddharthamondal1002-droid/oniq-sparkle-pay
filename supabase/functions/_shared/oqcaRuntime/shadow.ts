@@ -24,7 +24,15 @@ import { DEFAULT_BUDGETS, NO_SPEND, type Budgets, type MemoryRecord } from "../o
 import { makeEngine, type EngineContext, type ModelCallRecord } from "./engine.ts";
 import { makeToolRouter, type RouterMode, type ToolCallRecord } from "./toolRouter.ts";
 import { makeMemory } from "./memory.ts";
-import { dispatchRules, makeKnowledge } from "./knowledge.ts";
+import { recordingKnowledge } from "./knowledge.ts";
+import { openGaps } from "../oqca/knowledge/gaps.ts";
+import { QUANTUM_DOMAIN } from "../oqca/quantum/knowledge.ts";
+import {
+  ENFORCED_BACKOFF_BELIEF,
+  buildSubstrate,
+  substrateGap,
+  type SubstrateBuild,
+} from "./substrate.ts";
 import { makeResearch } from "./research.ts";
 import { makeMemoryPersistence } from "./persistence.ts";
 import { buildEpisode, NOT_CHECKED, type Episode, type VerificationResult } from "./episode.ts";
@@ -85,6 +93,29 @@ export type ShadowComparison = {
   readonly researchRefusals: number;
   /** Section 19: how many states the run produced, all of them replayable. */
   readonly stateTransitions: number;
+
+  /* -------- v1.4-R: what the run actually KNEW, measured per tick -------- */
+  /** Records in the tick's store, of which VERIFIED. */
+  readonly knowledgeRecords: number;
+  readonly knowledgeVerified: number;
+  /** How many retrieved facts came from the QUANTUM domain — item C's chain. */
+  readonly quantumFactsUsed: number;
+  /**
+   * `detectGaps` over the goal's required concepts. Before v1.4-R the station
+   * was refused `no_knowledge_state` on every run, so these two were not
+   * merely zero — they did not exist.
+   */
+  readonly knowledgeGapsOpen: number;
+  readonly knowledgeGapsTotal: number;
+  /** Milliseconds to ingest and project. Reported so a regression is visible. */
+  readonly substrateBuildMs: number;
+  /**
+   * WHAT THE LOOP BELIEVED THE BACKOFF WAS, beside what the code enforces. When
+   * these differ, a disagreement with production is a KNOWLEDGE difference and
+   * not a reasoning one — and the row says which without anyone guessing.
+   */
+  readonly believedBackoffMs: number;
+  readonly enforcedBackoffMs: number;
 };
 
 export type ShadowResult = {
@@ -104,6 +135,16 @@ export type ShadowOptions = {
    */
   readonly call: EngineContext["call"];
   readonly seedMemory?: readonly MemoryRecord[];
+  /**
+   * v1.4-R item D. What ONIQ BELIEVES the dispatch backoff to be, normally read
+   * from the knowledge substrate the tick just built. Supplied here so a
+   * knowledge upgrade can be driven from outside and the loop's decision
+   * observed changing — the belief reaches `worldFrom` and `likelihoodsFrom`
+   * and reaches NO authorization site.
+   */
+  readonly believedBackoffMs?: number;
+  /** Overrides the tick's substrate. Item D hands in K0, then K1. */
+  readonly substrate?: SubstrateBuild;
 };
 
 /**
@@ -115,8 +156,10 @@ export function initialState(
   queue: readonly QueuedJob[],
   nowMs: number,
   budgets: Budgets,
+  /** What ONIQ believes the backoff is. See `dispatchJob.ts:isDispatchable`. */
+  backoffMs?: number,
 ): LoopState {
-  const world = worldFrom(queue, nowMs);
+  const world = worldFrom(queue, nowMs, backoffMs);
   const basis = basisFrom(world);
   return sealLoopState({
     parentStateId: null,
@@ -159,6 +202,26 @@ export function quantumFor(basis: readonly string[]): CognitiveState {
   );
 }
 
+/**
+ * WHAT THE LOOP BELIEVES THE BACKOFF IS, read from the store rather than from
+ * the constant.
+ *
+ * An explicit override wins — that is how item D drives K0 and K1 in. Failing
+ * that, the `dispatch-backoff windowMs` record is consulted, and it must be
+ * VERIFIED and a finite non-negative number to be believed: a CANDIDATE record
+ * has not passed the promotion policy and a malformed object is not a duration.
+ * Anything else falls back to the enforced constant, which is the safe answer
+ * and never a guess.
+ */
+export function believedBackoff(substrate: SubstrateBuild, override?: number): number {
+  if (typeof override === "number" && Number.isFinite(override) && override >= 0) return override;
+  const rec = substrate.store
+    .bySubject("dispatch-backoff")
+    .find((r) => r.predicate === "windowMs" && r.status === "VERIFIED");
+  const v = rec?.object;
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : DISPATCH_BACKOFF_MS;
+}
+
 export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
   // EVERY COLLECTOR IS LOCAL. Section 18: no module-level mutable run state.
   const modelCalls: ModelCallRecord[] = [];
@@ -174,11 +237,41 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
   const queue = await env.readQueue();
   const nowMs = env.nowMs();
 
+  /* -------------------------------------------------------------------- *
+   * v1.4-R ITEMS B AND C — THE TICK'S KNOWLEDGE, BUILT BEFORE ANYTHING ELSE.
+   *
+   * `buildSubstrate` ingests the quantum domain and the dispatch rules through
+   * `evaluatePromotion` and projects the VERIFIED ones into the working graph.
+   * It reaches no network, holds no credential and calls no model: every record
+   * is derived from a checked-in module or computed by a two-qubit circuit that
+   * runs here. A tick costs milliseconds of CPU and $0.
+   *
+   * THE BELIEVED BACKOFF COMES OUT OF THE STORE, not out of the constant. What
+   * the code ENFORCES is `DISPATCH_BACKOFF_MS` and always will be; what the
+   * loop REASONS with is whatever `dispatch-backoff windowMs` currently says,
+   * which is a record that can be superseded. Normally they agree, because the
+   * record is re-derived from the constant on every tick — and the machinery
+   * that makes them able to disagree is what makes a knowledge upgrade
+   * observable end to end.
+   * -------------------------------------------------------------------- */
+  const substrate =
+    opts.substrate ??
+    buildSubstrate({
+      at: new Date(nowMs).toISOString(),
+      nowMs,
+      belief:
+        opts.believedBackoffMs === undefined
+          ? undefined
+          : { ...ENFORCED_BACKOFF_BELIEF, windowMs: opts.believedBackoffMs },
+      elapsedMs: () => env.nowMs() - startedAt,
+    });
+  const believedBackoffMs = believedBackoff(substrate, opts.believedBackoffMs);
+
   const production = productionChoice(queue, nowMs);
-  const world = worldFrom(queue, nowMs);
+  const world = worldFrom(queue, nowMs, believedBackoffMs);
   const basis = basisFrom(world);
   const quantum = quantumFor(basis);
-  const state = initialState(queue, nowMs, budgets);
+  const state = initialState(queue, nowMs, budgets, believedBackoffMs);
 
   // The loop's own state id is read at call time, so a model-call record names
   // the state the call was made FROM rather than the state it produced.
@@ -208,8 +301,9 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
    * persist    REAL for the life of the process; durable storage needs a table
    *            and a migration, which a shadow run may not make.
    * -------------------------------------------------------------------- */
-  const knowledge = makeKnowledge(dispatchRules(DISPATCH_BACKOFF_MS), {
+  const knowledge = recordingKnowledge(substrate.knowledge, {
     record: (n) => knowledgeNotes.push(n),
+    gap: substrateGap(),
   });
   const research = makeResearch({ record: (n) => researchNotes.push(n) });
   const persistence = makeMemoryPersistence({ record: (n) => persistenceNotes.push(n) });
@@ -217,6 +311,14 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
   const run = await runCognitiveLoop({
     initial: state,
     quantum,
+    // v1.4-R ITEM B: THE STATION THAT WAS REFUSED ON EVERY RUN.
+    //
+    // `IDENTIFY_GAPS` reads `input.knowledge`, and nothing ever supplied one —
+    // so it noted `no_knowledge_state` and returned, on every tick since it was
+    // written. `project.ts` advertised this projection as one of the
+    // substrate's "exactly two exits", and `toKnowledgeState` had no caller
+    // anywhere in the repository, not even a test. This line is the caller.
+    knowledge: substrate.state,
     percepts: [perceptsFrom(queue, nowMs)],
     // SECTION 11 — the likelihoods are computed from the same rows the world
     // was built from, and `likelihoodsFrom` throws rather than padding if a
@@ -235,7 +337,7 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
     // that re-read the queue per iteration would supply a different entry each
     // time, which is exactly what the per-iteration shape is for.
     evidence: Array.from({ length: budgets.maxIterations }, () => ({
-      likelihoodsByHypothesis: likelihoodsFrom(basis, queue, nowMs),
+      likelihoodsByHypothesis: likelihoodsFrom(basis, queue, nowMs, believedBackoffMs),
       evidenceIds: ["queue-snapshot"],
     })),
     budgets,
@@ -353,6 +455,11 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
     },
   ]);
 
+  // Which record ids belong to the quantum domain. Read from the STORE's own
+  // domain tags rather than from a prefix on the id: an id is a hash and says
+  // nothing about where a record came from.
+  const quantumIds = new Set(substrate.store.byDomain(QUANTUM_DOMAIN).map((r) => r.id));
+
   const oqcaJob =
     oqcaDecision === null || oqcaDecision === HOLD_ACTION
       ? null
@@ -383,6 +490,20 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
       knowledgeLookups: knowledgeNotes.length,
       researchRefusals: researchNotes.length,
       stateTransitions: run.chain.length,
+      knowledgeRecords: substrate.store.all().length,
+      knowledgeVerified: substrate.store.byStatus("VERIFIED").length,
+      // ITEM C's MEASUREMENT. Counted from the percepts the loop actually took
+      // in, not from what the store holds: a fact the store carries and nobody
+      // retrieved has not reached the decision, which is the whole distinction
+      // this repo's chunk-grep lesson is about.
+      quantumFactsUsed: run.state.percepts.filter(
+        (pc) => pc.id.startsWith("knowledge-") && quantumIds.has(pc.id.slice("knowledge-".length)),
+      ).length,
+      knowledgeGapsOpen: openGaps(run.state.knowledgeGaps).length,
+      knowledgeGapsTotal: run.state.knowledgeGaps.length,
+      substrateBuildMs: substrate.buildMs,
+      believedBackoffMs,
+      enforcedBackoffMs: DISPATCH_BACKOFF_MS,
     },
     episode,
     run,

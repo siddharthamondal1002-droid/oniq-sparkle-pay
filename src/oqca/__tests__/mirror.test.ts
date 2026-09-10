@@ -20,7 +20,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { closure, ENTRY } from "../../../scripts/oqca-mirror.mjs";
+import { closure, entrypoints } from "../../../scripts/oqca-mirror.mjs";
 
 const SRC = "src/oqca";
 const DST = "supabase/functions/_shared/oqca";
@@ -69,16 +69,50 @@ describe("the OQCA edge mirror", () => {
     }
   });
 
-  it("the entry point is the loop, so nothing unused is mirrored", () => {
-    expect(ENTRY).toBe("src/oqca/loop/cognitiveLoop.ts");
-    // The benchmark, the backends and megaLoop are NOT in the closure. They are
-    // research code that will never run in Deno, and mirroring them would put
-    // them inside the edge deploy bundle where every edge guard applies to
-    // them for no benefit.
+  it("the entrypoints are read from the runtime, not from a list", () => {
+    // v1.4-R: `ENTRY` was ONE hard-coded path, and the mirror was therefore
+    // correct for exactly the tree that one file reached. Adding the knowledge
+    // substrate to the runtime's read path would have meant hand-adding a
+    // second entry — the list-someone-forgets-to-extend this repo has a
+    // receipt for, one level up from where the script already avoids it.
+    //
+    // Now every `../oqca/...` specifier under the RUNTIME is a root. This
+    // asserts the derivation rather than the answer: a rewritten import list
+    // changes the roots and this still passes, while a hand-written list would
+    // have had to be edited to match.
+    const roots = entrypoints().map((f) => relative(process.cwd(), f));
+    expect(roots.length).toBeGreaterThan(0);
+    const declared = new Set<string>();
+    for (const file of walk(RUNTIME)) {
+      for (const m of readFileSync(file, "utf8").matchAll(/from\s+"\.\.\/oqca\/([^"]+)"/g)) {
+        declared.add(`${SRC}/${m[1]}`);
+      }
+    }
+    expect(roots.sort()).toEqual([...declared].sort());
+    // And every root is inside the source tree, never the mirror: closing over
+    // the mirror would make the script check its own output against itself.
+    for (const r of roots) expect(r.startsWith(`${SRC}/`)).toBe(true);
+  });
+
+  it("mirrors what the runtime reaches, and only that", () => {
+    // The benchmark, the adversarial arms and megaLoop are NOT in the closure.
+    // They are research code that will never run in Deno, and mirroring them
+    // would put them inside the edge deploy bundle where every edge guard
+    // applies to them for no benefit.
+    //
+    // `/backends/` USED TO BE ON THIS LIST AND IS DELIBERATELY OFF IT. v1.4-R
+    // made the quantum statevector backend reachable: the convention
+    // experiment RUNS in the shipped runtime, on every ingestion, which is what
+    // `experimentally_verified` means. Excluding it would have left the
+    // experiment unrunnable in the one place it has to run.
     const names = CLOSURE.join("\n");
     expect(names).not.toMatch(/\/bench\//);
-    expect(names).not.toMatch(/\/backends\//);
     expect(names).not.toMatch(/megaLoop/);
+    expect(names).not.toMatch(/\/baseline\.ts/);
+    // The one backend that computes is in; the two that refuse are not.
+    expect(names).toMatch(/quantum\/backends\/statevector\.ts/);
+    expect(names).not.toMatch(/quantum\/backends\/adapters\.ts/);
+    expect(names).not.toMatch(/oqca\/backends\//);
   });
 
   it("the kernel and the runtime adapters are separate directories", () => {

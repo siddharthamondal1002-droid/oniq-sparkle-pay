@@ -1195,9 +1195,9 @@ restore $F
 F=src/oqca/quantum/knowledge.ts; cp $F "$BAK"
 mutate <<'PY'
 p='src/oqca/quantum/knowledge.ts'; s=open(p).read()
-old='    ...advantageFacts(at),\n  ];'
+old='    ...advantageFacts(at),'
 assert s.count(old)==1, s.count(old)
-s=s.replace(old,'    ...advantageFacts(at),\n    ...CONCEPT_PROSE.map((cc) =>\n      record(cc.id, "hasDefinition", cc.definition, [QUANTUM_DOMAIN], [computedEvidence("prose", cc.id, at)], "stable", EMPTY_PROVENANCE, at),\n    ),\n  ];')
+s=s.replace(old,'    ...advantageFacts(at),\n    ...CONCEPT_PROSE.map((cc) =>\n      record(cc.id, "hasDefinition", cc.definition, [QUANTUM_DOMAIN], [computedEvidence("prose", cc.id, at)], "stable", EMPTY_PROVENANCE, at),\n    ),')
 s=s.replace('import { DOMAINS, DIVERGENCES } from "./domains.ts";','import { DOMAINS, DIVERGENCES } from "./domains.ts";\nimport { CONCEPTS as CONCEPT_PROSE } from "./concepts.ts";')
 open(p,'w').write(s)
 PY
@@ -1309,12 +1309,279 @@ restore $F
 F=src/oqca/__tests__/security.test.ts; cp $F "$BAK"
 mutate <<'PY'
 p='src/oqca/__tests__/security.test.ts'; s=open(p).read()
-old='const URL_DATA = ["src/oqca/quantum/sources.ts", "src/oqca/quantum/knowledge.ts"];'
+old='const URL_DATA_REL = ["quantum/sources.ts", "quantum/knowledge.ts"];'
 assert s.count(old)==1, s.count(old)
-s=s.replace(old,'const URL_DATA = ["src/oqca/quantum/sources.ts", "src/oqca/quantum/knowledge.ts", "src/oqca/quantum/policy.ts"];')
+s=s.replace(old,'const URL_DATA_REL = ["quantum/sources.ts", "quantum/knowledge.ts", "quantum/policy.ts"];')
 open(p,'w').write(s)
 PY
 report "M84 the URL exemption widens to a file that carries no URL" "$(run src/oqca/__tests__/security.test.ts)"
+restore $F
+
+# ══════════════════════════════════════════════════════════════════════════
+# v1.4-R — REACHABLE KNOWLEDGE. Items A through H.
+#
+# THE MUTATIONS THAT MATTER MOST HERE ARE THE ONES THAT WOULD MAKE THE CHAIN
+# LOOK REACHED WHEN IT IS NOT (M85, M96) OR LET A BELIEF AUTHORIZE SOMETHING
+# (M97, M98). Everything else in this block is a guard on how a claim came to
+# be believed.
+#
+# `restore` re-mirrors, so a runtime mutation is put back on both sides too.
+# ══════════════════════════════════════════════════════════════════════════
+
+RK=src/oqca/__tests__/reachableKnowledge.test.ts
+SUB=supabase/functions/_shared/oqcaRuntime/substrate.ts
+SHA=supabase/functions/_shared/oqcaRuntime/shadow.ts
+DJ=supabase/functions/_shared/oqcaRuntime/dispatchJob.ts
+
+# M85: the mirror goes back to a hand-written entrypoint list. The substrate and
+# the quantum domain stop being mirrored, and the shipped runtime imports files
+# that are not there — which is item A's whole point.
+F=scripts/oqca-mirror.mjs; cp $F "$BAK"
+mutate <<'PY2'
+p='scripts/oqca-mirror.mjs'; s=open(p).read()
+old='  walk(dir);\n  return [...roots].sort();'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  walk(dir);\n  void roots;\n  return [join(SRC_ROOT, "loop", "cognitiveLoop.ts")];')
+open(p,'w').write(s)
+PY2
+report "M85 the mirror entrypoints become a hand-written list" "$(run src/oqca/__tests__/mirror.test.ts)"
+cp "$BAK" $F; mirror
+
+# M86: the experimental rung is given more weight than `fetched`, silently
+# rewriting the promotion table the threshold was measured from.
+F=src/oqca/knowledge/substrate/evidence.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/knowledge/substrate/evidence.ts'; s=open(p).read()
+old='  experimentally_verified: 1,\n  fetched: 1,'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  experimentally_verified: 1.5,\n  fetched: 1,')
+open(p,'w').write(s)
+PY2
+mirror
+report "M86 the experimental rung is weighted above 1" "$(run $RK)"
+restore $F
+
+# M87: the control check is removed from the convention experiment. A backend
+# that answers the same bitstring whichever qubit moved now "confirms" an
+# ordering it cannot discriminate.
+F=src/oqca/quantum/conventions.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/quantum/conventions.ts'; s=open(p).read()
+old='  if (observed === controlObserved) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  if (false && observed === controlObserved) {')
+open(p,'w').write(s)
+PY2
+mirror
+report "M87 the experiment's control check is removed" "$(run $RK)"
+restore $F
+
+# M88: an unrecognised outcome is adopted as a NEW convention instead of being
+# refused. This is the one that turns an experiment into a story.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/quantum/conventions.ts'; s=open(p).read()
+old='  if (matched.length !== 1) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  if (false && matched.length !== 1) {')
+open(p,'w').write(s)
+PY2
+mirror
+report "M88 an unpredicted outcome becomes a new convention" "$(run $RK)"
+restore $F
+
+# M89: a VOID experiment is recorded anyway — a fabricated negative result,
+# which v1.3 section 12 forbids by name.
+F=src/oqca/quantum/knowledge.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/quantum/knowledge.ts'; s=open(p).read()
+old='    if (outcome.convention === null) continue;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    const outcome2 = { ...outcome, convention: outcome.convention ?? "big_endian" };\n    void outcome2;')
+s=s.replace('        outcome.convention,','        outcome.convention ?? "big_endian",')
+open(p,'w').write(s)
+PY2
+mirror
+report "M89 a void experiment is recorded anyway" "$(run $RK)"
+restore $F
+
+# M90: `measured_precedence` is removed, so additive weight decides — and two
+# stale release notes out-vote a reading of the running module.
+F=src/oqca/knowledge/substrate/conflict.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/knowledge/substrate/conflict.ts'; s=open(p).read()
+old='  const measured = competing.filter(hasMeasuredSupport);\n  if (measured.length === 1) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  const measured = competing.filter(hasMeasuredSupport);\n  if (false && measured.length === 1) {')
+open(p,'w').write(s)
+PY2
+mirror
+report "M90 a measurement stops outranking documents about the same system" "$(run $RK)"
+restore $F
+
+# M91: `divergent_by_design` is checked AFTER the precedence rules, so an
+# experiment on ONIQ's own backend can delete a convention that is correct on
+# both sides — section 23's silent normalisation, arriving through the new door.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/knowledge/substrate/conflict.ts'; s=open(p).read()
+old='  if (kind === "divergent_by_design") {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  if (false && kind === "divergent_by_design") {')
+open(p,'w').write(s)
+PY2
+mirror
+report "M91 divergent_by_design loses its precedence" "$(run $RK)"
+restore $F
+
+# M92: the projection goes back to writing the RECORD's aggregate onto every
+# evidence item — the defect wiring the substrate to the gap detector found.
+F=src/oqca/knowledge/substrate/project.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/knowledge/substrate/project.ts'; s=open(p).read()
+old='          evidenceWeight(e, sources.get(e.sourceId) ?? null),'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'          r.confidence,')
+open(p,'w').write(s)
+PY2
+mirror
+report "M92 every evidence item gets the record's aggregate confidence" "$(run $RK)"
+restore $F
+
+# M93: a paraphrase is relabelled as a first-hand reading, which is exactly the
+# pseudo-provenance the directness type exists to prevent.
+F=$SUB; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/substrate.ts'; s=open(p).read()
+old='    directness: "spec_cited",\n    extraction: "human_authored",'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    directness: "fetched",\n    extraction: "computed",')
+open(p,'w').write(s)
+PY2
+report "M93 a paraphrase is relabelled a first-hand reading" "$(run $RK)"
+restore $F
+
+# M94: `believedBackoff` believes a record the promotion policy refused.
+F=$SHA; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/shadow.ts'; s=open(p).read()
+old='    .find((r) => r.predicate === "windowMs" && r.status === "VERIFIED");'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    .find((r) => r.predicate === "windowMs");')
+open(p,'w').write(s)
+PY2
+report "M94 a refused record becomes a belief" "$(run $RK)"
+restore $F
+
+# M95: the fallback to the enforced constant is removed, so a malformed record
+# yields NaN and the loop reasons about a world with no rule in it.
+cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/shadow.ts'; s=open(p).read()
+old='  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : DISPATCH_BACKOFF_MS;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  return v as number;')
+open(p,'w').write(s)
+PY2
+report "M95 believedBackoff loses its fail-safe fallback" "$(run $RK)"
+restore $F
+
+# M96: the KnowledgeState stops being supplied to the loop. IDENTIFY_GAPS goes
+# back to refusing every run — the state item B exists to end, and the one that
+# would read as "nothing changed" rather than as a break.
+cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/shadow.ts'; s=open(p).read()
+old='    knowledge: substrate.state,'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'')
+open(p,'w').write(s)
+PY2
+report "M96 the loop is no longer handed a KnowledgeState" "$(run $RK src/oqca/__tests__/shadowRun.test.ts)"
+restore $F
+
+# M97: the AUTHORIZATION site is given the belief. A wrong belief can now open a
+# door the enforced rule keeps shut, which is the one thing the split exists to
+# make impossible.
+F=$DJ; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/dispatchJob.ts'; s=open(p).read()
+old='        if (!isDispatchable(fresh, now)) return `job ${id} is inside its dispatch backoff`;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'        if (!isDispatchable(fresh, now, 0)) return `job ${id} is inside its dispatch backoff`;')
+open(p,'w').write(s)
+PY2
+report "M97 the authorization check takes a belief" "$(run $RK)"
+restore $F
+
+# M98: the tool REGISTRY is gated on a belief, so a belief can conjure a tool
+# for a job the real rule refuses.
+cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/dispatchJob.ts'; s=open(p).read()
+old='    .filter((j) => isDispatchable(j, env.nowMs()))'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    .filter((j) => isDispatchable(j, env.nowMs(), 0))')
+open(p,'w').write(s)
+PY2
+report "M98 the tool registry is gated on a belief" "$(run $RK)"
+restore $F
+
+# M99: the eligibility probe stops straddling the boundary, so it measures the
+# sign of a subtraction rather than the window.
+F=$SUB; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/substrate.ts'; s=open(p).read()
+old='  const justInside = rule(row(nowMs - windowMs + 60_000), nowMs, windowMs);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  const justInside = false;')
+s=s.replace('    ok: justOutside === true && justInside === false && neverDispatched === true,',
+            '    ok: justOutside === true && neverDispatched === true,')
+open(p,'w').write(s)
+PY2
+report "M99 the eligibility probe stops checking the far side" "$(run $RK)"
+restore $F
+
+# M100: a real `fetch` lands in the runtime substrate. The read-only, zero-spend
+# claim is the whole of item B, and it must not survive this.
+cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/substrate.ts'; s=open(p).read()
+old='export function substrateGap(): string {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'export async function phoneHome(u: string) {\n  return await fetch(u);\n}\n\nexport function substrateGap(): string {')
+open(p,'w').write(s)
+PY2
+report "M100 a real fetch lands in the runtime substrate" "$(run $RK)"
+restore $F
+
+# M101: `dependentsOf` stops reading history, so a retired record's dependents
+# become invisible — exactly when an upgrade needs to find them.
+F=src/oqca/knowledge/substrate/store.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/knowledge/substrate/store.ts'; s=open(p).read()
+old='  return [...store.all(), ...store.history()]'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  return [...store.all()]')
+open(p,'w').write(s)
+PY2
+mirror
+report "M101 dependentsOf stops reading history" "$(run src/oqca/__tests__/oksSubstrate.test.ts $RK)"
+restore $F
+
+# M102: a labelled metric returns 0 instead of null. Item H's whole instruction
+# — "do not manufacture a benchmark label set just to turn null into 0" — and
+# the distinction is the scientifically important one.
+F=src/oqca/knowledge/substrate/metrics.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/knowledge/substrate/metrics.ts'; s=open(p).read()
+old='  if (scored.length === 0) return null;'
+assert s.count(old)>=1, s.count(old)
+s=s.replace(old,'  if (scored.length === 0) return 0;',1)
+open(p,'w').write(s)
+PY2
+mirror
+report "M102 a labelled metric reports 0 instead of null" "$(run $RK src/oqca/__tests__/oksSubstrate.test.ts)"
 restore $F
 
 echo "done"

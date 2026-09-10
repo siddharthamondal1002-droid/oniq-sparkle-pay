@@ -43,9 +43,17 @@ export type ConflictKind =
   "value_disagreement" | "divergent_by_design" | "temporal_supersession" | "unit_mismatch";
 
 export type ResolutionStrategy =
-  "evidence_weight" | "most_recent" | "source_reliability" | "majority" | "escalate";
+  | "experimental_precedence"
+  | "measured_precedence"
+  | "evidence_weight"
+  | "most_recent"
+  | "source_reliability"
+  | "majority"
+  | "escalate";
 
 export const RESOLUTION_STRATEGIES: readonly ResolutionStrategy[] = [
+  "experimental_precedence",
+  "measured_precedence",
   "evidence_weight",
   "most_recent",
   "source_reliability",
@@ -82,6 +90,24 @@ export type ResolutionContext = {
 };
 
 export const DEFAULT_MARGIN = 0.15;
+
+/**
+ * Does this record rest on an experiment ONIQ actually ran? `evidence.ts`'s
+ * `experimentally_verified` rung is defined by exactly this: a discriminating
+ * procedure with a control, executed, and its outcome read.
+ */
+export function hasExperimentalSupport(r: KnowledgeRecord): boolean {
+  return r.evidence.some((e) => e.supports && e.directness === "experimentally_verified");
+}
+
+/**
+ * Did ONIQ observe the SUBJECT SYSTEM itself, rather than read a document about
+ * it? `SOURCE_TYPES` keeps those apart: `measurement` is an observation, and
+ * every other value names an artefact somebody else wrote.
+ */
+export function hasMeasuredSupport(r: KnowledgeRecord): boolean {
+  return r.evidence.some((e) => e.supports && e.sourceType === "measurement");
+}
 
 function totalWeight(r: KnowledgeRecord, ctx: ResolutionContext): number {
   return r.evidence
@@ -129,6 +155,79 @@ export function resolveConflict(
       strategy: "escalate",
       rationale:
         "sources genuinely differ by design; both are kept and scoped by domain rather than reconciled",
+      escalated: false,
+    };
+  }
+
+  /* ------------------------------------------------------------------ *
+   * v1.4-R: A MEASUREMENT OF A SYSTEM BEATS A DOCUMENT ABOUT THAT SYSTEM.
+   *
+   * This is what makes `experimentally_verified` a rung rather than a label.
+   * On weight alone an experiment and a fetched page tie at 1.0, the default
+   * margin is not met, and the tie falls through to RECENCY — so whichever was
+   * retrieved last would win, and a stale page could overturn a measurement
+   * ONIQ took this second. That is the wrong answer for the one case the rung
+   * exists for.
+   *
+   * IT IS NARROW BY CONSTRUCTION, and the narrowness is what keeps it honest:
+   *
+   *   - `conflicts()` already requires the SAME SUBJECT, so an experiment on
+   *     ONIQ's simulator can never overrule Qiskit's documentation about
+   *     Qiskit. Different systems are different subjects and never rivals.
+   *   - `divergent_by_design` is returned ABOVE this, so §23's "never silently
+   *     normalize conflicting semantics" is untouched: two correct conventions
+   *     are still both kept, experiment or no experiment.
+   *   - EXACTLY ONE side may carry experimental support. Two experiments
+   *     disagreeing about the same subject is a real finding and not something
+   *     precedence should paper over; it falls through to weight and, failing
+   *     that, to escalation, which is where a person belongs.
+   * ------------------------------------------------------------------ */
+  const experimental = competing.filter(hasExperimentalSupport);
+  if (experimental.length === 1) {
+    return {
+      ...base,
+      canonical: experimental[0].id,
+      strategy: "experimental_precedence",
+      rationale:
+        "one side rests on a discriminating experiment ONIQ ran against this very subject; " +
+        "a measurement of a system outranks a document about it",
+      escalated: false,
+    };
+  }
+
+  /* ------------------------------------------------------------------ *
+   * AND AN OBSERVATION OF THE SYSTEM BEATS A VOTE OF DOCUMENTS ABOUT IT.
+   *
+   * FOUND BY RUNNING IT, not by reading it. `evidence_weight` is ADDITIVE, so
+   * two agreeing release notes (2 x 0.8 = 1.600) out-weigh one reading of the
+   * deployed constant (1 x 0.95 = 0.950) — and the substrate would have adopted
+   * a stale document's number over the value it had just read out of the
+   * running module, with a rationale that looked entirely reasonable. Nothing
+   * in the substrate said so until a knowledge-upgrade fixture put the two side
+   * by side.
+   *
+   * Corroboration genuinely counts, and for a claim about the WORLD more
+   * sources is more evidence. For a claim about a system ONIQ can OBSERVE it is
+   * the wrong question: the system is the authority on itself, and a document
+   * describing it is second-hand however many copies exist. So the rule is
+   * narrow in exactly that way — it fires only when one side rests on a
+   * `measurement` and NO rival does.
+   *
+   * `experimental_precedence` is checked first and stays the stronger claim: an
+   * experiment is a measurement with a control and pre-registered predictions,
+   * which is a measurement that could have come out otherwise. Two measurements
+   * disagreeing about the same subject fall through to weight and then to
+   * escalation, where a person belongs.
+   * ------------------------------------------------------------------ */
+  const measured = competing.filter(hasMeasuredSupport);
+  if (measured.length === 1) {
+    return {
+      ...base,
+      canonical: measured[0].id,
+      strategy: "measured_precedence",
+      rationale:
+        "one side rests on a direct observation of the subject system and every rival on " +
+        "documents about it; an observation is not out-voted by descriptions",
       escalated: false,
     };
   }

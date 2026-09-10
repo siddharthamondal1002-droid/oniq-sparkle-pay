@@ -87,6 +87,13 @@ describe("the shared exports are discoverable at all", () => {
   });
 });
 
+/**
+ * A class-method DECLARATION at the head of a line, through any modifier and
+ * any return type, ending in a body rather than a semicolon.
+ */
+const METHOD =
+  /^[ \t]*(?:(?:public|private|protected|static|abstract|override|async|get|set)\s+)*([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*(?::[^{;=]+)?\{/gm;
+
 describe("no edge function calls a shared helper it did not import", () => {
   it("imports every _shared name it uses", () => {
     const offenders: string[] = [];
@@ -122,6 +129,19 @@ describe("no edge function calls a shared helper it did not import", () => {
       )) {
         known.add(m[1]);
       }
+      // AND A CLASS METHOD IS A LOCAL BINDING TOO, which this scan missed
+      // because a method declaration carries no `function` keyword.
+      //
+      // Found when the OQCA kernel's `_shared/oqca/quantum/math/state.ts`
+      // began exporting `probabilities` and `formalState.ts` — whose
+      // CognitiveState class has had a `probabilities()` method since v1.1 —
+      // was reported as calling a helper it never imported. It calls its own
+      // method; the two names collide and neither is wrong.
+      //
+      // `METHOD` is the DECLARATION shape and not a call: the closing paren is
+      // followed by a body (optionally through a return type), where a bare
+      // call statement ends in `;`. Both directions are asserted below.
+      for (const m of src.matchAll(METHOD)) known.add(m[1]);
 
       for (const [name, from] of EXPORTS) {
         if (known.has(name)) continue;
@@ -132,5 +152,24 @@ describe("no edge function calls a shared helper it did not import", () => {
       }
     }
     expect(offenders, offenders.join("\n")).toEqual([]);
+  });
+
+  it("counts a class method as a local binding, and still catches a real call", () => {
+    // BOTH DIRECTIONS TOGETHER — a narrowing asserted only on what it now
+    // permits is a weaker guard with a comment on it.
+    const method = (src: string) => [...src.matchAll(new RegExp(METHOD))].map((m) => m[1]);
+    // What it must now admit: the real shape from `formalState.ts`.
+    expect(method("  probabilities(): number[] {\n    return [];\n  }")).toContain("probabilities");
+    expect(method("  async load(x: string): Promise<void> {")).toContain("load");
+    expect(method("  static of(a: number, b: number): Thing {")).toContain("of");
+    expect(method("  get basis(): readonly string[] {")).toContain("basis");
+    // What it must NOT admit: a bare CALL, which is the thing being guarded.
+    expect(method("  probabilities(state);")).toEqual([]);
+    expect(method("  const p = probabilities(state);")).toEqual([]);
+    // And the guard as a whole still catches an unimported use.
+    const src = "export function f() {\n  return joinedText(x);\n}";
+    const known = new Set([...src.matchAll(new RegExp(METHOD))].map((m) => m[1]));
+    expect(known.has("joinedText")).toBe(false);
+    expect(new RegExp(`(^|[^.\\w$])joinedText\\s*\\(`, "m").test(src)).toBe(true);
   });
 });

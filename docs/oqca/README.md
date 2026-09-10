@@ -1,6 +1,37 @@
 # OQCA — what was built, and what it is worth
 
-> ## The Quantum Knowledge Substrate is the newest layer, and it sits UNDER the general one.
+> ## v1.4-R — the substrate is REACHABLE from shipped code.
+>
+> - **[`OQCA_V1_4R_REPORT.md`](OQCA_V1_4R_REPORT.md)** — items A through H.
+> - **[`knowledge-upgrade/`](knowledge-upgrade/)** — one controlled K0 → K1 upgrade.
+> - **[`store-benchmark/`](store-benchmark/)** — the store, on ONIQ's real queries.
+>
+> `story-dispatch`'s cognitive path builds a knowledge store on every tick,
+> ingests the quantum domain through the promotion policy, retrieves a verified
+> quantum fact, and closes two of the three gaps its goal names — through the
+> MIRRORED kernel a deploy would carry. `IDENTIFY_GAPS` had refused every run
+> since it was written; it does not now. **Nothing is deployed or published**,
+> the flag still ships `off`, and a tick still costs $0.
+>
+> ### Four things worth carrying
+>
+> - **`toKnowledgeState` had no caller anywhere in the repository** — not the
+>   loop, not a test — while `project.ts` called it one of the substrate's
+>   "exactly two exits". Because nothing had ever looked at the graph it
+>   produces, three defects in it had never been seen.
+> - **Additive evidence weight let two stale documents out-vote a reading of the
+>   running module** (1.600 vs 0.950), with a rationale that reads perfectly.
+>   `measured_precedence` is the fix; a knowledge-upgrade fixture is what
+>   exposed it.
+> - **A convention is now settled by EXPERIMENT.** A discriminating circuit with
+>   a control returns `01` where little-endian predicts `10`, so
+>   `experimentally_verified` is a rung ONIQ earns rather than asserts — and a
+>   second route to knowledge that does not need the network.
+> - **The store is not a bottleneck**: every real query in tens of microseconds
+>   over 123 records, the whole tick in 6 ms. No graph database was added, and
+>   the two unmeasured arms are reported as absent rather than as zero.
+
+> ## The Quantum Knowledge Substrate sits UNDER the general one.
 >
 > - **[`OQCA_QUANTUM_KNOWLEDGE_REPORT.md`](OQCA_QUANTUM_KNOWLEDGE_REPORT.md)** — the §28 report.
 > - **[`quantum/`](quantum/)** — seventeen pages, one per brief section.

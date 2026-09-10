@@ -1,0 +1,81 @@
+{
+  "corpus": {
+    "records": 123,
+    "verified": 116,
+    "journalOps": 123,
+    "concepts": 184,
+    "relations": 116
+  },
+  "tickBuildMs": {
+    "min": 4.732236999999998,
+    "median": 5.835655999999972,
+    "max": 24.94698199999999
+  },
+  "queries": [
+    {
+      "name": "all()",
+      "reps": 2000,
+      "totalMs": 68.85885400000001,
+      "perCallUs": 34.429427000000004,
+      "sink": 246000
+    },
+    {
+      "name": "byStatus(VERIFIED)",
+      "reps": 2000,
+      "totalMs": 73.60761899999994,
+      "perCallUs": 36.80380949999997,
+      "sink": 232000
+    },
+    {
+      "name": "bySubject(dispatch-backoff)",
+      "reps": 2000,
+      "totalMs": 73.48315300000002,
+      "perCallUs": 36.74157650000001,
+      "sink": 2000
+    },
+    {
+      "name": "byDomain(quantum)",
+      "reps": 2000,
+      "totalMs": 73.30811499999993,
+      "perCallUs": 36.654057499999965,
+      "sink": 236000
+    },
+    {
+      "name": "get(id)",
+      "reps": 2000,
+      "totalMs": 9.83592800000008,
+      "perCallUs": 4.9179640000000395,
+      "sink": 2000
+    },
+    {
+      "name": "dependentsOf(backoff)",
+      "reps": 2000,
+      "totalMs": 109.17235699999992,
+      "perCallUs": 54.58617849999996,
+      "sink": 2000
+    },
+    {
+      "name": "lookup(goal statement, 8)",
+      "reps": 500,
+      "totalMs": 225.82115999999985,
+      "perCallUs": 451.6423199999997,
+      "sink": 500
+    },
+    {
+      "name": "toKnowledgeState(VERIFIED)",
+      "reps": 200,
+      "totalMs": 550.1595520000001,
+      "perCallUs": 2750.79776,
+      "sink": 200
+    },
+    {
+      "name": "detectGaps(goal)",
+      "reps": 500,
+      "totalMs": 13.534191000000192,
+      "perCallUs": 27.068382000000383,
+      "sink": 1500
+    }
+  ],
+  "measuredArms": ["local-in-memory"],
+  "unmeasuredArms": ["apache-jena", "apache-age"]
+}

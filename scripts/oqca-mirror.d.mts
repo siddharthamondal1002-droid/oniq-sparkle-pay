@@ -4,4 +4,6 @@
  * closure its own way would pass while the script mirrored the wrong files.
  */
 export declare const ENTRY: string;
-export declare function closure(entry?: string, seen?: Set<string>): Set<string>;
+/** Every `../oqca/...` specifier under the runtime, rebased onto `src/oqca`. */
+export declare function entrypoints(dir?: string): string[];
+export declare function closure(entry?: string | null, seen?: Set<string>): Set<string>;

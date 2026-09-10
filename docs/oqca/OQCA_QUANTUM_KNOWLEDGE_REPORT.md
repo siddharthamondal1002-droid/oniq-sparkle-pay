@@ -40,19 +40,26 @@ and `oksLoopIntegration.test.ts` is where it runs.
 | Categorised objects (§20)                            | 8                         |
 | Classical baselines (§16)                            | 4                         |
 | Experiments (§17)                                    | 5 (4 runnable, 1 blocked) |
-| Knowledge records ingested                           | 113                       |
+| Knowledge records ingested                           | 118                       |
 | Mutations, all RED                                   | 84                        |
 | Tests in `src/oqca`                                  | 579 across 22 files       |
 
 ## 3. The ingestion, and what it refuses to ingest
 
 ```
-total      113
-VERIFIED   109
+total      118
+VERIFIED   114
 CONTESTED    4      the four divergences, by design
 CANDIDATE    0
 REJECTED     0
 ```
+
+> **v1.4-R added five**, and they are the two families that are RUN rather than
+> read: one `experimentally_verified` record settling ONIQ's qubit-order
+> convention by executing a discriminating circuit with a control, and four
+> discovery verdicts (`problem:<id> quantumRecommendation`) so a scheduled run
+> can retrieve "story_dispatch matches no quantum structure" from the store
+> rather than from a document. The v1.0 figures were 113 / 109 / 4 / 0 / 0.
 
 By predicate:
 
@@ -66,6 +73,8 @@ isInvolutory             12      computed
 implementsDomain          8      computed by resolving exports
 hasOpenGaps               8      computed
 oniqConventionIs          4      CONTESTED
+quantumRecommendation     4      computed by the §18 pipeline
+qubit_orderIs             1      MEASURED — a discriminating circuit, with a control
 ```
 
 **Three families are deliberately NOT ingested**, and this is the most important

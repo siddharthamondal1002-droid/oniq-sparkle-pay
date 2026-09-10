@@ -79,8 +79,25 @@ export function jobIdFrom(action: string): string | null {
  * expression can be the production decision AND the authorization check — one
  * rule, asked twice, rather than two rules that must agree.
  */
-export function isDispatchable(job: QueuedJob, nowMs: number): boolean {
-  return job.dispatchedAtMs === null || job.dispatchedAtMs < nowMs - DISPATCH_BACKOFF_MS;
+export function isDispatchable(
+  job: QueuedJob,
+  nowMs: number,
+  /**
+   * v1.4-R: THE LOOP MAY REASON WITH A BELIEF; IT MAY NOT BE AUTHORIZED BY ONE.
+   *
+   * `worldFrom` and `likelihoodsFrom` pass what the knowledge substrate
+   * currently BELIEVES the backoff to be, so a knowledge upgrade changes what
+   * the loop thinks is dispatchable and therefore what it decides. Every
+   * AUTHORIZATION site — `productionChoice` and the tool's own `authorize` —
+   * omits the argument and gets the constant, because a wrong belief must never
+   * be able to open a door the real rule keeps shut.
+   *
+   * Defaulted rather than required so a caller cannot pass a belief by
+   * accident: the safe value is what you get for saying nothing.
+   */
+  backoffMs: number = DISPATCH_BACKOFF_MS,
+): boolean {
+  return job.dispatchedAtMs === null || job.dispatchedAtMs < nowMs - backoffMs;
 }
 
 /**
@@ -124,9 +141,14 @@ export const DISPATCH_GOAL: Goal = {
  * it) and as an UNAVAILABLE action, which is section 7's second list: named
  * rather than merely absent.
  */
-export function worldFrom(queue: readonly QueuedJob[], nowMs: number): WorldState {
-  const dispatchable = queue.filter((j) => isDispatchable(j, nowMs));
-  const held = queue.filter((j) => !isDispatchable(j, nowMs));
+export function worldFrom(
+  queue: readonly QueuedJob[],
+  nowMs: number,
+  /** What ONIQ BELIEVES the backoff is. See `isDispatchable`. */
+  backoffMs: number = DISPATCH_BACKOFF_MS,
+): WorldState {
+  const dispatchable = queue.filter((j) => isDispatchable(j, nowMs, backoffMs));
+  const held = queue.filter((j) => !isDispatchable(j, nowMs, backoffMs));
   return {
     entities: queue.map((j) => ({
       id: j.id,
@@ -203,6 +225,13 @@ export function likelihoodsFrom(
   basis: readonly string[],
   queue: readonly QueuedJob[],
   nowMs: number,
+  /**
+   * What ONIQ BELIEVES the backoff is — the same belief `worldFrom` was built
+   * from. It has to travel to BOTH or the evidence would be scored on a
+   * different rule from the one that decided which actions exist, and the
+   * amplitudes would describe a world the basis does not come from.
+   */
+  backoffMs: number = DISPATCH_BACKOFF_MS,
 ): Record<string, number> {
   const byId = new Map(queue.map((j) => [j.id, j]));
   const out: Record<string, number> = {};
@@ -211,7 +240,7 @@ export function likelihoodsFrom(
       // Holding is right exactly when nothing is dispatchable. It competes on
       // the same terms as every other hypothesis rather than being a special
       // case, which is what makes the measurement meaningful on an empty queue.
-      out[label] = queue.some((j) => isDispatchable(j, nowMs)) ? 0.05 : 1;
+      out[label] = queue.some((j) => isDispatchable(j, nowMs, backoffMs)) ? 0.05 : 1;
       continue;
     }
     const id = jobIdFrom(label);
@@ -220,7 +249,7 @@ export function likelihoodsFrom(
     // Older is more urgent. Bounded and monotone in the wait, so an hour-old
     // job outranks a minute-old one without a long wait ever saturating.
     const waitMs = Math.max(0, nowMs - job.createdAtMs);
-    out[label] = 0.1 + 0.9 * (waitMs / (waitMs + DISPATCH_BACKOFF_MS));
+    out[label] = 0.1 + 0.9 * (waitMs / (waitMs + backoffMs));
   }
   // THE CONCEPTS SUPERPOSE WILL ADMIT, and this is the half the first run
   // proved was missing. Station 06 admits one hypothesis per `goal.requires`

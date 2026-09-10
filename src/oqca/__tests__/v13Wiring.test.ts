@@ -190,8 +190,21 @@ describe("sections 5, 11 and 12 — knowledge is sourced and research may refuse
   });
 
   it("the runtime knowledge facts name the modules they came from", () => {
-    const src = code(`${RUNTIME}/knowledge.ts`);
-    for (const ref of ["dispatchEnv.ts", "dispatchJob.ts"]) expect(src).toContain(ref);
+    // v1.4-R MOVED THE FACTS AND LEFT THE RULE. They were four sentences in
+    // `knowledge.ts`; they are substrate RECORDS now, and every one still
+    // carries the module its claim was read out of — as an evidence LOCATOR
+    // rather than a `sourceRef` string, which is stricter: `makeEvidence`
+    // refuses a record with no locator, where the old shape merely had a field
+    // somebody filled in.
+    const src = code(`${RUNTIME}/substrate.ts`);
+    for (const ref of ["dispatchJob.ts:DISPATCH_BACKOFF_MS", "dispatchJob.ts:isDispatchable"]) {
+      expect(src).toContain(ref);
+    }
+    // And the wrapper that replaced them owns no facts at all: a fact list back
+    // in `knowledge.ts` would be a second knowledge source beside the store.
+    const wrapper = code(`${RUNTIME}/knowledge.ts`);
+    expect(wrapper).not.toMatch(/statement:/);
+    expect(wrapper).toMatch(/recordingKnowledge/);
   });
 });
 

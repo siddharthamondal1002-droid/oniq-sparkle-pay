@@ -1,0 +1,27 @@
+THE STORE ONIQ HAS, ON THE QUERIES ONIQ MAKES
+
+  corpus                  123 records (116 VERIFIED), 123 journal ops
+  concepts / relations    184 / 116
+
+  full tick build         min 4.73 ms   median 5.84 ms   max 24.95 ms
+    (ingests 118 quantum records, runs the 2-qubit convention experiment,
+     probes isDispatchable, promotes 123 records and projects the graph)
+
+  query                             reps      total ms     per call
+    all()                            2000       68.86      34.43 us
+    byStatus(VERIFIED)               2000       73.61      36.80 us
+    bySubject(dispatch-backoff)      2000       73.48      36.74 us
+    byDomain(quantum)                2000       73.31      36.65 us
+    get(id)                          2000        9.84       4.92 us
+    dependentsOf(backoff)            2000      109.17      54.59 us
+    lookup(goal statement, 8)         500      225.82     451.64 us
+    toKnowledgeState(VERIFIED)        200      550.16    2750.80 us
+    detectGaps(goal)                  500       13.53      27.07 us
+
+  MEASURED ARMS           local in-memory store: 1 of 1
+  UNMEASURED ARMS         Apache Jena: JVM dependency, package.json is Lovable's
+                          Apache AGE:  a Postgres extension on a project this
+                                       container cannot reach and must not migrate
+
+  VERDICT                 the existing store is not a bottleneck on this workload.
+                          No graph database is added. Revisit when a number below changes.

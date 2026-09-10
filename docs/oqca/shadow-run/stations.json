@@ -11,12 +11,12 @@
   },
   {
     "station": "LOAD_MEMORY",
-    "note": "0 records recalled (relevance-bounded at 8)",
+    "note": "0 record(s) recalled and 2 fact(s) looked up, both bounded at 8",
     "refused": null
   },
   {
     "station": "BUILD_WORLD_STATE",
-    "note": "3 entities, 0 relations, 3 actions available and 1 not",
+    "note": "3 entities (3 OBSERVED), 0 relations, 3 actions available and 1 not",
     "refused": null
   },
   {
@@ -41,13 +41,13 @@
   },
   {
     "station": "IDENTIFY_GAPS",
-    "note": "no knowledge state supplied",
-    "refused": "no_knowledge_state"
+    "note": "1 open of 3",
+    "refused": null
   },
   {
     "station": "RESEARCH",
-    "note": "no gaps to research",
-    "refused": null
+    "note": "KNOWLEDGE/research_unavailable -> replan (level 5): a knowledge gap blocks this step; no research capability is wired",
+    "refused": "research_unavailable"
   },
   {
     "station": "VERIFY",
@@ -73,6 +73,11 @@
     "station": "EVALUATE",
     "note": "plan valid, budget available, rollback present or unneeded",
     "refused": null
+  },
+  {
+    "station": "ACT",
+    "note": "TOOL/shadow mode: dispatch story job 8f2c1a touches production and was not performed -> replan (level 5): tool refused and there is no alternate",
+    "refused": "shadow mode: dispatch story job 8f2c1a touches production and was not performed"
   },
   {
     "station": "ACT",
@@ -106,7 +111,7 @@
   },
   {
     "station": "CHECK_GOAL",
-    "note": "incomplete: 0 open gap(s), 1 mismatch(es)",
+    "note": "incomplete: 1 open gap(s), 1 mismatch(es)",
     "refused": null
   },
   {
@@ -116,7 +121,7 @@
   },
   {
     "station": "PERCEIVE",
-    "note": "0 percepts this iteration, 4 held",
+    "note": "0 percepts this iteration, 6 held",
     "refused": null
   },
   {
@@ -126,12 +131,12 @@
   },
   {
     "station": "LOAD_MEMORY",
-    "note": "0 records recalled (relevance-bounded at 8)",
+    "note": "0 record(s) recalled and 2 fact(s) looked up, both bounded at 8",
     "refused": null
   },
   {
     "station": "BUILD_WORLD_STATE",
-    "note": "3 entities, 0 relations, 3 actions available and 1 not",
+    "note": "3 entities (3 OBSERVED), 0 relations, 3 actions available and 1 not",
     "refused": null
   },
   {
@@ -156,13 +161,13 @@
   },
   {
     "station": "IDENTIFY_GAPS",
-    "note": "no knowledge state supplied",
-    "refused": "no_knowledge_state"
+    "note": "1 open of 3",
+    "refused": null
   },
   {
     "station": "RESEARCH",
-    "note": "no gaps to research",
-    "refused": null
+    "note": "KNOWLEDGE/research_unavailable -> escalate (level 7): a knowledge gap blocks this step; no research capability is wired; replan budget spent",
+    "refused": "research_unavailable"
   },
   {
     "station": "VERIFY",
@@ -181,122 +186,12 @@
   },
   {
     "station": "PLAN",
-    "note": "selected plan-1-dispatch story job 8f2c1a (EV 0.810)",
-    "refused": null
-  },
-  {
-    "station": "EVALUATE",
-    "note": "plan valid, budget available, rollback present or unneeded",
-    "refused": null
-  },
-  {
-    "station": "ACT",
-    "note": "1 action(s) attempted",
-    "refused": null
-  },
-  {
-    "station": "OBSERVE",
-    "note": "0/1 matched prediction",
-    "refused": null
-  },
-  {
-    "station": "MEASURE",
-    "note": "queue-eligibility p=0.3910 margin 0.1258, 1 prediction error(s), $0.001031 spent",
-    "refused": null
-  },
-  {
-    "station": "LEARN_OR_CORRECT",
-    "note": "CORRECT: 1 mismatch(es), layer=tool",
-    "refused": null
-  },
-  {
-    "station": "CONSOLIDATE",
-    "note": "0 record(s) consolidated",
-    "refused": null
-  },
-  {
-    "station": "REFLECT",
-    "note": "dispatch story job 8f2c1a | a runner claims it | 0.1 | 0.9",
-    "refused": null
-  },
-  {
-    "station": "CHECK_GOAL",
-    "note": "incomplete: 0 open gap(s), 1 mismatch(es)",
-    "refused": null
-  },
-  {
-    "station": "RESPOND",
-    "note": "loop continues; no answer yet",
-    "refused": null
-  },
-  {
-    "station": "PERCEIVE",
-    "note": "0 percepts this iteration, 4 held",
-    "refused": null
-  },
-  {
-    "station": "UNDERSTAND",
-    "note": "dispatch story job 8f2c1a | a runner claims it | 0.1 | 0.9",
-    "refused": null
-  },
-  {
-    "station": "LOAD_MEMORY",
-    "note": "0 records recalled (relevance-bounded at 8)",
-    "refused": null
-  },
-  {
-    "station": "BUILD_WORLD_STATE",
-    "note": "3 entities, 0 relations, 3 actions available and 1 not",
-    "refused": null
-  },
-  {
-    "station": "REPRESENT",
-    "note": "basis 5, norm 1.000000000000",
-    "refused": null
-  },
-  {
-    "station": "SUPERPOSE",
-    "note": "admitted dispatch-backoff",
-    "refused": null
-  },
-  {
-    "station": "RELATE",
-    "note": "0 dependencies bound",
-    "refused": null
-  },
-  {
-    "station": "REASON",
-    "note": "dispatch story job 8f2c1a | a runner claims it | 0.1 | 0.9 [leading queue-eligibility p=0.3258]",
-    "refused": null
-  },
-  {
-    "station": "IDENTIFY_GAPS",
-    "note": "no knowledge state supplied",
-    "refused": "no_knowledge_state"
-  },
-  {
-    "station": "RESEARCH",
-    "note": "no gaps to research",
-    "refused": null
-  },
-  {
-    "station": "VERIFY",
-    "note": "rejected: 2 job(s) still dispatchable after 1 action(s)",
-    "refused": null
-  },
-  {
-    "station": "UPDATE_STATE",
-    "note": "evidence folded in (Bayes-exact)",
-    "refused": null
-  },
-  {
-    "station": "IMAGINE",
-    "note": "3 futures scored",
+    "note": "1 action(s) withdrawn by an earlier recovery; 2 candidate(s) remain",
     "refused": null
   },
   {
     "station": "PLAN",
-    "note": "selected plan-2-dispatch story job 8f2c1a (EV 0.810)",
+    "note": "selected plan-1-dispatch story job b71e04 (EV 0.360)",
     "refused": null
   },
   {
@@ -306,157 +201,7 @@
   },
   {
     "station": "ACT",
-    "note": "1 action(s) attempted",
-    "refused": null
-  },
-  {
-    "station": "OBSERVE",
-    "note": "0/1 matched prediction",
-    "refused": null
-  },
-  {
-    "station": "MEASURE",
-    "note": "queue-eligibility p=0.3551 margin 0.1421, 1 prediction error(s), $0.001613 spent",
-    "refused": null
-  },
-  {
-    "station": "LEARN_OR_CORRECT",
-    "note": "CORRECT: 1 mismatch(es), layer=tool",
-    "refused": null
-  },
-  {
-    "station": "CONSOLIDATE",
-    "note": "0 record(s) consolidated",
-    "refused": null
-  },
-  {
-    "station": "REFLECT",
-    "note": "dispatch story job 8f2c1a | a runner claims it | 0.1 | 0.9",
-    "refused": null
-  },
-  {
-    "station": "CHECK_GOAL",
-    "note": "incomplete: 0 open gap(s), 1 mismatch(es)",
-    "refused": null
-  },
-  {
-    "station": "RESPOND",
-    "note": "loop continues; no answer yet",
-    "refused": null
-  },
-  {
-    "station": "PERCEIVE",
-    "note": "0 percepts this iteration, 4 held",
-    "refused": null
-  },
-  {
-    "station": "UNDERSTAND",
-    "note": "dispatch story job 8f2c1a | a runner claims it | 0.1 | 0.9",
-    "refused": null
-  },
-  {
-    "station": "LOAD_MEMORY",
-    "note": "0 records recalled (relevance-bounded at 8)",
-    "refused": null
-  },
-  {
-    "station": "BUILD_WORLD_STATE",
-    "note": "3 entities, 0 relations, 3 actions available and 1 not",
-    "refused": null
-  },
-  {
-    "station": "REPRESENT",
-    "note": "basis 6, norm 1.000000000000",
-    "refused": null
-  },
-  {
-    "station": "SUPERPOSE",
-    "note": "no new hypothesis admitted",
-    "refused": null
-  },
-  {
-    "station": "RELATE",
-    "note": "0 dependencies bound",
-    "refused": null
-  },
-  {
-    "station": "REASON",
-    "note": "dispatch story job 8f2c1a | a runner claims it | 0.1 | 0.9 [leading queue-eligibility p=0.3551]",
-    "refused": null
-  },
-  {
-    "station": "IDENTIFY_GAPS",
-    "note": "no knowledge state supplied",
-    "refused": "no_knowledge_state"
-  },
-  {
-    "station": "RESEARCH",
-    "note": "no gaps to research",
-    "refused": null
-  },
-  {
-    "station": "VERIFY",
-    "note": "rejected: 2 job(s) still dispatchable after 1 action(s)",
-    "refused": null
-  },
-  {
-    "station": "UPDATE_STATE",
-    "note": "evidence folded in (Bayes-exact)",
-    "refused": null
-  },
-  {
-    "station": "IMAGINE",
-    "note": "3 futures scored",
-    "refused": null
-  },
-  {
-    "station": "PLAN",
-    "note": "selected plan-3-dispatch story job 8f2c1a (EV 0.810)",
-    "refused": null
-  },
-  {
-    "station": "EVALUATE",
-    "note": "plan valid, budget available, rollback present or unneeded",
-    "refused": null
-  },
-  {
-    "station": "ACT",
-    "note": "1 action(s) attempted",
-    "refused": null
-  },
-  {
-    "station": "OBSERVE",
-    "note": "0/1 matched prediction",
-    "refused": null
-  },
-  {
-    "station": "MEASURE",
-    "note": "queue-eligibility p=0.3776 margin 0.1511, 1 prediction error(s), $0.002195 spent",
-    "refused": null
-  },
-  {
-    "station": "LEARN_OR_CORRECT",
-    "note": "CORRECT: 1 mismatch(es), layer=tool",
-    "refused": null
-  },
-  {
-    "station": "CONSOLIDATE",
-    "note": "0 record(s) consolidated",
-    "refused": null
-  },
-  {
-    "station": "REFLECT",
-    "note": "dispatch story job 8f2c1a | a runner claims it | 0.1 | 0.9",
-    "refused": null
-  },
-  {
-    "station": "CHECK_GOAL",
-    "note": "incomplete: 0 open gap(s), 1 mismatch(es)",
-    "refused": null
-  },
-  {
-    "station": "RESPOND",
-    "note": "loop continues; no answer yet",
-    "refused": null
+    "note": "TOOL/shadow mode: dispatch story job b71e04 touches production and was not performed -> stop (level 8): tool refused and there is no alternate; replan and escalation budgets spent",
+    "refused": "shadow mode: dispatch story job b71e04 touches production and was not performed"
   }
 ]

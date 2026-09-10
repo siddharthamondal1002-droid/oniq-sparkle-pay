@@ -5292,3 +5292,173 @@ throws, so all 18 advantage records are negative.
 
 Numbers: 579 tests across 22 files in `src/oqca`; tsc, `lint:ci`, Prettier, the
 mirror check and `deno check` of the runtime chain all clean.
+
+### 2026-09-10 — OQCA v1.4-R: the substrate is reachable from shipped code, and wiring it found six defects
+
+The owner's brief, in their own words: _"The most important open item is #1"_ —
+mirror the substrate into the production runtime and connect it to the real
+story-dispatch READ path — _"The first integration should be read-only. Do not
+enable a non-zero story-dispatch budget yet."_ Eight items, A–H. All eight done
+on `claude/check-56jtg5`; `docs/oqca/OQCA_V1_4R_REPORT.md` is the record.
+
+**THE MILESTONE IS REACHED, AND THAT IS THE FIRST SENTENCE.** Shipped ONIQ code
+reads the substrate: `story-dispatch`'s cognitive path builds a store per tick,
+ingests the quantum domain through `evaluatePromotion`, retrieves a verified
+quantum fact and closes two of the three gaps its goal names — through the
+MIRRORED kernel a deploy would carry, not a test harness. Measured on a real
+shadow run: `knowledgeRecords 123`, `quantumFactsUsed 2`, `knowledgeGapsOpen 1
+of 3`, `substrateBuildMs 7`, `costUsd 0`, `sent=0 stamped=0`.
+
+**AND NOTHING IS DEPLOYED, PUBLISHED OR MERGED.** The flag ships `off`, the
+spend bounds ship at zero, `main` is untouched, **$0 spent, no Lovable message,
+no credits, no new dependency**. COMMITTED is a state and it is not shipped.
+
+**`toKnowledgeState` HAD NO CALLER ANYWHERE IN THE REPOSITORY** — not the loop,
+not a test — while `project.ts`'s header called it one of the substrate's
+"exactly two exits". That is this repo's most-recorded failure, and this time
+the unreachable thing was the bridge built to make something else reachable.
+Because nothing had ever looked at the graph it produces, three defects in it
+had never been seen. **The fifth "built and unit-tested is not reachable", and
+the first where the unreachable code was itself a reachability fix.**
+
+SIX DEFECTS, EVERY ONE FOUND BY WIRING IT RATHER THAN READING IT:
+
+- **Every evidence item was given the RECORD's aggregate confidence.**
+  `model.ts`'s `Confidence` belongs to ONE `Evidence`, so a fetched registry
+  field and a recalled guess got the same belief, and `detectGaps` — which takes
+  the max over supporting and over opposing — read every dispute as symmetric.
+  It also made the two scales fail to compose: the substrate's confidence
+  SATURATES at 0.5 for one source by design, `detectGaps` calls a concept
+  VERIFIED at 0.85, so **no substrate record could ever settle a gap** and
+  RESEARCH would ask forever about a constant ONIQ had read out of its own
+  module.
+- **The dispatch rules were labelled first-hand readings and were paraphrases**
+  — prose about what `isDispatchable` does, checked in beside it and never
+  checked against it. They are `spec_cited`/`human_authored` now, weight 0.400,
+  confidence 0.286, so the gate REFUSES them and they never reach the loop.
+  That is the correct outcome for a sentence nothing checked; the fix is to
+  measure the behaviour, not relabel the sentence.
+- **The backoff value was `derived`**, whose definition is "computed here from
+  other records". Nothing is computed: the module is imported and its constant
+  read. That is `fetched`, and the mislabel under-rated a first-hand reading
+  against a document.
+- **A belief carried a citation naming a module that says something else.**
+  `dispatchRuleRecords` took a bare number and always attached the same locator,
+  so a stale value would have been weighed as if ONIQ had just read it.
+  `BackoffBelief` carries its provenance with it now.
+- **`evidence_weight` IS ADDITIVE, SO DOCUMENTS OUT-VOTE OBSERVATION.** Two
+  agreeing release notes (2 × 0.800 = 1.600) beat one reading of the deployed
+  constant (0.950), and the substrate would have adopted the stale number **with
+  a rationale that reads perfectly**. Nothing said so until a knowledge-upgrade
+  fixture put the two side by side. `measured_precedence` fires only when
+  exactly one side rests on a `measurement` of the subject: corroboration counts
+  for a claim about the WORLD; for a claim about a system ONIQ can OBSERVE, the
+  system is the authority on itself.
+- **The mirror's entrypoint was a hand-written constant.** `ENTRY` named one
+  file, so the mirror was correct for that tree and silently wrong for anything
+  else the runtime imports. Every `../oqca/...` specifier under the runtime is a
+  root now — the mirror grew 18 → 40 files by COMPUTATION. One trap on the way:
+  those specifiers resolve INTO the mirror, which is the script's own output, so
+  closing over them would make the script check its product against itself.
+
+**A CHANGED VALUE IS A CONFLICT, NOT A SUPERSESSION.** `supersede()` requires a
+shared id and the id hashes subject|predicate|OBJECT, so two backoff values are
+two assertions and §8's conflict machinery adjudicates them. Supersession is for
+the same assertion re-verified. Getting that backwards was the first thing item
+D would have got wrong.
+
+**THE FIXTURE WAS WRONG AND THE SUBSTRATE WAS RIGHT.** A single stale note
+reaches 0.286, the gate refuses it, `believedBackoff` falls back to the enforced
+constant — so the "stale" run was indistinguishable from the fresh one. Two
+agreeing notes reach 0.615. Read a fixture that produces no difference as a
+fixture problem before reading it as a subject that does not respond.
+
+**THE LOOP MAY REASON WITH A BELIEF; IT MAY NOT BE AUTHORIZED BY ONE.**
+`isDispatchable(job, now, backoffMs?)` — the belief reaches `worldFrom` and
+`likelihoodsFrom`, and reaches `productionChoice`, the tool REGISTRY filter and
+the tool's own `authorize` never. The parameter is DEFAULTED so the safe value
+is what you get for saying nothing. Two mutations prove it. With a 60-minute
+stale belief the loop dispatches the younger film and disagrees with production;
+the upgrade restores agreement, and production's own choice never moves.
+
+**A CONVENTION IS NOW SETTLED BY EXPERIMENT — the second route to knowledge.**
+Every other `Directness` rung describes a document somebody else wrote, so a
+container that cannot reach the network is one that cannot learn. It can still
+MEASURE. A 2-qubit discriminating circuit returns `01` where little-endian
+predicts `10`, with a CONTROL that must differ (a backend answering `01` to
+everything would otherwise "confirm" big-endian) and pre-registered predictions
+an unmatched outcome cannot join. It runs inside `ingestQuantumKnowledge`, so
+the record measures THIS build. `queue-eligibility` got the same treatment:
+`eligibilityProbe` runs `isDispatchable` across the window boundary instead of
+paraphrasing it.
+
+**THE WEIGHT IS 1 AND THE RUNG IS LOAD-BEARING ANYWAY.** The scale is capped at
+1 by construction and `promotion.ts` sets its threshold from that arithmetic, so
+a rung above 1 rewrites the table silently. What distinguishes an experiment is
+`experimental_precedence`, checked before `measured_precedence` and AFTER
+`divergent_by_design` — so an experiment on ONIQ's own backend can never delete
+Qiskit's convention. **Two proposed rungs are deliberately absent**: EXTRACTED
+is `ExtractionMethod` (a different axis — a model extraction and a direct
+quotation from the same fetched page are the same directness), and
+CROSS_VERIFIED is a property of the RECORD that `minIndependentSources` already
+carries; as a directness it would let ONE item claim corroboration it cannot
+have.
+
+**A MUTATION THAT CANNOT SEE ITS OWN HOLE IS NOT A VERDICT, twice.**
+`eligibilityProbe` returned a bare boolean, and deleting the leg that
+distinguishes a WINDOW from the sign of a subtraction reported GREEN — with the
+real `isDispatchable` behind it the verdict is true either way, so no assertion
+over the verdict alone could see it. It returns its three legs now. And
+`dependentsOf` dropping `history()` reported GREEN because the test's dependent
+was still current; a retired dependent is exactly what an upgrade needs to find.
+
+**THE HONEST COST OF GIVING THE LOOP REAL KNOWLEDGE:** RESEARCH now has a gap to
+ask about (`runner-availability`, which story-dispatch genuinely cannot see and
+which has NO record on purpose), the research adapter refuses as designed, and
+the recovery ladder escalates — which a headless run correctly reports as
+`blocked`. **Before, the loop ran to `success` having identified no gaps at
+all**, which is a success with nothing to be incomplete about. The decision is
+unchanged and still agrees with production.
+
+**AND ONE FINDING RECORDED RATHER THAN FIXED.** `SUPERPOSE` admits one
+prerequisite per iteration in `goal.requires` DECLARATION order and never
+consults the gap detector (station 06 runs before station 09) — so which
+prerequisites become hypotheses is a fact about how many iterations ran, not
+about what is unknown, and `queue-eligibility` (VERIFIED at 0.85 from ONIQ's own
+probe) is still admitted as a hypothesis. Three lines and a different change.
+
+**ITEM G: THE STORE WAS BENCHMARKED AND NO GRAPH DATABASE WAS ADDED.** Every
+query the runtime makes answers in tens of microseconds over 123 records and the
+whole tick — ingest 118 quantum records, run the convention experiment, probe
+`isDispatchable`, promote 123, project the graph — is 6 ms. **One arm of three
+was measured** and the other two are reported ABSENT rather than zero: Jena is a
+JVM dependency `package.json` would have to carry, AGE is a Postgres extension
+on a project this container cannot reach. A one-armed benchmark reported as a
+comparison is §16's unfair-baseline failure, so it is not reported as one.
+
+**ITEM H: the five labelled metrics stay `null`**, asserted, and a mutation
+returning 0 goes red. The owner's reason, kept: manufacturing a label set to
+turn `null` into `0` destroys the distinction that matters.
+
+**AND THE MIRROR GROWING BROKE A REPO GUARD FOR A REAL REASON.**
+`edgeImports.test.ts` recognised `function`, `const`, `let`, `var` and `class`
+as local bindings and **not class METHODS** — which carry no keyword. The moment
+`_shared/oqca/quantum/math/state.ts` joined the mirror exporting `probabilities`,
+`formalState.ts` was reported as calling a shared helper it never imported: it
+calls its own `CognitiveState.probabilities()` method, which has existed since
+v1.1. A genuine name collision, neither side wrong. The guard reads method
+DECLARATIONS now (the closing paren followed by a body, where a bare call
+statement ends in `;`), and both directions are asserted in the same file.
+
+**AND A MUTATION RUN AND A FULL SUITE RUN CANNOT SHARE A WORKING TREE.** The
+mutation script edits files in place and restores them; a `vitest run` started
+beside it read two files mid-mutation and reported two failures that did not
+exist. Both were green in isolation seconds later. **Do not start anything that
+reads the repo while `oqca-mutate.sh` is running** — and read a failure that
+appears during one as unmeasured rather than as a result.
+
+Numbers: 639 tests across 23 files in `src/oqca`, 6,840 across 381 in the whole
+suite; **102 mutations, every one RED, none GREEN, none NOTAPPLIED**; tsc,
+`lint:ci`, Prettier, `node scripts/oqca-mirror.mjs --check` (40 files) and
+`deno check` of the story-dispatch chain all clean. `remoteQuantumExecution`
+false, `maxQuantumCostUsd` 0, `OQCA_MAX_COST_USD` 0 — unchanged and asserted.
