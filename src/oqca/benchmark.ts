@@ -18,10 +18,10 @@
  * evidence genuinely carries information the likelihoods do not. That is a
  * narrow claim, and it is the one worth testing.
  */
-import { fromWeights, type CognitiveState } from "./state";
-import { interfere, phase, reweight } from "./gates";
-import { measure } from "./measure";
-import { bayesUpdate, beliefArgmax, beliefFromWeights } from "./baseline";
+import { fromWeights, type CognitiveState } from "./state.ts";
+import { interfere, phase, reweight } from "./gates.ts";
+import { measure } from "./measure.ts";
+import { bayesUpdate, beliefArgmax, beliefFromWeights } from "./baseline.ts";
 
 /** One piece of evidence: a likelihood per hypothesis, plus optional context. */
 export type Step = {

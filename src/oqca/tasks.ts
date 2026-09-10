@@ -29,7 +29,7 @@
  * invented here". A real verdict needs real decisions, which is a replay corpus
  * and not this file.
  */
-import type { Task } from "./benchmark";
+import type { Task } from "./benchmark.ts";
 
 const L3 = ["A", "B", "C"] as const;
 

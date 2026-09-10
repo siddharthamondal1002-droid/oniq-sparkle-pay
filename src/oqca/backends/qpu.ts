@@ -33,9 +33,9 @@
  * every transition. That is a NECESSARY condition for item 3 and not a
  * sufficient one for any of the five.
  */
-import type { Amplitude } from "../math/complex";
-import type { QuantumOperator } from "../operators";
-import { BackendUnavailable, type BackendCapabilities, type QuantumBackend } from "./backend";
+import type { Amplitude } from "../math/complex.ts";
+import type { QuantumOperator } from "../operators.ts";
+import { BackendUnavailable, type BackendCapabilities, type QuantumBackend } from "./backend.ts";
 
 export const QPU_MISSING =
   "a vendor SDK and account (paid, unauthorized), a qubit encoding for a non-power-of-two basis, circuit synthesis from two-level unitaries, shot statistics, and a noise model";

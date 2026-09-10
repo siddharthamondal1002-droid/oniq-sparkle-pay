@@ -21,10 +21,10 @@
  * exercises the transition record, the hash and `validate()` — the audit trail
  * is not a separate code path that only its own tests reach.
  */
-import { CognitiveState } from "../formalState";
-import { evidence, interfere, phase } from "../cognitive";
-import type { Trial } from "./trials";
-import type { BaselineId, TreatmentId } from "./manifest";
+import { CognitiveState } from "../formalState.ts";
+import { evidence, interfere, phase } from "../cognitive.ts";
+import type { Trial } from "./trials.ts";
+import type { BaselineId, TreatmentId } from "./manifest.ts";
 
 export type ArmResult = {
   readonly labels: readonly string[];

@@ -19,7 +19,7 @@
  * Math.random. Given the same seed and the same state it returns the same
  * answer on every machine.
  */
-import { type CognitiveState, probabilities } from "./state";
+import { type CognitiveState, probabilities } from "./state.ts";
 
 export type MeasurementPolicy =
   { kind: "maximum" } | { kind: "sample"; seed: number } | { kind: "threshold"; minimum: number };

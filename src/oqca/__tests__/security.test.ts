@@ -46,7 +46,47 @@ import { join } from "node:path";
 import { executableText, stripComments } from "@/test/sourceText";
 
 const ROOT = "src/oqca";
+/**
+ * THE MIRROR IS WALKED TOO — v1.2, brief section 3: "src/oqca/ must remain
+ * incapable of network access, credentials, direct production database access,
+ * clock access, direct tool execution, direct model execution... Extend the
+ * existing security test rather than weakening it."
+ *
+ * The loop now runs in Deno, so its closure exists a second time under
+ * `supabase/functions/_shared/oqca/`. A guarantee asserted over one copy of a
+ * file and not the other is not a guarantee — and the mirror is the copy that
+ * ships to production, where a `fetch` would actually reach something. So the
+ * SAME 26 bans run over BOTH trees.
+ *
+ * The runtime adapters that DO hold a fetch, a credential and a clock live in a
+ * sibling directory, `_shared/oqcaRuntime/`, which is deliberately not walked.
+ * That path IS the boundary: everything on this side is inert, everything on
+ * that side is handed in, and `mirror.test.ts` asserts the two directories
+ * never merge.
+ */
+const MIRROR = "supabase/functions/_shared/oqca";
 const SCRIPT = "scripts/oqca-bench.ts";
+/**
+ * THE FILES WHOSE JOB IS TO NAME THE BANNED SHAPES.
+ *
+ * This file has always been one: it must write `fetch` to ban it. v1.2 added
+ * two more — the runtime wiring guard, which asserts that the ADAPTERS contain
+ * no deploy call and exactly one host, and the runtime suite, which drives an
+ * engine that throws and asserts a router refuses.
+ *
+ * They are NOT excluded, which would leave three files the walker never visits
+ * — escape number two from the health red team. They are held to the STRICTER
+ * rule instead: after strings AND regex literals are masked, their executable
+ * residue must contain none of the banned shapes. A real `await fetch(u)` added
+ * to any of them still goes red; `/\bfetch\b/` in a table does not. The
+ * mutation checks at the bottom of this file are what make that a rule rather
+ * than a convenience.
+ */
+const GUARDS = [
+  "src/oqca/__tests__/security.test.ts",
+  "src/oqca/__tests__/runtimeWiring.test.ts",
+  "src/oqca/__tests__/runtime.test.ts",
+];
 const SELF = "src/oqca/__tests__/security.test.ts";
 
 /** Every `.ts` under the tree, tests included — a test can open a socket too. */
@@ -60,7 +100,7 @@ function walk(dir: string): string[] {
   return out;
 }
 
-const FILES = [...walk(ROOT), SCRIPT];
+const FILES = [...walk(ROOT), ...walk(MIRROR), SCRIPT];
 const SOURCE = new Map(FILES.map((f) => [f, stripComments(readFileSync(f, "utf8"))]));
 
 /**
@@ -72,16 +112,27 @@ const SOURCE = new Map(FILES.map((f) => [f, stripComments(readFileSync(f, "utf8"
  * checks are what make that acceptable rather than merely convenient.
  */
 function codeResidue(source: string): string {
-  return executableText(source).replace(
+  // ORDER MATTERS, AND GETTING IT WRONG WAS A REAL FAILURE. This used to mask
+  // strings first and regex literals second, which breaks on the one shape
+  // these guards are full of: a regex literal containing a QUOTE, such as
+  // `/from "\\.\\.\\/llm\\.ts"/`. The string masker reads that quote as opening a
+  // literal, pairs it with the next quote pages later, and every string in
+  // between survives unmasked — so a URL or a banned word inside an ordinary
+  // string looked like executable code. `sourceText.ts` documents exactly this
+  // limit ("a regex literal containing a quote character"); the fix is to
+  // remove the regexes BEFORE the strings are read.
+  const noComments = stripComments(source);
+  const noRegex = noComments.replace(
     /(^|[\s(,=:!&|?{[])\/(?![/*])(?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\\n])+\/[gimsuy]*/g,
     "$1 ",
   );
+  return executableText(noRegex);
 }
 
 /** Files whose executable text (comments gone, strings kept) matches. */
 function offenders(pattern: RegExp): string[] {
   return [...SOURCE]
-    .filter(([file]) => file !== SELF)
+    .filter(([file]) => !GUARDS.includes(file))
     .filter(([, text]) => new RegExp(pattern).test(text))
     .map(([f]) => f);
 }
@@ -166,16 +217,30 @@ describe("brief section 18 — Security", () => {
     });
   }
 
-  it("this guard's own executable code is subject to every ban it declares", () => {
-    // The file excluded from the substring scan, checked by the stricter rule.
-    const residue = codeResidue(readFileSync(SELF, "utf8"));
+  it.each(GUARDS)("%s is subject to every ban it declares", (guard) => {
+    // The three files excluded from the SUBSTRING scan, checked by the
+    // stricter rule: strings and regex literals masked, executable residue
+    // only. A real `await fetch(u)` in any of them still goes red.
+    const residue = codeResidue(readFileSync(guard, "utf8"));
     for (const { what, pattern } of FORBIDDEN) {
-      expect(new RegExp(pattern).test(residue), `${SELF} executes ${what}`).toBe(false);
+      expect(new RegExp(pattern).test(residue), `${guard} executes ${what}`).toBe(false);
     }
     // ...and the residue is real code rather than an empty string, which would
     // make the loop above vacuous.
-    expect(residue).toContain("readFileSync");
+    expect(residue).toContain("expect");
     expect(residue).toContain("describe");
+  });
+
+  it("the exclusion list is exactly the guard files, and every one is walked", () => {
+    // AN EXCLUSION THAT GREW WOULD BE A HOLE. Each of these must NAME the
+    // banned shapes to do its job; nothing else may join them, and all three
+    // are still in FILES so the residue rule above actually runs on them.
+    expect(GUARDS).toEqual([
+      "src/oqca/__tests__/security.test.ts",
+      "src/oqca/__tests__/runtimeWiring.test.ts",
+      "src/oqca/__tests__/runtime.test.ts",
+    ]);
+    for (const g of GUARDS) expect(FILES).toContain(g);
   });
 
   it("reads the filesystem in exactly one non-test file, and only to read", () => {
@@ -302,7 +367,7 @@ describe("brief section 3 — the physical layer knows nothing about cognition",
     expect(mathFiles.length).toBeGreaterThan(0);
     for (const file of mathFiles) {
       for (const spec of importsOf(file)) {
-        expect(spec, `${file} imports ${spec}`).toMatch(/^\.\/(complex|unitary|hash)$/);
+        expect(spec, `${file} imports ${spec}`).toMatch(/^\.\/(complex|unitary|hash)\.ts$/);
       }
     }
   });
@@ -332,6 +397,6 @@ describe("brief section 3 — the physical layer knows nothing about cognition",
     // Same shape as the walker assertion above: a regex that matched nothing
     // would make every layering test vacuous.
     expect(importsOf("src/oqca/operators.ts").length).toBeGreaterThan(0);
-    expect(importsOf("src/oqca/bench/runner.ts")).toContain("./stats");
+    expect(importsOf("src/oqca/bench/runner.ts")).toContain("./stats.ts");
   });
 });

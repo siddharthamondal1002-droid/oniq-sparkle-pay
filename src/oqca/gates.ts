@@ -33,11 +33,11 @@
  *
  * Zero dependencies, pure, no I/O. Each function returns a NEW state.
  */
-import { type CognitiveState, cMul, cScale, fromAmplitudes, indexOf } from "./state";
-import { c } from "./math/complex";
-import { angleFromStrength, applyPair, rotation } from "./math/unitary";
+import { type CognitiveState, cMul, cScale, fromAmplitudes, indexOf } from "./state.ts";
+import { c } from "./math/complex.ts";
+import { angleFromStrength, applyPair, rotation } from "./math/unitary.ts";
 
-export { assertUnitary2 } from "./math/unitary";
+export { assertUnitary2 } from "./math/unitary.ts";
 
 /** What each gate MEANS, kept separate from the arithmetic (brief §7). */
 export const COGNITIVE_GATES = {

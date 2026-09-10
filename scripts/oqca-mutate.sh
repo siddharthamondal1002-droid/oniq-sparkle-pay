@@ -295,8 +295,10 @@ cp "$BAK" $F
 cp $F "$BAK"
 mutate <<'PY'
 p='src/oqca/loop/cognitiveLoop.ts'; s=open(p).read()
-old='    const b = wouldBreach(spent, budgets, { tokens: maxOutputTokens });'
-assert s.count(old)==1, s.count(old)
+import re
+m = re.search(r'    const b = wouldBreach\(\n(?:.*\n)*?    \);\n', s)
+assert m, 'stale anchor'
+old = m.group(0)
 s=s.replace(old,'    const b = null as ReturnType<typeof wouldBreach>;')
 open(p,'w').write(s)
 PY
@@ -357,6 +359,254 @@ s=s+'\nexport async function leak(u: string) {\n  return await fetch(u);\n}\n'
 open(p,'w').write(s)
 PY
 report "M21 a loop file opens a network call" "$(run src/oqca/__tests__/security.test.ts)"
+cp "$BAK" $F
+
+# ====================================================================
+# v1.2 — the first reachable ONIQ cognitive job. Brief section 20.
+#
+# EVERY MUTATION BELOW OPENS A HOLE SOMEBODY COULD ACTUALLY MAKE, and each
+# edits the SOURCE rather than the assertion that guards it: a mutation that
+# rewrites its own test can only ever print RED, which is what M7's first draft
+# was and why it had to be deleted.
+#
+# Nine of these touch the RUNTIME tree, which the kernel's own suite never
+# loads. That is the point: the adapters are where money is spent and
+# production is written, and until v1.2 there was nothing there to mutate.
+# ====================================================================
+
+RT=supabase/functions/_shared/oqcaRuntime
+
+# M22: the mirror drifts. The loop runs in Deno from a second copy of itself,
+# and a copy that is allowed to differ is not a copy -- the edge deploy would
+# quietly run different code from the one the tests exercise.
+F=$RT/loop/seams.ts
+F=supabase/functions/_shared/oqca/loop/seams.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqca/loop/seams.ts'; s=open(p).read()
+s=s.replace('maxToolCalls: 0,','maxToolCalls: 9,',1)
+open(p,'w').write(s)
+PY
+report "M22 the edge mirror drifts from src/oqca" "$(run src/oqca/__tests__/mirror.test.ts)"
+cp "$BAK" $F
+
+# M23: shadow mode stops refusing production writes. Section 8's entire promise
+# is "without changing the user's result"; this is the single line that keeps it.
+F=$RT/toolRouter.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/toolRouter.ts'; s=open(p).read()
+old='      if (ctx.mode === "shadow" && spec.touchesProduction) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      if (false && ctx.mode === "shadow" && spec.touchesProduction) {')
+open(p,'w').write(s)
+PY
+report "M23 shadow mode performs production writes" "$(run src/oqca/__tests__/runtime.test.ts)"
+cp "$BAK" $F
+
+# M24: the router stops checking that a call's declared properties match the
+# registry, so an under-declared write walks straight past the shadow gate.
+F=$RT/toolRouter.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/toolRouter.ts'; s=open(p).read()
+import re
+m = re.search(r'      if \(\n        call\.reversible(?:.|\n)*?      \) \{\n', s)
+assert m, 'stale anchor'
+s = s[:m.start()] + '      if (false) {\n' + s[m.end():]
+open(p,'w').write(s)
+PY
+report "M24 a call may under-declare that it touches production" "$(run src/oqca/__tests__/runtime.test.ts)"
+cp "$BAK" $F
+
+# M25: the existing authorization boundary is skipped. Section 9: "OQCA
+# selecting an action is not authorization for it." Without this the loop's
+# opinion becomes the only check on a production dispatch.
+F=$RT/toolRouter.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/toolRouter.ts'; s=open(p).read()
+old='      const denied = await spec.authorize(call);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      const denied: string | null = null;\n      void spec.authorize;')
+open(p,'w').write(s)
+PY
+report "M25 the existing authorization boundary is skipped" "$(run src/oqca/__tests__/runtime.test.ts)"
+cp "$BAK" $F
+
+# M26: an unregistered tool prices at zero instead of refusing, so an action
+# nobody registered passes the cost gate and is refused one step later under a
+# different name. A gate that reports the wrong bound sends whoever reads the
+# log to raise the wrong number.
+F=$RT/toolRouter.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/toolRouter.ts'; s=open(p).read()
+old='      if (!spec) return null;\n      return spec.estimate(call);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      if (!spec) return { tokens: 0, costUsd: 0 };\n      return spec.estimate(call);')
+open(p,'w').write(s)
+PY
+report "M26 an unknown tool is priced as free" "$(run src/oqca/__tests__/runtime.test.ts)"
+cp "$BAK" $F
+
+# M27: the observation is the tool's own claim. Section 10's authority is the
+# environment; a `perform` that echoes its own output would make station 17
+# confirm every action it took.
+F=$RT/dispatchJob.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/dispatchJob.ts'; s=open(p).read()
+old='          ? { ok: true, output: `dispatched ${id}`, observed, costUsd: 0 }'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'          ? { ok: true, output: `dispatched ${id}`, observed: `dispatched ${id}`, costUsd: 0 }')
+open(p,'w').write(s)
+PY
+report "M27 the observation echoes the tool instead of the row" "$(run src/oqca/__tests__/runtime.test.ts)"
+cp "$BAK" $F
+
+# M28: an unpriced model is treated as free. Section 21, in its own words:
+# "Never: unknown -> 0. Never allow: unknown cost -> execute."
+F=$RT/pricing.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/pricing.ts'; s=open(p).read()
+old='  if (!isPriced(model)) return null;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  if (!isPriced(model)) return 0;')
+open(p,'w').write(s)
+PY
+report "M28 an unpriced model costs zero instead of refusing" "$(run src/oqca/__tests__/runtime.test.ts)"
+cp "$BAK" $F
+
+# M29: a fallback answerer with no published rate settles at ZERO rather than at
+# the estimate. `financialLedger` makes the same choice for the same reason -- a
+# null means unknown, and unknown is never free.
+F=$RT/engine.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/engine.ts'; s=open(p).read()
+old='      const costUsd = measured ?? quote.costUsd;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      const costUsd = measured ?? 0;')
+open(p,'w').write(s)
+PY
+report "M29 an unpriced answerer is billed as free" "$(run src/oqca/__tests__/runtime.test.ts)"
+cp "$BAK" $F
+
+# M30: memory reports the records it did NOT persist as persisted. The gap is
+# the finding; a `consolidate` returning a count would make every later reader
+# believe ONIQ remembers something it does not.
+F=$RT/memory.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/memory.ts'; s=open(p).read()
+old='      ctx.record({ attempted: records.length, persisted: 0, reason: PERSISTENCE_GAP });\n      return 0;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      ctx.record({ attempted: records.length, persisted: records.length, reason: PERSISTENCE_GAP });\n      return records.length;')
+open(p,'w').write(s)
+PY
+report "M30 memory claims to persist what it dropped" "$(run src/oqca/__tests__/runtime.test.ts)"
+cp "$BAK" $F
+
+# M31: the verifier calls a stamped-but-still-queued job VERIFIED, which is the
+# station reporting the tool's own action back to itself.
+F=$RT/dispatchJob.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/dispatchJob.ts'; s=open(p).read()
+old='        verdict: "partially_verified",'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'        verdict: "verified",')
+open(p,'w').write(s)
+PY
+report "M31 a dispatch stamp is read as a runner claim" "$(run src/oqca/__tests__/runtime.test.ts)"
+cp "$BAK" $F
+
+# M32: the flag fails OPEN, so a typo in a secret turns a scheduled dispatcher
+# into a cognitive one.
+F=$RT/flag.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/flag.ts'; s=open(p).read()
+old='  if (v === "assisted") return "assisted";\n  return "off";'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  if (v === "assisted") return "assisted";\n  return "shadow";')
+open(p,'w').write(s)
+PY
+report "M32 an unrecognised flag value runs the loop" "$(run src/oqca/__tests__/runtime.test.ts)"
+cp "$BAK" $F
+
+# M33: the hook reports `handled` from the loop's DECISION rather than from what
+# the environment says happened -- so a refused dispatch skips the production
+# path and no film goes out at all.
+F=$RT/storyDispatchHook.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/storyDispatchHook.ts'; s=open(p).read()
+old='      handled: cfg.mode === "assisted" && (performed !== undefined || held),'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      handled: cfg.mode === "assisted" || performed !== undefined || held,')
+open(p,'w').write(s)
+PY
+report "M33 shadow mode can report handled" "$(run src/oqca/__tests__/runtime.test.ts)"
+cp "$BAK" $F
+
+# M34: replay grows a seam. Section 19: "Replay must not make network calls,
+# model calls, or execute tools." The guarantee is that there is nowhere to pass
+# one, so adding a parameter is the whole of the breach.
+F=$RT/shadow.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/shadow.ts'; s=open(p).read()
+old='export function replayChain(chain: readonly LoopState[]): readonly ReplayProblem[] {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'export function replayChain(\n  chain: readonly LoopState[],\n  engine?: unknown,\n): readonly ReplayProblem[] {\n  void engine;')
+open(p,'w').write(s)
+PY
+report "M34 replay accepts an engine" "$(run src/oqca/__tests__/runtime.test.ts)"
+cp "$BAK" $F
+
+# M35: a second file names `callText`. Section 4 connects ONE model boundary;
+# a second import is how a second provider arrives without anyone deciding to
+# add one.
+F=$RT/episode.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/episode.ts'; s=open(p).read()
+s='import { callText } from "../llm.ts";\nvoid callText;\n'+s
+open(p,'w').write(s)
+PY
+report "M35 a second file reaches the model boundary" "$(run src/oqca/__tests__/runtimeWiring.test.ts)"
+cp "$BAK" $F
+
+# M36: the kernel imports an adapter, which is the whole boundary collapsing --
+# `security.test.ts` would then be asserting purity over a tree with a fetch one
+# import away.
+F=supabase/functions/_shared/oqca/loop/loopState.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqca/loop/loopState.ts'; s=open(p).read()
+s='import { DISPATCH_COST } from "../../oqcaRuntime/dispatchJob.ts";\nvoid DISPATCH_COST;\n'+s
+open(p,'w').write(s)
+PY
+report "M36 the kernel imports a runtime adapter" "$(run src/oqca/__tests__/runtimeWiring.test.ts)"
+cp "$BAK" $F
+
+# M37: the caller stops gating on the flag, so the loop runs on every scheduled
+# tick whether or not anyone turned it on.
+F=supabase/functions/story-dispatch/index.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/story-dispatch/index.ts'; s=open(p).read()
+old='    if (oqcaMode === "assisted") {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    if (oqcaMode !== "never") {')
+open(p,'w').write(s)
+PY
+report "M37 the caller runs the loop with the flag off" "$(run src/oqca/__tests__/runtimeWiring.test.ts)"
+cp "$BAK" $F
+
+# M38: shadow moves ABOVE the dispatch, so a loop that throws or hangs now sits
+# between a user's film and the runner that renders it.
+F=supabase/functions/story-dispatch/index.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/story-dispatch/index.ts'; s=open(p).read()
+import re
+m = re.search(r'\n    // SHADOW RUNS AFTER(?:.|\n)*?\n    \}\n', s)
+assert m, 'stale anchor'
+block = m.group(0)
+s = s[:m.start()] + '\n' + s[m.end():]
+anchor = '    const jobId = rows[0].id;'
+assert s.count(anchor)==1
+s = s.replace(anchor, block.strip('\n') + '\n\n' + anchor)
+open(p,'w').write(s)
+PY
+report "M38 shadow mode runs before the dispatch" "$(run src/oqca/__tests__/runtimeWiring.test.ts)"
 cp "$BAK" $F
 
 echo "done"

@@ -32,6 +32,15 @@ import {
 } from "@/oqca/loop/loopState";
 import type { Goal } from "@/oqca/knowledge/gaps";
 
+/**
+ * A fixture engine/router that costs nothing. Pricing has its OWN tests below;
+ * everywhere else a stub that priced itself would make every assertion depend
+ * on a number the test does not care about.
+ */
+const FREE = () => ({ tokens: 0, costUsd: 0 });
+/** A fixture tool that is reversible and touches nothing. */
+const SAFE_TOOL = () => ({ reversible: true, touchesProduction: false });
+
 const GOAL: Goal = {
   id: "g1",
   statement: "publish the weekly digest",
@@ -157,31 +166,39 @@ describe("an unconfigured loop reasons and acts on nothing, and says which seam 
 });
 
 describe("the spending bounds refuse BEFORE the spend, never after", () => {
-  const engine: Engine = vi.fn(async () => ({
-    ok: true,
-    text: "an answer",
-    usage: { inputTokens: 100, outputTokens: 100, costUsd: 0.01 },
-    model: "test",
-  }));
+  const engine: Engine = {
+    estimate: FREE,
+    run: vi.fn(async () => ({
+      ok: true,
+      text: "an answer",
+      usage: { inputTokens: 100, outputTokens: 100, costUsd: 0.01 },
+      model: "test",
+    })),
+  };
 
   it("maxTokens 0 means the engine is never called at all", async () => {
-    const spy = vi.fn(engine);
-    await runCognitiveLoop(input({ engine: spy, budgets: { ...OPEN, maxTokens: 0 } }));
+    const spy = vi.fn(engine.run);
+    await runCognitiveLoop(
+      input({ engine: { estimate: FREE, run: spy }, budgets: { ...OPEN, maxTokens: 0 } }),
+    );
     expect(spy).not.toHaveBeenCalled();
   });
 
   it("maxCostUsd 0 means the engine is never called at all", async () => {
-    const spy = vi.fn(engine);
-    await runCognitiveLoop(input({ engine: spy, budgets: { ...OPEN, maxCostUsd: 0 } }));
+    // The engine PRICES this call, so maxCostUsd 0 refuses it at the cost gate
+    // rather than letting a free-priced stub through to the provider.
+    const spy = vi.fn(engine.run);
+    const priced = { estimate: () => ({ tokens: 100, costUsd: 0.01 }), run: spy };
+    await runCognitiveLoop(input({ engine: priced, budgets: { ...OPEN, maxCostUsd: 0 } }));
     expect(spy).not.toHaveBeenCalled();
   });
 
   it("maxToolCalls 0 means the router is never called at all", async () => {
-    const router = vi.fn(RECORD_ONLY_ROUTER);
+    const router = vi.fn(RECORD_ONLY_ROUTER.execute);
     await runCognitiveLoop(
       input({
         engine,
-        router,
+        router: { properties: SAFE_TOOL, estimate: FREE, execute: router },
         budgets: { ...OPEN, maxToolCalls: 0 },
         initial: baseState({ worldState: { ...EMPTY_WORLD, availableActions: ["send digest"] } }),
       }),
@@ -190,12 +207,15 @@ describe("the spending bounds refuse BEFORE the spend, never after", () => {
   });
 
   it("a run that exhausts its cost stops and names max_cost", async () => {
-    const greedy: Engine = async () => ({
-      ok: true,
-      text: "x",
-      usage: { inputTokens: 0, outputTokens: 0, costUsd: 0.5 },
-      model: "t",
-    });
+    const greedy: Engine = {
+      estimate: FREE,
+      run: async () => ({
+        ok: true,
+        text: "x",
+        usage: { inputTokens: 0, outputTokens: 0, costUsd: 0.5 },
+        model: "t",
+      }),
+    };
     const run = await runCognitiveLoop(
       input({ engine: greedy, budgets: { ...OPEN, maxCostUsd: 0.6 } }),
     );
@@ -208,8 +228,8 @@ describe("the spending bounds refuse BEFORE the spend, never after", () => {
       "max_execution_time",
     );
     expect(breach({ ...NO_SPEND, tokens: 10 }, { ...OPEN, maxTokens: 5 })).toBe("max_tokens");
-    expect(wouldBreach(NO_SPEND, OPEN, { costUsd: 99 })).toBe("max_cost");
-    expect(wouldBreach(NO_SPEND, OPEN, { costUsd: 0.001 })).toBeNull();
+    expect(wouldBreach(NO_SPEND, OPEN, { tokens: 0, costUsd: 99 })).toBe("max_cost");
+    expect(wouldBreach(NO_SPEND, OPEN, { tokens: 0, costUsd: 0.001 })).toBeNull();
   });
 });
 
@@ -237,12 +257,15 @@ describe("nothing is fabricated", () => {
   });
 
   it("IMAGINE cannot invent an action the world model never offered", async () => {
-    const liar: Engine = async () => ({
-      ok: true,
-      text: "drop the production database | catastrophic | 0.1 | 0.9",
-      usage: { inputTokens: 1, outputTokens: 1, costUsd: 0 },
-      model: "t",
-    });
+    const liar: Engine = {
+      estimate: FREE,
+      run: async () => ({
+        ok: true,
+        text: "drop the production database | catastrophic | 0.1 | 0.9",
+        usage: { inputTokens: 1, outputTokens: 1, costUsd: 0 },
+        model: "t",
+      }),
+    };
     const run = await runCognitiveLoop(
       input({
         engine: liar,
@@ -255,19 +278,29 @@ describe("nothing is fabricated", () => {
 
 describe("EVALUATE is the gate above ACT", () => {
   it("refuses an irreversible step with no rollback, and clears the plan", async () => {
-    const engine: Engine = async () => ({
-      ok: true,
-      text: "delete every row | gone | 0.1 | 0.9",
-      usage: { inputTokens: 1, outputTokens: 1, costUsd: 0 },
-      model: "t",
-    });
-    const router = vi.fn(RECORD_ONLY_ROUTER);
+    const engine: Engine = {
+      estimate: FREE,
+      run: async () => ({
+        ok: true,
+        text: "delete every row | gone | 0.1 | 0.9",
+        usage: { inputTokens: 1, outputTokens: 1, costUsd: 0 },
+        model: "t",
+      }),
+    };
+    const router = vi.fn(RECORD_ONLY_ROUTER.execute);
     const run = await runCognitiveLoop(
       input({
         engine,
-        router,
+        // THE ROUTER SAYS IT IS IRREVERSIBLE, NOT THE ACTION'S NAME. This used
+        // to be carried by a regex matching /delete/, which meant a production
+        // write called anything else declared itself safe.
+        router: {
+          properties: () => ({ reversible: false, touchesProduction: true }),
+          estimate: FREE,
+          execute: router,
+        },
         initial: baseState({
-          worldState: { ...EMPTY_WORLD, availableActions: ["delete every row"] },
+          worldState: { ...EMPTY_WORLD, availableActions: ["send the digest"] },
         }),
       }),
     );
@@ -277,18 +310,49 @@ describe("EVALUATE is the gate above ACT", () => {
     expect(run.log.find((r) => r.station === "ACT")!.refused).toBe("no_plan");
   });
 
+  it("and the action's NAME decides nothing either way", async () => {
+    // The mirror of the case above: "delete every row" reaches the router
+    // because the router registered it as reversible. Both directions are
+    // asserted, because a guard narrowed in one direction only is a weaker
+    // guard wearing a test.
+    const engine: Engine = {
+      estimate: FREE,
+      run: async () => ({
+        ok: true,
+        text: "delete every row | gone | 0.1 | 0.9",
+        usage: { inputTokens: 1, outputTokens: 1, costUsd: 0 },
+        model: "t",
+      }),
+    };
+    const router = vi.fn(RECORD_ONLY_ROUTER.execute);
+    const run = await runCognitiveLoop(
+      input({
+        engine,
+        router: { properties: SAFE_TOOL, estimate: FREE, execute: router },
+        initial: baseState({
+          worldState: { ...EMPTY_WORLD, availableActions: ["delete every row"] },
+        }),
+      }),
+    );
+    expect(run.log.find((r) => r.station === "EVALUATE")!.refused).toBeNull();
+    expect(router).toHaveBeenCalledTimes(1);
+  });
+
   it("a reversible action reaches the router", async () => {
-    const engine: Engine = async () => ({
-      ok: true,
-      text: "send digest | delivered | 0.1 | 0.9",
-      usage: { inputTokens: 1, outputTokens: 1, costUsd: 0 },
-      model: "t",
-    });
-    const router = vi.fn(RECORD_ONLY_ROUTER);
+    const engine: Engine = {
+      estimate: FREE,
+      run: async () => ({
+        ok: true,
+        text: "send digest | delivered | 0.1 | 0.9",
+        usage: { inputTokens: 1, outputTokens: 1, costUsd: 0 },
+        model: "t",
+      }),
+    };
+    const router = vi.fn(RECORD_ONLY_ROUTER.execute);
     await runCognitiveLoop(
       input({
         engine,
-        router,
+        router: { properties: SAFE_TOOL, estimate: FREE, execute: router },
         initial: baseState({ worldState: { ...EMPTY_WORLD, availableActions: ["send digest"] } }),
       }),
     );
@@ -299,12 +363,15 @@ describe("EVALUATE is the gate above ACT", () => {
 
 describe("OBSERVE reads the environment, not the tool's own claim", () => {
   it("a router that succeeded but performed nothing does NOT count as matched", async () => {
-    const engine: Engine = async () => ({
-      ok: true,
-      text: "send digest | delivered | 0.1 | 0.9",
-      usage: { inputTokens: 1, outputTokens: 1, costUsd: 0 },
-      model: "t",
-    });
+    const engine: Engine = {
+      estimate: FREE,
+      run: async () => ({
+        ok: true,
+        text: "send digest | delivered | 0.1 | 0.9",
+        usage: { inputTokens: 1, outputTokens: 1, costUsd: 0 },
+        model: "t",
+      }),
+    };
     // RECORD_ONLY_ROUTER returns ok:true with output "recorded intent" — the
     // shape a loop would happily read as success if it trusted `output`.
     const run = await runCognitiveLoop(
@@ -320,18 +387,25 @@ describe("OBSERVE reads the environment, not the tool's own claim", () => {
   });
 
   it("and a router the environment confirms DOES", async () => {
-    const engine: Engine = async () => ({
-      ok: true,
-      text: "send digest | delivered | 0.1 | 0.9",
-      usage: { inputTokens: 1, outputTokens: 1, costUsd: 0 },
-      model: "t",
-    });
-    const real: ToolRouter = async () => ({
-      ok: true,
-      output: "queued",
-      observed: "digest row present in outbox",
-      usage: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
-    });
+    const engine: Engine = {
+      estimate: FREE,
+      run: async () => ({
+        ok: true,
+        text: "send digest | delivered | 0.1 | 0.9",
+        usage: { inputTokens: 1, outputTokens: 1, costUsd: 0 },
+        model: "t",
+      }),
+    };
+    const real: ToolRouter = {
+      properties: SAFE_TOOL,
+      estimate: FREE,
+      execute: async () => ({
+        ok: true,
+        output: "queued",
+        observed: "digest row present in outbox",
+        usage: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
+      }),
+    };
     const run = await runCognitiveLoop(
       input({
         engine,
@@ -385,7 +459,7 @@ describe("stations 07 and 19 are NOT the category-C quantum operations they shar
 
   it("the loop never calls entangle() or correct()", () => {
     // Read structurally: the import list is what would have to change first.
-    const imports = /import \{([^}]*)\} from "\.\.\/cognitive";/.exec(source)![1];
+    const imports = /import \{([^}]*)\} from "\.\.\/cognitive\.ts";/.exec(source)![1];
     expect(imports).not.toMatch(/\bentangle\b/);
     expect(imports).not.toMatch(/\bcorrect\b/);
   });

@@ -26,13 +26,13 @@
  * transition ceiling" are different outcomes and a caller must be able to tell
  * them apart.
  */
-import { CognitiveState, type StateSnapshot } from "../formalState";
-import { evidence, interfere, phase, superpose } from "../cognitive";
-import { CATEGORY_OF, type CognitiveOperation } from "../cognitive";
-import { detectGaps, openGaps, type Gap, type Goal } from "../knowledge/gaps";
-import { planResearch, type ResearchPlan } from "../knowledge/planner";
-import type { KnowledgeState } from "../knowledge/model";
-import { measure } from "../measure";
+import { CognitiveState, type StateSnapshot } from "../formalState.ts";
+import { evidence, interfere, phase, superpose } from "../cognitive.ts";
+import { CATEGORY_OF, type CognitiveOperation } from "../cognitive.ts";
+import { detectGaps, openGaps, type Gap, type Goal } from "../knowledge/gaps.ts";
+import { planResearch, type ResearchPlan } from "../knowledge/planner.ts";
+import type { KnowledgeState } from "../knowledge/model.ts";
+import { measure } from "../measure.ts";
 
 export const LOOP_PHASES = [
   "OBSERVE",

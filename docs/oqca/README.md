@@ -1,16 +1,40 @@
 # OQCA — what was built, and what it is worth
 
-> ## v1.1 is the current state. Read these two first.
+> ## v1.2 is the current state. It made OQCA REACHABLE.
 >
+> - **[`OQCA_V1_2_REPORT.md`](OQCA_V1_2_REPORT.md)** — the full v1.2 report.
 > - **[`OQCA_CLAIMS.md`](OQCA_CLAIMS.md)** — ESTABLISHED / EXPERIMENTAL / UNPROVEN.
-> - **[`OQCA_V1_1_REPORT.md`](OQCA_V1_1_REPORT.md)** — the full v1.1 report.
 >
-> **What v1.1 changed, in three lines.** The interference operator is now
-> parameterised by ANGLE, so it is unitary by construction rather than by
-> rescue. The single 7-task fixture became a benchmark FAMILY: four manifests,
-> 40 randomised seeds each, three baselines, eight adversarial controls, and
-> exact paired McNemar statistics. And the v1.0 headline below **did not
-> survive that** — see the next box.
+> **v1.2 in three lines.** The 23-station loop is wired to one real ONIQ job —
+> `story-dispatch`'s "which queued Story film goes out next" — through a
+> byte-identical mirror of its kernel that runs in Deno, a `callText` model
+> adapter that prices every call before making it, and a tool router over the
+> spend ledger ONIQ already had. **The feature flag ships OFF, nothing is
+> deployed, and no live traversal has happened.**
+>
+> ### The milestone is NOT yet reached, and that is stated first
+>
+> The brief's own words: the milestone "is no longer '23 stations exist.' It is
+> 'a real ONIQ job traversed those stations and came back with a measurable
+> result.'" **No such traversal has occurred.** What exists is the wiring, the
+> gates, the comparison record and 38 mutation-checked guards. Turning it on is
+> the owner's, and `OQCA_V1_2_REPORT.md` section H says what it costs ($0 at
+> the shipped budgets).
+>
+> ### Three defects v1.2 found in the v1.1 kernel, by wiring it to something real
+>
+> - `ask()` **never priced a call before making it**, so section 21's
+>   `estimatedCost <= remainingCostBudget` was not enforced — only "is there any
+>   headroom left".
+> - PLAN derived `touchesProduction` from `reversible`. A story dispatch is
+>   **both** reversible and a production write, so it declared itself as not
+>   touching production — **and shadow mode gates on exactly that field.**
+> - `reversible` was a **regex over the action's name**, which cannot know that
+>   `dispatch story job X` writes to production.
+>
+> ---
+>
+> ## v1.1 — the falsification. Still true, still the honest verdict.
 >
 > ### The v1.1 verdict, and it is a falsification
 >
@@ -205,19 +229,53 @@ never been built. A second unbuilt runtime would not have been an architecture.
 | `measure.ts`                            | maximum / seeded-sample / threshold policies, entropy              |
 | `baseline.ts` `benchmark.ts` `tasks.ts` | The v1.0 Bayesian control and its seven tasks                      |
 
+**v1.2 — the runtime. Impure by design, and the path is the boundary.**
+
+The kernel stays inert. Everything that spends money, writes to production or
+reads a clock lives OUTSIDE `oqca/`, is handed in as a seam, and is deliberately
+not walked by `security.test.ts` — which walks BOTH `src/oqca/` and the mirror.
+
+| File                                       | What it is                                                                                                 |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `scripts/oqca-mirror.mjs`                  | Computes the loop's import closure and mirrors it. `--check` is the test's assertion; the fix is to run it |
+| `supabase/functions/_shared/oqca/**`       | The mirrored kernel — 13 files, byte-identical, the copy that runs in Deno                                 |
+| `_shared/oqcaRuntime/pricing.ts`           | The price boundary over `searchBudget.ts`. `null` = refuse, never 0                                        |
+| `_shared/oqcaRuntime/engine.ts`            | The model adapter. Names no provider, so it stays testable                                                 |
+| `_shared/oqcaRuntime/provider.ts`          | The ONE line that names `callText`                                                                         |
+| `_shared/oqcaRuntime/toolRouter.ts`        | Closed registry, mode gate, property check, then the EXISTING authorization boundary                       |
+| `_shared/oqcaRuntime/dispatchJob.ts`       | The job: goal, world, likelihoods, tools, verifier                                                         |
+| `_shared/oqcaRuntime/dispatchEnv.ts`       | PostgREST + GitHub. The only file in the runtime with a `fetch`                                            |
+| `_shared/oqcaRuntime/memory.ts`            | Working memory, and the persistence gap stated rather than papered over                                    |
+| `_shared/oqcaRuntime/episode.ts`           | §13 record, §14 verdicts, §16 reflection, §17 response class                                               |
+| `_shared/oqcaRuntime/flag.ts`              | `off` / `shadow` / `assisted`. Anything else — including a typo — is `off`                                 |
+| `_shared/oqcaRuntime/shadow.ts`            | The runner, the comparison, and replay (which takes no seams at all)                                       |
+| `_shared/oqcaRuntime/storyDispatchHook.ts` | The one caller. Cannot throw                                                                               |
+
 **Commands**
 
 ```
-npx vitest run src/oqca        209 tests across 10 files
-npx tsx scripts/oqca-bench.ts  every manifest, every seed, the full report
-bash scripts/oqca-mutate.sh    15 mutations, every one expected RED
+npx vitest run src/oqca            317 tests across 14 files
+npx tsx scripts/oqca-bench.ts      every manifest, every seed, the full report
+node scripts/oqca-mirror.mjs       re-mirror the kernel into the edge tree
+node scripts/oqca-mirror.mjs --check   what the mirror test asserts
+bash scripts/oqca-mutate.sh        38 mutations, every one expected RED
+deno check supabase/functions/story-dispatch/index.ts
 ```
 
 The mutations that matter most are the ones that would make OQCA look BETTER
 than it is: a fixture that stops isolating the phase, a control task handed an
 interference, a summary sentence that always claims a win, the central
-falsification control deleted from a manifest, and a drift metric stubbed to
-zero.
+falsification control deleted from a manifest, a drift metric stubbed to zero —
+and, added in v1.2, shadow mode performing a production write, an unpriced model
+costing nothing, and a `handled` flag read from the loop's opinion rather than
+from what the environment says happened.
+
+**M22 is the one to read.** It drifts the mirror, and it reported ESCAPED on its
+first run: `mirror.test.ts` imports the mirror script, an ES module runs its body
+on import, and importing it RE-RAN the mirror — repairing the drift before a
+single assertion executed. The test passed on a genuinely broken mirror and
+nothing green ever said so. _A check that has never failed has never been
+tested._
 
 ## If this is taken further
 

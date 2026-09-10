@@ -23,6 +23,9 @@
 // rather than stranding it in `generating` with nothing working on it.
 import { authorizeScheduledCaller } from "../_shared/dispatchAuth.ts";
 import { mintJobToken } from "../_shared/jobToken.ts";
+import { OQCA_FLAG_ENV, parseMode } from "../_shared/oqcaRuntime/flag.ts";
+import { callTextProvider } from "../_shared/oqcaRuntime/provider.ts";
+import { runOqcaForDispatch } from "../_shared/oqcaRuntime/storyDispatchHook.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,6 +35,14 @@ const corsHeaders = {
 
 /** The workflow listens for exactly this. Changing it silently stops dispatch. */
 const EVENT_TYPE = "story-job";
+
+/**
+ * HOW MANY QUEUED ROWS OQCA MAY REASON OVER. The production pick still reads
+ * `limit=1` — that is untouched — but a loop choosing BETWEEN jobs needs more
+ * than one candidate or every station downstream is a formality. Bounded
+ * because this runs on a wall clock.
+ */
+const OQCA_QUEUE_LIMIT = 20;
 
 /** How long a dispatched-but-unclaimed job waits before being offered again. */
 const DISPATCH_BACKOFF_MS = 10 * 60 * 1000;
@@ -179,6 +190,55 @@ Deno.serve(async (req) => {
       return json({ dispatched: false, reason: "nothing queued" }, 200);
     }
 
+    // ------------------------------------------------------------------
+    // OQCA — brief sections 2, 7, 8 and 9. OFF BY DEFAULT, AND OFF IS THIS
+    // FUNCTION EXACTLY AS IT WAS. `parseMode` treats anything it does not
+    // recognise as "off", including a typo, so a misspelt secret cannot
+    // change what a scheduled dispatcher does.
+    //
+    // ASSISTED RUNS BEFORE THE PRODUCTION PICK AND SHADOW RUNS AFTER IT, and
+    // the ordering is the point rather than a detail. In assisted mode the
+    // loop may dispatch, so it must decide before this function has, or two
+    // dispatches go out. In shadow mode it must not affect the answer at all,
+    // so it runs once the answer is already made.
+    //
+    // `runOqcaForDispatch` cannot throw and returns `handled: false` on every
+    // failure, so the lines below run unchanged whatever happens inside it.
+    const oqcaMode = parseMode(Deno.env.get(OQCA_FLAG_ENV));
+    let oqca = null;
+    if (oqcaMode === "assisted") {
+      oqca = await runOqcaForDispatch({
+        mode: oqcaMode,
+        runId: crypto.randomUUID(),
+        call: callTextProvider,
+        envConfig: {
+          supabaseUrl: supabaseUrl!,
+          serviceKey,
+          repo,
+          githubToken: ghToken,
+          eventType: EVENT_TYPE,
+          queueLimit: OQCA_QUEUE_LIMIT,
+          payloadFor: async (id: string) => ({
+            job_id: id,
+            token: await mintJobToken(id, jobSecret!),
+            supabase_url: supabaseUrl,
+            actor_refs:
+              rows.find((r) => r.id === id)?.actor_refs === true ||
+              rows.find((r) => r.id === id)?.grade === "movie",
+            ...(rows.find((r) => r.id === id)?.motion_mode === "select"
+              ? { story_movie: "select" }
+              : {}),
+          }),
+        },
+      });
+      if (oqca.handled) {
+        return json(
+          { dispatched: oqca.jobId !== null, jobId: oqca.jobId, by: "oqca", oqca: oqca.comparison },
+          200,
+        );
+      }
+    }
+
     const jobId = rows[0].id;
     // OWNER-ACTOR conditioning GRADUATED to default-on for MOVIE grade
     // (2026-08-22), after the 43-shot acceptance render (job 5871421e) passed
@@ -257,7 +317,36 @@ Deno.serve(async (req) => {
       );
     }
 
-    return json({ dispatched: true, jobId, usingToken: gh!.name }, 200);
+    // SHADOW RUNS AFTER THE DISPATCH IS ALREADY OUT, so nothing it does can
+    // change what happened. Section 8: "without changing the user's result".
+    if (oqcaMode === "shadow") {
+      oqca = await runOqcaForDispatch({
+        mode: oqcaMode,
+        runId: crypto.randomUUID(),
+        call: callTextProvider,
+        envConfig: {
+          supabaseUrl: supabaseUrl!,
+          serviceKey,
+          repo,
+          githubToken: ghToken,
+          eventType: EVENT_TYPE,
+          queueLimit: OQCA_QUEUE_LIMIT,
+          // A SHADOW RUN NEVER DISPATCHES, so it never mints a token. This
+          // throws rather than returning an empty payload: reaching it would
+          // mean the shadow gate failed, and a silent empty dispatch is the
+          // shape of bug that gets found in a bill.
+          payloadFor: () => {
+            throw new Error("oqca shadow: a dispatch payload was requested");
+          },
+        },
+      });
+      console.log(`oqca shadow ${JSON.stringify(oqca.comparison ?? { error: oqca.error })}`);
+    }
+
+    return json(
+      { dispatched: true, jobId, usingToken: gh!.name, ...(oqca ? { oqca: oqca.comparison } : {}) },
+      200,
+    );
   } catch (e) {
     console.error("story-dispatch fn error", e);
     return json({ error: "Something went sideways" }, 500);

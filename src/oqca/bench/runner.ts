@@ -13,11 +13,11 @@
  * advantage unless the experimental design actually supports that conclusion."
  * The one-row 7-6 of v1.0 could not have produced a sentence here.
  */
-import { comparePaired, type ComparisonStats } from "./stats";
-import { runArm, untouchedDrift } from "./arms";
-import { generatorFor, type Trial } from "./trials";
-import { runControl, type ControlOutcome } from "./adversarial";
-import type { BaselineId, BenchmarkManifest, MetricId } from "./manifest";
+import { comparePaired, type ComparisonStats } from "./stats.ts";
+import { runArm, untouchedDrift } from "./arms.ts";
+import { generatorFor, type Trial } from "./trials.ts";
+import { runControl, type ControlOutcome } from "./adversarial.ts";
+import type { BaselineId, BenchmarkManifest, MetricId } from "./manifest.ts";
 
 export type MetricSummary = {
   readonly metric: MetricId;

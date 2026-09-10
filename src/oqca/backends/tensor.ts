@@ -18,8 +18,8 @@
  * the library would go, and a hand-rolled partial version would be slower than
  * the dense simulator while looking like progress.
  */
-import { type Amplitude, C_ZERO, cNorm2 } from "../math/complex";
-import { BackendUnavailable } from "./backend";
+import { type Amplitude, C_ZERO, cNorm2 } from "../math/complex.ts";
+import { BackendUnavailable } from "./backend.ts";
 
 export const TENSOR_MISSING =
   "a tensor-network contraction library (none is in package.json, which Lovable owns), plus a decision about how hypotheses factor into subsystems";

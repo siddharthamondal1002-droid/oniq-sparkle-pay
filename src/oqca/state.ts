@@ -33,8 +33,8 @@
  * the arithmetic to sit below this file, not inside it. Every v1.0 import site
  * keeps working unchanged.
  */
-export { type Amplitude, c, cAdd, cMul, cScale, cNorm2 } from "./math/complex";
-import { type Amplitude, c, cNorm2, cScale } from "./math/complex";
+export { type Amplitude, c, cAdd, cMul, cScale, cNorm2 } from "./math/complex.ts";
+import { type Amplitude, c, cNorm2, cScale } from "./math/complex.ts";
 
 /**
  * The smallest norm a state may have before it is treated as collapsed.

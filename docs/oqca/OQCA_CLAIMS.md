@@ -10,9 +10,23 @@ Re-run everything with:
 
 ```
 npx tsx scripts/oqca-bench.ts      # the benchmark, all manifests, all seeds
-npx vitest run src/oqca            # 209 tests
-bash scripts/oqca-mutate.sh        # 15 mutations, all expected RED
+npx vitest run src/oqca            # 317 tests
+bash scripts/oqca-mutate.sh        # 38 mutations, all expected RED
+node scripts/oqca-mirror.mjs --check    # the edge mirror is byte-identical
+deno check supabase/functions/story-dispatch/index.ts
 ```
+
+## v1.2 — what became reachable, and what did NOT
+
+| Claim                                                                                                   | Status                                                                                                              |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| The loop is wired to a real ONIQ job (`story-dispatch`) and typechecks in the runtime that would run it | **ESTABLISHED** — `deno check` of the whole chain; `runtimeWiring.test.ts` pins the one caller and the one provider |
+| Nothing spends before it can price                                                                      | **ESTABLISHED** — `estimate` is mandatory, `null` becomes the `unpriced` bound; mutations M28/M29 red               |
+| Shadow mode performs no production write                                                                | **ESTABLISHED** — mutation M23 red, and the router refuses on `touchesProduction` before `authorize` is even asked  |
+| Assisted mode can only NARROW what gets dispatched                                                      | **ESTABLISHED** — the tool re-reads the row and requires the existing `isDispatchable` rule to agree; M25 red       |
+| Episodic memory persists                                                                                | **FALSE, and stated as false.** `consolidate` returns 0. ONIQ has no general memory store                           |
+| A real ONIQ job has traversed the 23 stations in production                                             | **NOT TRUE YET.** Nothing is deployed and the flag ships off                                                        |
+| OQCA decides better than the existing rule                                                              | **UNPROVEN and not claimed.** One workflow, no live data                                                            |
 
 ---
 

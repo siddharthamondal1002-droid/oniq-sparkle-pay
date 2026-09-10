@@ -14,8 +14,8 @@
  * do rather than assuming, and the benchmark records the answer beside every
  * result. `implementation` is what lands in each `TransitionRecord`.
  */
-import type { Amplitude } from "../math/complex";
-import type { QuantumOperator } from "../operators";
+import type { Amplitude } from "../math/complex.ts";
+import type { QuantumOperator } from "../operators.ts";
 
 export type BackendCapabilities = {
   readonly name: string;

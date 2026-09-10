@@ -15,10 +15,10 @@
  * treatment adds nothing is a control that did its job and returns
  * `survives: false`.
  */
-import { comparePaired, type ComparisonStats } from "./stats";
-import { runArm, runOqca, runVector } from "./arms";
-import type { Trial } from "./trials";
-import { seeded } from "../measure";
+import { comparePaired, type ComparisonStats } from "./stats.ts";
+import { runArm, runOqca, runVector } from "./arms.ts";
+import type { Trial } from "./trials.ts";
+import { seeded } from "../measure.ts";
 
 export type ControlOutcome = {
   readonly id: string;

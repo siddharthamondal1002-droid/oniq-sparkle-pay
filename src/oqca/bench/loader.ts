@@ -6,7 +6,7 @@
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { parseManifest, type BenchmarkManifest } from "./manifest";
+import { parseManifest, type BenchmarkManifest } from "./manifest.ts";
 
 export const BENCHMARK_ROOT = "src/oqca/benchmarks";
 

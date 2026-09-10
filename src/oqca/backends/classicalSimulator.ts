@@ -5,10 +5,10 @@
  * `capabilities().caveats` says so in the first line so a result cannot be
  * quoted without it.
  */
-import { type Amplitude, cNorm2, cScale } from "../math/complex";
-import { canonicalJson } from "../math/hash";
-import { type QuantumOperator, applyOperator, vectorNorm } from "../operators";
-import { type BackendCapabilities, type QuantumBackend } from "./backend";
+import { type Amplitude, cNorm2, cScale } from "../math/complex.ts";
+import { canonicalJson } from "../math/hash.ts";
+import { type QuantumOperator, applyOperator, vectorNorm } from "../operators.ts";
+import { type BackendCapabilities, type QuantumBackend } from "./backend.ts";
 
 /** A dense vector fits in memory; beyond this the honest answer is a refusal. */
 export const MAX_SIMULATED_BASIS = 4096;

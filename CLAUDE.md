@@ -4944,3 +4944,133 @@ defaults the loop runs every station, reasons about nothing, acts on nothing,
 and ends `budget_exhausted` naming the bound. **The loop has no caller, which
 is this repo's most-recorded mistake at larger scale — the next step is the
 engine and one real job, not more stations.**
+
+### 2026-09-10 — OQCA v1.2: the loop reaches a real ONIQ job, and wiring it found three defects in it
+
+The owner's brief: _"This is the correct point to stop adding architecture and
+make OQCA reachable... The critical milestone is no longer '23 stations exist.'
+It is 'a real ONIQ job traversed those stations and came back with a measurable
+result.'"_ Scope drawn explicitly: no deploy, no publish, no `main`, no new paid
+service, no Python, no QPU vendor, no recurring bill, no second cognitive loop.
+Done on `claude/check-56jtg5`; `docs/oqca/OQCA_V1_2_REPORT.md` is the record.
+
+**THE MILESTONE IS NOT REACHED, AND THAT IS THE FIRST SENTENCE RATHER THAN THE
+LAST.** No traversal has happened: the flag ships **off**, nothing is deployed,
+and every number is from tests. What exists is the wiring, the gates, the
+comparison record and 38 mutation-checked guards. This is the 2026-09-09 lesson
+applied on purpose — COMMITTED is a state, and it is not shipped.
+
+**THE JOB IS `story-dispatch`, CHOSEN BY MEASUREMENT.** "Which queued Story film
+goes out next, and should one go out at all." Its decision is DISCRETE (one job
+id or none), so the shadow comparison is an equality test rather than a diff of
+prose; its observation is EXTERNAL (whether a runner claimed the row); it is
+SCHEDULED, so a shadow run cannot change any user's result by construction; and
+its production action is safe by its own design — the function's header records
+that a dispatch which lands on no runner leaves the job available. Runners-up
+and why not, recorded rather than asserted: `smart-scout` (richest shape, but a
+live PAID user-facing path answering in prose), `story-sweep` (discrete and
+free, but its rule is `age > TTL` — nothing to reason about — and it DELETES),
+`study-tutor` (highest volume, but its "observation" would be the model's own
+answer).
+
+**§1 MEASURED EIGHT THINGS AND THREE ANSWERS CHANGED THE DESIGN.**
+
+- **ONIQ HAS NO ToolRouter.** A repo-wide search returns nothing outside
+  `src/oqca/` itself. So "connect the existing ToolRouter" cannot be honoured
+  literally. What DOES exist is the authorization boundary it describes:
+  `withProviderSpendGuard` in `_shared/financialLedger.ts`, which reserves,
+  calls and settles under row locks and already refuses `unpriced-model` and
+  `zero-estimate` BY NAME. The brief's "if price is unknown: REFUSE" is not a
+  new rule in ONIQ — it is the rule the ledger has enforced since August. The
+  router is an ADAPTER over that shape, never a second authorization system.
+- **`callText` carries tokens but no dollars.** `data.usage` on both engines,
+  `data.model` naming who answered — and `callText` may fall through to Claude,
+  labelling the Gemini path `gemini-fallback/<id>`, an id `MODEL_RATES` does not
+  carry. So a SUCCESSFUL call can have an unknown actual cost, and the answer is
+  the ledger's: charge the ESTIMATE, never zero.
+- **A byte-identical mirror of a tree with internal imports is possible here,
+  and only because two things are already true**: `allowImportingTsExtensions`
+  is on (`src/data/capabilities.ts` already imports a `_shared` module with the
+  `.ts` extension), and Deno REQUIRES that extension. Without both, the mirror
+  typechecks locally under `--unstable-sloppy-imports` and fails on the deployed
+  function — the worst place to find it.
+
+**THREE DEFECTS IN THE v1.1 KERNEL, FOUND BY WIRING IT TO SOMETHING REAL.** None
+was visible from inside the kernel's own tests:
+
+1. **`ask()` never priced a call before making it.** It passed
+   `{tokens: maxOutputTokens}` and no cost, so `estimatedCost <=
+remainingCostBudget` was not enforced — only "is there any headroom". `Engine`
+   and `ToolRouter` now each carry an `estimate` half; `null` becomes a new
+   `unpriced` BOUND so it is reported, audited and tested like every other.
+2. **PLAN derived `touchesProduction` from `reversible`**
+   (`touchesProduction: !best.reversible`). A story dispatch is BOTH reversible
+   AND a production write, so it declared itself as not touching production —
+   **and shadow mode gates on exactly that field.** Every reversible production
+   write in ONIQ would have walked through the gate that exists to stop it.
+3. **`reversible` was a regex over the action's NAME**
+   (`!/delete|drop|purge|overwrite/i`), which cannot know that
+   `dispatch story job X` writes to production and would call it safe because
+   the word "delete" is absent. Both properties come from the ROUTER now, and
+   both directions are asserted: a tool named "delete every row" reaches the
+   router when the router says it is reversible.
+
+**AND AN ADAPTER MAY NOT UNDER-REPORT A BOUND THE KERNEL CAN COMPUTE ITSELF.**
+Found by a test: a stub estimating zero tokens walked straight through a
+`maxTokens: 0` budget. `maxOutputTokens` is what the call is about to ask for
+and the kernel knows it without asking anyone, so an estimate below it is raised
+to it. An adapter's estimate can make a call look MORE expensive, never less.
+
+**THE TEST THAT REPAIRED THE THING IT WAS CHECKING.** `mirror.test.ts` imports
+`closure` from `scripts/oqca-mirror.mjs` so it checks what the script actually
+mirrors rather than reimplementing it — and **an ES module runs its whole body
+on import**, so importing it RE-RAN the mirror and copied every drifted file
+back into place before a single assertion executed. It passed on a genuinely
+broken mirror. Nothing green ever said so; the mutation run did, reporting
+ESCAPED. The script's side effects sit behind a `main()` guard now.
+**A check that has never failed has never been tested**, for the fourth time in
+this repo — and this time the thing that caught it was a mutation, not a
+reading.
+
+**AND THE SECURITY GUARD'S RESIDUE READER MASKED STRINGS BEFORE REGEXES.** That
+breaks on the one shape these guards are full of: a regex literal containing a
+QUOTE, such as `/from "\.\.\/llm\.ts"/`. The string masker read that quote as
+opening a literal, paired it with the next quote pages later, and every string
+in between survived unmasked — so a URL inside an ordinary string looked like
+executable code. `sourceText.ts` documents exactly this limit ("a regex literal
+containing a quote character"); the fix is to remove the regexes FIRST, and it
+is mutation-checked both ways.
+
+**THE PATH IS THE BOUNDARY, AND THAT IS THE WHOLE ARRANGEMENT.**
+`_shared/oqca/**` is the mirrored kernel and `security.test.ts` now walks BOTH
+trees with the same 26 bans — a guarantee asserted over one copy of a file and
+not the other is not a guarantee, and the mirror is the copy that ships.
+`_shared/oqcaRuntime/**` holds the fetch, the credential and the clock, and is
+deliberately NOT walked. Exactly one file there reaches the network, exactly one
+names `callText`, and the only host named anywhere in the runtime is
+`https://api.github.com` — all three asserted.
+
+**WHAT IS DELIBERATELY NOT BUILT, stated as not built:** episodic memory does
+not persist. ONIQ has no general memory store — `story_cast`, the Study Vault
+and `learner_profiles` are three purpose-built ones keyed to their own products
+— so `consolidate` returns **0**, not a count, and records the gap. A
+`consolidate` returning `records.length` would make every later reader believe
+ONIQ remembers something it does not.
+
+**WHAT A SHADOW TICK COSTS AT THE SHIPPED DEFAULTS: $0.** `maxToolCalls`,
+`maxTokens` and `maxCostUsd` are all 0, so every model call is refused at the
+cost gate and no tool touches production. What a scheduled job may spend is a
+spend decision and therefore the owner's under this file's first rule — the same
+reason `health_config.ai_daily_cap_house` shipped as 0. `maxExecutionTimeMs` is
+NOT zero and is not read from the environment: time is a runaway guard, not a
+spend, and a zero time bound fails DEAD rather than closed.
+
+**ROLLBACK IS ONE WORD.** Unset `OQCA_STORY_DISPATCH` or set it to anything
+unrecognised — `parseMode` treats every unknown value as `off`, so a typo cannot
+turn a scheduled dispatcher into a cognitive one, and cannot leave one on.
+
+Numbers: 372 files / 6,518 tests green; **38 mutations, every one RED, none
+GREEN, none NOTAPPLIED**; tsc, `lint:ci`, Prettier, the mirror check, and
+`deno check` of the whole runtime chain all clean. No migration, no edge
+function deploy, no Lovable message, no credits, no publish, and `main`
+untouched.

@@ -24,8 +24,8 @@
  * informed-Bayes baseline gets the identical fact and is expected to match; if
  * it does, the honest conclusion is that the representation added nothing.
  */
-import { seeded } from "../measure";
-import { phasesFavouring } from "../cognitive";
+import { seeded } from "../measure.ts";
+import { phasesFavouring } from "../cognitive.ts";
 
 export type TrialStep = {
   readonly likelihoods: readonly number[];
