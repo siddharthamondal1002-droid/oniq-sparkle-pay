@@ -63,7 +63,13 @@ export type ShadowComparison = {
   readonly estimatedCostUsd: number;
   readonly costUsd: number;
   readonly terminated: string;
+  /** Why no decision was reported, when none was. Null when one was. */
+  readonly undecidedReason: string | null;
   readonly failure: string | null;
+  /** Section 12: how many episodes the adapter DURABLY stored. Currently 0. */
+  readonly persistedEpisodes: number;
+  /** Section 19: how many states the run produced, all of them replayable. */
+  readonly stateTransitions: number;
 };
 
 export type ShadowResult = {
@@ -110,6 +116,7 @@ export function initialState(
     futures: [],
     predictions: [],
     outcomes: [],
+    verification: null,
     memoryRefs: [],
     quantumState: quantumFor(basis).snapshot(),
     iteration: 0,
@@ -177,39 +184,87 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
     quantum,
     percepts: [perceptsFrom(queue, nowMs)],
     // SECTION 11 — the likelihoods are computed from the same rows the world
-    // was built from, and `likelihoodsFrom` throws rather than padding if the
-    // widths ever disagree. Nothing here is invented and nothing is defaulted.
-    evidence: [
-      { likelihoods: likelihoodsFrom(basis, queue, nowMs), evidenceIds: ["queue-snapshot"] },
-    ],
+    // was built from, and `likelihoodsFrom` throws rather than padding if a
+    // basis element has no row. Nothing here is invented and nothing defaulted.
+    //
+    // ONE ENTRY PER ITERATION, and supplying only the first was a real defect
+    // measured on the first complete run: `IterationEvidence` is indexed by
+    // iteration, REPRESENT rebuilds the amplitude state at the top of each one,
+    // and so evidence folded on iteration 0 was DISCARDED on iteration 1. Four
+    // iterations later the final measurement reflected no evidence at all —
+    // three actions tied at exactly 1/3 — while every station reported success
+    // and nothing was refused.
+    //
+    // The same snapshot for every iteration is the honest value here: the queue
+    // is read ONCE per run, so the evidence genuinely has not changed. A run
+    // that re-read the queue per iteration would supply a different entry each
+    // time, which is exactly what the per-iteration shape is for.
+    evidence: Array.from({ length: budgets.maxIterations }, () => ({
+      likelihoodsByHypothesis: likelihoodsFrom(basis, queue, nowMs),
+      evidenceIds: ["queue-snapshot"],
+    })),
     budgets,
     engine,
     router,
     clock: () => env.nowMs() - startedAt,
     memory,
+    // Section 14: the job's own verifier, called BY station 11.
+    verifier: makeVerifier(env),
   });
   currentStateId = run.state.stateId;
 
-  const decided = run.quantum.confidence();
   // A DECISION THE LOOP DID NOT MAKE IS NULL, NOT THE HOLD. `confidence().top`
   // always names something once a basis exists, so "did it actually decide" is
   // a separate question: the margin must be non-trivial and the run must not
   // have been stopped by a bound before UPDATE_STATE folded the evidence in.
   const foldedEvidence = run.log.some((r) => r.station === "UPDATE_STATE" && r.refused === null);
-  const oqcaDecision = foldedEvidence ? decided.top : null;
 
-  let verification: VerificationResult = NOT_CHECKED;
-  let failure: string | null = null;
-  try {
-    // Verification reads the environment back. In shadow mode nothing was
-    // performed, so what it verifies is the state of the world as it stands —
-    // which is the honest thing to check and is why the verdict there is
-    // usually `rejected` or `verified` about the PRODUCTION dispatch, not
-    // about OQCA's proposal.
-    verification = await makeVerifier(opts.mode === "assisted" ? oqcaDecision : null, env)();
-  } catch (e) {
-    failure = String(e).slice(0, 200);
-  }
+  // THE DECISION IS RANKED OVER THE ACTIONS ONLY, and the first complete run is
+  // what showed why. SUPERPOSE admits one hypothesis per `goal.requires`, so by
+  // MEASURE the basis held three ACTIONS and three PREREQUISITES — and
+  // `confidence()` ranked all six together. That asks "which of these six is
+  // most likely" where three are things to do and three are things the goal
+  // needs, which is a category error: the prerequisites carry a neutral 1 and
+  // therefore sit at the top, tied with each other, forever.
+  //
+  // The wider basis is CORRECT — the loop genuinely reasons about both — so the
+  // fix belongs here, in the caller that knows which labels are actions. The
+  // loop is not narrowed; the question asked of it is.
+  const probs = run.quantum.probabilities();
+  const ranked = run.quantum.basis
+    .map((label, i) => ({ label, p: probs[i] }))
+    .filter((x) => basis.includes(x.label))
+    .sort((a, b) => b.p - a.p);
+  const total = ranked.reduce((sum, x) => sum + x.p, 0);
+  const oqcaConfidence = total > 0 && ranked.length > 0 ? ranked[0].p / total : 0;
+  const oqcaMargin =
+    total > 0 && ranked.length > 1 ? (ranked[0].p - ranked[1].p) / total : oqcaConfidence;
+
+  // A TIE IS NOT A DECISION — v1.1's sharpest finding, applied. `top` always
+  // names something once a basis exists, and on a dead tie it names whichever
+  // label sits first, so a decision reported at margin 0 is a fact about basis
+  // ORDER rather than about the evidence.
+  const oqcaDecision = foldedEvidence && oqcaMargin > 0 ? (ranked[0]?.label ?? null) : null;
+  const undecidedReason = !foldedEvidence
+    ? "no evidence was folded"
+    : oqcaMargin > 0
+      ? null
+      : `tie at the top of the action ranking (margin ${oqcaMargin.toFixed(6)})`;
+
+  // SECTION 14: THE VERDICT COMES FROM THE LOOP'S OWN STATION, not from a
+  // second check run beside it. The first draft called the verifier AFTER
+  // `runCognitiveLoop` returned, which meant station 11 was still asking a
+  // model to label its own claims while the real check happened somewhere the
+  // loop could not see — so REFLECT, the episode and CHECK_GOAL all reasoned
+  // from a verdict that was not theirs.
+  const verification: VerificationResult = run.state.verification ?? NOT_CHECKED;
+  // A run whose VERIFY station could not read the environment is a run whose
+  // verdict means nothing, and that is worth surfacing rather than burying in
+  // a detail string a comparison row never shows.
+  const failure: string | null =
+    verification.verdict === "unverified" && /could not be read/.test(verification.detail)
+      ? verification.detail
+      : null;
 
   const finishedAt = env.nowMs();
   const episode = buildEpisode({
@@ -226,6 +281,25 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
     createdAt: new Date(finishedAt).toISOString(),
   });
 
+  // SECTION 12: THE EPISODE CROSSES THE ADAPTER, and the adapter says honestly
+  // that it stored nothing. Building an episode and returning it would have
+  // left the seam untested and the gap invisible; sending it through is what
+  // makes `persistedEpisodes: 0` a MEASUREMENT rather than a note in a file.
+  const persistedEpisodes = await memory.consolidate([
+    {
+      id: `episode:${opts.runId}`,
+      layer: "episodic",
+      text:
+        `${episode.goal} -> ${episode.responseClass} (${episode.verdict}): ` +
+        episode.lessons.join("; "),
+      // The run's own verdict is what this record is worth, and an unverified
+      // run is not a confident memory. A fixed 1 would make every episode
+      // equally trustworthy, including the ones nothing checked.
+      confidence:
+        episode.verdict === "verified" ? 1 : episode.verdict === "partially_verified" ? 0.5 : 0,
+    },
+  ]);
+
   const oqcaJob =
     oqcaDecision === null || oqcaDecision === HOLD_ACTION
       ? null
@@ -237,8 +311,8 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
       mode: opts.mode,
       productionDecision: production,
       oqcaDecision,
-      oqcaConfidence: decided.probability,
-      oqcaMargin: decided.margin,
+      oqcaConfidence,
+      oqcaMargin,
       agreed: oqcaDecision === null ? null : oqcaJob === production,
       latencyMs: finishedAt - startedAt,
       modelCalls: modelCalls.length,
@@ -248,7 +322,10 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
       estimatedCostUsd: episode.estimatedCostUsd,
       costUsd: run.spent.costUsd,
       terminated: run.terminated,
+      undecidedReason,
       failure,
+      persistedEpisodes,
+      stateTransitions: run.chain.length,
     },
     episode,
     run,

@@ -20,7 +20,7 @@
 import { contentHash } from "../math/hash.ts";
 import type { StateSnapshot } from "../formalState.ts";
 import type { Gap, Goal } from "../knowledge/gaps.ts";
-import type { Budgets, MemoryRecord, Spent, ToolCall } from "./seams.ts";
+import type { Budgets, MemoryRecord, Spent, ToolCall, Verification } from "./seams.ts";
 
 /**
  * Section 4 PERCEIVE. Named `Percept` rather than `Observation` because
@@ -165,6 +165,13 @@ export type LoopState = {
   readonly futures: readonly ImaginedFuture[];
   readonly predictions: readonly Prediction[];
   readonly outcomes: readonly Outcome[];
+  /**
+   * Section 14's verdict, ON THE STATE rather than beside it. It is a
+   * conclusion the run reached from the environment, so it belongs in the
+   * hashed record: a replay that produced a different verdict from the same
+   * observations would be a replay that did not reproduce the run.
+   */
+  readonly verification: Verification | null;
   readonly memoryRefs: readonly MemoryRecord[];
   /** The OQCA amplitude state, serialized. Section 3's `quantumState`. */
   readonly quantumState: StateSnapshot;
@@ -197,6 +204,7 @@ function hashPayload(s: Omit<LoopState, "stateId" | "wallClock">) {
     futures: s.futures,
     predictions: s.predictions,
     outcomes: s.outcomes,
+    verification: s.verification,
     memoryRefs: s.memoryRefs,
     quantumState: s.quantumState,
     iteration: s.iteration,

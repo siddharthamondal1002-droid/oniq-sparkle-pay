@@ -225,6 +225,52 @@ export const RECORD_ONLY_ROUTER: ToolRouter = {
 };
 
 /* ------------------------------------------------------------------ *
+ * VERIFICATION — brief section 14.
+ * ------------------------------------------------------------------ */
+
+/**
+ * SECTION 14 SAYS "DO NOT INVENT A UNIVERSAL VERIFIER", so the kernel has none.
+ * Only the JOB knows what its own goal being met looks like, and only the
+ * ENVIRONMENT can say whether it was — so this is a seam like every other, and
+ * the station calls it rather than asking a model whether it thinks it did well.
+ *
+ * The first draft had VERIFY ask the MODEL to label its own research claims
+ * SUPPORTED / CONTRADICTED / UNVERIFIED. That is a model marking its own
+ * homework: it operates on the loop's beliefs rather than on real output, which
+ * is the one thing section 14 rules out.
+ */
+export type Verdict = "verified" | "partially_verified" | "unverified" | "rejected";
+
+export type Verification = {
+  readonly verdict: Verdict;
+  /** Why, in words a person reads. Never a code. */
+  readonly detail: string;
+};
+
+/**
+ * What the station is handed: the run so far, never the loop's own conclusion.
+ * A verifier that could see the answer would be checking the answer against
+ * itself.
+ */
+export type VerifierInput = {
+  readonly goalStatement: string;
+  readonly outcomes: readonly { readonly observed: string; readonly matched: boolean }[];
+};
+
+export type Verifier = (input: VerifierInput) => Promise<Verification>;
+
+/**
+ * `unverified` and NOT `rejected`, and the difference is load-bearing.
+ * `rejected` means the goal was checked and not met; `unverified` means it
+ * could not be checked. A run that records "could not check" as "failed"
+ * teaches the learner to avoid actions that may well have worked.
+ */
+export const NO_VERIFIER: Verifier = async () => ({
+  verdict: "unverified",
+  detail: "no verifier configured: nothing could be checked against the environment",
+});
+
+/* ------------------------------------------------------------------ *
  * TIME — brief section 32 (maxExecutionTime).
  * ------------------------------------------------------------------ */
 

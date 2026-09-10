@@ -43,9 +43,8 @@
  */
 import type { Goal } from "../oqca/knowledge/gaps.ts";
 import type { Percept, WorldState } from "../oqca/loop/loopState.ts";
-import type { SpendEstimate, ToolCall } from "../oqca/loop/seams.ts";
+import type { SpendEstimate, ToolCall, Verifier } from "../oqca/loop/seams.ts";
 import type { ToolOutcome, ToolSpec } from "./toolRouter.ts";
-import type { VerificationResult } from "./episode.ts";
 
 /** One queued film, as the dispatcher already reads it. */
 export type QueuedJob = {
@@ -191,27 +190,34 @@ export function likelihoodsFrom(
   basis: readonly string[],
   queue: readonly QueuedJob[],
   nowMs: number,
-): number[] {
+): Record<string, number> {
   const byId = new Map(queue.map((j) => [j.id, j]));
-  const out = basis.map((label) => {
+  const out: Record<string, number> = {};
+  for (const label of basis) {
     if (label === HOLD_ACTION) {
-      // Holding is right exactly when nothing is dispatchable. It is kept as a
-      // real hypothesis with a real likelihood rather than a special case,
-      // because "do nothing" competing on the same terms is what makes the
-      // measurement meaningful when the queue is empty.
-      const anyDispatchable = queue.some((j) => isDispatchable(j, nowMs));
-      return anyDispatchable ? 0.05 : 1;
+      // Holding is right exactly when nothing is dispatchable. It competes on
+      // the same terms as every other hypothesis rather than being a special
+      // case, which is what makes the measurement meaningful on an empty queue.
+      out[label] = queue.some((j) => isDispatchable(j, nowMs)) ? 0.05 : 1;
+      continue;
     }
     const id = jobIdFrom(label);
     const job = id ? byId.get(id) : undefined;
     if (!job) throw new Error(`OQCA dispatch: no queue row for basis element ${label}`);
-    // Older is more urgent. A bounded, monotone function of the wait, so a job
-    // that has waited an hour outranks one that arrived a minute ago without a
-    // long wait ever making the number meaningless.
+    // Older is more urgent. Bounded and monotone in the wait, so an hour-old
+    // job outranks a minute-old one without a long wait ever saturating.
     const waitMs = Math.max(0, nowMs - job.createdAtMs);
-    return 0.1 + 0.9 * (waitMs / (waitMs + DISPATCH_BACKOFF_MS));
-  });
-  if (out.length !== basis.length) throw new Error("OQCA dispatch: likelihood width mismatch");
+    out[label] = 0.1 + 0.9 * (waitMs / (waitMs + DISPATCH_BACKOFF_MS));
+  }
+  // THE CONCEPTS SUPERPOSE WILL ADMIT, and this is the half the first run
+  // proved was missing. Station 06 admits one hypothesis per `goal.requires`
+  // entry, so by UPDATE_STATE the basis is WIDER than the action list — and a
+  // positional vector was then refused every single iteration.
+  //
+  // These are not evidence about the queue, so they are NEUTRAL: 1 leaves a
+  // hypothesis exactly where the evidence put it. Giving them any other number
+  // would be inventing a fact about a concept nothing measured.
+  for (const req of DISPATCH_GOAL.requires) out[req.conceptId] = 1;
   return out;
 }
 
@@ -308,49 +314,65 @@ export function dispatchTools(queue: readonly QueuedJob[], env: DispatchEnvironm
 /**
  * SECTION 14 — the verifier for THIS goal, and there is no universal one.
  *
- * The goal is that a queued film reaches a runner. What can be checked from
- * here, immediately after a dispatch, is narrower than that and says so:
+ * IT MATCHES THE KERNEL'S `Verifier` SEAM, so station 11 calls it during the
+ * run rather than something else checking afterwards. It is handed the goal and
+ * the OUTCOMES OBSERVE recorded — never the loop's decision — and it answers by
+ * reading the queue back. A verifier that could see the loop's own conclusion
+ * would be checking that conclusion against itself.
  *
- *   verified            the job left the queue — a runner claimed it
- *   partially_verified  the job is stamped and still queued: the dispatch went
- *                       out and the runner has not started yet, which is the
- *                       ordinary case within the first ~90 seconds
- *   rejected            the job is queued with NO stamp: the dispatch did not
- *                       happen
- *   unverified          nothing could be read back
+ * The four verdicts, and each is a different fact about the world:
  *
- * `partially_verified` is not a hedge. Claiming `verified` on a stamp would
- * make this station report the tool's own action back to itself, which is the
- * exact failure section 14 exists to prevent.
+ *   verified            nothing dispatchable is left waiting, or the job that
+ *                       was dispatched has left the queue: a runner took it
+ *   partially_verified  a job is stamped dispatched and still queued — the
+ *                       dispatch went out and no runner has started yet, which
+ *                       is the ordinary case in the first ~90 seconds
+ *   rejected            dispatchable work is sitting there un-stamped
+ *   unverified          the queue could not be read
+ *
+ * `partially_verified` is not a hedge. Calling a STAMP `verified` would make
+ * this station report the tool's own action back to itself, which is the exact
+ * failure section 14 exists to prevent.
  */
-export function makeVerifier(
-  chosen: string | null,
-  env: DispatchEnvironment,
-): () => Promise<VerificationResult> {
-  return async () => {
-    if (chosen === null || chosen === HOLD_ACTION) {
-      const queue = await env.readQueue();
-      const now = env.nowMs();
-      const dispatchable = queue.filter((j) => isDispatchable(j, now));
-      return dispatchable.length === 0
-        ? { verdict: "verified", detail: "nothing was dispatchable, and nothing was dispatched" }
-        : {
-            verdict: "rejected",
-            detail: `${dispatchable.length} job(s) were dispatchable and none was dispatched`,
-          };
-    }
-    const id = jobIdFrom(chosen);
-    if (id === null) return { verdict: "unverified", detail: `${chosen} is not a dispatch action` };
-    const after = await env.readJob(id);
-    if (after === null) {
-      return { verdict: "verified", detail: `job ${id} left the queue: a runner claimed it` };
-    }
-    if (after.dispatchedAtMs !== null) {
+export function makeVerifier(env: DispatchEnvironment): Verifier {
+  return async (input) => {
+    let queue: readonly QueuedJob[];
+    try {
+      queue = await env.readQueue();
+    } catch (e) {
       return {
-        verdict: "partially_verified",
-        detail: `job ${id} is stamped dispatched and still queued: no runner has claimed it yet`,
+        verdict: "unverified",
+        detail: `the queue could not be read: ${String(e).slice(0, 120)}`,
       };
     }
-    return { verdict: "rejected", detail: `job ${id} is queued with no dispatch stamp` };
+    const now = env.nowMs();
+    const waiting = queue.filter((j) => isDispatchable(j, now));
+    const stamped = queue.filter((j) => j.dispatchedAtMs !== null && !isDispatchable(j, now));
+
+    if (waiting.length === 0) {
+      return stamped.length > 0
+        ? {
+            verdict: "partially_verified",
+            detail: `${stamped.length} job(s) stamped dispatched and still queued: no runner has claimed them yet`,
+          }
+        : {
+            verdict: "verified",
+            detail: `nothing is waiting: ${queue.length} job(s) queued, none dispatchable`,
+          };
+    }
+    // Dispatchable work is still sitting there. If the run attempted nothing,
+    // that is `unverified` — the goal was not pursued, so it was not checked.
+    // If it acted and the work is STILL waiting, the goal was checked and not
+    // met, which is `rejected`.
+    const attempted = input.outcomes.length > 0;
+    return attempted
+      ? {
+          verdict: "rejected",
+          detail: `${waiting.length} job(s) still dispatchable after ${input.outcomes.length} action(s)`,
+        }
+      : {
+          verdict: "unverified",
+          detail: `${waiting.length} job(s) dispatchable and nothing was attempted`,
+        };
   };
 }

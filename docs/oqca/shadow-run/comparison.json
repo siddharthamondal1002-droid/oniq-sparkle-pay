@@ -1,0 +1,21 @@
+{
+  "runId": "shadow-0001",
+  "mode": "shadow",
+  "productionDecision": "8f2c1a",
+  "oqcaDecision": "dispatch story job 8f2c1a",
+  "oqcaConfidence": 0.8570093708135149,
+  "oqcaMargin": 0.7140303868397931,
+  "agreed": true,
+  "latencyMs": 987,
+  "modelCalls": 16,
+  "modelCallsRefused": 0,
+  "toolAttempts": 0,
+  "toolsRefused": 4,
+  "estimatedCostUsd": 0.006169750000000001,
+  "costUsd": 0.00232975,
+  "terminated": "max_iterations",
+  "undecidedReason": null,
+  "failure": null,
+  "persistedEpisodes": 0,
+  "stateTransitions": 33
+}

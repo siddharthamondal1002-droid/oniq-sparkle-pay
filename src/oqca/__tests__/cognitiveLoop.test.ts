@@ -65,6 +65,7 @@ function baseState(over: Partial<Omit<LoopState, "stateId">> = {}): LoopState {
     futures: [],
     predictions: [],
     outcomes: [],
+    verification: null,
     memoryRefs: [],
     quantumState: quantum().snapshot(),
     iteration: 0,

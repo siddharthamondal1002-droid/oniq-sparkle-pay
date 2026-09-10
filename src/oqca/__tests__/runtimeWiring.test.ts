@@ -86,9 +86,15 @@ describe("section 5 — the router adapts the existing authorization boundary", 
   });
 
   it("authorize runs before perform, on every path", () => {
+    // SCOPED TO `execute`, because `throughLedger` above it also calls
+    // `perform` — a whole-file index comparison started passing for the wrong
+    // reason the moment the ledger path was added, which is the "a count over a
+    // whole file is not a guard" lesson in a new place.
     const src = code(`${RUNTIME}/toolRouter.ts`);
-    expect(src.indexOf("spec.authorize(call)")).toBeGreaterThan(0);
-    expect(src.indexOf("spec.authorize(call)")).toBeLessThan(src.indexOf("spec.perform(call)"));
+    const exec = src.slice(src.indexOf("execute: async (call)"));
+    expect(exec.indexOf("spec.authorize(call)")).toBeGreaterThan(0);
+    expect(exec.indexOf("spec.authorize(call)")).toBeLessThan(exec.indexOf("spec.perform(call)"));
+    expect(exec.indexOf("spec.authorize(call)")).toBeLessThan(exec.indexOf("throughLedger("));
   });
 
   it("the dispatch tool re-reads the row rather than trusting the snapshot", () => {
@@ -145,6 +151,77 @@ describe("section 2 and 7 — one caller, flagged off, not replacing anything", 
     // that gets found in a bill.
     expect(payload.slice(0, 200)).toMatch(/throw new Error/);
     expect(payload.slice(0, 200)).not.toMatch(/mintJobToken/);
+  });
+});
+
+describe("section 19 — every transition is on the chain", () => {
+  it("the loop body never calls advance() directly", () => {
+    // ONE HELPER, `step`, APPENDS TO THE CHAIN AND RETURNS THE STATE. A direct
+    // `advance` would produce a state the chain never saw, and a replay of that
+    // chain would then be a replay of a DIFFERENT run — silently, because both
+    // still typecheck and both still run.
+    const src = code(`${KERNEL}/loop/cognitiveLoop.ts`);
+    const body = src.slice(src.indexOf("export async function runCognitiveLoop"));
+    const helper = body.indexOf("const step =");
+    expect(helper).toBeGreaterThan(0);
+    const afterHelper = body.slice(body.indexOf("\n", body.indexOf("chain.push(next)")));
+    expect(afterHelper).not.toMatch(/\badvance\s*\(/);
+    // ...and the helper really is the one that appends.
+    expect(body.slice(helper, helper + 400)).toMatch(/chain\.push\(next\)/);
+  });
+
+  it("the chain is returned, so a caller can persist it", () => {
+    const src = code(`${KERNEL}/loop/cognitiveLoop.ts`);
+    expect(src).toMatch(/readonly chain: readonly LoopState\[\];/);
+    expect(src).toMatch(/return \{ state, quantum, log, chain,/);
+  });
+});
+
+describe("section 14 — the verdict comes from the station, not from beside it", () => {
+  it("VERIFY calls the injected verifier and asks no model", () => {
+    const src = code(`${KERNEL}/loop/cognitiveLoop.ts`);
+    const verify = src.slice(src.indexOf('case "VERIFY":'), src.indexOf('case "UPDATE_STATE":'));
+    expect(verify).toMatch(/await verifier\(\{/);
+    // The first draft asked the MODEL to label its own claims. `ask` is how a
+    // station reaches the model, and this one may not.
+    expect(verify).not.toMatch(/\bask\s*\(/);
+  });
+
+  it("and the runtime supplies the job's verifier rather than running one after", () => {
+    const src = code(`${RUNTIME}/shadow.ts`);
+    expect(src).toMatch(/verifier: makeVerifier\(env\)/);
+    expect(src).toMatch(/run\.state\.verification \?\? NOT_CHECKED/);
+  });
+});
+
+describe("section 12 — the episode crosses the memory adapter", () => {
+  it("consolidate is called with the episode, and its answer is reported", () => {
+    const src = code(`${RUNTIME}/shadow.ts`);
+    expect(src).toMatch(/memory\.consolidate\(\[/);
+    expect(src).toMatch(/persistedEpisodes/);
+    // The gap is a MEASUREMENT, not a note: the adapter returns what it really
+    // stored and the comparison row carries it.
+    expect(src).toMatch(/persistedEpisodes,/);
+  });
+});
+
+describe("section 5 — a paying tool cannot bypass the ledger", () => {
+  it("the router imports withProviderSpendGuard and routes through it", () => {
+    const src = code(`${RUNTIME}/toolRouter.ts`);
+    // THIS USED TO BE TRUE ONLY IN A COMMENT. The claim "the router adapts the
+    // existing authorization boundary" was prose; nothing called the ledger.
+    expect(src).toMatch(
+      /import \{[\s\S]*withProviderSpendGuard[\s\S]*\} from "\.\.\/financialLedger\.ts";/,
+    );
+    expect(src).toMatch(/await withProviderSpendGuard\(/);
+  });
+
+  it("and a costed tool with no capability or no rpc is refused before performing", () => {
+    const src = code(`${RUNTIME}/toolRouter.ts`);
+    const exec = src.slice(src.indexOf("execute: async (call)"));
+    const gate = exec.indexOf("if (pays && (!spec.capability || !ctx.rpc))");
+    expect(gate).toBeGreaterThan(0);
+    expect(gate).toBeLessThan(exec.indexOf("spec.perform(call)"));
   });
 });
 

@@ -28,10 +28,13 @@ import {
   makeVerifier,
   productionChoice,
   worldFrom,
+  DISPATCH_GOAL,
+  basisFrom,
 } from "../../../supabase/functions/_shared/oqcaRuntime/dispatchJob";
 import {
   makeToolRouter,
   outcomeClass,
+  type ToolSpec,
 } from "../../../supabase/functions/_shared/oqcaRuntime/toolRouter";
 import { estimateFor, makeEngine } from "../../../supabase/functions/_shared/oqcaRuntime/engine";
 import { estimateUsd, isPriced } from "../../../supabase/functions/_shared/oqcaRuntime/pricing";
@@ -53,9 +56,20 @@ import { parseMode, readNonNegative } from "../../../supabase/functions/_shared/
 import {
   initialState,
   replayChain,
+  quantumFor,
   runShadow,
 } from "../../../supabase/functions/_shared/oqcaRuntime/shadow";
 import { DEFAULT_BUDGETS } from "../loop/seams.ts";
+/**
+ * FROM THE MIRROR, NOT FROM `src/` — and this is the health `policy.test.ts`
+ * lesson in a second place. The two trees are byte-identical and are still TWO
+ * MODULE INSTANCES: `shadow.ts` imports the mirror's `CognitiveState`, so a
+ * loop imported from `src/` refuses its states on a private-field mismatch.
+ * Anything a test hands to the runtime must come from the tree the runtime
+ * reads.
+ */
+import { runCognitiveLoop } from "../../../supabase/functions/_shared/oqca/loop/cognitiveLoop";
+import { sealLoopState } from "../loop/loopState.ts";
 
 const OPEN = { ...DEFAULT_BUDGETS, maxTokens: 1e6, maxCostUsd: 1, maxToolCalls: 4 };
 const QUEUE = [job("aaa", 40), job("bbb", 10), job("ccc", 5, 2)];
@@ -339,62 +353,120 @@ describe("the router decides what is permitted, not what is appropriate", () => 
  * 17-18. THE EVIDENCE (section 11)
  * ================================================================ */
 describe("likelihoods are facts about the queue, never invented", () => {
-  it("one per basis element, and a mismatch throws rather than padding", () => {
+  it("is KEYED BY HYPOTHESIS, because SUPERPOSE widens the basis first", () => {
+    // MEASURED ON THE FIRST COMPLETE RUN: station 06 admits one hypothesis per
+    // `goal.requires`, so by UPDATE_STATE the basis is wider than the action
+    // list and a positional vector is refused EVERY iteration — evidence never
+    // folded and the loop never reached a decision, with nothing red.
     const world = worldFrom(QUEUE, T0);
     const basis = [...world.availableActions];
     const ls = likelihoodsFrom(basis, QUEUE, T0);
-    expect(ls).toHaveLength(basis.length);
-    expect(() => likelihoodsFrom([...basis, "dispatch story job ghost"], QUEUE, T0)).toThrow(
-      /no queue row/,
-    );
+    for (const label of basis) expect(typeof ls[label]).toBe("number");
+    // ...and the concepts SUPERPOSE will admit are present too, at a NEUTRAL 1:
+    // they are not evidence about the queue, and any other number would be a
+    // fact about a concept nothing measured.
+    for (const req of DISPATCH_GOAL.requires) expect(ls[req.conceptId]).toBe(1);
+  });
+
+  it("a basis element with no queue row throws rather than defaulting", () => {
+    expect(() => likelihoodsFrom(["dispatch story job ghost"], QUEUE, T0)).toThrow(/no queue row/);
   });
 
   it("an older job scores higher, and holding wins only when nothing is dispatchable", () => {
-    const world = worldFrom(QUEUE, T0);
-    const basis = [...world.availableActions];
-    const ls = likelihoodsFrom(basis, QUEUE, T0);
-    const at = (label: string) => ls[basis.indexOf(label)];
-    expect(at(actionFor("aaa"))).toBeGreaterThan(at(actionFor("bbb")));
-    expect(at(HOLD_ACTION)).toBeLessThan(at(actionFor("bbb")));
+    const ls = likelihoodsFrom([...worldFrom(QUEUE, T0).availableActions], QUEUE, T0);
+    expect(ls[actionFor("aaa")]).toBeGreaterThan(ls[actionFor("bbb")]);
+    expect(ls[HOLD_ACTION]).toBeLessThan(ls[actionFor("bbb")]);
 
     const held = [job("x", 5, 1)];
     const w2 = worldFrom(held, T0);
     expect(w2.availableActions).toEqual([HOLD_ACTION]);
-    expect(likelihoodsFrom([HOLD_ACTION], held, T0)).toEqual([1]);
+    expect(likelihoodsFrom([HOLD_ACTION], held, T0)[HOLD_ACTION]).toBe(1);
     // A held job is NAMED as unavailable, not merely absent — section 7.
     expect(w2.unavailableActions[0]).toMatch(/inside its dispatch backoff/);
+  });
+
+  it("a keyed map with a basis element missing is REFUSED, never padded", async () => {
+    // Section 11 in its own words. The map shape is what a caller can get
+    // right; it must not become a way to omit a hypothesis quietly.
+    const env = fakeEnv(QUEUE);
+    const state = initialState(QUEUE, T0, OPEN);
+    const run = await runCognitiveLoop({
+      initial: state,
+      quantum: quantumFor(basisFrom(worldFrom(QUEUE, T0))),
+      budgets: OPEN,
+      evidence: [{ likelihoodsByHypothesis: { [HOLD_ACTION]: 1 }, evidenceIds: ["partial"] }],
+    });
+    const update = run.log.find((r) => r.station === "UPDATE_STATE")!;
+    expect(update.refused).toBe("likelihood_missing");
+    expect(update.note).toMatch(/no likelihood for/);
+    void env;
+  });
+
+  it("and evidence supplied for iteration 0 only does NOT carry to iteration 1", async () => {
+    // REPRESENT rebuilds the amplitude state at the top of every iteration, so
+    // `IterationEvidence` is per-iteration by design. Supplying one entry meant
+    // the final measurement reflected no evidence at all — three actions tied
+    // at exactly 1/3 — while every station reported success.
+    const state = initialState(QUEUE, T0, { ...OPEN, maxIterations: 2 });
+    const basis = basisFrom(worldFrom(QUEUE, T0));
+    const run = await runCognitiveLoop({
+      initial: state,
+      quantum: quantumFor(basis),
+      budgets: { ...OPEN, maxIterations: 2 },
+      evidence: [{ likelihoodsByHypothesis: likelihoodsFrom(basis, QUEUE, T0) }],
+    });
+    const updates = run.log.filter((r) => r.station === "UPDATE_STATE");
+    expect(updates).toHaveLength(2);
+    expect(updates[0].note).toMatch(/evidence folded/);
+    expect(updates[1].note).toMatch(/no evidence this iteration/);
   });
 });
 
 /* ================================================================ *
- * 19-21. VERIFICATION AND THE EPISODE (sections 13, 14, 17)
+ * VERIFICATION READS THE ENVIRONMENT (section 14)
  * ================================================================ */
 describe("verification reads the environment, and says which of four it found", () => {
-  it("a job that left the queue is verified", async () => {
-    const env = fakeEnv(QUEUE);
-    await env.stampDispatched("aaa");
-    env.claim("aaa");
-    expect((await makeVerifier(actionFor("aaa"), env)()).verdict).toBe("verified");
+  // THE VERIFIER MATCHES THE KERNEL SEAM, so station 11 calls it during the run
+  // — see `makeVerifier`'s header on why it is never handed the loop's own
+  // decision.
+  const acted = { goalStatement: "g", outcomes: [{ observed: "dispatched", matched: true }] };
+  const idle = { goalStatement: "g", outcomes: [] };
+
+  it("an empty queue is verified", async () => {
+    expect((await makeVerifier(fakeEnv([]))(acted)).verdict).toBe("verified");
   });
 
   it("a job stamped and still queued is only PARTIALLY verified", async () => {
-    const env = fakeEnv(QUEUE);
+    const env = fakeEnv([job("aaa", 40)]);
     await env.stampDispatched("aaa");
-    const v = await makeVerifier(actionFor("aaa"), env)();
-    // Claiming `verified` on a stamp would be this station reporting the
-    // tool's own action back to itself.
+    const v = await makeVerifier(env)(acted);
+    // Calling a STAMP `verified` would be the station reporting the tool's own
+    // action back to itself, which is the failure section 14 exists to prevent.
     expect(v.verdict).toBe("partially_verified");
-    expect(v.detail).toMatch(/no runner has claimed it yet/);
+    expect(v.detail).toMatch(/no runner has claimed them yet/);
   });
 
-  it("a job queued with no stamp is rejected", async () => {
+  it("a job that left the queue is verified — a runner took it", async () => {
+    const env = fakeEnv([job("aaa", 40)]);
+    await env.stampDispatched("aaa");
+    env.claim("aaa");
+    expect((await makeVerifier(env)(acted)).verdict).toBe("verified");
+  });
+
+  it("work still waiting after an action is REJECTED, and before one UNVERIFIED", async () => {
+    // `rejected` means checked and not met; `unverified` means not checked. A
+    // run that records "could not check" as "failed" teaches the learner to
+    // avoid actions that may well have worked.
+    expect((await makeVerifier(fakeEnv(QUEUE))(acted)).verdict).toBe("rejected");
+    expect((await makeVerifier(fakeEnv(QUEUE))(idle)).verdict).toBe("unverified");
+  });
+
+  it("an unreadable queue is unverified, never rejected", async () => {
     const env = fakeEnv(QUEUE);
-    expect((await makeVerifier(actionFor("aaa"), env)()).verdict).toBe("rejected");
-  });
-
-  it("holding is verified only when nothing was dispatchable", async () => {
-    expect((await makeVerifier(HOLD_ACTION, fakeEnv([job("x", 5, 1)]))()).verdict).toBe("verified");
-    expect((await makeVerifier(HOLD_ACTION, fakeEnv(QUEUE))()).verdict).toBe("rejected");
+    env.readFails = "postgrest is down";
+    const v = await makeVerifier(env)(acted);
+    expect(v.verdict).toBe("unverified");
+    expect(v.detail).toMatch(/could not be read/);
   });
 
   it("the four verdicts are exactly the brief's four", () => {
@@ -402,51 +474,194 @@ describe("verification reads the environment, and says which of four it found", 
   });
 });
 
-describe("the episode carries every section 13 field", () => {
-  it("and createdAt is on the episode and in no state id", async () => {
-    const env = fakeEnv(QUEUE);
-    const out = await runShadow({ runId: "r7", mode: "shadow", env, call: answer, budgets: OPEN });
-    const e = out.episode;
-    for (const k of [
-      "runId",
-      "goal",
-      "initialStateId",
-      "finalStateId",
-      "observations",
-      "actions",
-      "predictions",
-      "actualOutcomes",
-      "verdict",
-      "responseClass",
-      "success",
-      "failureReason",
-      "lessons",
-      "reusablePatterns",
-      "modelCalls",
-      "toolCalls",
-      "costUsd",
-      "durationMs",
-      "createdAt",
-    ]) {
-      expect(e, `missing ${k}`).toHaveProperty(k);
-    }
-    expect(() => new Date(e.createdAt).toISOString()).not.toThrow();
-    // THE PROOF THAT createdAt IS NOT HASHED: two states built from the same
-    // content have the same id whatever the wall clock said.
-    const a = initialState(QUEUE, T0, OPEN);
-    const b = initialState(QUEUE, T0, OPEN);
-    expect(a.stateId).toBe(b.stateId);
-    expect(String(a.stateId)).not.toContain(e.createdAt);
+/* ================================================================ *
+ * A PAYING TOOL GOES THROUGH THE REAL LEDGER (section 5)
+ * ================================================================ */
+describe("a tool that costs money cannot run outside the spend ledger", () => {
+  const ctx = { runId: "t", mode: "assisted" as const, now: () => 0, record: () => {} };
+  const paying = (over: Partial<ToolSpec> = {}): ToolSpec => ({
+    name: "expensive",
+    reversible: true,
+    touchesProduction: false,
+    estimate: () => ({ tokens: 0, costUsd: 0.25 }),
+    authorize: async () => null,
+    perform: async () => ({ ok: true, output: "done", observed: "the world changed" }),
+    ...over,
+  });
+  const call = {
+    tool: "expensive",
+    input: {},
+    reversible: true,
+    touchesProduction: false,
+    rationale: "",
+  };
+
+  it("is refused when it names no ledger capability", async () => {
+    const r = makeToolRouter([paying()], ctx);
+    const out = await r.execute(call);
+    expect(out.ok).toBe(false);
+    expect(out.reason).toMatch(/names no ledger capability/);
   });
 
+  it("is refused when no ledger connection was supplied", async () => {
+    const r = makeToolRouter([paying({ capability: "OTHER" })], ctx);
+    const out = await r.execute(call);
+    expect(out.ok).toBe(false);
+    expect(out.reason).toMatch(/no ledger connection/);
+  });
+
+  it("reserves through the ledger, and a refusal there stops the action", async () => {
+    // THE REAL `withProviderSpendGuard`, against a fake RPC. Its own contract is
+    // what is being exercised: the provider callback cannot run before
+    // admission, so a refused admission must leave `perform` uncalled.
+    const performed = vi.fn(async () => ({ ok: true, output: "x", observed: "y" }));
+    const rpc = vi.fn(async (fn: string) => {
+      if (fn === "admit_provider_spend")
+        return { data: { ok: false, reason: "daily-cap-reached" } };
+      return { data: null };
+    });
+    const r = makeToolRouter([paying({ capability: "OTHER", perform: performed })], {
+      ...ctx,
+      rpc: rpc as never,
+    });
+    const out = await r.execute(call);
+    expect(out.ok).toBe(false);
+    expect(out.reason).toMatch(/spend ledger refused/);
+    expect(performed).not.toHaveBeenCalled();
+    expect(rpc.mock.calls[0][0]).toBe("admit_provider_spend");
+  });
+
+  it("and an admitted call runs, then settles", async () => {
+    const seen: string[] = [];
+    const rpc = async (fn: string) => {
+      seen.push(fn);
+      if (fn === "admit_provider_spend") return { data: { ok: true, attempt: 1 } };
+      return { data: null };
+    };
+    const r = makeToolRouter([paying({ capability: "OTHER" })], { ...ctx, rpc: rpc as never });
+    const out = await r.execute(call);
+    expect(out.ok).toBe(true);
+    expect(out.observed).toBe("the world changed");
+    // Reserve, then settle — never one without the other.
+    expect(seen).toEqual(["admit_provider_spend", "settle_provider_spend"]);
+  });
+
+  it("a FREE tool does not touch the ledger at all", async () => {
+    const env = fakeEnv(QUEUE);
+    const rpc = vi.fn(async () => ({ data: null }));
+    const r = makeToolRouter(dispatchTools(QUEUE, env), { ...ctx, rpc: rpc as never });
+    await r.execute({
+      tool: actionFor("aaa"),
+      input: {},
+      reversible: true,
+      touchesProduction: true,
+      rationale: "",
+    });
+    // A dispatch is a PostgREST PATCH and a GitHub call, both already paid for.
+    // Reserving $0 against a capability bucket would put noise in the ledger
+    // the owner reads for spend.
+    expect(rpc).not.toHaveBeenCalled();
+    expect(env.sent).toEqual(["aaa"]);
+  });
+});
+
+/* ================================================================ *
+ * A COMPLETE EXECUTION PERSISTS AND REPLAYS (section 19)
+ * ================================================================ */
+describe("a complete shadow execution can be persisted and replayed", () => {
+  it("every state re-derives, every link holds, and JSON survives the round trip", async () => {
+    const env = fakeEnv(QUEUE);
+    const out = await runShadow({ runId: "rp", mode: "shadow", env, call: answer, budgets: OPEN });
+
+    // THE WHOLE CHAIN, not just the last state. A run that cannot be persisted
+    // cannot be replayed, and `state` alone is one frame of it.
+    expect(out.run.chain.length).toBeGreaterThan(5);
+    expect(out.run.chain[0].parentStateId).toBeNull();
+    expect(out.run.chain[out.run.chain.length - 1].stateId).toBe(out.run.state.stateId);
+    expect(out.comparison.stateTransitions).toBe(out.run.chain.length);
+
+    // Persist -> restore. JSON is the honest medium: it is what a durable store
+    // would hold, and it is where a Date or a class instance would be lost.
+    const restored = JSON.parse(JSON.stringify(out.run.chain));
+    expect(replayChain(restored)).toEqual([]);
+    expect(restored.map((s: { stateId: string }) => s.stateId)).toEqual(
+      out.run.chain.map((s) => s.stateId),
+    );
+  });
+
+  it("a tampered state in the middle is caught, not carried", async () => {
+    const env = fakeEnv(QUEUE);
+    const out = await runShadow({ runId: "rp2", mode: "shadow", env, call: answer, budgets: OPEN });
+    const chain = JSON.parse(JSON.stringify(out.run.chain));
+    const i = Math.floor(chain.length / 2);
+    chain[i].goal = { ...chain[i].goal, statement: "a different goal" };
+    const problems = replayChain(chain);
+    expect(problems.map((p) => p.code)).toContain("state_id_mismatch");
+    expect(problems[0].index).toBe(i);
+  });
+
+  it("replay makes no model call and performs no action", async () => {
+    const env = fakeEnv(QUEUE);
+    const call = vi.fn(answer);
+    const out = await runShadow({ runId: "rp3", mode: "shadow", env, call, budgets: OPEN });
+    const before = call.mock.calls.length;
+    const sentBefore = [...env.sent];
+    replayChain(JSON.parse(JSON.stringify(out.run.chain)));
+    expect(call.mock.calls.length).toBe(before);
+    expect(env.sent).toEqual(sentBefore);
+  });
+});
+
+/* ================================================================ *
+ * SECTION 17 — how the run ended, for a person
+ * ================================================================ */
+describe("the four response classes are not a severity scale", () => {
   it("blocked is its own class, and is not failure", () => {
-    const run = { terminated: "max_cost", log: [], state: { outcomes: [] } } as never;
-    expect(classifyResponse(run, "unverified")).toBe("blocked");
-    const clean = { terminated: "completed", log: [], state: { outcomes: [] } } as never;
+    // `blocked` says the loop was PREVENTED — a budget, a permission, a mode —
+    // rather than that it tried and could not. Reading a refusal as a failure
+    // sends an operator looking for a bug instead of raising a bound.
+    const blocked = { terminated: "max_cost", log: [], state: { outcomes: [] } } as never;
+    expect(classifyResponse(blocked, "unverified")).toBe("blocked");
+    const clean = { terminated: "success", log: [], state: { outcomes: [] } } as never;
     expect(classifyResponse(clean, "verified")).toBe("completed");
     expect(classifyResponse(clean, "partially_verified")).toBe("partially_completed");
     expect(classifyResponse(clean, "rejected")).toBe("failed");
+    // Ran cleanly, nothing could be checked: not a failure, and emphatically
+    // not a completion.
     expect(classifyResponse(clean, "unverified")).toBe("partially_completed");
+  });
+
+  it("every bound is blocking, so a new one cannot quietly read as a failure", () => {
+    const clean = { log: [], state: { outcomes: [] } };
+    for (const t of [
+      "max_tokens",
+      "max_cost",
+      "max_tool_calls",
+      "max_research_operations",
+      "max_execution_time",
+      "max_state_transitions",
+      "max_iterations",
+      "unpriced",
+      "budget_exhausted",
+    ]) {
+      expect(classifyResponse({ ...clean, terminated: t } as never, "rejected")).toBe("blocked");
+    }
+  });
+});
+
+describe("the verdict is part of the state's identity", () => {
+  it("so a replay that reached a different verdict would not reproduce the run", () => {
+    const a = initialState(QUEUE, T0, OPEN);
+    const withVerdict = sealLoopState({
+      ...a,
+      verification: { verdict: "verified", detail: "x" },
+    } as never);
+    const different = sealLoopState({
+      ...a,
+      verification: { verdict: "rejected", detail: "x" },
+    } as never);
+    expect(withVerdict.stateId).not.toBe(a.stateId);
+    expect(different.stateId).not.toBe(withVerdict.stateId);
   });
 });
 

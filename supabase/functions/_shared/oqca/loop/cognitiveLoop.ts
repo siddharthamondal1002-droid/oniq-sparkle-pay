@@ -58,6 +58,8 @@ import {
   deterministicClock,
   wouldBreach,
   type SpendEstimate,
+  NO_VERIFIER,
+  type Verifier,
   UNKNOWN_TOOL_PROPERTIES,
 } from "./seams.ts";
 import {
@@ -133,6 +135,13 @@ export type StationRecord = {
 export type IterationEvidence = {
   /** One likelihood per basis element, or null for an iteration with no news. */
   readonly likelihoods?: readonly number[] | null;
+  /**
+   * The same evidence keyed by HYPOTHESIS — the shape a caller can actually get
+   * right, because SUPERPOSE may widen the basis before this station runs. Every
+   * basis element must be present or the station refuses; a missing key is never
+   * padded.
+   */
+  readonly likelihoodsByHypothesis?: Readonly<Record<string, number>>;
   /** Section 15's "update phase/context" — radians per hypothesis. */
   readonly phases?: readonly number[];
   /** [i, j, theta] — the interference that reads a phase back out. */
@@ -151,6 +160,8 @@ export type LoopInput = {
   readonly router?: ToolRouter;
   readonly clock?: Clock;
   readonly memory?: MemoryStore;
+  /** Section 14. Defaults to NO_VERIFIER, which answers `unverified`. */
+  readonly verifier?: Verifier;
   /** Pause after N stations, for a resumable run. */
   readonly stopAfterStations?: number;
 };
@@ -159,6 +170,13 @@ export type LoopRun = {
   readonly state: LoopState;
   readonly quantum: CognitiveState;
   readonly log: readonly StationRecord[];
+  /**
+   * EVERY STATE THE RUN PRODUCED, oldest first — section 19's "persist event/
+   * state sequence -> restore -> replay". `state` is only the last one, and a
+   * chain that cannot be persisted cannot be replayed; `replayChain` re-derives
+   * every id from its own content and checks each link.
+   */
+  readonly chain: readonly LoopState[];
   readonly research: ResearchPlan | null;
   readonly gaps: readonly Gap[];
   readonly answer: string | null;
@@ -189,8 +207,10 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
   const router = input.router ?? REFUSING_ROUTER;
   const clock = input.clock ?? deterministicClock();
   const memory = input.memory ?? EMPTY_MEMORY;
+  const verifier = input.verifier ?? NO_VERIFIER;
 
   let state = input.initial;
+  const chain: LoopState[] = [state];
   let quantum = input.quantum;
   let spent: Spent = { ...NO_SPEND };
   let gaps: Gap[] = [];
@@ -223,6 +243,21 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
   };
 
   /** Every model call goes through here, so no station can skip the gate. */
+  /**
+   * THE ONLY WAY A STATE CHANGES IN THIS FILE, so the chain cannot miss one.
+   *
+   * `advance` is still the pure transition; this wraps it to append. Calling
+   * `advance` directly here would produce a state the chain never saw, and a
+   * replay of that chain would then be a replay of a different run —
+   * `runtimeWiring.test.ts` fails if any `advance(` outside this helper appears
+   * in the loop body.
+   */
+  const step = (changes: Parameters<typeof advance>[1]): LoopState => {
+    const next = advance(state, changes);
+    chain.push(next);
+    return next;
+  };
+
   const ask = async (station: Station, prompt: string, maxOutputTokens: number) => {
     const kind = ENGINE_STATIONS[station];
     if (!kind) return { ok: false as const, text: "", reason: `${station} may not call the model` };
@@ -273,14 +308,14 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
       const bound = breachRun(spent, budgets);
       if (bound) {
         terminated = bound;
-        state = advance(state, { status: "budget_exhausted", spent });
+        state = step({ status: "budget_exhausted", spent });
         note(station, `stopped: ${bound}`, bound);
         break outer;
       }
 
       switch (station) {
         case "PERCEIVE":
-          state = advance(state, { percepts: [...state.percepts, ...percepts], spent });
+          state = step({ percepts: [...state.percepts, ...percepts], spent });
           note(
             station,
             `${percepts.length} percepts this iteration, ${state.percepts.length} held`,
@@ -303,7 +338,7 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
 
         case "LOAD_MEMORY": {
           const recalled = await memory.recall(state.goal.statement, 8);
-          state = advance(state, { memoryRefs: recalled, spent });
+          state = step({ memoryRefs: recalled, spent });
           note(station, `${recalled.length} records recalled (relevance-bounded at 8)`);
           break;
         }
@@ -358,7 +393,7 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
         case "IDENTIFY_GAPS":
           if (input.knowledge) {
             gaps = detectGaps(state.goal, input.knowledge);
-            state = advance(state, { knowledgeGaps: gaps, spent });
+            state = step({ knowledgeGaps: gaps, spent });
             note(station, `${openGaps(gaps).length} open of ${gaps.length}`);
           } else {
             note(station, "no knowledge state supplied", "no_knowledge_state");
@@ -383,23 +418,28 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
           break;
 
         case "VERIFY": {
-          // Section 14: unverified information stays EXPLICITLY uncertain. The
-          // station therefore records a verdict per claim and never upgrades a
-          // claim it could not check.
-          const claims = research?.next ? [research.next.concept] : [];
-          if (claims.length === 0) {
-            note(station, "nothing to verify this iteration");
-            break;
-          }
-          const r = await ask(
-            station,
-            `For each claim, answer SUPPORTED, CONTRADICTED or UNVERIFIED and nothing else.\n${claims.map((c) => `- ${c}`).join("\n")}`,
-            160,
-          );
+          // SECTION 14, AND THE FIRST DRAFT HAD THIS EXACTLY BACKWARDS. It asked
+          // the MODEL to label its own research claims SUPPORTED / CONTRADICTED
+          // / UNVERIFIED — a model marking its own homework, over the loop's
+          // BELIEFS rather than over real output. The station now asks the
+          // caller's verifier, which reads the ENVIRONMENT.
+          //
+          // It runs on the outcomes OBSERVE recorded, so the first iteration of
+          // a run that has not acted yet is honestly `unverified` rather than
+          // silently skipped: "nothing was checked" is a verdict, and section 14
+          // asks for it by name.
+          const verification = await verifier({
+            goalStatement: state.goal.statement,
+            outcomes: state.outcomes.map((o) => ({ observed: o.observed, matched: o.matched })),
+          });
+          state = step({ verification, spent });
           note(
             station,
-            r.ok ? firstLine(r.text) : "claims remain UNVERIFIED",
-            r.ok ? null : r.reason!,
+            `${verification.verdict}: ${verification.detail}`,
+            // A REJECTION IS NOT A REFUSAL. `refused` means the station could
+            // not run; a verdict of `rejected` means it ran and the goal was
+            // not met. Only the absence of any check is recorded as a refusal.
+            verification.verdict === "unverified" ? "unverified" : null,
           );
           break;
         }
@@ -409,19 +449,49 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
           // phase/context. All three come from the CALLER — see IterationEvidence.
           const ev = input.evidence?.[spent.iterations];
           const parts: string[] = [];
-          if (ev?.likelihoods) {
-            if (ev.likelihoods.length !== quantum.basis.length) {
+          // BOTH SHAPES OPEN THIS BLOCK. Adding the keyed map without widening
+          // this condition meant a caller could supply perfectly good evidence,
+          // typecheck, run, and have the station report "no evidence this
+          // iteration" — which is what the first complete run did, four times,
+          // with nothing red and nothing refused.
+          if (ev?.likelihoods || ev?.likelihoodsByHypothesis) {
+            // SECTION 11: "if a new hypothesis is admitted, the likelihood
+            // vector must be explicitly sized for the POST-ADMISSION basis."
+            //
+            // A caller cannot pass a positional vector and be right, because
+            // SUPERPOSE runs FIRST and admits from `goal.requires` — measured on
+            // the first real run: 3 likelihoods against a basis of 4, every
+            // iteration, so evidence never folded and the loop never reached a
+            // decision at all. Nothing was red there either; the refusal was
+            // correct and the caller could not satisfy it.
+            //
+            // A MAP KEYED BY HYPOTHESIS is the shape that survives, and it does
+            // not weaken the rule: every basis element must be named, so an
+            // admitted hypothesis nobody has evidence about is still a refusal
+            // rather than a padded 1.
+            const byLabel = ev.likelihoodsByHypothesis;
+            const vector = byLabel
+              ? quantum.basis.map((label) => byLabel[label])
+              : (ev.likelihoods ?? []);
+            if (byLabel && vector.some((v) => typeof v !== "number")) {
+              const missing = quantum.basis.filter((l) => typeof byLabel[l] !== "number");
+              note(station, `no likelihood for ${missing.join(", ")}`, "likelihood_missing");
+              break;
+            }
+            if (vector.length !== quantum.basis.length) {
               // Refused by name rather than padded. Padding would invent a
               // likelihood for a hypothesis nobody has evidence about, which is
               // the v1.1 lesson from SUPERPOSE running before EVIDENCE_UPDATE.
               note(
                 station,
-                `${ev.likelihoods.length} likelihoods against a basis of ${quantum.basis.length}`,
+                `${vector.length} likelihoods against a basis of ${quantum.basis.length}`,
                 "likelihood_width_mismatch",
               );
               break;
             }
-            quantum = evidence(quantum, ev.likelihoods, { evidenceIds: ev.evidenceIds });
+            quantum = evidence(quantum, vector as readonly number[], {
+              evidenceIds: ev.evidenceIds,
+            });
             spent = { ...spent, transitions: spent.transitions + 1 };
             parts.push("evidence folded in (Bayes-exact)");
           }
@@ -464,7 +534,19 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
           const lines = r.ok ? r.text.split("\n") : [];
           const futures: ImaginedFuture[] = actions.map((action, i) => {
             const said = lines.find((l) => l.includes(action)) ?? "";
-            const nums = said.match(/0?\.\d+|[01](?!\d)/g)?.map(Number) ?? [];
+            // THE ACTION'S OWN NAME IS REMOVED BEFORE ANY NUMBER IS READ, and
+            // this was a real defect found by running a real job. Every ONIQ
+            // story job id is hex — `dispatch story job 8f2c1a` — so the digit
+            // scan matched the "1" inside the ID and scored the action's risk
+            // at 1.0 from its own name. Expected value is progress x (1 - risk),
+            // so EVERY dispatch priced out at zero and the loop chose to hold,
+            // every time, on a queue it had correctly understood.
+            //
+            // Nothing was red. The futures were built, PLAN selected, ACT ran —
+            // it simply always picked the do-nothing option, which reads as a
+            // cautious loop rather than a broken parser.
+            const scored = said.slice(said.indexOf(action) + action.length);
+            const nums = scored.match(/0?\.\d+|[01](?!\d)/g)?.map(Number) ?? [];
             const risk = nums[0] ?? 0.5;
             const goalProgress = nums[1] ?? 0.5;
             return {
@@ -484,7 +566,7 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
                 Math.min(1, Math.max(0, goalProgress)) * (1 - Math.min(1, Math.max(0, risk))),
             } satisfies ImaginedFuture;
           });
-          state = advance(state, { futures, spent });
+          state = step({ futures, spent });
           note(
             station,
             `${futures.length} futures scored${r.ok ? "" : " (engine refused; defaults used)"}`,
@@ -523,7 +605,7 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
             rollback: best.reversible ? "action is reversible" : null,
             successCriteria: [state.goal.statement],
           };
-          state = advance(state, { candidatePlans: [plan], selectedPlan: plan, spent });
+          state = step({ candidatePlans: [plan], selectedPlan: plan, spent });
           note(station, `selected ${plan.id} (EV ${best.expectedValue.toFixed(3)})`);
           break;
         }
@@ -556,13 +638,13 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
           }
           const wouldSpend = wouldBreach(spent, budgets, planCost);
           if (wouldSpend) {
-            state = advance(state, { selectedPlan: null, status: "budget_exhausted", spent });
+            state = step({ selectedPlan: null, status: "budget_exhausted", spent });
             note(station, `refused: ${wouldSpend}`, wouldSpend);
             terminated = wouldSpend;
             break outer;
           }
           if (irreversible.length > 0 && !plan.rollback) {
-            state = advance(state, { selectedPlan: null, spent });
+            state = step({ selectedPlan: null, spent });
             note(
               station,
               `refused: ${irreversible.length} irreversible step(s) with no rollback`,
@@ -606,7 +688,7 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
             spent = addUsage(spent, result.usage);
             results.push({ step: step.id, result });
           }
-          state = advance(state, { predictions, spent });
+          state = step({ predictions, spent });
           note(station, `${results.length} action(s) attempted`);
           // OBSERVE reads these; carrying them on the state would make the
           // environment's answer part of the hashed record before it is judged.
@@ -631,7 +713,7 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
               predictionError: matched ? 0 : 1,
             } satisfies Outcome;
           });
-          state = advance(state, { outcomes, spent });
+          state = step({ outcomes, spent });
           note(
             station,
             outcomes.length
@@ -715,10 +797,10 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
           const open = openGaps(gaps).length;
           const acted = state.outcomes.length > 0 && state.outcomes.every((o) => o.matched);
           if (acted && open === 0) {
-            state = advance(state, { status: "success", spent });
+            state = step({ status: "success", spent });
             note(station, "success criteria satisfied");
           } else if (starvedBy) {
-            state = advance(state, { status: "budget_exhausted", spent });
+            state = step({ status: "budget_exhausted", spent });
             terminated = starvedBy;
             note(station, `cannot continue: ${starvedBy}`, starvedBy);
           } else {
@@ -757,12 +839,12 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
     }
 
     spent = { ...spent, iterations: spent.iterations + 1 };
-    state = advance(state, { iteration: state.iteration + 1, spent });
+    state = step({ iteration: state.iteration + 1, spent });
   }
 
   if (spent.iterations >= budgets.maxIterations && terminated === "completed") {
     terminated = "max_iterations";
   }
 
-  return { state, quantum, log, research, gaps, answer, spent, terminated };
+  return { state, quantum, log, chain, research, gaps, answer, spent, terminated };
 }

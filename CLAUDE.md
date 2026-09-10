@@ -5074,3 +5074,90 @@ GREEN, none NOTAPPLIED**; tsc, `lint:ci`, Prettier, the mirror check, and
 `deno check` of the whole runtime chain all clean. No migration, no edge
 function deploy, no Lovable message, no credits, no publish, and `main`
 untouched.
+
+### 2026-09-10 — OQCA v1.2b: a real job traversed the 23 stations, and the traversal found nine defects
+
+The first version of v1.2 was pushed as `276be7bc` and it was NOT what the brief
+asked for. Re-read against §5, §12, §14, §19 and §26, five of them were
+half-done — and one was worse than half-done, which is the entry.
+
+**"THE ROUTER ADAPTS THE EXISTING AUTHORIZATION BOUNDARY" WAS PROSE.**
+`withProviderSpendGuard` appeared in `toolRouter.ts` exactly twice, both times
+in a COMMENT. The ledger was never called. That is the eleven-times-recorded
+failure of this repo committed in the file that cites it, and it was caught by
+grepping my own claim rather than by re-reading it. **Grep the claim, not the
+comment that makes it.** A paying tool now goes through the ledger or does not
+run, and M44 proves it.
+
+**AND THE MILESTONE IS REACHED.** `scripts/oqca-shadow-run.ts` drives one
+complete traversal — all 23 stations, four iterations, the real engine adapter,
+the real router, the real job and the real verifier — and it decides
+`dispatch story job 8f2c1a` at confidence 0.857 / margin 0.714, AGREEING with
+what `story-dispatch` would have picked. 33 states persisted to disk and
+replayed clean. Zero production writes. Stated no wider than measured: a fixture
+queue and a recorded provider reply, because `*.supabase.co` is proxy-blocked
+here and a live model call is a spend nobody authorised for a script.
+
+**NINE DEFECTS, EVERY ONE OF WHICH SHIPPED GREEN.** tsc clean, suite passing, no
+station refusing, and the loop silently wrong. Five in the v1.1 kernel:
+
+- `ask()` never priced a call before making it.
+- PLAN derived `touchesProduction` from `reversible` — a story dispatch is BOTH,
+  and shadow mode gates on exactly that field.
+- `reversible` was a regex over the action's NAME.
+- **IMAGINE SCORED THE ACTION'S OWN NAME.** Every ONIQ story job id is hex, so
+  the digit scan read the `1` in `8f2c1a` as risk 1.0, priced every dispatch at
+  expected value zero, and the loop held every time on a queue it had understood
+  perfectly. **A broken parser that reads as caution is the hardest kind to
+  see.**
+- VERIFY asked the MODEL to label its own claims — a model marking its own
+  homework, over the loop's beliefs rather than over real output.
+
+And four in the integration, each found only by running it:
+
+- A positional likelihood vector CAN NEVER BE RIGHT: SUPERPOSE admits from
+  `goal.requires` before UPDATE_STATE, so 3 met a basis of 4 every iteration.
+  The refusal was correct and the caller could not satisfy it.
+- The evidence gate read only the positional field, so the keyed map that fixes
+  that typechecked, ran, and was reported as "no evidence this iteration".
+- Evidence supplied for iteration 0 only was DISCARDED by REPRESENT on iteration
+  1 — four iterations later the measurement reflected nothing, three actions
+  tied at exactly 1/3.
+- The decision RANKED PREREQUISITES AGAINST ACTIONS. By MEASURE the basis held
+  three actions and three goal prerequisites and `confidence()` ranked all six —
+  "which of these is most likely" where three are things to do and three are
+  things the goal needs. A category error that ties forever.
+
+**AND TWO IN THE TOOLING, BOTH FOUND BY MUTATION RATHER THAN BY READING:**
+
+- **THE MUTATION SCRIPT MUTATED `src/` WHILE THE NEW TESTS READ THE MIRROR.**
+  Six kernel mutations changed nothing the assertions could see and every one
+  reported GREEN — the script flattering the tests exactly as a bad benchmark
+  flatters its subject. Kernel mutations re-mirror now. **A mutation that does
+  not reach the tree under test is not a verdict**, which is the 2026-09-09
+  lesson in a place nobody had looked: the TREE, not the anchor.
+- **A BLOCK REPLACEMENT SILENTLY DELETED EIGHT TESTS.** A python edit spanning
+  `start=index(A)` to `end=index(B)` swallowed the describe block sitting
+  between them. M31 then reported ESCAPED because its test no longer existed,
+  and `lint:ci` found two orphaned imports whose tests had gone the same way.
+  Nothing else would have noticed: the suite was green and smaller. **When an
+  edit is bounded by two indices, count the tests before and after.**
+
+**A TIE IS NOT A DECISION**, and the fixture that proves it had to be built:
+on the ordinary queue the margin is 0.714, so deleting the tie check changed
+nothing and reported GREEN. Two jobs of identical age tie by construction, and
+`confidence().top` still names one — whichever sits first in the basis. That is
+v1.1's measured finding, applied.
+
+**AND A MODULE-INSTANCE COLLISION, which is the health `policy.test.ts` lesson
+in a second place.** `src/oqca/` and its mirror are byte-identical and are still
+TWO MODULE INSTANCES: a `CognitiveState` from one is refused by a loop imported
+from the other on a private-field mismatch. Anything a test hands to the runtime
+must come from the tree the runtime reads.
+
+Numbers: 373 files / 6,549 tests green; **48 mutations, every one RED, none
+GREEN, none NOTAPPLIED**; tsc, `lint:ci`, Prettier, the mirror check and
+`deno check` of the whole runtime chain clean; one complete traversal with its
+chain, episode, comparison and station log written to `docs/oqca/shadow-run/`.
+Still nothing deployed, published or merged, the flag still ships off, and a
+shadow tick at the shipped defaults still costs $0.

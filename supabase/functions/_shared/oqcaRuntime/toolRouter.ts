@@ -29,6 +29,7 @@
  * lesson that an allowlist is the only shape that survives someone adding a
  * file.
  */
+import { type Capability, type ServiceRpc, withProviderSpendGuard } from "../financialLedger.ts";
 import type { SpendEstimate, ToolCall, ToolResult, ToolRouter } from "../oqca/loop/seams.ts";
 
 /**
@@ -64,6 +65,15 @@ export type ToolSpec = {
   /** What one call costs, or null when it cannot be priced. Never a guess. */
   readonly estimate: (call: ToolCall) => SpendEstimate | null;
   /**
+   * WHICH LEDGER BUCKET THIS TOOL SPENDS FROM, and it is REQUIRED for any tool
+   * whose estimate is above zero — see `makeToolRouter`. A tool that costs
+   * money and names no capability cannot be admitted, because there would be
+   * nothing to reserve against.
+   */
+  readonly capability?: Capability;
+  /** The unit the ledger records. Required alongside `capability`. */
+  readonly spendUnit?: string;
+  /**
    * THE EXISTING AUTHORIZATION BOUNDARY, asked independently of OQCA's opinion.
    * Returns null to permit, or the reason it refuses. Section 9: OQCA selecting
    * an action is not authorization for it.
@@ -87,6 +97,12 @@ export type ToolCallRecord = {
 
 export type RouterContext = {
   readonly runId: string;
+  /**
+   * The service-role RPC the ledger admits and settles through. Absent in a
+   * shadow run and in every test that registers no paying tool — and a paying
+   * tool is then REFUSED rather than run unguarded.
+   */
+  readonly rpc?: ServiceRpc | null;
   readonly mode: RouterMode;
   readonly now: () => number;
   readonly record: (r: ToolCallRecord) => void;
@@ -124,6 +140,48 @@ export const ACTION_FAILED = "action_failed";
 export function outcomeClass(attempted: boolean, ok: boolean): string | null {
   if (!attempted) return ACTION_NOT_EXECUTED;
   return ok ? null : ACTION_FAILED;
+}
+
+/**
+ * Reserve, perform, settle — the ledger's own discipline, with the tool's
+ * `perform` as the callback so it cannot run before admission or skip
+ * settlement.
+ *
+ * `neverCalled` is deliberately NOT claimed. From here we cannot know whether a
+ * refused-but-attempted action reached anything, and `withProviderSpendGuard`'s
+ * own rule is that every ambiguity defaults to CHARGE.
+ */
+async function throughLedger(
+  ctx: RouterContext,
+  spec: ToolSpec,
+  call: ToolCall,
+  quote: SpendEstimate,
+): Promise<ToolOutcome> {
+  const guarded = await withProviderSpendGuard(
+    ctx.rpc ?? null,
+    {
+      requestId: `${ctx.runId}:${call.tool}`,
+      capability: spec.capability!,
+      model: call.tool,
+      unit: (spec.spendUnit ?? "provider_unit") as never,
+      unitsReserved: 1,
+      estimatedUsd: quote.costUsd,
+    } as never,
+    async () => {
+      const out = await spec.perform(call);
+      return { value: out, outcome: out.ok ? ("ACCEPTED" as const) : ("FAILED" as const) };
+    },
+  );
+  if (!guarded.admitted) {
+    return {
+      ok: false,
+      output: "",
+      observed: "nothing was attempted",
+      costUsd: 0,
+      reason: `the spend ledger refused: ${guarded.reason}`,
+    };
+  }
+  return { ...guarded.value, costUsd: guarded.actualUsd ?? guarded.reservedUsd };
 }
 
 export function makeToolRouter(tools: readonly ToolSpec[], ctx: RouterContext): ToolRouter {
@@ -207,9 +265,28 @@ export function makeToolRouter(tools: readonly ToolSpec[], ctx: RouterContext): 
         return refuse(reason);
       }
 
+      const quote = spec.estimate(call);
+      // A PAYING TOOL GOES THROUGH THE LEDGER OR IT DOES NOT RUN.
+      //
+      // This is the sentence section 5 asks for, made true in CODE rather than
+      // in a comment — and the first draft of this file had it only in the
+      // comment. `withProviderSpendGuard` is the ONLY path to a billable
+      // provider call in ONIQ: it reserves under a row lock, calls, and settles,
+      // and it refuses `unpriced-model` and `zero-estimate` by name. A second
+      // way to spend would be a second thing to keep in step with the caps the
+      // owner sets, which is exactly the drift this repo has a receipt for.
+      const pays = quote !== null && quote.costUsd > 0;
+      if (pays && (!spec.capability || !ctx.rpc)) {
+        const reason = !spec.capability
+          ? `${call.tool} costs money and names no ledger capability`
+          : `${call.tool} costs money and no ledger connection was supplied`;
+        note(false, false, "nothing was attempted", 0, reason);
+        return refuse(reason);
+      }
+
       let outcome: ToolOutcome;
       try {
-        outcome = await spec.perform(call);
+        outcome = pays ? await throughLedger(ctx, spec, call, quote!) : await spec.perform(call);
       } catch (e) {
         // ATTEMPTED AND THREW. The world may well have changed, so this is
         // `action_failed`, never `action_not_executed` — and `observed` says
