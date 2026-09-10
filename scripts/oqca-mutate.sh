@@ -269,4 +269,94 @@ PY
 report "M15 a kernel file opens a network call" "$(run src/oqca/__tests__/security.test.ts)"
 cp "$BAK" $F
 
+# ---------------------------------------------------------------------------
+# Mega Quantum Loop mutations. These attack the gates that stand between a
+# model-driven loop and the owner's money or a production write, so a GREEN
+# here is not a missing test — it is a hole in a system that can spend and act.
+# ---------------------------------------------------------------------------
+
+# M16: EVALUATE stops refusing an irreversible step with no rollback. Section 18
+# asks "Is the action reversible? What happens if it fails?" -- this is the one
+# gate that stands between IMAGINE naming a destructive action and ACT running it.
+F=src/oqca/loop/cognitiveLoop.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/loop/cognitiveLoop.ts'; s=open(p).read()
+old='          if (irreversible.length > 0 && !plan.rollback) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'          if (false && irreversible.length > 0 && !plan.rollback) {')
+open(p,'w').write(s)
+PY
+report "M16 EVALUATE lets an irreversible step through with no rollback" "$(run src/oqca/__tests__/cognitiveLoop.test.ts)"
+cp "$BAK" $F
+
+# M17: the model gate goes away, so a station spends with no budget check. The
+# health gateway's rule is that a receipt written after the provider ran cannot
+# refuse anything; the same is true of a bound checked after the call.
+cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/loop/cognitiveLoop.ts'; s=open(p).read()
+old='    const b = wouldBreach(spent, budgets, { tokens: maxOutputTokens });'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    const b = null as ReturnType<typeof wouldBreach>;')
+open(p,'w').write(s)
+PY
+report "M17 the model gate no longer checks the budget" "$(run src/oqca/__tests__/cognitiveLoop.test.ts)"
+cp "$BAK" $F
+
+# M18: OBSERVE trusts the tool's own `output` instead of the environment's
+# `observed`. Section 20: "Never assume the action succeeded... The environment
+# is the authority." A record-only router returns ok:true, so this mutation
+# turns every unperformed action into a success.
+cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/loop/cognitiveLoop.ts'; s=open(p).read()
+import re
+m = re.search(r'\n(\s*)const matched =\n(?:.*\n)*?.*test\(result\.observed\);\n', s)
+assert m, 'stale anchor'
+s = s[:m.start()] + '\n' + m.group(1) + 'const matched = result.ok;\n' + s[m.end():]
+open(p,'w').write(s)
+PY
+report "M18 OBSERVE trusts the tool instead of the environment" "$(run src/oqca/__tests__/cognitiveLoop.test.ts)"
+cp "$BAK" $F
+
+# M19: IMAGINE builds its futures from the MODEL'S TEXT rather than from the
+# world model's action list, so a model can name an action nobody offered it --
+# and PLAN will then select it and ACT will call the router with it.
+cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/loop/cognitiveLoop.ts'; s=open(p).read()
+old='          const futures: ImaginedFuture[] = actions.map((action, i) => {\n            const said = lines.find((l) => l.includes(action)) ?? "";'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'          const futures: ImaginedFuture[] = (lines.length ? lines : actions).map((said, i) => {\n            const action = said.split("|")[0]?.trim() || actions[0];')
+open(p,'w').write(s)
+PY
+report "M19 IMAGINE invents actions the world model never offered" "$(run src/oqca/__tests__/cognitiveLoop.test.ts)"
+cp "$BAK" $F
+
+# M20: the default tool budget comes off zero, so an unconfigured loop can act
+# on the world. This is the single number that decides whether a caller who
+# forgot to set a budget gets a loop that thinks or a loop that writes.
+F=src/oqca/loop/seams.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/loop/seams.ts'; s=open(p).read()
+old='  maxToolCalls: 0,\n  maxTokens: 0,\n  maxCostUsd: 0,'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  maxToolCalls: 25,\n  maxTokens: 100000,\n  maxCostUsd: 5,')
+open(p,'w').write(s)
+PY
+report "M20 the unconfigured loop may spend and act" "$(run src/oqca/__tests__/cognitiveLoop.test.ts)"
+cp "$BAK" $F
+
+# M21: a real network call inside the loop directory. The whole arrangement --
+# seams with refusing defaults, real implementations outside the kernel -- exists
+# so that this stays impossible while the loop drives a real model.
+F=src/oqca/loop/loopState.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/loop/loopState.ts'; s=open(p).read()
+s=s+'\nexport async function leak(u: string) {\n  return await fetch(u);\n}\n'
+open(p,'w').write(s)
+PY
+report "M21 a loop file opens a network call" "$(run src/oqca/__tests__/security.test.ts)"
+cp "$BAK" $F
+
 echo "done"

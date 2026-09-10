@@ -4841,3 +4841,106 @@ Numbers: 209 tests across 10 files in the module; whole suite 368 files / 6,409
 recorded); tsc, `lint:ci` and Prettier green; **15 mutations, every one RED,
 none NOTAPPLIED**. No migration, no edge function, no Lovable message, no
 credits, no publish, and `main` untouched.
+
+## Owner directive, 2026-09-10 — the Mega Quantum Loop is the target runtime; a real model, and full act including writes
+
+The owner supplied a 33-section architecture ("ONIQ AGI MEGA QUANTUM LOOP") with
+one framing sentence: _"This is the version I would give Claude as the target
+runtime architecture, rather than building another isolated quantum
+benchmark."_ Asked the two questions that gate everything, they answered:
+
+    next step   "Wire it to a real model now"
+    spend/act   "Full act, including writes" — APIs, code execution,
+                production changes
+
+**RECORDED AS AN OWNER DIRECTIVE AND AS A SPEND AUTHORIZATION.** Under this
+file's first rule, a loop that calls a model and writes to production is a
+provider-and-payment choice plus a user-visible one; it was asked, and it is
+answered. **Section 28's self-improvement loop stays behind a separate gate** —
+the option the owner chose carried that caveat in its own text, so ONIQ still
+may not silently modify its own production cognition.
+
+**THE MEASUREMENT THAT SHAPED THE ANSWER, taken before anything was written.**
+Against the 23 stations: 14 existed in some form, 9 did not — UNDERSTAND, LOAD
+MEMORY, BUILD WORLD STATE, VERIFY, IMAGINE, PLAN, EVALUATE, REFLECT, RESPOND.
+Section 3's `CognitiveState` listed 22 fields, of which 9 existed. Section 32
+asked for seven bounds and four existed. **The three missing bounds were the
+spending ones**, which is why the skeleton was free and the cognition was not.
+One row of the map was exact rather than approximate: section 12's
+`importance × uncertainty × dependency × expectedInformationGain` is already
+`knowledge/gaps.ts:140`, character for character.
+
+**THE KERNEL STAYS PURE AND THAT IS WHAT MAKES THE REST SAFE.** The engine, the
+tool router, the clock and the memory store are ARGUMENTS with refusing
+defaults — the shape `actuator` already had in v1.1 — so the real
+implementations live outside `src/oqca/` and `security.test.ts` still walks the
+whole tree and still finds no fetch, no credential and no clock. That is the
+only arrangement in which "the loop may write to production" and "the kernel
+provably cannot reach anything" are both true, and mutation M21 proves it by
+putting a real `fetch` in a loop file and watching the guard go red.
+
+**TWO STATIONS SHARE A NAME WITH A CATEGORY-C OPERATION AND ARE NOT IT**, which
+is the first thing that would have been got wrong. Station 07 RELATIONAL
+BINDING is a graph over the world model — performable — and is NOT
+`cognitive.entangle`, which is category C because nothing here factors a basis
+into subsystems. Station 19 CORRECT is a diagnosis over the outcome record —
+performable — and is NOT quantum error correction, which is category C because
+there is no code space. Reading the shared name as a shared refusal would have
+crippled two working stations; reading it the other way would have claimed two
+physical operations ONIQ does not have. The loop imports neither function and a
+test reads the import list to prove it.
+
+**SEVEN DEFECTS, FOUR OF THEM FOUND BY THE TESTS RATHER THAN BY READING:**
+
+- **A capability bound was halting the whole run.** With `maxToolCalls: 0` —
+  the correct default for a loop that may not act — a single top-of-station
+  check stopped the loop at station 1, so an unconfigured loop could not even
+  PERCEIVE. Bounds are two kinds now: a bound on the RUN (transitions, time) is
+  fatal; a bound on a CAPABILITY refuses that capability at its own gate and
+  lets every station that does not need it carry on.
+- **The model gate reported a TOOL bound.** `wouldBreach` called `breach`
+  first, which checks every bound in a fixed order, so a model call under a
+  zero tool budget was refused with `max_tool_calls`. **A gate that names the
+  wrong bound sends whoever reads the log to raise the wrong number — and the
+  number they would have raised is the one governing writes to production.**
+- **`maxCostUsd: 0` did not block a call.** The gate compared
+  `spent + (estimate ?? 0) > max`, and a caller with no price estimate passed
+  a budget of zero — the one number that unambiguously means "no money". Any
+  attempted spend now requires headroom to exist. The stated limit, written
+  down rather than discovered from a bill: with no price table a call can
+  overshoot by at most ONE call (`COST_OVERSHOOT_CALLS`).
+- **`maxExecutionTimeMs: 0` failed DEAD, not closed.** Time is a runaway guard,
+  not a spend — the first draft of this file called all three added bounds
+  "money bounds" and that was wrong. A default nobody can run is a default
+  somebody raises wholesale, taking the two real money bounds with it. Time
+  carries a modest ceiling; only tokens, cost and tool calls start at refuse.
+- `UPDATE_STATE` **fabricated a likelihood vector** from the mere presence of a
+  percept. Caught because lint reported `phase` and `interfere` unused — the
+  station was doing the OQCA half of its job by inventing the input to it.
+  Evidence and context now come from the caller (`IterationEvidence`), because
+  v1.1 measured that a phase invented here is a fact about argument order.
+- A **module-level mutable** carried results from ACT to OBSERVE, which two
+  concurrent runs would have shared. A cross-run data leak no single-run test
+  could ever see.
+- `measure()` takes the **v1.0 `state.ts` CognitiveState**, a different type
+  with the same name as the v1.1 one. Caught by tsc.
+
+**THE REFUSALS ARE THE SUBJECT OF THE TEST FILE**, deliberately: a loop that can
+spend and write is only as safe as its gates, so a suite proving the happy path
+would be proving the least important half. Six new mutations, all RED — EVALUATE
+letting an irreversible step through with no rollback; the model gate losing its
+budget check; OBSERVE trusting the tool's own `output` instead of the
+environment's `observed`; IMAGINE inventing an action the world model never
+offered; the unconfigured defaults coming off zero; and a real `fetch` in the
+loop tree. 21 mutations total, none GREEN, none NOTAPPLIED.
+
+**WHAT IS BUILT AND WHAT IS NOT, stated as the first sentence rather than the
+last** (2026-09-09's lesson: COMMITTED is a state, and it is not shipped):
+built and committed are the 23 stations, the section 3 state record, the seven
+bounds and the four seams. **NOT built: the real engine, the real tool router,
+the section 19 audit record, the `_shared` mirror, and any caller at all.**
+Nothing is deployed, published, or merged to `main`, and with the shipped
+defaults the loop runs every station, reasons about nothing, acts on nothing,
+and ends `budget_exhausted` naming the bound. **The loop has no caller, which
+is this repo's most-recorded mistake at larger scale — the next step is the
+engine and one real job, not more stations.**
