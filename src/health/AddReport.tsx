@@ -14,6 +14,8 @@ import {
   DOCUMENT_MIMES,
   MAX_DOCUMENT_BYTES,
   sniffDocumentMime,
+  MIME_HEAD_BYTES,
+  isTextReadableMime,
   type DocumentMime,
 } from "@/health/domain";
 import { fill } from "@/health/i18n";
@@ -45,10 +47,11 @@ import { reasonText, HEALTH_AI_LABEL } from "@/health/labels";
  * `uploadToSignedUrl`, which streams the Blob; `documents.confirm` checks the
  * object arrived at the declared size.
  *
- * THE FILE IS NEVER READ WHOLE. Only a 12-byte head is pulled through a
- * stream reader to check the magic bytes against the declared type — the
+ * THE FILE IS NEVER READ WHOLE. Only a bounded head (`MIME_HEAD_BYTES`) is
+ * pulled through a stream reader to identify the file by its magic bytes — the
  * `megaLoopGuardrails` shape, and `routes.test.ts` bans whole-file reads on
- * this path.
+ * this path. That head grew from 12 bytes to 132 when DICOM arrived, because
+ * DICOM's magic is at byte 128 rather than at the start.
  *
  * This is an AI surface: it carries HEALTH_AI_LABEL ("AI-assisted", owner
  * directive B12) and <AiOutputReport />, and is declared in playCompliance.ts
@@ -112,7 +115,7 @@ export async function readStoredDocument(
 /** Everything ONIQ can read values out of arrives as one of these; the kind is metadata. */
 const DEFAULT_KIND = "lab_report";
 
-async function headBytes(file: Blob, n = 12): Promise<Uint8Array> {
+async function headBytes(file: Blob, n = MIME_HEAD_BYTES): Promise<Uint8Array> {
   const reader = file.stream().getReader();
   const bytes: number[] = [];
   try {
@@ -161,7 +164,7 @@ export function HealthAddReport({ showTimelineLink = true }: { showTimelineLink?
     HEALTH_AI_ENABLED && (status.data?.ok ? status.data.data.aiAvailable === true : false);
 
   const badFile = () =>
-    setError(t("health.records.badfile", "Only PDF, JPEG, PNG or WebP, under 10 MB."));
+    setError(t("health.records.badfile", "Only PDF, JPEG, PNG, WebP or DICOM, under 10 MB."));
 
   /**
    * THE ONE ACTION. Validate, upload, and — when the AI is available — read
@@ -174,20 +177,47 @@ export function HealthAddReport({ showTimelineLink = true }: { showTimelineLink?
     setNote(null);
     setNothingFiled(null);
     setConsentNeeded(false);
-    const declared = file.type as DocumentMime;
-    if (!(DOCUMENT_MIMES as readonly string[]).includes(declared)) return badFile();
     if (file.size <= 0 || file.size > MAX_DOCUMENT_BYTES) return badFile();
+
+    // THE MAGIC BYTES ARE THE AUTHORITY, NOT THE BROWSER'S GUESS — and DICOM
+    // is what forced the inversion. There is no registered media type for a
+    // `.dcm` on most desktops, so `file.type` comes back "" or
+    // "application/octet-stream" for every DICOM anyone will ever pick;
+    // requiring it to name the type would have refused all of them, and the
+    // failure would have looked like "ONIQ does not support X-rays".
+    //
+    // Reading the sniff first is also the safer rule on its own terms: what
+    // gets stored, and the contentType it is stored under, now follow what the
+    // file IS rather than what its name suggests. The browser's opinion is
+    // still used when it HAS one — a file named .png whose bytes are a PDF is
+    // refused exactly as before.
     const sniffed = sniffDocumentMime(await headBytes(file));
-    if (sniffed !== declared) return badFile();
+    if (!sniffed) return badFile();
+    const declared = file.type as DocumentMime;
+    if (
+      declared &&
+      (DOCUMENT_MIMES as readonly string[]).includes(declared) &&
+      declared !== sniffed
+    ) {
+      return badFile();
+    }
+    const mime = sniffed;
+    // A DICOM is an image study, not a lab report, and its own header says so
+    // far better than a filename does: `documents.confirm` parses it on the
+    // server and retitles the row "X-ray chest (2026-09-01)", because what a
+    // hospital writes on the file is "IM-0001-0001.dcm". The kind is set here
+    // so the row is right even when that parse fails — a scan ONIQ cannot
+    // render is still stored, still downloadable, and still an imaging report.
+    const kind = mime === "application/dicom" ? "imaging_report" : DEFAULT_KIND;
 
     setBusy("uploading");
     let documentId: string | null = null;
     try {
       const reg = await healthApi<RegisteredUpload>("documents.register", {
         document: {
-          kind: DEFAULT_KIND,
+          kind,
           title: file.name.slice(0, 120),
-          mime: declared,
+          mime,
           sizeBytes: file.size,
         },
       });
@@ -197,7 +227,7 @@ export function HealthAddReport({ showTimelineLink = true }: { showTimelineLink?
       }
       const up = await supabase.storage
         .from(reg.data.bucket)
-        .uploadToSignedUrl(reg.data.path, reg.data.token, file, { contentType: declared });
+        .uploadToSignedUrl(reg.data.path, reg.data.token, file, { contentType: mime });
       if (up.error) throw new Error(t("health.error.generic", "Something went wrong. Try again."));
       const confirmed = await healthApi<{ id: string }>("documents.confirm", { id: reg.data.id });
       if (!confirmed.ok) throw new Error(reasonText(t, confirmed));
@@ -209,7 +239,11 @@ export function HealthAddReport({ showTimelineLink = true }: { showTimelineLink?
       return;
     }
 
-    if (!aiAvailable) {
+    // A DICOM never goes to the text pipeline (domain.ts, TEXT_READABLE_MIMES):
+    // the text burned into a radiograph is the patient's name and the accession
+    // number, which is precisely what dicom.ts refuses to read. It is stored,
+    // its header is read on the server, and the Documents screen renders it.
+    if (!aiAvailable || !isTextReadableMime(mime)) {
       toast.success(t("health.records.uploaded", "Stored."));
       setBusy(null);
       if (inputRef.current) inputRef.current.value = "";
@@ -246,7 +280,10 @@ export function HealthAddReport({ showTimelineLink = true }: { showTimelineLink?
           <input
             ref={inputRef}
             type="file"
-            accept={DOCUMENT_MIMES.join(",")}
+            // The extension is needed ALONGSIDE the media types: a browser
+            // that has no registered type for .dcm matches nothing without it,
+            // so the picker would grey out every DICOM on the device.
+            accept={`${DOCUMENT_MIMES.join(",")},.dcm`}
             className="text-sm"
             disabled={busy !== null}
             data-testid="health-doc-input"

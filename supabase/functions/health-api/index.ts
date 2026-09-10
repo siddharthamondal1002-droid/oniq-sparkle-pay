@@ -27,6 +27,7 @@ import {
   DATA_CATEGORIES,
   EXT_FOR_MIME,
   isGrantable,
+  MAX_TITLE_CHARS,
   validateDocumentInput,
   validateRecordInput,
   type AuditAction,
@@ -34,6 +35,8 @@ import {
   type ConsentPurpose,
   type DataCategory,
 } from "../_shared/health/domain.ts";
+import { parseDicom, describeDicomHeader } from "../_shared/health/dicom.ts";
+import { renderDicom, imageToBase64 } from "../_shared/health/dicomRender.ts";
 import {
   AI_TASKS,
   RECIPIENT_FOR_PROVIDER,
@@ -752,7 +755,7 @@ async function actDocumentsConfirm(ctx: Ctx, body: Record<string, unknown>): Pro
   if (!UUID_RE.test(id)) return refuse(ctx, { status: 400, reason: "bad_input" });
   const { data: row } = await ctx.admin
     .from("health_documents")
-    .select("id, storage_path, size_bytes, kind")
+    .select("id, storage_path, size_bytes, kind, mime")
     .eq("id", id)
     .eq("user_id", ctx.userId)
     .eq("status", "pending_upload")
@@ -780,14 +783,41 @@ async function actDocumentsConfirm(ctx: Ctx, body: Record<string, unknown>): Pro
     });
     return refuse(ctx, { status: 400, reason: "bad_input", extra: { detail: "size_mismatch" } });
   }
-  await ctx.admin
-    .from("health_documents")
-    .update({ status: "stored" })
-    .eq("id", id)
-    .eq("user_id", ctx.userId);
+  // A DICOM GETS ITS TITLE FROM ITS OWN HEADER, because the filename a
+  // hospital writes is "IM-0001-0001.dcm" and a list of those is a list of
+  // nothing. `describeDicomHeader` names the modality, the body part and the
+  // study date — what the FILE is, never what is in the picture — and it is
+  // bounded there, since those strings come from the file and nothing in the
+  // format limits their length.
+  //
+  // IT NEVER REFUSES ON A PARSE FAILURE. A scan ONIQ cannot render is still
+  // the person's scan: it stays stored and downloadable under its filename,
+  // and the viewer says which format it could not open when they ask. Losing
+  // the file because ONIQ could not name it would be the wrong trade.
+  const patch: Record<string, unknown> = { status: "stored" };
+  let titled = false;
+  if (row.mime === "application/dicom") {
+    const file = await ctx.admin.storage.from(BUCKET).download(row.storage_path);
+    if (file.data) {
+      const parsed = parseDicom(new Uint8Array(await file.data.arrayBuffer()));
+      if (parsed.ok) {
+        const summary = describeDicomHeader(parsed.header).slice(0, MAX_TITLE_CHARS);
+        if (summary) {
+          patch.title = summary;
+          titled = true;
+        }
+      }
+    }
+  }
+  await ctx.admin.from("health_documents").update(patch).eq("id", id).eq("user_id", ctx.userId);
   await audit(ctx, "documents.confirm", "document", "ok", {
     objectId: id,
-    detail: { documentKind: row.kind, sizeBytes: Number(row.size_bytes) },
+    detail: {
+      documentKind: row.kind,
+      sizeBytes: Number(row.size_bytes),
+      // A closed name for how the row was titled, never the title itself.
+      ...(titled ? { readMethod: "dicom_header" } : {}),
+    },
   });
   return ok(ctx, { id, status: "stored" });
 }
@@ -813,6 +843,106 @@ async function actDocumentsUrl(ctx: Ctx, body: Record<string, unknown>): Promise
     detail: { documentKind: row.kind },
   });
   return ok(ctx, { url: signed.data.signedUrl, expiresIn: SIGNED_READ_SECONDS });
+}
+
+/**
+ * RENDER A STORED DICOM SO A PHONE CAN SHOW IT. Owner directive 2026-09-10,
+ * "B and C" — this is B, and it interprets nothing: it re-encodes pixels and
+ * reads a header, and states no finding about either.
+ *
+ * ON DEMAND, NOT AT UPLOAD, and that choice removes three problems rather than
+ * trading them. A stored preview would be a SECOND object in the bucket that
+ * `documents.delete` and the account purge would both have to learn about —
+ * and the day one of them forgot, a deleted scan would still exist. Rendering
+ * here means the only bytes of anyone's scan in that bucket are the ones they
+ * uploaded, so the existing deletion story covers everything by construction.
+ *
+ * The cost is CPU per view, which is the right way round: a medical record is
+ * opened rarely and deleted once, and correctness on the delete is worth more
+ * than milliseconds on the read.
+ *
+ * DICOM ONLY. Every other document mime is already something a browser
+ * renders, and `documents.url` hands back a signed link to it. Answering here
+ * for a PDF would be a second way to fetch a document with different audit
+ * wording, which is how two paths drift.
+ */
+async function actDocumentsPreview(ctx: Ctx, body: Record<string, unknown>): Promise<Response> {
+  const id = String(body.id ?? "");
+  if (!UUID_RE.test(id)) return refuse(ctx, { status: 400, reason: "bad_input" });
+  const { data: row } = await ctx.admin
+    .from("health_documents")
+    // THE OWNERSHIP FILTER IS THE WHOLE AUTHORIZATION: this runs on the
+    // service-role client, which bypasses RLS. "Not yours" and "not there"
+    // return the same 404 so the endpoint cannot be used to probe ids.
+    .select("id, storage_path, kind, mime")
+    .eq("id", id)
+    .eq("user_id", ctx.userId)
+    .in("status", ["stored", "processing", "ready"])
+    .maybeSingle();
+  if (!row?.storage_path) return refuse(ctx, { status: 404, reason: "not_found" });
+  if (row.mime !== "application/dicom") {
+    return refuse(ctx, { status: 400, reason: "bad_input", extra: { detail: "not_dicom" } });
+  }
+
+  const file = await ctx.admin.storage.from(BUCKET).download(row.storage_path);
+  if (file.error || !file.data) return refuse(ctx, { status: 404, reason: "not_found" });
+  const bytes = new Uint8Array(await file.data.arrayBuffer());
+
+  const parsed = parseDicom(bytes);
+  if (!parsed.ok) {
+    await audit(ctx, "documents.read", "document", "refused", {
+      objectId: id,
+      // The REASON and the transfer syntax's NAME, never a byte of the file.
+      // "We cannot read this scan" with nothing after it is what gets a file
+      // re-uploaded five times.
+      detail: { documentKind: row.kind, reason: parsed.reason, format: parsed.detail ?? null },
+    });
+    return refuse(ctx, {
+      status: 422,
+      reason: "bad_input",
+      extra: { detail: parsed.reason, format: parsed.detail ?? null },
+    });
+  }
+
+  const rendered = await renderDicom(bytes, parsed.header);
+  if (!rendered.ok) {
+    await audit(ctx, "documents.read", "document", "refused", {
+      objectId: id,
+      detail: { documentKind: row.kind, reason: rendered.reason, format: rendered.detail ?? null },
+    });
+    return refuse(ctx, {
+      status: 422,
+      reason: "bad_input",
+      extra: { detail: rendered.reason, format: rendered.detail ?? null },
+    });
+  }
+
+  await audit(ctx, "documents.read", "document", "ok", {
+    objectId: id,
+    detail: { documentKind: row.kind, mime: row.mime },
+  });
+  const h = parsed.header;
+  return ok(ctx, {
+    // A data URL, so the client renders it with no second fetch and no second
+    // signed link to leak.
+    image: `data:${rendered.image.mime};base64,${imageToBase64(rendered.image.bytes)}`,
+    method: rendered.method,
+    width: rendered.width,
+    height: rendered.height,
+    downscaledFrom: rendered.downscaledFrom,
+    // WHAT THE FILE SAYS ABOUT ITSELF, and nothing about what is IN the image.
+    // dicom.ts reads no patient name, id, birth date, accession number or
+    // referring physician — see READ_TAGS — so there is nothing here to leak.
+    study: {
+      modality: h.modality,
+      modalityLabel: h.modalityLabel,
+      bodyPart: h.bodyPart,
+      studyDate: h.studyDate,
+      description: h.description,
+      frames: h.frames,
+      summary: describeDicomHeader(h),
+    },
+  });
 }
 
 async function actDocumentsDelete(ctx: Ctx, body: Record<string, unknown>): Promise<Response> {
@@ -1105,6 +1235,7 @@ const ACTIONS: Record<string, Handler> = {
   "documents.register": actDocumentsRegister,
   "documents.confirm": actDocumentsConfirm,
   "documents.url": actDocumentsUrl,
+  "documents.preview": actDocumentsPreview,
   "documents.delete": actDocumentsDelete,
   "consents.list": (ctx) => actConsentsList(ctx),
   "consents.grant": actConsentsGrant,

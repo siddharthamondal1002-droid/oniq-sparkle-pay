@@ -70,6 +70,21 @@ export const DESCRIBE_MARKERS = [
   "health-doc-description",
   "health-doc-describe-note",
 ];
+/**
+ * THE SCAN VIEWER (owner directive 2026-09-10, "B and C"; this is B). It lives
+ * on the RECORDS chunk — `ScanPreview.tsx` is imported by that one route, so
+ * Rolldown keeps it there rather than in the shared AddReport chunk that the
+ * describe markers went to. Measured from a local build before this line was
+ * written: all three appear in app.health.records-*.js and in NO other chunk,
+ * so greping AddReport-*.js for them would report ABSENT on a healthy deploy —
+ * the Episode 4 false negative, and the 2026-09-09 AddReport split, again.
+ *
+ * `health-scan-not-read` is the load-bearing one: it is the line that says
+ * ONIQ has shown the image and not read it. Every other marker here can be
+ * argued about; that sentence going missing while the viewer stays is the
+ * failure this feature must not have.
+ */
+export const SCAN_MARKERS = ["health-scan-view", "health-scan-image", "health-scan-not-read"];
 export const ROUTE_MARKERS = [
   "health-ai-admin-kill",
   "health-ai-admin-unkill",
@@ -117,7 +132,7 @@ export function check(chunks: Record<string, string>): Verdict[] {
     out.push({ ok: false, line: `records chunk app.health.records-*.js  ABSENT` });
   }
   for (const name of recordsChunks) {
-    for (const m of ANALYSE_MARKERS) {
+    for (const m of [...ANALYSE_MARKERS, ...SCAN_MARKERS]) {
       const c = count(chunks[name], m);
       out.push({ ok: c >= 1, line: `${m.padEnd(28)} ${name}  ${c}` });
     }

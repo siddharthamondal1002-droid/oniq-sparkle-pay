@@ -125,7 +125,12 @@ describe("add a report", () => {
     // points at the helper and orders before everything. What must come after
     // the confirm and the gate is the CALL.
     const confirm = src.indexOf('"documents.confirm"');
-    const gate = src.indexOf("if (!aiAvailable)");
+    // The gate grew a second clause when DICOM arrived (owner directive
+    // 2026-09-10): a scan is stored and rendered but never sent to the text
+    // pipeline, so the read is skipped for it. Match the opening of the
+    // condition rather than its full text, so adding a THIRD reason to skip
+    // does not silently stop this test from finding the gate at all.
+    const gate = src.indexOf("if (!aiAvailable");
     const read = src.indexOf("await readStoredDocument(documentId, t)");
     expect(confirm).toBeGreaterThan(-1);
     expect(read).toBeGreaterThan(-1);

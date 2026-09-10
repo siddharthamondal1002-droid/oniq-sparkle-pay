@@ -20,6 +20,7 @@ import {
   ADD_REPORT_CHUNK,
   RECORDS_MARKERS,
   ANALYSE_MARKERS,
+  SCAN_MARKERS,
   DESCRIBE_MARKERS,
   check,
 } from "../../../scripts/health-bundle-markers";
@@ -141,6 +142,8 @@ describe("health-production-check.sql", () => {
       // describe_document cap and the two widened receipt CHECKs, applied from
       // here through the Lovable database connection and recorded in history.
       "20260910120000",
+      // DICOM as a document mime (owner directive 2026-09-10, "B and C").
+      "20260910160000",
     ]);
     for (const v of versions) {
       expect(
@@ -277,6 +280,22 @@ describe("health-bundle-markers.ts", () => {
     for (const m of ANALYSE_MARKERS) expect(shared, m).not.toContain(m);
   });
 
+  it("every scan marker is a testid the Records screen itself renders", () => {
+    // Owner directive 2026-09-10, "B and C". The viewer is imported by this
+    // ONE route, so Rolldown leaves it in the records chunk rather than the
+    // shared AddReport one the describe markers went to — measured from a
+    // local build before the list was written. Both attribute spellings,
+    // because `health-scan-image` is an OniqCard's `testId` and a
+    // data-testid-only match would miss the card that holds the image.
+    const screen = read("src/routes/_authenticated/app.health.records.tsx");
+    expect(screen).toContain("<HealthScanPreview");
+    const viewer = read("src/health/ScanPreview.tsx");
+    const ids = [...viewer.matchAll(/(?:data-testid|testId)="([^"]+)"/g)].map((m) => m[1]);
+    for (const m of SCAN_MARKERS) expect(ids, m).toContain(m);
+    const shared = read("src/health/AddReport.tsx");
+    for (const m of SCAN_MARKERS) expect(shared, m).not.toContain(m);
+  });
+
   it("looks for them in the chunk named after the route file, never the entry", () => {
     expect(ROUTE_CHUNK.test("app.admin_.health-ai-C3CCfxGu.js")).toBe(true);
     expect(ROUTE_CHUNK.test("app.admin.health-ai-C3CCfxGu.js")).toBe(false); // the nested build that never rendered
@@ -300,7 +319,7 @@ describe("health-bundle-markers.ts check()", () => {
     "app.admin_.health-ai-BBBB.js": ROUTE_MARKERS.join(" "),
     // The records chunk still ships; the PICKER's markers moved to the shared
     // component chunk both health routes import.
-    "app.health.records-DDDD.js": `the document list ${ANALYSE_MARKERS.join(" ")}`,
+    "app.health.records-DDDD.js": `the document list ${ANALYSE_MARKERS.join(" ")} ${SCAN_MARKERS.join(" ")}`,
     "AddReport-EEEE.js": [...RECORDS_MARKERS, ...DESCRIBE_MARKERS].join(" "),
     "privacy-CCCC.js": `x ${PRIVACY_SENTENCES.join(" ")} y`,
   };
@@ -320,6 +339,30 @@ describe("health-bundle-markers.ts check()", () => {
 
   it("fails an add-report chunk with no way to read a scan report — the 2026-09-10 control", () => {
     expect(pass({ ...good, "AddReport-EEEE.js": RECORDS_MARKERS.join(" ") })).toBe(false);
+  });
+
+  it("fails a records chunk with no scan viewer — the 2026-09-10 B control", () => {
+    // The exact shape the 2026-09-09 lesson warns about: every OTHER marker
+    // green, the records chunk present, and the one control this feature adds
+    // simply not in it.
+    expect(
+      pass({
+        ...good,
+        "app.health.records-DDDD.js": `the document list ${ANALYSE_MARKERS.join(" ")}`,
+      }),
+    ).toBe(false);
+  });
+
+  it("fails a records chunk that dropped only the not-read line", () => {
+    // The viewer shipping WITHOUT the sentence saying nothing has checked the
+    // image is worse than the viewer not shipping at all.
+    const partial = SCAN_MARKERS.filter((m) => m !== "health-scan-not-read");
+    expect(
+      pass({
+        ...good,
+        "app.health.records-DDDD.js": `${ANALYSE_MARKERS.join(" ")} ${partial.join(" ")}`,
+      }),
+    ).toBe(false);
   });
 
   it("fails when the records chunk is absent — the documents screen left the build", () => {

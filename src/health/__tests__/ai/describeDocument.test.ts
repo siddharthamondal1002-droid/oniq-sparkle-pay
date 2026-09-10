@@ -456,12 +456,22 @@ describe("the migration that lets the task run at all", () => {
     expect(MIGRATION).toContain("not (ai_daily_caps ? 'describe_document')");
   });
 
-  it("is the LATEST default, so the production check expects it", () => {
-    const dir = join(ROOT, "supabase", "migrations");
-    const files = readdirSync(dir)
-      .filter((f) => /oniq_health/.test(f))
-      .sort();
-    expect(files.at(-1)).toBe("20260910120000_oniq_health_describe_document_cap.sql");
+  it("the production check expects this migration's version", () => {
+    // This asserted "is the LATEST health migration" and named itself, which
+    // goes red on the next health migration for no reason — as the DICOM one
+    // (2026-09-10, "B and C") promptly did. The invariant it was reaching for
+    // is that the production check knows this version, so that is what it
+    // says now.
+    //
+    // NOT "every migration file's version": Phase 1 and Phase 2 are recorded
+    // on production under LOVABLE's UUID-named copies, so their hand-named
+    // versions are deliberately absent from the check. Widening this to every
+    // file would go red on two migrations that are correctly applied.
+    const check = readFileSync(join(ROOT, "scripts", "health-production-check.sql"), "utf8");
+    expect(check).toContain("('20260910120000')");
+    expect(readdirSync(join(ROOT, "supabase", "migrations"))).toContain(
+      "20260910120000_oniq_health_describe_document_cap.sql",
+    );
   });
 });
 

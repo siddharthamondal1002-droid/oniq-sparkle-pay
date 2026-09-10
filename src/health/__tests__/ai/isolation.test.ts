@@ -77,6 +77,17 @@ const SHARED_SIBLINGS = [
   "adapter",
   "audit",
   "consent",
+  // THIS LIST MIRRORS THE DIRECTORY, and the test below asserts that exactly
+  // — so a new shared module is a deliberate edit here rather than a silent
+  // widening. It is not a curated subset: dropping these two to "keep the
+  // allowlist tight" was tried on 2026-09-10 and fails that assertion.
+  //
+  // Being reachable is not the same as being reached. Nothing under ai/
+  // imports either of these, and `scanPreview.test.ts` asserts that
+  // separately: a DICOM never enters the AI pipeline, which is the whole of
+  // owner directive 2026-09-10's B half.
+  "dicom",
+  "dicomRender",
   "domain",
   "flagNames",
   "flags",

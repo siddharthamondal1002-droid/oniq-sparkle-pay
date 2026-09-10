@@ -176,6 +176,76 @@ answers `task_not_allowed`, which is a refusal, not a spend.
 No row change is needed: `enabled`, `ai_enabled` and `uploads_enabled` are
 already true, and the migration supplies the only new configuration.
 
+## A-6. The go sequence for DICOM in — B of "B and C" (owner directive 2026-09-10)
+
+Asked what ONIQ needs so Health AI can also read an X-ray or a CT scan, the
+owner was offered three shapes and answered **"B and C"**. This is B: ONIQ
+takes the file a hospital actually hands over — a DICOM — parses its header,
+renders its pixels and files it, and **interprets nothing**. C (a model that
+says what is IN the image) is a separate provider, a separate flag, a standing
+monthly bill and a medical-device question for counsel; it is `A-7`, unbuilt.
+
+**THE ORDER IS FORCED, and this time it is the DATABASE that goes first.**
+`health_documents.mime` is a closed CHECK, so a client that can pick a `.dcm`
+before the CHECK admits it registers a row Postgres refuses — which reaches
+the person as "something went wrong" AFTER they have chosen their file. The
+function deploy is second (`documents.preview` is a new action, and an old
+deployed function answers `bad_input` to it, which is a refusal, not a spend).
+The publish is last.
+
+1. **Code** — `_shared/health/dicom.ts` (parser: 4 supported transfer
+   syntaxes, 10 named-unsupported, 18 READ_TAGS carrying **no patient
+   identifier**), `_shared/health/dicomRender.ts` (JPEG passthrough or a
+   windowed 8-bit PNG, downscaled to 1600px, zero dependencies), the
+   `documents.preview` action, `documents.confirm` titling a scan from its own
+   header, `src/health/ScanPreview.tsx`, the mime plumbing
+   (`DOCUMENT_MIMES` += `application/dicom`, the new `TEXT_READABLE_MIMES`,
+   `sniffDocumentMime` checking DICOM FIRST), the i18n, `dicom.test.ts` (30),
+   `scanPreview.test.ts` (19) and `scripts/health-mutate-dicom.sh` (17
+   mutations, all RED).
+2. **Migration** — `20260910160000_oniq_health_dicom_mime.sql`: drop and add
+   `health_documents_mime_check` with `application/dicom` in the list. Applied
+   from here through the Lovable database connection, the two statements
+   adjacent and read between (a drop that lands while the add has not leaves
+   the table with NO mime check at all), then recorded in
+   `supabase_migrations.schema_migrations`.
+3. **Functions** — ONE Lovable message naming the STATE (never a commit sha):
+   deploy `health-api` only — `health-ai` is untouched by B, because a DICOM
+   never reaches the AI pipeline — with a self-check the agent runs itself
+   (`grep -c parseDicom supabase/functions/health-api/index.ts`, expect 2).
+4. **Publish** — `deploy_project` after the sha check. The served
+   `app.health.records-*.js` must carry `health-scan-view`,
+   `health-scan-image` and `health-scan-not-read`. Learned from a local build
+   first: `ScanPreview.tsx` is imported by that ONE route, so Rolldown leaves
+   it in the records chunk rather than the shared `AddReport-*.js` the
+   describe markers went to. `scripts/health-bundle-markers.ts --url`.
+5. **Prove** — a throwaway account: register a synthetic single-frame DICOM,
+   `documents.confirm` retitles the row from the header, `documents.preview`
+   → 200 with a PNG and a study line; a PDF → `bad_input not_dicom`; a JPEG
+   2000 file → 422 naming "JPEG 2000 Lossless"; another account's document →
+   404; delete the account. Production check zero rows.
+
+**NO ROW CHANGE AND NO SPEND.** Nothing in B calls a model, so no cap, no
+consent purpose and no provider moves. `uploads_enabled` is already true and
+is the only flag involved.
+
+**WHAT IS DELIBERATELY GIVEN UP**, so it is a decision rather than a
+discovery:
+
+- **One instance, not a study.** A CD from a hospital is hundreds of files and
+  often 200 MB+; `MAX_DOCUMENT_BYTES` stays 10 MiB. A single radiograph fits
+  comfortably; a CT series does not and is not meant to.
+- **Four transfer syntaxes.** Implicit and explicit VR little endian (raw
+  pixels), and JPEG Baseline/Extended (handed back untouched). JPEG 2000 — the
+  common lossless choice for CT and MR — is **named and refused**, because
+  decoding it needs a codec and the health tree admits exactly one npm
+  specifier. A refusal that names the format is worth more than a wrong
+  picture; if real scans turn out to be mostly JPEG 2000, that is the argument
+  for adding the dependency, and it should be made on real files.
+- **No windowing controls.** The file's own window is used when it carries
+  one, otherwise the data range. A radiologist changes window for a living;
+  ONIQ shows one rendering and hands back the original bytes on Download.
+
 ## B. Paid Google surfaces (each is a provider-and-money choice)
 
 | #   | Decision                                                                                 | Recommendation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Monthly cost at 10K / 100K users (see the cost model) |

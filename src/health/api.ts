@@ -30,6 +30,7 @@ export type HealthAction =
   | "documents.register"
   | "documents.confirm"
   | "documents.url"
+  | "documents.preview"
   | "documents.delete"
   | "consents.list"
   | "consents.grant"
@@ -46,6 +47,17 @@ export type HealthErr = {
   message: string;
   purpose?: string;
   category?: string;
+  /**
+   * A refusal's own words, when the server has any beyond the reason code.
+   * `documents.preview` sends the transfer syntax's NAME for a scan it cannot
+   * decode ("JPEG 2000 Lossless"), because "unsupported" with nothing after it
+   * is what gets the same file uploaded five times. These MUST be read back
+   * here: `refuse()` puts them at the top level of the body beside `reason`,
+   * so dropping them would leave the diagnostic dead with nothing to say —
+   * exactly the `http 404` failure recorded in CLAUDE.md, 2026-09-07.
+   */
+  detail?: string;
+  format?: string;
   requestId: string | null;
 };
 export type HealthResult<T> = HealthOk<T> | HealthErr;
@@ -168,6 +180,8 @@ export async function healthApi<T = unknown>(
       message: safeMessage(reason),
       purpose: str(body.purpose),
       category: str(body.category),
+      detail: str(body.detail),
+      format: str(body.format),
       requestId: str(body.requestId) ?? null,
     };
   }
@@ -180,6 +194,8 @@ export async function healthApi<T = unknown>(
       message: safeMessage(reason),
       purpose: str(d.purpose),
       category: str(d.category),
+      detail: str(d.detail),
+      format: str(d.format),
       requestId: str(d.requestId) ?? null,
     };
   }

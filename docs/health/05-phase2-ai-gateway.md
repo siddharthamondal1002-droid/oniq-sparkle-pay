@@ -887,3 +887,150 @@ deliberately: `describe` closes over the language too, and re-running on a
 language change would bill a re-read of a report already described. The button
 relabels to "Read it again" once an answer is on screen, so a genuine re-read is
 still a deliberate act.
+
+## 21. DICOM in — B of "B and C" (owner directive 2026-09-10)
+
+Asked what ONIQ needs so Health AI can also read an X-ray or a CT scan, the
+owner answered **"B and C"**. This is B, and its whole content is a sentence:
+**ONIQ takes the file a hospital actually hands over, shows it, and interprets
+nothing.**
+
+### 21.1 Why a DICOM at all, when a PDF report already works
+
+Because they are different objects and only one of them exists on the CD. The
+`describe_document` path of §20 reads a radiology REPORT — the radiologist's
+prose, delivered as a PDF — and that is where the findings live. What a
+hospital hands over alongside it is the IMAGING: `.dcm` files, one per
+instance, which no browser can open from a signed link. Before B, a person who
+uploaded their X-ray got a stored file they could download and nothing else;
+the Documents list showed `IM-0001-0001.dcm` and there was no way to see it.
+
+### 21.2 The parser is ours, and that is the decision worth recording
+
+`_shared/health/dicom.ts` is hand-written, ~330 lines, **zero dependencies**.
+The obvious alternative is an npm DICOM library, and it was not taken:
+
+- The health isolation guard admits exactly ONE npm specifier in the whole
+  tree (`npm:unpdf@1.8.1`, in `ai/pdfText.ts`). A second would have to be
+  argued in `ai/isolation.test.ts`, and a DICOM parser is a large amount of
+  code running inside a service-role function over a file a stranger uploaded.
+- Everything B needs is a bounded read of a tag-length-value stream plus a
+  window-and-scale over 16-bit greys. A general library carries pixel codecs,
+  networking (DIMSE), and a compatibility surface B never touches.
+- `package.json` is Lovable's, so every dependency is a paid round trip.
+
+The cost is honest and stated: **four transfer syntaxes**, not the format.
+Implicit VR little endian and explicit VR little endian carry raw pixels;
+JPEG Baseline and Extended are handed back untouched as the JPEG they already
+are (a passthrough, not a decode). Ten more are named in `KNOWN_UNSUPPORTED`
+and REFUSED BY NAME — "JPEG 2000 Lossless", not "unsupported" — because a
+refusal that names the format is what stops the same file being uploaded five
+times, and because it is the sentence that would justify adding a codec later,
+on real files rather than on a guess.
+
+### 21.3 READ_TAGS carries no patient identifier, and that is load-bearing twice
+
+Eighteen tags: the transfer syntax, modality, study date, study and series
+description, body part, the pixel geometry, the window and rescale, the frame
+count and the pixel data. **No patient name, no patient id, no birth date, no
+accession number, no referring physician.** The parser cannot leak what it
+does not read, and `dicom.test.ts` asserts both halves — the tag list, and a
+fixture carrying a patient name whose header comes back without it.
+
+That is also the reason a DICOM never enters the AI pipeline. The text burned
+into a radiograph's pixels is typically exactly those fields, so transcribing
+one would hand a provider the identifiers this parser goes out of its way not
+to read, for no benefit: the findings are in the report, not in the burn-in.
+`TEXT_READABLE_MIMES` is the boundary, `isTextReadableMime` is the one
+predicate both screens check, and `scanPreview.test.ts` asserts separately
+that no module under `ai/` imports either DICOM module.
+
+### 21.4 Rendered on demand, never stored
+
+`documents.preview` downloads the object, parses, renders and returns a data
+URL. It writes nothing. A stored preview would be a second object in the
+bucket — a second thing to delete, a second thing to purge, and a second way
+for the two to fall out of step — for a saving that does not matter at this
+size. The ownership filter on the row read is the whole authorization, since
+the function runs on the service-role client which bypasses RLS; "not yours"
+and "not there" return the same 404, so the endpoint cannot be used to probe
+ids.
+
+Rendering, in order: an encapsulated (JPEG) file yields its first fragment's
+bytes verbatim, skipping the Basic Offset Table; a raw file is windowed —
+rescale slope and intercept, then centre and width from the file if it carries
+them and from the data range if it does not, MONOCHROME1 inverted — to 8-bit
+grey and encoded as a PNG in memory (`CompressionStream("deflate")`, which
+emits the zlib wrapper an IDAT needs; `"deflate-raw"` would be wrong). Over
+1600px on the long edge it is downscaled by nearest neighbour, which invents
+no pixel value, and the screen SAYS it was downscaled and that Download gives
+the original.
+
+### 21.5 The title comes from the header
+
+`documents.confirm` parses a DICOM and retitles the row
+"X-ray chest (2026-09-01)" — `describeDicomHeader`, which names the modality,
+the body part and the study date and nothing a radiologist would call a
+finding. It costs one extra bounded download on the DICOM path only, and it is
+the difference between a list of scans and a column of `IM-0001-0001.dcm`.
+
+**It never refuses on a parse failure.** A scan ONIQ cannot render is still the
+person's scan: it stays stored and downloadable under its filename, and the
+viewer names the format when they ask. Losing the file because ONIQ could not
+name it would be the wrong trade.
+
+Those header strings come from the FILE and nothing in the format bounds them,
+so `describeDicomHeader` flattens control characters and clamps each field to
+60 characters and the line to 110. React escapes markup, so the risk is a
+title that eats the list and an alt text that reads as a paragraph — which is
+exactly the kind of thing that goes unnoticed until it is in production.
+
+### 21.6 The viewer is deliberately NOT an AI surface
+
+`src/health/ScanPreview.tsx` carries no `HEALTH_AI_LABEL` and no
+`<AiOutputReport />`, and `scanPreview.test.ts` asserts their ABSENCE. Nothing
+here is generated or inferred: the server decodes the person's own file and
+re-encodes its pixels. Labelling that "AI-assisted" would be false in the
+other direction — the mirror of the 2026-09-06 case where a photo the person
+took was nearly labelled "AI-generated". Over-label AI; never mislabel what is
+not, because a label that appears everywhere is a label nobody reads.
+
+What the screen does carry is the honest line, `health-scan-not-read`: _"ONIQ
+has shown you this image, not read it. Nobody and nothing has checked it for
+findings — that is for a doctor."_ Without it, the act of ONIQ opening
+somebody's X-ray reads reasonably as ONIQ having checked it.
+
+### 21.7 The sniff order, which is not the obvious one
+
+`sniffDocumentMime` checks DICOM's magic at offset 128 BEFORE the
+start-of-file magics. A DICOM preamble is 128 unconstrained bytes and real
+files often place a valid JPEG or PDF header there so ordinary viewers can
+open them; sniffing the start first classifies exactly those as what they
+imitate, and the file then goes into the text pipeline as an "image".
+`MIME_HEAD_BYTES` is 132 for the same reason, and both are mutation-checked.
+
+The sniff is also now AUTHORITATIVE over `file.type`, which is a change B
+forced: there is no registered media type for `.dcm` on most desktops, so the
+browser reports `""` for every DICOM anyone will ever pick. Requiring the
+browser to name the type would have refused all of them, and the failure would
+have looked like "ONIQ does not support X-rays". The browser's opinion is
+still used when it HAS one — a file named `.png` whose bytes are a PDF is
+refused exactly as before.
+
+### 21.8 What B is not
+
+It is not C. Nothing here says what is in the picture, and the two guards that
+keep it that way are the import assertion (§21.3) and the closed `AI_TASKS`
+list, which `scanPreview.test.ts` checks holds no task matching
+scan/image/dicom/xray/radiograph. A seventh task named anything like
+`read_scan_image` is C arriving without its flag, its provider decision and
+its counsel question.
+
+### 21.9 The limit that matters most
+
+**No scanner's real output has been through any of this.** Every fixture in
+`dicom.test.ts` is built byte by byte from the standard as written there —
+deliberately, because a real DICOM carries a real person's name and has no
+business in a repository. What the tests prove is that the parser matches the
+standard as this repo reads it. The gate is a real X-ray from a real machine,
+and until one has been through, the honest claim is no wider.

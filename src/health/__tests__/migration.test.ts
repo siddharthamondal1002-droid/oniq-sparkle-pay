@@ -5,10 +5,17 @@
  * own lock; the bucket is private with no policy. Read with SQL comments
  * stripped, because the file's comments quote every rule.
  *
- * TWO FILES, ONE EFFECTIVE SCHEMA. Phase 2 replaces two CHECK lists and adds
- * columns by name rather than editing the unapplied Phase 1 file, so a list
- * is compared against its LAST definition across the ordered files — Phase 1
- * CREATE ∪ Phase 2 ALTER — never against Phase 1 alone.
+ * SEVERAL FILES, ONE EFFECTIVE SCHEMA. A later migration replaces a CHECK list
+ * by name rather than editing an APPLIED file, so a list is compared against
+ * its LAST definition across the ordered files — the Phase 1 CREATE, then every
+ * later ALTER — never against Phase 1 alone. Editing an applied migration in
+ * place is what `appliedCopies.test.ts` exists to forbid: production's record is
+ * Lovable's copy, and the two would silently diverge.
+ *
+ * APPEND TO `LATER_FILES`, IN ORDER, when a migration widens a CHECK. They are
+ * concatenated and searched with `lastIndexOf`, so the newest definition wins;
+ * a file left out of the list is a list this test compares against a constraint
+ * production no longer has.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -32,9 +39,14 @@ const ROOT = join(__dirname, "..", "..", "..");
 const SQL = stripSqlComments(
   readFileSync(join(ROOT, "supabase/migrations/20260908120000_oniq_health_phase1.sql"), "utf8"),
 ).toLowerCase();
-const SQL2 = stripSqlComments(
-  readFileSync(join(ROOT, "supabase/migrations/20260908150000_oniq_health_phase2.sql"), "utf8"),
-).toLowerCase();
+const LATER_FILES = [
+  "20260908150000_oniq_health_phase2.sql",
+  // DICOM as a document mime (owner directive 2026-09-10, "B and C").
+  "20260910160000_oniq_health_dicom_mime.sql",
+];
+const SQL2 = LATER_FILES.map((f) =>
+  stripSqlComments(readFileSync(join(ROOT, "supabase/migrations", f), "utf8")).toLowerCase(),
+).join("\n");
 
 /** A named `add constraint … check (col in (…))` in the later file wins over the create. */
 function effectiveCheck(table: string, column: string, createMarker: string, b: string): string[] {
@@ -125,7 +137,9 @@ describe("the CHECK lists equal the domain lists", () => {
   it("document kinds, mimes and the size cap", () => {
     const b = block("health_documents");
     expect(listAfter(b, "kind text not null check (kind in (")).toEqual([...DOCUMENT_KINDS].sort());
-    expect(listAfter(b, "mime text not null check (mime in (")).toEqual([...DOCUMENT_MIMES].sort());
+    expect(
+      effectiveCheck("health_documents", "mime", "mime text not null check (mime in (", b),
+    ).toEqual([...DOCUMENT_MIMES].sort());
     expect(b).toContain(`size_bytes <= ${MAX_DOCUMENT_BYTES}`);
     expect(listAfter(b, "provenance->>'source' in (")).toEqual([...PROVENANCE_SOURCES].sort());
   });

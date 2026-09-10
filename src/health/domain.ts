@@ -211,10 +211,45 @@ export function validateRecordInput(raw: unknown): Validation<RecordInput> {
 
 /* ----------------------------------------------------------- documents -- */
 
-export const DOCUMENT_MIMES = ["application/pdf", "image/jpeg", "image/png", "image/webp"] as const;
+export const DOCUMENT_MIMES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  // Owner directive 2026-09-10, "B and C": B is this one. A DICOM is the file
+  // a hospital hands over on a CD or through a portal — an X-ray, a CT slice,
+  // an MRI. ONIQ reads its header, renders its pixels and shows them, and
+  // interprets NOTHING; that is C, behind its own flag.
+  "application/dicom",
+] as const;
 export type DocumentMime = (typeof DOCUMENT_MIMES)[number];
 
-/** 10 MiB. A phone photo of a report is 2–4 MB; a scanned PDF rarely more. */
+/**
+ * The mimes whose TEXT the AI pipeline may read. DICOM is deliberately absent
+ * and this is a privacy decision rather than a technical one: the text burned
+ * into a radiograph is typically the patient's name, the accession number and
+ * the institution — precisely the fields `dicom.ts` refuses to parse. Sending
+ * one to a provider to be transcribed would hand over identifiers ONIQ has
+ * gone out of its way not to read, for no benefit, since a DICOM's findings
+ * live in the REPORT rather than burned into the pixels.
+ */
+export const TEXT_READABLE_MIMES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+
+export function isTextReadableMime(mime: string): boolean {
+  return (TEXT_READABLE_MIMES as readonly string[]).includes(mime);
+}
+
+/**
+ * 10 MiB. A phone photo of a report is 2–4 MB; a scanned PDF rarely more. A
+ * single DICOM instance usually fits — a 2048×2048 16-bit radiograph is 8 MB
+ * uncompressed and far less when JPEG-encapsulated — but a whole CT SERIES
+ * does not, and is not meant to: ONIQ takes one instance, not a study.
+ */
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 export const MAX_TITLE_CHARS = 120;
 
@@ -284,6 +319,7 @@ export const EXT_FOR_MIME: Record<DocumentMime, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
+  "application/dicom": "dcm",
 };
 
 /* ------------------------------------------------------------ consents -- */
@@ -403,14 +439,39 @@ export type AuditObjectType = (typeof AUDIT_OBJECT_TYPES)[number];
 /* ---------------------------------------------------------- magic bytes -- */
 
 /**
+ * How many bytes the head must carry. It was 12 until DICOM arrived, and DICOM
+ * is why it is 132: the format's magic is not at the start of the file but at
+ * BYTE 128, after a preamble that carries no meaning at all. Still a bounded
+ * stream read and still never the whole file — the repo-wide ban is on
+ * materialising a media file, not on reading a fixed head — but the number is
+ * load-bearing, so it lives here beside the sniffer that needs it rather than
+ * as a literal at the call site.
+ */
+export const MIME_HEAD_BYTES = 132;
+
+/**
  * The declared type of a file, checked against its first bytes. The client
- * reads a 12-byte head through a stream reader (never the whole file — that
- * is banned on upload paths repo-wide) and refuses a mismatch before anything
- * is registered; the Phase 2 worker will run the same check on the stored
- * object. Returns the sniffed type, or null when the head matches none.
+ * reads a `MIME_HEAD_BYTES` head through a stream reader (never the whole file
+ * — that is banned on upload paths repo-wide) and refuses a mismatch before
+ * anything is registered; the Phase 2 worker will run the same check on the
+ * stored object. Returns the sniffed type, or null when the head matches none.
  */
 export function sniffDocumentMime(head: Uint8Array): DocumentMime | null {
   if (head.length < 4) return null;
+  // DICOM FIRST, because its magic is at offset 128 and the 128 bytes before
+  // it are unconstrained: a DICOM preamble is allowed to contain anything at
+  // all, including a valid JPEG or PDF header placed there so the file is
+  // readable by ordinary viewers. Sniffing the start first would classify
+  // exactly those files as the thing their preamble imitates.
+  if (
+    head.length >= 132 &&
+    head[128] === 0x44 &&
+    head[129] === 0x49 &&
+    head[130] === 0x43 &&
+    head[131] === 0x4d
+  ) {
+    return "application/dicom";
+  }
   if (head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46) {
     return "application/pdf";
   }

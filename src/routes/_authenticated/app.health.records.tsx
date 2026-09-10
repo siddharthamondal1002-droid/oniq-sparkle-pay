@@ -8,7 +8,9 @@ import { useT } from "@/lib/i18n/LanguageProvider";
 import { HEALTH_UPLOADS_ENABLED } from "@/health/flags";
 import { HealthAddReport, readStoredDocument } from "@/health/AddReport";
 import { HealthReportDescription } from "@/health/ReportDescription";
+import { HealthScanPreview } from "@/health/ScanPreview";
 import { healthApi, type DocumentRow } from "@/health/api";
+import { isTextReadableMime } from "@/health/domain";
 
 import {
   documentKindLabel,
@@ -154,30 +156,38 @@ function HealthDocuments() {
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
-                    <button
-                      type="button"
-                      className="text-xs underline disabled:opacity-50"
-                      data-testid="health-doc-analyse"
-                      disabled={reading !== null}
-                      onClick={() => {
-                        setReading(d.id);
-                        setReadNote(null);
-                        setNothingFiled(null);
-                        void readStoredDocument(d.id, t)
-                          .then((r) => {
-                            setReadNote({ id: d.id, note: r.note });
-                            setNothingFiled(r.ok && r.count === 0 ? d.id : null);
-                          })
-                          .finally(() => {
-                            setReading(null);
-                            void qc.invalidateQueries({ queryKey: ["health"] });
-                          });
-                      }}
-                    >
-                      {reading === d.id
-                        ? t("health.records.reading", "Reading the report…")
-                        : t("health.records.analyse", "Analyse")}
-                    </button>
+                    {/* NOT FOR A SCAN. A DICOM never goes to the text pipeline
+                        (domain.ts, TEXT_READABLE_MIMES): the text burned into a
+                        radiograph is the patient's name and the accession
+                        number, which dicom.ts deliberately refuses to read.
+                        Offering "Analyse" here would be a button whose only
+                        possible outcome is a refusal. */}
+                    {isTextReadableMime(d.mime) ? (
+                      <button
+                        type="button"
+                        className="text-xs underline disabled:opacity-50"
+                        data-testid="health-doc-analyse"
+                        disabled={reading !== null}
+                        onClick={() => {
+                          setReading(d.id);
+                          setReadNote(null);
+                          setNothingFiled(null);
+                          void readStoredDocument(d.id, t)
+                            .then((r) => {
+                              setReadNote({ id: d.id, note: r.note });
+                              setNothingFiled(r.ok && r.count === 0 ? d.id : null);
+                            })
+                            .finally(() => {
+                              setReading(null);
+                              void qc.invalidateQueries({ queryKey: ["health"] });
+                            });
+                        }}
+                      >
+                        {reading === d.id
+                          ? t("health.records.reading", "Reading the report…")
+                          : t("health.records.analyse", "Analyse")}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="text-xs underline"
@@ -203,7 +213,17 @@ function HealthDocuments() {
                     found nothing: a scan report is exactly the file a person
                     re-opens later, and a door that appears only after a
                     disappointing note is a door most people never see. */}
-                <HealthReportDescription documentId={d.id} auto={nothingFiled === d.id} />
+                {isTextReadableMime(d.mime) ? (
+                  <HealthReportDescription documentId={d.id} auto={nothingFiled === d.id} />
+                ) : (
+                  // A SCAN GETS THE VIEWER INSTEAD, and gets it unconditionally
+                  // — this is the row's only way to see what it holds, since a
+                  // .dcm is not something a browser can open from the signed
+                  // link. "What does this report say?" is absent on purpose:
+                  // that task reads a document's TEXT, and a DICOM's text is
+                  // never sent anywhere.
+                  <HealthScanPreview documentId={d.id} />
+                )}
                 {readNote?.id === d.id ? (
                   <div className="mt-2" data-testid="health-doc-analyse-note">
                     <p className="text-sm" role="status">

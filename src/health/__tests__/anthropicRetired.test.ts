@@ -63,12 +63,30 @@ describe("health-scan is a stub", () => {
 
 describe("nothing in the shipped client reaches it", () => {
   it("no non-test source under src/ invokes health-scan or renders the report scan", () => {
+    // THE FUNCTION NAME, NOT ANY IDENTIFIER THAT STARTS WITH IT. A bare
+    // substring match flagged `data-testid="health-scan-view"` — the DICOM
+    // viewer's marker, which invokes nothing and is on a screen that reads
+    // no text at all. That is a real collision rather than a prose one, so
+    // stripping comments cannot fix it: the guard has to mean what it says.
+    // `(?![\w-])` ends the name, so `"health-scan"` in an invoke still
+    // matches and `health-scan-view` no longer does. Mutation-checked below.
     const hits: string[] = [];
     for (const f of walk(join(ROOT, "src"))) {
       const text = stripComments(readFileSync(f, "utf8"));
-      if (/health-scan|ReportsSection/.test(text)) hits.push(relative(ROOT, f));
+      if (/health-scan(?![\w-])|ReportsSection/.test(text)) hits.push(relative(ROOT, f));
     }
     expect(hits).toEqual([]);
+  });
+
+  it("and that narrowing still catches the call it exists to catch", () => {
+    // The mutation, inline: the guard is only worth its line if the shape it
+    // was written for still trips it. Both spellings a caller would use.
+    const guard = /health-scan(?![\w-])|ReportsSection/;
+    expect(guard.test('supabase.functions.invoke("health-scan", { body })')).toBe(true);
+    expect(guard.test("const fn = `health-scan`;")).toBe(true);
+    expect(guard.test("<ReportsSection />")).toBe(true);
+    expect(guard.test('data-testid="health-scan-view"')).toBe(false);
+    expect(guard.test('data-testid="health-scan-not-read"')).toBe(false);
   });
 
   it("the Vitals screen no longer sends a report anywhere", () => {
