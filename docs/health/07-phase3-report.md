@@ -696,3 +696,211 @@ every marker; 19/19 describe mutations RED.
 **Web-only.** No migration, no edge function, no Lovable deploy message, no
 credits. The server already knows `describe_document`; what changed is who asks
 it and when.
+
+## 2026-09-10 (later still) — DICOM in: B of "B and C", shipped and measured
+
+Asked what ONIQ needs so Health AI can also read an X-ray or a CT scan, the
+owner answered **"B and C"**. This section is B: ONIQ takes the file a hospital
+actually hands over, parses its header, renders its pixels, files it, and
+**interprets nothing**. C is not built — MedGemma is open weights, so it means
+a standing endpoint at ~$840–3,081/month plus a medical-device question for
+counsel (`04 §A-7`, `04 §B15`).
+
+Design as built: `05 §21`. Go sequence: `04 §A-6`.
+
+### What shipped
+
+    supabase/functions/_shared/health/dicom.ts        parser, ~330 lines, 0 deps
+    supabase/functions/_shared/health/dicomRender.ts  JPEG passthrough / windowed PNG
+    health-api documents.preview                      render on demand, DICOM-only
+    health-api documents.confirm                      titles a scan from its header
+    src/health/ScanPreview.tsx                        the viewer, NOT an AI surface
+    src/health/domain.ts (+ mirror)                   DOCUMENT_MIMES, TEXT_READABLE_MIMES,
+                                                      EXT_FOR_MIME, MIME_HEAD_BYTES,
+                                                      sniffDocumentMime (DICOM first)
+    migration 20260910160000                          health_documents_mime_check widened
+
+### The order, and why it is forced
+
+1. **Migration first.** `health_documents.mime` is a closed CHECK. A client that
+   can pick a `.dcm` before the CHECK admits it registers a row Postgres
+   refuses — and that reaches the person as "something went wrong" AFTER they
+   have chosen their file.
+2. **`health-api` second.** `documents.preview` is a new action; an old deployed
+   function answers `bad_input` to it, which is a refusal rather than a spend.
+   `health-ai` is deliberately NOT redeployed: a DICOM never reaches the AI
+   pipeline, so nothing in that function changed.
+3. **Publish last.**
+
+### Applied, from here, through the Lovable database connection
+
+    before  health_documents_mime_check
+              CHECK (mime = ANY (ARRAY['application/pdf','image/jpeg',
+                                       'image/png','image/webp']))
+    drop constraint if exists            -> ok
+    add constraint (in-list on one line) -> ok
+    read back  convalidated = true, 'application/dicom' present
+    recorded   supabase_migrations.schema_migrations 20260910160000,
+               created_by 'claude-code via Lovable query_database'
+
+The drop and the add were adjacent with a read between them, per the 2026-09-10
+note: the drop landing while the add has not leaves the table with NO mime
+check at all, which is a worse state than either end. Neither returned a 499
+this time.
+
+### Deployed
+
+ONE Lovable message naming the STATE, never a commit sha
+(`latest_commit_sha` read `d0eeee58` == HEAD here before sending), carrying its
+own self-check. The agent ran it and reported before deploying:
+
+    grep -c parseDicom               3   (expected 3)
+    grep -c "documents.preview"      1   (expected 1)
+    supabase--deploy_edge_functions ["health-api"]
+      -> Successfully deployed edge functions: health-api
+    cost_credits 0.4
+
+The 60-second client timeout fired on the send, as `oniq-ship` records. The
+message was queued and polled, never resent.
+
+### Measured live, through the DEPLOYED function
+
+Free probes first, before anything was uploaded or spent:
+
+    documents.preview, no JWT              401 unauthorized     the function is up and gating
+    documents.preview, id that does not
+      exist, authenticated                 404 not_found        the action is KNOWN to the
+                                                                deployed function
+    documents.preview on a DICOM row
+      still pending_upload                 404 not_found        the status filter holds
+    documents.register mime application/
+      dicom                                200                  the CHECK and validateDocumentInput
+                                                                both admit it; path ends .dcm
+
+`documents.register` returning 200 is the one that proves the migration: the
+same call would have been a constraint violation an hour earlier.
+
+### The evidence set, and what each line is for
+
+| Claim                                      | How it was measured                                                                                                               |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| The mime CHECK admits DICOM                | `documents.register` 200 with `mime: application/dicom`, on production                                                            |
+| The action exists on the deployed function | `documents.preview` on a nonexistent id answers `404 not_found`, not `bad_input`                                                  |
+| Ownership and status filters hold          | a `pending_upload` row answers `404`; an unauthenticated call answers `401`                                                       |
+| The parser and PNG encoder run in DENO     | the render smoke test below (a real object, a real download, a real re-encode)                                                    |
+| The viewer is on the screen                | the served `app.health.records-*.js` carries `health-scan-view`, `health-scan-image`, `health-scan-not-read`                      |
+| The viewer is not an AI surface            | `scanPreview.test.ts` asserts `HEALTH_AI_LABEL` and `AiOutputReport` are ABSENT from `ScanPreview.tsx`                            |
+| A DICOM cannot reach the AI                | `TEXT_READABLE_MIMES` excludes it; no `ai/` module imports either DICOM module; no `AI_TASKS` entry matches scan/image/dicom/xray |
+
+The middle row is the one that needed production. `deno check` typechecks the
+function but never runs it; vitest runs the parser in NODE. Nothing before the
+smoke test had exercised `CompressionStream`, the storage download, or the
+byte-level parse inside the Deno runtime — and this repo has recorded "built
+and unit-tested is not reachable" four times.
+
+### The render: proven under Deno HERE, not through storage on production
+
+The upload message was **accepted at 07:57:47Z** and the agent's turn finished
+at 07:59:48Z. **No object ever appeared in the bucket** — checked five times
+over twenty minutes, and `storage.objects` under that prefix stayed at zero. So
+the two synthetic files were never placed, and `documents.preview` was never
+exercised against real bytes on production.
+
+Rather than spend a second Lovable turn re-asking, the question that upload was
+meant to answer — _does the parser and the PNG encoder actually RUN in Deno?_ —
+was answered here for free, because **Deno 2.9.6 is installed in this
+container**:
+
+    deno run --allow-read /tmp/dc/deno-render.ts   (the real dicom.ts + dicomRender.ts)
+      summary        X-ray chest — CHEST PA SYNTHETIC (2026-09-01)
+      transferSyntax Explicit VR Little Endian
+      dims           64x64 16-bit MONOCHROME2
+      method         windowed_png  image/png  64x64
+      pngBytes       187
+      pngSignature   137,80,78,71,13,10,26,10      (\x89PNG\r\n\x1a\n)
+
+and the emitted PNG was then validated byte by byte: every chunk CRC recomputed
+(IHDR 13, IDAT 130, IEND 0), the IDAT inflated to exactly `h*(w+1)` = 4,160
+bytes, every scanline filter byte 0, and the image CONTENT checked — row 0 rises
+0 → 96 left to right (the gradient) and row 30 jumps 15 → 239 (the bright
+block). So it is a real PNG carrying the real fixture, produced by the Deno
+runtime.
+
+**AND THE TWO RUNTIMES DO NOT AGREE, WHICH IS THE POINT.** The identical bytes
+through the identical code give a **175-byte** PNG under node/vitest and a
+**187-byte** PNG under Deno. Both are valid — `CompressionStream("deflate")` is
+free to choose its own encoding — but it means a node-only test was never
+evidence about the deflate stream production emits. That difference is exactly
+the class of thing `deno check` cannot see and vitest cannot reach.
+
+`scripts/make-synthetic-dicom.mjs` regenerates the fixture (8,634 bytes,
+sha256 `03eb61f8…`); its header states what it does not prove.
+
+### What the deployed function WAS measured to do, and what it was not
+
+    PROVEN on production, through the deployed health-api:
+      documents.preview, no JWT                 401 unauthorized
+      documents.preview, nonexistent id         404 not_found
+      documents.preview, DICOM row pending      404 not_found  (status filter)
+      documents.register mime application/dicom 200, path ends .dcm
+      consents.grant store_records              200
+
+    PROVEN here, under Deno, against the real modules:
+      parseDicom + renderDicom + imageToBase64  a valid 64x64 PNG
+
+    NOT PROVEN, and stated as not proven:
+      documents.preview end to end against a real stored object
+      the JPEG-passthrough branch on production
+      anything at all on a handset, or on a real scanner's output
+
+The gap is one storage round trip. It is worth ONE Lovable upload message on the
+next turn that needs the agent anyway; it is not worth a turn of its own, since
+the runtime question it was bought to answer is now closed.
+
+### `pg_net` has GET, POST and DELETE — enumerated, not recalled
+
+The "no PUT" note this file has carried since 2026-09-09 was a recollection.
+Measured from `pg_proc`:
+
+    net.http_get     (url, params, headers, timeout_milliseconds)
+    net.http_post    (url, body jsonb, params, headers, timeout_milliseconds)
+    net.http_delete  (url, params, headers, timeout_milliseconds)
+
+No PUT, and `http_post`'s body is `jsonb`, so it could not carry raw bytes even
+if the verb were right. Both halves of the blocker, from the catalogue rather
+than from memory.
+
+### Cleanup, and the chain through an erasure
+
+The throwaway account was deleted for real — `delete from auth.users`, the same
+operation `purgeUserData.ts` step 4 performs — and verified in a SEPARATE
+statement (the data-modifying-CTE lesson):
+
+    before   127 users   3 throwaway documents   1 throwaway consent
+    after    126 users   0                       0
+    bucket   2 objects, both the OWNER's own; nothing under the throwaway prefix
+    health_records   0 anywhere
+
+Then the audit chain was recomputed over every row with the erasure-proof
+verifier: **zero violations**. That is `20260908190000` doing its job on
+precisely the operation that broke the chain before it existed — a real account
+deletion rewriting `user_id` to null on rows the hash covers.
+
+### Served bundle, verified
+
+    entry   index-CEXQNSUq.js  ->  index-Dmr45U67.js   482,124 B
+
+    app.health.records-DCnqFogE.js   5,794 B
+      health-scan-view 1 · health-scan-image 1 · health-scan-not-read 1
+      health-doc-analyse 2 · health-doc-input 0
+    AddReport-CbCYn0GU.js            7,015 B
+      health-doc-input 1 · all three scan markers 0
+    entry                              health-scan-view 0
+
+The cross-pattern, not any single line: the viewer's markers are in the records
+chunk and in no other, the picker's are in the shared chunk and in no other, and
+the entry carries neither. Exactly the distribution the local build predicted.
+
+Spend for the whole of B: **0.4 Lovable credits** (one deploy message), **$0**
+on the metered Google key — nothing in B calls a model — and one upload message
+that was accepted and never ran.

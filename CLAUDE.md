@@ -4438,3 +4438,185 @@ that existed in NO earlier build: **"Read it again"**, in the shared
 imported by both health screens, so Rolldown keeps it in the shared chunk and
 greping `app.health.records-*.js` for it would report ABSENT on a healthy
 deploy.
+
+### Owner directive, 2026-09-10 — "B and C": a DICOM in, shown and filed. B is built; C is not.
+
+Asked what ONIQ needs so Health AI can also read an X-ray or a CT scan, the
+owner was offered three shapes and answered **"B and C"**.
+
+    A  a better report reader          already there (describe_document)
+    B  DICOM in — parsed, rendered,    THIS ENTRY. No model, no bill.
+       filed, INTERPRETED BY NOTHING
+    C  a model that says what is IN    NOT BUILT. MedGemma is open weights:
+       the image                        a standing endpoint at ~$840–3,081/mo,
+                                        plus a medical-device question for
+                                        counsel. `docs/health/04 §A-7`.
+
+**WHY A DICOM AT ALL, WHEN A PDF REPORT ALREADY WORKS.** Because they are
+different objects and only one of them is on the CD. `describe_document` reads
+the radiologist's PROSE, which is where the findings are. What a hospital hands
+over beside it is the IMAGING — `.dcm` files that no browser opens from a
+signed link. Before this, a person who uploaded their X-ray got a stored file
+they could download and nothing else, listed as `IM-0001-0001.dcm`.
+
+**THE PARSER IS OURS: ~330 lines, ZERO DEPENDENCIES**, and that is the decision
+worth recording rather than the code. The health tree admits exactly ONE npm
+specifier in total (`npm:unpdf@1.8.1`), and a general DICOM library is a large
+parsing surface running in a service-role function over a stranger's file.
+`package.json` is Lovable's, so a dependency is also a paid round trip. The
+cost is stated rather than hidden: **four transfer syntaxes** — implicit and
+explicit VR little endian (raw pixels), JPEG Baseline and Extended (handed back
+untouched, a passthrough rather than a decode) — and ten more **refused BY
+NAME**: "JPEG 2000 Lossless", never "unsupported", because a refusal with no
+reason is what gets a file uploaded five times. If real scans turn out to be
+mostly JPEG 2000, that is the argument for a codec, and it should be made on
+real files.
+
+**READ_TAGS CARRIES NO PATIENT IDENTIFIER, AND THAT IS LOAD-BEARING TWICE.**
+Eighteen tags: transfer syntax, modality, study date, descriptions, body part,
+geometry, window, rescale, frames, pixels. No name, no id, no birth date, no
+accession number, no referring physician. The parser cannot leak what it does
+not read — and it is also why **a DICOM never enters the AI pipeline**: the
+text burned into a radiograph is typically exactly those fields, so
+transcribing one would hand a provider the identifiers this parser goes out of
+its way not to read, for no benefit, since the findings are in the report.
+
+That boundary is `TEXT_READABLE_MIMES` (new; DICOM deliberately absent), the
+single predicate `isTextReadableMime` that BOTH screens check so Analyse and
+"What does this report say?" cannot drift apart and open on a scan, and two
+assertions in `scanPreview.test.ts`: no module under `ai/` imports either DICOM
+module, and `AI_TASKS` holds no task matching scan/image/dicom/xray. A seventh
+task called anything like `read_scan_image` is C arriving without its flag.
+
+**THE VIEWER IS DELIBERATELY NOT AN AI SURFACE, AND THE TEST ASSERTS THE
+ABSENCE.** `ScanPreview.tsx` carries no `HEALTH_AI_LABEL` and no
+`<AiOutputReport />`. Nothing there is generated: the server decodes the
+person's own file and re-encodes its pixels. Labelling that "AI-assisted" is
+the 2026-09-06 photo case in reverse — over-label AI, never mislabel what is
+not, because a label that appears everywhere is a label nobody reads. What the
+screen does carry is `health-scan-not-read`: _"ONIQ has shown you this image,
+not read it. Nobody and nothing has checked it for findings — that is for a
+doctor."_ Without it, ONIQ opening somebody's X-ray reads reasonably as ONIQ
+having checked it.
+
+**THE SNIFF ORDER IS NOT THE OBVIOUS ONE, and getting it backwards is silent.**
+DICOM's magic is at byte 128 and the 128 before it are UNCONSTRAINED — real
+files put a valid JPEG or PDF header there so ordinary viewers can open them.
+Sniffing the start first classifies exactly those files as what they imitate,
+and they then enter the text pipeline as an "image". So DICOM is checked FIRST
+and `MIME_HEAD_BYTES` is 132; both are mutation-checked.
+
+**AND THE SNIFF IS NOW AUTHORITATIVE OVER `file.type`**, which B forced. There
+is no registered media type for `.dcm` on most desktops, so the browser reports
+`""` for every DICOM anyone will ever pick; requiring it to name the type would
+have refused all of them and looked like "ONIQ does not support X-rays". The
+browser's opinion is still used when it HAS one — a file named `.png` whose
+bytes are a PDF is refused exactly as before.
+
+**RENDERED ON DEMAND, NEVER STORED.** A stored preview is a second bucket
+object: a second thing to delete, a second thing to purge, and a second way for
+the two to disagree. `documents.preview` downloads, parses, renders and returns
+a data URL. The ownership filter on the row read is the WHOLE authorization —
+the function runs on the service-role client, which bypasses RLS — and "not
+yours" and "not there" answer identically so ids cannot be probed.
+
+**THE TITLE COMES FROM THE HEADER, AND NEVER REFUSES.** `documents.confirm`
+parses a DICOM and retitles the row "X-ray chest (2026-09-01)" — the modality,
+the body part and the study date, and nothing a radiologist would call a
+finding. A parse failure leaves the row stored under its filename: a scan ONIQ
+cannot render is still the person's scan, and losing it because ONIQ could not
+name it would be the wrong trade. Those header strings come from the FILE and
+nothing in the format bounds them, so `describeDicomHeader` flattens control
+characters and clamps each field to 60 characters and the line to 110 — React
+escapes markup, so the risk is a title that eats the list, which is exactly the
+kind of thing nobody notices until production.
+
+**A GUARD WAS WRONG RATHER THAN THIS CODE, AND THE COLLISION WAS REAL.**
+`anthropicRetired.test.ts` banned the substring `health-scan` anywhere under
+`src/`, and flagged `data-testid="health-scan-view"` — the viewer's marker, on
+a screen that invokes nothing and reads no text. Stripping comments cannot fix
+that: it is a genuine identifier collision, not the prose match this repo has
+hit ten times. The guard matches the function NAME now (`health-scan(?![\w-])`),
+and the narrowing is mutation-checked INLINE in the same file — the shapes it
+exists to catch (`invoke("health-scan")`, a backtick form, `<ReportsSection />`)
+are asserted to still trip it. **Narrow a guard and prove the narrowing in the
+same commit, or it is just a weaker guard.**
+
+**17 MUTATIONS, EVERY ONE RED** (`scripts/health-mutate-dicom.sh`), including
+the two that matter most: DICOM added to `TEXT_READABLE_MIMES`, and an `ai/`
+module importing the DICOM reader. `dicom.test.ts` 30, `scanPreview.test.ts`
+19, health suite 54 files / 1,173, whole suite 6,197 (the one unrelated
+`arapStep11dDiagnosis` timing flake passes alone). tsc, `lint:ci`, Prettier,
+`deno check` of both functions, and a clean local build.
+
+**AND `deno check` WAS PROVEN TO BE CHECKING.** A deliberate type error was
+injected and it went red (`TS2322`), then removed and the check re-run clean.
+An import map pointing the `esm.sh` specifier at the real client types with
+`--unstable-sloppy-imports` is what makes it work here; a check that has never
+failed has never been tested, and that applies to the checker too.
+
+WHAT IS DELIBERATELY GIVEN UP, as a decision rather than a discovery: **one
+instance, not a study** (a hospital CD is hundreds of files and often 200 MB+;
+`MAX_DOCUMENT_BYTES` stays 10 MiB, which fits a radiograph and not a CT
+series); **no windowing controls** (the file's own window, else the data range —
+a radiologist changes window for a living, ONIQ shows one rendering and hands
+back the original bytes on Download).
+
+**THE LIMIT THAT MATTERS MOST, and it is the only one that could invalidate the
+rest: NO SCANNER'S REAL OUTPUT HAS BEEN THROUGH ANY OF THIS.** Every fixture in
+`dicom.test.ts` is built byte by byte from the standard as this repo reads it —
+deliberately, because a real DICOM carries a real person's name and has no
+business in a repository. What the tests prove is that the parser matches the
+standard as written there. **The gate is a real X-ray from a real machine**, and
+until one has been through, the honest claim is no wider. This is the UPI lesson
+in a third file: reading harder does not produce a byte you do not have.
+
+#### B is LIVE, and the runtime question was answered without the upload
+
+`main` at `d0eeee58`, migration `20260910160000` applied from here (drop + add
+adjacent, read between, recorded in `schema_migrations`), `health-api` deployed
+by ONE Lovable message naming the STATE — its own greps 3 and 1, then
+"Successfully deployed edge functions: health-api", **0.4 credits** — and the
+publish verified on the served bundle:
+
+    entry  index-CEXQNSUq.js -> index-Dmr45U67.js
+    app.health.records-DCnqFogE.js  5,794 B  scan-view/image/not-read 1/1/1,
+                                             health-doc-analyse 2, doc-input 0
+    AddReport-CbCYn0GU.js           7,015 B  doc-input 1, scan markers 0
+    entry                                    health-scan-view 0
+
+**THE UPLOAD MESSAGE WAS ACCEPTED AND NEVER RAN.** Queued 07:57:47Z, the
+agent's turn finished 07:59:48Z, and `storage.objects` under that prefix stayed
+at ZERO across five checks over twenty minutes. `oniq-ship`'s rule held: confirm
+by the ARTIFACT, never by the queue accepting — and it was not resent, because
+the question that upload was bought to answer had a free answer.
+
+**DENO IS INSTALLED IN THIS CONTAINER, AND THAT CLOSES THE RUNTIME GAP.** The
+real `dicom.ts` and `dicomRender.ts`, run under `deno run` against the synthetic
+fixture, produced a valid 64×64 PNG — signature, every chunk CRC recomputed,
+IDAT inflating to exactly `h*(w+1)`, every filter byte 0, and the image CONTENT
+checked (row 0 rises 0→96, the bright block jumps 15→239). vitest runs these
+modules in NODE; `deno check` typechecks and never executes. **This is the third
+runtime and the only one production shares.**
+
+**AND THE TWO RUNTIMES DISAGREE ON THE BYTES.** Identical input, identical code:
+**175 bytes under node, 187 under Deno.** Both valid — `CompressionStream` picks
+its own encoding — but it means a node-only test was never evidence about the
+deflate stream production emits. Reach for `deno run` on the real module, not
+only `deno check`, whenever an edge function does bytes rather than types.
+
+**`pg_net` HAS GET, POST AND DELETE — enumerated from `pg_proc`, not recalled.**
+The "no PUT" note above was a recollection until now; `http_post`'s body is also
+`jsonb`, so it could not carry raw bytes even with the right verb. Both halves
+from the catalogue.
+
+The throwaway was erased for real (`delete from auth.users`, 127 → 126, verified
+in a separate statement) and the audit chain then recomputed over every row:
+**zero violations** — `20260908190000` doing its job on exactly the operation
+that broke the chain before it existed.
+
+STILL NOT PROVEN, and it is one storage round trip: `documents.preview` end to
+end against a real stored object, the JPEG-passthrough branch on production, and
+anything at all on a handset or on a real scanner's output. Worth ONE upload
+message on the next turn that needs the agent anyway; not worth a turn of its
+own now that the runtime question is closed.
