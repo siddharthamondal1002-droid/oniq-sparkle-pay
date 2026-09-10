@@ -1,5 +1,7 @@
 # OQCA v1.5 — the Autonomous Cognitive Runtime
 
+`claude/check-56jtg5` at **`5df7e013`**.
+
 **STATE FIRST, because "committed" is a state and it is not shipped.** Everything
 below is committed to `claude/check-56jtg5` and **nothing is deployed, published
 or merged to `main`**. No migration was applied, no edge function was deployed,
