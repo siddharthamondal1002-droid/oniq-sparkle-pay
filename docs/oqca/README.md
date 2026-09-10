@@ -1,5 +1,33 @@
 # OQCA — what was built, and what it is worth
 
+> ## v1.5 — the loop runs itself, across two processes, with nobody asking.
+>
+> - **[`OQCA_V1_5_REPORT.md`](OQCA_V1_5_REPORT.md)** — the three capabilities.
+> - **[`autonomous-run/console.txt`](autonomous-run/console.txt)** — four OS
+>   processes, verbatim; only `checkpoint*.json` crosses between them.
+>
+> ONIQ generates its own objective, ranks what to learn on the six-factor
+> function, runs the 23 stations against knowledge it built itself, blocks,
+> spawns a follow-up, continues to the next objective, checkpoints to disk —
+> and a **separate process** restores that checkpoint and carries on. **What it
+> cannot do is learn**: there is no research capability and the substrate is
+> rebuilt per tick, so `learned` is empty on every run and is reported empty.
+>
+> ### Four things worth carrying
+>
+> - **The brief's "freshness" factor had to be oriented as DEMAND.** Taken
+>   literally, a claim unverified for a year scores near zero and is never
+>   looked at again — the silent inversion of what maintenance is for.
+> - **`maxEpisodes` was read against the LIFETIME counter**, so a restored
+>   runtime was dead on arrival. No single-process test can see that.
+> - **An all-blocked backlog reported `idle`** — a system announcing it has
+>   nothing left to learn while it is stuck. `idle` / `blind` / `stalled` are
+>   three different empties now.
+> - **The maintenance path is unreachable in production**, because nothing
+>   persists so nothing ages. Recorded rather than papered over with a fixture.
+>
+> Nothing is deployed, published or merged; the flag still ships `off`; $0.
+
 > ## v1.4-R — the substrate is REACHABLE from shipped code.
 >
 > - **[`OQCA_V1_4R_REPORT.md`](OQCA_V1_4R_REPORT.md)** — items A through H.

@@ -13,3 +13,15 @@ src/integrations/supabase/types.ts
 # each tuple onto its own set of lines, quadrupling a file no one reads
 # by hand and making every future regeneration an unreviewable diff.
 supabase/functions/_shared/storyDnaLibrary.ts
+
+# VERBATIM MACHINE OUTPUT, not authored code: the OQCA v1.5 autonomous-runtime
+# artifacts. The checkpoints are the exact bytes the store wrote and the only
+# thing that crosses between the processes; the reports are `JSON.stringify(x,
+# null, 2)`, which can never satisfy Prettier because Prettier collapses a
+# single-element array onto one line and `JSON.stringify` cannot. Reformatting
+# either would make the committed artifact differ from what the run produced,
+# which is the one property they exist to carry.
+#
+# `docs/oqca/shadow-run/` is NOT ignored and passes — it simply happens to hold
+# no single-element array. That is luck, not a difference in kind.
+docs/oqca/autonomous-run/

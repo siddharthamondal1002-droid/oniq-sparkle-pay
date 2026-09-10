@@ -1,0 +1,191 @@
+{
+  "report": {
+    "episodes": 3,
+    "stop": "stalled",
+    "stopDetail": "nothing is pending: 1 objective(s) remain blocked — learn:runner-availability (runner-availability: the concept is not in the knowledge state at all)",
+    "snapshot": {
+      "version": 1,
+      "episode": 3,
+      "step": 3,
+      "backlog": [
+        {
+          "source": "knowledge_gap",
+          "goal": {
+            "id": "learn:runner-availability",
+            "statement": "establish what is true about runner-availability",
+            "requires": [
+              {
+                "conceptId": "runner-availability",
+                "importance": 0.9
+              }
+            ]
+          },
+          "status": "blocked",
+          "rationale": "unknown: the concept is not in the knowledge state at all; staleness 1.00, relevance 1.00",
+          "priority": 0.72,
+          "parentId": null,
+          "depth": 0,
+          "attempts": 1,
+          "blockedReason": "runner-availability: the concept is not in the knowledge state at all",
+          "blockedOn": [
+            "runner-availability"
+          ],
+          "createdAt": 0,
+          "id": "4bcb86cbe743521d9b411b694559169c"
+        },
+        {
+          "source": "maintenance",
+          "goal": {
+            "id": "reverify:dispatch-backoff",
+            "statement": "re-verify what is believed about dispatch-backoff",
+            "requires": [
+              {
+                "conceptId": "dispatch-backoff",
+                "importance": 0.7
+              }
+            ]
+          },
+          "status": "done",
+          "rationale": "stale: unverified for 400d",
+          "priority": 0.7,
+          "parentId": null,
+          "depth": 0,
+          "attempts": 1,
+          "blockedReason": null,
+          "blockedOn": [],
+          "createdAt": 0,
+          "id": "8215aa794d29502f56ac972fe560da3a"
+        },
+        {
+          "source": "maintenance",
+          "goal": {
+            "id": "reverify:queue-eligibility",
+            "statement": "re-verify what is believed about queue-eligibility",
+            "requires": [
+              {
+                "conceptId": "queue-eligibility",
+                "importance": 1
+              }
+            ]
+          },
+          "status": "done",
+          "rationale": "stale: unverified for 400d",
+          "priority": 1,
+          "parentId": null,
+          "depth": 0,
+          "attempts": 1,
+          "blockedReason": null,
+          "blockedOn": [],
+          "createdAt": 0,
+          "id": "fb7a5f41fee62d973379a9c5fbeeb550"
+        }
+      ],
+      "history": [
+        {
+          "episode": 0,
+          "objectiveId": "fb7a5f41fee62d973379a9c5fbeeb550",
+          "goalId": "reverify:queue-eligibility",
+          "source": "maintenance",
+          "status": "success",
+          "note": "every concept reverify:queue-eligibility requires was ALREADY VERIFIED in the substrate (loop max_tokens); nothing was written back, so nothing was learned",
+          "followUpId": null,
+          "reawakened": [],
+          "settled": [
+            "queue-eligibility"
+          ],
+          "learned": []
+        },
+        {
+          "episode": 1,
+          "objectiveId": "8215aa794d29502f56ac972fe560da3a",
+          "goalId": "reverify:dispatch-backoff",
+          "source": "maintenance",
+          "status": "success",
+          "note": "every concept reverify:dispatch-backoff requires was ALREADY VERIFIED in the substrate (loop max_tokens); nothing was written back, so nothing was learned",
+          "followUpId": null,
+          "reawakened": [],
+          "settled": [
+            "dispatch-backoff"
+          ],
+          "learned": []
+        },
+        {
+          "episode": 2,
+          "objectiveId": "4bcb86cbe743521d9b411b694559169c",
+          "goalId": "learn:runner-availability",
+          "source": "knowledge_gap",
+          "status": "blocked",
+          "note": "1 of 1 concepts still open after the loop (max_tokens)",
+          "followUpId": null,
+          "reawakened": [],
+          "settled": [],
+          "learned": []
+        }
+      ],
+      "focus": {
+        "id": "learn:runner-availability",
+        "statement": "establish what is true about runner-availability",
+        "requires": [
+          {
+            "conceptId": "runner-availability",
+            "importance": 0.9
+          }
+        ]
+      },
+      "stop": "stalled"
+    },
+    "history": [
+      {
+        "episode": 0,
+        "objectiveId": "fb7a5f41fee62d973379a9c5fbeeb550",
+        "goalId": "reverify:queue-eligibility",
+        "source": "maintenance",
+        "status": "success",
+        "note": "every concept reverify:queue-eligibility requires was ALREADY VERIFIED in the substrate (loop max_tokens); nothing was written back, so nothing was learned",
+        "followUpId": null,
+        "reawakened": [],
+        "settled": [
+          "queue-eligibility"
+        ],
+        "learned": []
+      },
+      {
+        "episode": 1,
+        "objectiveId": "8215aa794d29502f56ac972fe560da3a",
+        "goalId": "reverify:dispatch-backoff",
+        "source": "maintenance",
+        "status": "success",
+        "note": "every concept reverify:dispatch-backoff requires was ALREADY VERIFIED in the substrate (loop max_tokens); nothing was written back, so nothing was learned",
+        "followUpId": null,
+        "reawakened": [],
+        "settled": [
+          "dispatch-backoff"
+        ],
+        "learned": []
+      },
+      {
+        "episode": 2,
+        "objectiveId": "4bcb86cbe743521d9b411b694559169c",
+        "goalId": "learn:runner-availability",
+        "source": "knowledge_gap",
+        "status": "blocked",
+        "note": "1 of 1 concepts still open after the loop (max_tokens)",
+        "followUpId": null,
+        "reawakened": [],
+        "settled": [],
+        "learned": []
+      }
+    ],
+    "checkpoints": 4,
+    "checkpointAttempts": 4,
+    "restored": false,
+    "generated": 3,
+    "surveyRefusals": 0,
+    "settled": [
+      "queue-eligibility",
+      "dispatch-backoff"
+    ],
+    "learned": []
+  },
+  "notes": []
+}

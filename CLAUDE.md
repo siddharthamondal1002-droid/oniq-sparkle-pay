@@ -5462,3 +5462,158 @@ suite; **102 mutations, every one RED, none GREEN, none NOTAPPLIED**; tsc,
 `lint:ci`, Prettier, `node scripts/oqca-mirror.mjs --check` (40 files) and
 `deno check` of the story-dispatch chain all clean. `remoteQuantumExecution`
 false, `maxQuantumCostUsd` 0, `OQCA_MAX_COST_USD` 0 — unchanged and asserted.
+
+### 2026-09-10 — OQCA v1.5: the loop runs itself across two processes, and running it found four defects
+
+The owner's brief: _"At this point I would stop expanding the knowledge
+substrate... The next milestone should be autonomy, not more infrastructure."_
+Three capabilities — an objective with no user request, a six-factor learning
+selector, and a continuous server lifecycle — with the target stated as a system
+that can _"sit there with no new user request, notice that it has an unresolved
+knowledge gap, choose what to learn, research it, verify it, update its
+knowledge, test the consequence, discover the next useful objective, and
+continue"_, and the rider _"blocked on one objective != cognitively dead."_
+Done on `claude/check-56jtg5`; `docs/oqca/OQCA_V1_5_REPORT.md` is the record.
+
+**HALF THE MILESTONE IS REACHED AND HALF IS NOT, and that is the first sentence
+rather than the last.** ONIQ generates its own objective, ranks what to learn,
+runs the real 23 stations against knowledge it builds itself, blocks, spawns a
+follow-up, continues to the next objective, checkpoints to disk — and a SECOND
+OS PROCESS restores that checkpoint and carries on, sharing nothing but the
+file. What it cannot do is the middle clause: **research it, verify it, update
+its knowledge.** There is no research capability (`NO_RESEARCH` refuses by
+design) and `buildSubstrate` re-ingests deterministically every tick, so an
+episode ends with the store it began with. `learned` is EMPTY on every run.
+
+**AND `learned` REPORTING EMPTY IS ITSELF A FIX.** The first version reported
+the objective's already-VERIFIED concepts as `learned`, so a run that confirmed
+two things ONIQ already knew announced that it had learned them. `settled` and
+`learned` are two fields now — what the objective asked for and now holds, and
+what THIS EPISODE moved. **A metric that reads as progress and is really a
+restatement of the starting position is worse than no metric**, and only running
+it showed the difference.
+
+FOUR DEFECTS, EVERY ONE FOUND BY RUNNING IT RATHER THAN READING IT:
+
+- **`maxEpisodes` was checked against the LIFETIME counter.** The snapshot's
+  episode count persists across processes, so the second process to open a
+  checkpoint that had already reached the bound would stop before its first
+  episode, FOREVER, reporting `max_episodes` as though it had done work. The
+  bound belongs to the invocation and the counter to the lifetime. **No
+  single-process test can see this** — it was found by running the script twice,
+  which is the whole reason the script exists.
+- **AN ALL-BLOCKED BACKLOG REPORTED `idle`.** The very first live run printed
+  "nothing is pending and the survey found nothing open" while an unresolvable
+  objective sat in the backlog. There are THREE ways to have nothing to do —
+  `idle` (nothing open), `blind` (the survey refused, so ONIQ cannot see), and
+  `stalled` (there was work and every attempt blocked) — and collapsing them
+  makes a stuck system announce that it knows everything. Same shape as
+  `ResearchAdapter` returning a union rather than an array, and `SurveyResult`
+  copies it for the same reason.
+- The `settled`/`learned` over-claim above.
+- **THE MAINTENANCE PATH IS UNREACHABLE IN PRODUCTION, and it is a finding
+  rather than a bug to fix.** `buildSubstrate` stamps `lastVerifiedAt` with each
+  tick's own instant, so `nowMs` and the verification time are always equal and
+  `freshness` can never call a `stable` or `slow` record stale. **Nothing ages,
+  because nothing persists** — `substrateGap()` seen from the other end. So the
+  staleness factor and every maintenance objective are real code with no
+  reachable input until there is a durable knowledge table. That is the SIXTH
+  "built and unit-tested is not reachable" in this repo. It was NOT fixed:
+  `--advance-days` surveys at T0+N while the records stay stamped at T0, and the
+  script says in its own header that this is the only way to reach the path
+  today. Manufacturing staleness inside the substrate to make the demonstration
+  look busier would have hidden exactly the thing worth reporting.
+
+**THE BRIEF SAYS "FRESHNESS" AND THE FACTOR HAD TO BE ORIENTED AS DEMAND.** This
+is the one place the formula could not be transcribed literally, and getting it
+wrong would have been silent: a factor rising with how FRESH knowledge is
+down-ranks exactly the stale claims maintenance exists to find, so a record
+unverified for a year scores near zero and is never looked at again. The field
+is `staleness`, 1 means overdue now, and the direction is asserted on two
+otherwise-identical gaps rather than left to the name. `decay.ts` already uses
+"freshness" for the ASSESSMENT rather than the quantity, so the vocabulary
+agrees with the substrate.
+
+**THE TWO NEW FACTORS MAY RE-RANK AND MAY NOT VETO.** Six multiplied terms mean
+one zero annihilates the other five. `detectGaps` handles that for its own four
+by FILTERING — `openGaps` drops VERIFIED — which is right for evidence ABOUT the
+gap; staleness and relevance are CONTEXT, and context that can silently discard
+four measurements is not a modifier but a gate nobody declared. Both clamp into
+`[MODIFIER_FLOOR, 1]`. And the whole function is a STRICT EXTENSION, asserted
+rather than claimed: with no staleness source and no focus the ranking is
+`detectGaps`' own ordering element for element over 60 randomised states.
+
+**RELEVANCE IS GRAPH DISTANCE, NEVER STRING SIMILARITY** — a similarity score
+over labels would be a measure invented here and calibrated against nothing, the
+physiological lab ranges again. It walks the `dependsOn` edges that already
+exist and reports UNREACHABLE as the floor rather than guessing.
+
+**THE ID HASHES WHAT THE OBJECTIVE IS FOR, NOT WHAT IS BELIEVED ABOUT IT.**
+Status, attempts, priority and the blocker move; the source and the concept set
+do not. So a regenerated objective dedupes onto its existing row instead of
+minting a copy every cycle — the substrate's own `assertionId` rule, and here it
+is what stands between the runtime and unbounded backlog growth. Importance is
+deliberately OUTSIDE the hash: the same thing to learn at a different weight is
+the same thing to learn, and including it would make dedupe fail on a drift of
+0.01. `mergeBacklog` keeps the EXISTING row and takes only the new priority,
+because a regenerated copy carries `pending` and zero attempts and would
+resurrect a blocked objective as fresh every cycle.
+
+**THE RUNTIME MAY NEVER MINT A `user_request`**, and that is the one safety
+property of the generator: `generateObjectives` is TYPED to `AutonomousSource`
+rather than told not to. A generator that could emit it would let the loop
+attribute its own goal to somebody who never asked. **And a person's request
+outranks the runtime's own chores unconditionally** — not by a weight, because a
+numeric bonus large enough to guarantee it is a number nobody chose.
+
+**THE FOLLOW-UP REGRESS NEEDS TWO BOUNDS AND NEITHER IS ENOUGH ALONE.** A
+blocked objective spawns a follow-up which blocks, forever — a system that looks
+busy and learns nothing. The content-derived id kills the exact repeat for free,
+but a chain naming a NEW concept each time is not a repeat, so there is a depth
+bound as well; and a follow-up whose requirement set EQUALS its parent's is
+refused outright, because the id would otherwise dedupe the child onto the
+parent and silently reset that objective's status. In the live run the
+same-set guard fired at depth 1 and the depth bound was never needed — which is
+the cheaper guard doing its job.
+
+**THE LIFECYCLE BOUNDS ARE RUNAWAY GUARDS AND ARE NOT ZERO**, read against
+`DEFAULT_BUDGETS` whose three spend bounds all ship at 0. `maxEpisodes` and
+`maxWallMs` bound how long a lifecycle goes round — the `maxExecutionTimeMs`
+case, where zero fails DEAD rather than closed. Nothing in the runtime file can
+spend anything; the episode seam does, and it carries the budgets.
+
+**AND THE OWNER'S TWO EXPLICIT DO-NOTS WERE HONOURED.** SUPERPOSE is untouched:
+generated goals carry at most 2 requirements precisely so nothing depends on the
+answer to a question that _"deserves a measured experiment rather than a
+convenient implementation"_, and the one prerequisite a goal does pick is chosen
+by how many other concepts NAME it, not by declaration order — picking the same
+way twice would make the two decisions agree by coincidence and hide the
+mismatch. No graph database was added.
+
+MEASURED, four OS processes, `docs/oqca/autonomous-run/console.txt`:
+
+    true clock       1 episode, 1 objective generated, blocked on
+                     runner-availability, stop `stalled`, 2/2 checkpoints
+    T0+400d proc 1   3 episodes — 2 maintenance re-verifications succeeded,
+                     the learning objective blocked; 4/4 checkpoints
+    T0+400d proc 2   restored true, history carried, 0 episodes (nothing
+                     pending), stop `stalled`
+    T0+400d proc 3   restored true, a seeded user request ran and blocked, its
+                     follow-up ran and blocked, chain terminated by the same-set
+                     guard; learn:runner-availability re-scored 0.7200 -> 0.8000
+                     as the focus changed — real six-factor re-ranking
+
+Numbers: 679 tests across 24 files in `src/oqca` (37 of them v1.5), 382 files /
+6,880 in the whole suite (one run showed the known unrelated
+`arapStep11dDiagnosis` timing flake under load; it passes alone and the next
+clean run was 6,880/6,880); **120 mutations, every one RED, none GREEN, none
+NOTAPPLIED** — 18 new, one per stop this runtime depends on; tsc, `lint:ci`,
+Prettier, `node scripts/oqca-mirror.mjs --check` (43 files, was 40) and
+`deno check` of `story-dispatch` and the new runtime module all clean.
+
+**NOTHING IS DEPLOYED, PUBLISHED OR MERGED**, the flag still ships `off`, and a
+tick still costs $0. **TWO THINGS ARE THE OWNER'S AND BOTH ARE STILL OPEN**: a
+non-zero execution budget (raised once, unanswered — at zero the loop reasons
+about nothing and acts on nothing), and a durable knowledge table, without which
+"update its knowledge" cannot become true however good the research capability
+gets.

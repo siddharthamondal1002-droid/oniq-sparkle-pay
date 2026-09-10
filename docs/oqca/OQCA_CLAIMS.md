@@ -16,6 +16,20 @@ node scripts/oqca-mirror.mjs --check    # the edge mirror is byte-identical
 deno check supabase/functions/story-dispatch/index.ts
 ```
 
+## v1.5 — what the autonomous runtime may be claimed to do
+
+| Claim                                                         | Status                                                                                                                                                       |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ONIQ creates an objective with no user request                | **ESTABLISHED** — `generateObjectives` is typed to `AutonomousSource`; M103 red; the live run generates one with nobody asking                               |
+| A blocked objective ends the objective, not the runtime       | **ESTABLISHED** — M113 red; the scripted run reaches every objective past the first block                                                                    |
+| The six-factor selector is a strict extension of `detectGaps` | **ESTABLISHED** — same ordering over 60 randomised states, scores equal to 10 places (the double rounding is the difference, and it is asserted as a limit)  |
+| The selector is not declaration order in disguise             | **ESTABLISHED** — a randomised control; the choice differs from the first-listed gap far more often than index order could explain                           |
+| The lifecycle survives a process boundary                     | **ESTABLISHED** — four separate `npx tsx` invocations; only `checkpoint*.json` crosses; history and statuses carried                                         |
+| ONIQ learns something during an episode                       | **FALSE, and reported as false.** No research capability, and `buildSubstrate` rebuilds per tick, so there is no write-back. `learned` is empty on every run |
+| The maintenance path can fire in production                   | **FALSE today.** Nothing persists, so nothing ages; `--advance-days` is the only way to reach it and says so                                                 |
+| A server hosts this                                           | **NOT TRUE.** Nothing is deployed; `autonomyGap()` says so                                                                                                   |
+| The runtime could spend money                                 | **NOT AT THE SHIPPED DEFAULTS.** `maxToolCalls`/`maxTokens`/`maxCostUsd` are 0; a tick costs $0                                                              |
+
 ## v1.2 — what became reachable, and what did NOT
 
 | Claim                                                                                                   | Status                                                                                                              |

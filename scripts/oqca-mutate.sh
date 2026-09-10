@@ -1584,4 +1584,264 @@ mirror
 report "M102 a labelled metric reports 0 instead of null" "$(run $RK src/oqca/__tests__/oksSubstrate.test.ts)"
 restore $F
 
+# ---------------------------------------------------------------- #
+# v1.5 — THE AUTONOMOUS RUNTIME. A loop that generates its own goals and keeps
+# going without anybody asking is only as safe as the things that stop it, so
+# every mutation below removes one STOP rather than one feature.
+# ---------------------------------------------------------------- #
+AU=src/oqca/__tests__/autonomy.test.ts
+
+# M103: the generator can mint a `user_request`. THE safety property of
+# objective.ts — a loop attributing its own goal to somebody who never asked.
+F=src/oqca/autonomy/objective.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/objective.ts'; s=open(p).read()
+old='      source: "maintenance",'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      source: "user_request",')
+open(p,'w').write(s)
+PY2
+mirror
+report "M103 the generator mints a user_request" "$(run $AU)"
+restore $F
+
+# M104: the id commits to importance, which drifts with the evidence — so an
+# unresolved gap mints a NEW objective every cycle and the backlog bound is the
+# only thing left between the runtime and unbounded growth.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/objective.ts'; s=open(p).read()
+old='    concepts: [...goal.requires].map((r) => r.conceptId).sort(),'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    concepts: [...goal.requires].map((r) => r.conceptId + ":" + r.importance).sort(),')
+open(p,'w').write(s)
+PY2
+mirror
+report "M104 the objective id commits to importance" "$(run $AU)"
+restore $F
+
+# M105: a regenerated objective overwrites the in-flight one, resurrecting a
+# blocked objective as fresh every cycle and losing the attempt count.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/objective.ts'; s=open(p).read()
+old='    byId.set(g.id, prior ? { ...prior, priority: g.priority } : g);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    byId.set(g.id, g);')
+open(p,'w').write(s)
+PY2
+mirror
+report "M105 a regenerated objective overwrites the in-flight one" "$(run $AU)"
+restore $F
+
+# M106: the same-requirement-set check goes. That is the regress in its purest
+# form, and the content-derived id HIDES it: the child dedupes onto its parent.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/objective.ts'; s=open(p).read()
+old='concepts.every((c, i) => c === parentConcepts[i])'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'false')
+open(p,'w').write(s)
+PY2
+mirror
+report "M106 a follow-up may be its own parent" "$(run $AU)"
+restore $F
+
+# M107: the depth bound goes, so a chain naming a new concept each time never
+# terminates.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/objective.ts'; s=open(p).read()
+old='  if (objective.depth >= MAX_FOLLOW_UP_DEPTH) return null;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'')
+open(p,'w').write(s)
+PY2
+mirror
+report "M107 the follow-up chain loses its depth bound" "$(run $AU)"
+restore $F
+
+# M108: the runtime's own chores can outscore a waiting person.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/objective.ts'; s=open(p).read()
+old='    return aUser - bUser || b.priority - a.priority || a.id.localeCompare(b.id);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    return b.priority - a.priority || a.id.localeCompare(b.id);')
+open(p,'w').write(s)
+PY2
+mirror
+report "M108 a user request stops outranking the runtime's chores" "$(run $AU)"
+restore $F
+
+# M109: a blocked or done objective becomes selectable — the shape of a runtime
+# that spins on one objective and calls it work.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/objective.ts'; s=open(p).read()
+old='  const pending = backlog.filter((o) => o.status === "pending");'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  const pending = backlog.filter((o) => o.status !== "active");')
+open(p,'w').write(s)
+PY2
+mirror
+report "M109 a blocked objective becomes selectable again" "$(run $AU)"
+restore $F
+
+# M110: the brief's "freshness" taken LITERALLY. A stale claim then scores near
+# zero and is never looked at again — the silent inversion this factor's
+# orientation exists to prevent.
+F=src/oqca/autonomy/select.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/select.ts'; s=open(p).read()
+old='  return clampModifier(f.ageMs / f.intervalMs);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  return clampModifier(1 - f.ageMs / f.intervalMs);')
+open(p,'w').write(s)
+PY2
+mirror
+report "M110 staleness is read as literal freshness" "$(run $AU)"
+restore $F
+
+# M111: the modifier floor goes to zero, so one context factor annihilates four
+# real measurements about the gap itself.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/select.ts'; s=open(p).read()
+old='export const MODIFIER_FLOOR = 0.05;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'export const MODIFIER_FLOOR = 0;')
+open(p,'w').write(s)
+PY2
+mirror
+report "M111 a context factor may veto the other five" "$(run $AU)"
+restore $F
+
+# M112: relevance stops being graph distance and becomes a constant, which is
+# the "invent a measure calibrated against nothing" failure.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/select.ts'; s=open(p).read()
+old='  if (seeds.includes(conceptId)) return 1;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  if (seeds.includes(conceptId)) return 1;\n  return 0.5;')
+open(p,'w').write(s)
+PY2
+mirror
+report "M112 relevance stops being graph distance" "$(run $AU)"
+restore $F
+
+# M113: the runtime STOPS on the first blocked objective. The owner's sentence
+# inverted: blocked on one objective becomes cognitively dead.
+F=src/oqca/autonomy/runtime.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='      consecutiveBlocked += 1;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      consecutiveBlocked += 1;\n      stop = "stalled";\n      stopDetail = "an objective blocked";')
+open(p,'w').write(s)
+PY2
+mirror
+report "M113 the runtime dies on the first blocked objective" "$(run $AU)"
+restore $F
+
+# M114: the episode bound reads the LIFETIME counter, so a restored runtime is
+# dead on arrival. Invisible to a single-process test — this is the defect the
+# two-process script found.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='    if (ranHere >= bounds.maxEpisodes) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    if (snapshot.episode >= bounds.maxEpisodes) {')
+open(p,'w').write(s)
+PY2
+mirror
+report "M114 the episode bound reads the lifetime counter" "$(run $AU)"
+restore $F
+
+# M115: an all-blocked backlog reports `idle` — a system announcing it has
+# nothing left to learn while it is stuck.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='      const stuck = backlog.filter((o) => o.status === "blocked");'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      const stuck: typeof backlog = [];')
+open(p,'w').write(s)
+PY2
+mirror
+report "M115 a stalled runtime reports idle" "$(run $AU)"
+restore $F
+
+# M116: trimming drops what carries history, so the runtime forgets what it
+# already tried and re-queues it forever.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='  const keep = backlog.filter((o) => o.status !== "pending");'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  const keep: typeof backlog = [];')
+open(p,'w').write(s)
+PY2
+mirror
+report "M116 trimming drops objectives that carry history" "$(run $AU)"
+restore $F
+
+# M117: reawakening ignores the attempt bound, so a blocker that clears
+# repeatedly revives the same objective forever.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='    if (o.attempts >= MAX_ATTEMPTS) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    if (o.attempts >= Number.MAX_SAFE_INTEGER) {')
+open(p,'w').write(s)
+PY2
+mirror
+report "M117 reawakening ignores the attempt bound" "$(run $AU)"
+restore $F
+
+# M118: the episode reports what was ALREADY known as `learned`. A metric that
+# reads as progress and is really a restatement of the starting position.
+F=supabase/functions/_shared/oqcaRuntime/autonomous.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/autonomous.ts'; s=open(p).read()
+old='        settled,\n        learned: [],'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'        settled,\n        learned: settled,')
+open(p,'w').write(s)
+PY2
+report "M118 the episode reports already-known facts as learned" "$(run $AU)"
+restore $F
+
+# M119: maintenance stops being scoped to what the current goals depend on, so
+# a hundred re-verification objectives arrive on the first cycle and the backlog
+# bound silently decides what ONIQ cares about.
+cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/autonomous.ts'; s=open(p).read()
+old='    if (!wanted.has(r.subject)) continue;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'')
+open(p,'w').write(s)
+PY2
+report "M119 maintenance stops being scoped to the current goals" "$(run $AU)"
+restore $F
+
+# M120: the world OFFERS the research action ONIQ does not have, so the loop
+# plans it, calls a router with no such tool, and a missing capability reads as
+# a broken integration.
+cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/autonomous.ts'; s=open(p).read()
+old='      unavailableActions: basis.map((c) => `research ${c}`),'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      availableActions: basis.map((c) => `research ${c}`),')
+open(p,'w').write(s)
+PY2
+report "M120 the world offers a research action ONIQ does not have" "$(run $AU)"
+restore $F
+
 echo "done"
