@@ -5617,3 +5617,138 @@ non-zero execution budget (raised once, unanswered — at zero the loop reasons
 about nothing and acts on nothing), and a durable knowledge table, without which
 "update its knowledge" cannot become true however good the research capability
 gets.
+
+## Owner directive, 2026-09-10 — COGNITIVE AUTONOMY != RESOURCE AVAILABILITY
+
+The owner read the v1.5 report and named the contradiction in it: _"The
+autonomous runtime must NOT become cognitively inert because an execution budget
+is zero… Therefore `budget = 0` must NOT mean `autonomous runtime = stopped`. It
+should mean only that a particular resource-consuming action cannot currently
+execute."_ Ten numbered requirements, ten lifecycle tests, and the boundary drawn
+twice: **do NOT simply delete the resource controls**, and do not spend money,
+invent a ceiling, fabricate execution or bypass an authorization because autonomy
+is on. Done on `claude/check-56jtg5`; `docs/oqca/OQCA_V1_6_REPORT.md` carries the
+exact code path before and after.
+
+**THE BARRIER WAS FIVE SITES IN ONE FILE, AND THE SHIPPED DEFAULTS REACHED ALL
+FIVE.** `cognitiveLoop.ts` carried a run-level `starvedBy: BoundBreach | null`
+set by ANY refused model call; CHECK_GOAL turned it into the terminal status
+`budget_exhausted`. With `maxTokens: 0` the FIRST model call — UNDERSTAND,
+station 2 of 23 — tripped it, so the run ended at the close of iteration 1 and
+the other three iterations never happened. Four more sites `break outer`'d out
+of the station walk on a capability bound: RESEARCH on `max_research_operations`,
+EVALUATE on an unaffordable plan, and ACT twice on `max_tool_calls`. An
+unaffordable plan at station 15 meant ACT, OBSERVE, MEASURE, LEARN_OR_CORRECT,
+CONSOLIDATE, REFLECT, CHECK_GOAL and RESPOND did not run — **self-evaluation was
+the station that stopped self-evaluation.** And the layer above read the result
+as cognitive: the still-open concepts became `blockedOn`, so the runtime spawned
+a follow-up **to research a concept whose only problem was that nobody could
+afford to think about it**, and stopped with `stalled` — which reads as ONIQ
+having run out of ideas.
+
+**THE FIX IS A VOCABULARY, NOT A RELAXATION.** `src/oqca/loop/capability.ts`
+draws one line: a RUN bound (transitions, elapsed time, iterations) means this
+run has no room left and is fatal, exactly as before; a CAPABILITY bound
+(tokens, money, tool calls, research operations, `unpriced`) means one ACTION
+cannot execute now. `breach`, `wouldBreach` and `breachRun` are byte-identical
+to v1.5, every gate still refuses BEFORE the call it guards, and
+`DEFAULT_BUDGETS` still ships `maxTokens`, `maxCostUsd` and `maxToolCalls` at 0.
+`starvedBy` became a per-capability ledger; CHECK_GOAL sets `blocked` with
+`terminated = "capability_unavailable"`; `break outer` in that file went **9 → 4**
+and the four survivors are the legitimate ones (a caller's pause, a RUN bound,
+the recovery ladder's own terminal, RESPOND on a terminal state), asserted by
+count with comments stripped.
+
+**AND A CAPABILITY SHORTFALL NO LONGER GOES THROUGH THE RECOVERY LADDER.** A
+ladder answers retry / replan / escalate, and retrying an action whose resource
+is absent is spend chasing a wall. Only a PROVIDER failure reaches it now.
+
+**THE FIX'S OWN FIRST DRAFT WAS THE BUG WITH A NEW NAME, and a test written for
+something else caught it.** Making CHECK_GOAL terminal on the FIRST capability
+refusal is `starvedBy` renamed. Four shadow-run tests went red: the chain fell
+**33 states to 12**, `UPDATE_STATE` folded evidence once instead of four times,
+the replan that withdraws a refused dispatch never happened, and the decision
+margin dropped **0.4189 to 0.2123**. Terminal only on the LAST iteration; all
+four green again. The second clause of that condition is load-bearing and was
+measured rather than reasoned.
+
+**`insufficient_allowance` IS NOT `unauthorized`, AND THAT IS AN INVARIANT.** A
+zero allowance is ONIQ's own number; `unauthorized`, `no_credentials` and
+`rate_limited` are somebody else's decision about who ONIQ is. If a budget could
+produce one of those, "was this authorized" would be answerable by editing a
+budget. `availabilityForBound` can return only the allowance and resource
+states — asserted over every member of `BoundBreach`, and the union is READ FROM
+`seams.ts` rather than kept as a list in the test, because a type evaporates at
+runtime and a hand-kept copy agrees with itself for ever.
+
+**ABSENT IS NOT AVAILABLE — the episode reports its WHOLE ledger.** The first
+draft carried only the refusals, which is the natural shape and makes recovery
+unreachable: a capability that came back is never observed working, and reading
+silence as "available" would reawaken every blocked objective every cycle. Same
+union-not-an-array rule as `SurveyResult` and `ResearchResult`, in a third place.
+
+**TWO OPPOSITE MERGE RULES, BOTH ASSERTED SO A FUTURE SIMPLIFICATION GOES RED.**
+Within one run the FIRST refusal outranks a later success (a run refused once
+did less, and the receipt must say so). Across CYCLES the LATEST observation
+wins (a ledger that kept a refusal for ever could never see a credential come
+back). Unifying them looks like tidying and would delete recovery.
+
+**THE STOP NAMES WHAT SOMEBODY CAN GO AND FIX.** `capability_blocked` is a
+fourth stop beside `idle` / `blind` / `stalled`, at both the empty-backlog branch
+and the consecutive-block guard. The backlog is preserved either way; the name is
+the difference between "ONIQ is stuck" and "a credential is missing".
+`reconsider` returns such an objective to `pending` once EVERY capability it
+named is observed working, bounded by `MAX_ATTEMPTS`, run before selection every
+cycle so a restored runtime recovers on its FIRST pass. A capability blocker
+spawns NO follow-up, structurally: `followUpFor` reads `blockedOn`, and a
+resource block names no concept.
+
+**FOUR THINGS MEASUREMENT SAID AND READING DID NOT:**
+
+- **`max_state_transitions` is unreachable at a zero allowance** — transitions
+  are counted at IMAGINE and ACT, exactly the stations a refused capability
+  skips. A test written against it would have passed for the wrong reason;
+  measured, `maxStateTransitions: 3` ran all four iterations. The RUN-bound test
+  uses time instead.
+- **A CAST IN A FIXTURE HID A WHOLE NEW FIELD.** `scripted()` ended
+  `} as EpisodeOutcome`, so adding `capabilities` to the outcome type broke
+  nothing at compile time and every test ran with an `undefined` list until the
+  runtime threw. It is a typed `const` now. **A fixture that silences the
+  compiler stops being a fixture for the shape it is fixing.**
+- **A MUTATION CAUGHT A TEST THAT WAS NOT TESTING.** M131 disabled the
+  consecutive-capability-block guard and reported GREEN: with ONE objective the
+  backlog empties and the SELECTION branch reports `capability_blocked` anyway,
+  so the two paths overlapped and the guard was never the thing under test. Four
+  objectives and a bound of three separate them.
+- **M117 went NOTAPPLIED because `reconsider` grew the same `MAX_ATTEMPTS` line
+  as `reawaken`** — the anchor matched twice and the script said so rather than
+  printing a verdict. Fifth time that fix has earned itself.
+
+**AND TWO IDENTIFIER COLLISIONS, both narrowed with the narrowing proven in the
+same commit.** `/authorize/` matches the substring inside `unauthorized`, which
+is this module's own vocabulary — the ban is on the CALL shape now, with both
+directions asserted inline. And `security.test.ts`'s auth-header ban lists the
+lowercase wire spelling, which two of my test TITLES carried; the titles were
+reworded rather than a third exemption cut into a security guard for a
+sentence's sake. Stripping comments cannot fix either — these are collisions in
+identifiers and strings, not the prose match this repo has hit a dozen times.
+
+Numbers: `src/oqca` 25 files / **707** tests (29 of them the directive's ten
+lifecycle claims, in `capabilityAware.test.ts`); whole suite 383 files / **6,910**
+(one run showed the known unrelated `arapStep11dDiagnosis` timing flake under
+load; it passes alone); **134 mutations, every one RED, none GREEN, none
+NOTAPPLIED** — 14 new, M121–M134; tsc, `lint:ci`, Prettier on the changed files,
+`node scripts/oqca-mirror.mjs --check` (44 files, was 43) and `deno check` of
+`story-dispatch` and the runtime module all clean.
+
+**STILL NOT TRUE, STATED AS NOT TRUE.** No live cross-process reconsideration:
+with the shipped seams no capability is ever `available` inside
+`makeLoopEpisode`, so the script cannot show a resource returning — requirement 8
+is proven by a two-invocation TEST, and the guard for the episode passing its
+whole ledger is a SOURCE READ with that limit written at the assertion. `learned`
+is still empty on every run and the maintenance path is still unreachable in
+production, both for v1.5's reason: nothing persists, so nothing ages.
+**Nothing is deployed, published or merged to `main`**, the flag ships `off`, a
+tick costs $0, and no Lovable message was sent. **The two things that are the
+owner's are unchanged and still open**: a non-zero execution budget, and a
+durable knowledge table.

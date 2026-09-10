@@ -1,8 +1,8 @@
 {
   "report": {
     "episodes": 2,
-    "stop": "stalled",
-    "stopDetail": "nothing is pending: 3 objective(s) remain blocked — learn:runner-availability (runner-availability: the concept is not in the knowledge state at all); user:dispatch (runner-availability: the concept is not in the knowledge state at all); unblock:user:dispatch (runner-availability: the concept is not in the knowledge state at all)",
+    "stop": "capability_blocked",
+    "stopDetail": "nothing is pending: 3 objective(s) are waiting on a capability — learn:runner-availability (model:insufficient_allowance, research:provider_unavailable); user:dispatch (model:insufficient_allowance, research:provider_unavailable); unblock:user:dispatch (model:insufficient_allowance, research:provider_unavailable)",
     "snapshot": {
       "version": 1,
       "episode": 5,
@@ -26,9 +26,25 @@
           "parentId": null,
           "depth": 0,
           "attempts": 1,
-          "blockedReason": "runner-availability: the concept is not in the knowledge state at all",
+          "blockedReason": "model: model call refused: max_tokens; research: no research capability is wired to this run",
           "blockedOn": [
             "runner-availability"
+          ],
+          "blockedCapabilities": [
+            {
+              "capability": "model",
+              "availability": "insufficient_allowance",
+              "detail": "model call refused: max_tokens",
+              "bound": "max_tokens",
+              "station": "UNDERSTAND"
+            },
+            {
+              "capability": "research",
+              "availability": "provider_unavailable",
+              "detail": "no research capability is wired to this run",
+              "bound": null,
+              "station": "RESEARCH"
+            }
           ],
           "createdAt": 0,
           "id": "4bcb86cbe743521d9b411b694559169c"
@@ -53,6 +69,7 @@
           "attempts": 1,
           "blockedReason": null,
           "blockedOn": [],
+          "blockedCapabilities": [],
           "createdAt": 0,
           "id": "8215aa794d29502f56ac972fe560da3a"
         },
@@ -76,6 +93,7 @@
           "attempts": 1,
           "blockedReason": null,
           "blockedOn": [],
+          "blockedCapabilities": [],
           "createdAt": 0,
           "id": "fb7a5f41fee62d973379a9c5fbeeb550"
         },
@@ -105,9 +123,25 @@
           "parentId": null,
           "depth": 0,
           "attempts": 1,
-          "blockedReason": "runner-availability: the concept is not in the knowledge state at all",
+          "blockedReason": "model: model call refused: max_tokens; research: no research capability is wired to this run",
           "blockedOn": [
             "runner-availability"
+          ],
+          "blockedCapabilities": [
+            {
+              "capability": "model",
+              "availability": "insufficient_allowance",
+              "detail": "model call refused: max_tokens",
+              "bound": "max_tokens",
+              "station": "UNDERSTAND"
+            },
+            {
+              "capability": "research",
+              "availability": "provider_unavailable",
+              "detail": "no research capability is wired to this run",
+              "bound": null,
+              "station": "RESEARCH"
+            }
           ],
           "createdAt": 0,
           "id": "45495cc2430afe94275cbd56b038dd83"
@@ -125,14 +159,30 @@
             ]
           },
           "status": "blocked",
-          "rationale": "user:dispatch is blocked: runner-availability: the concept is not in the knowledge state at all",
+          "rationale": "user:dispatch is blocked: model: model call refused: max_tokens; research: no research capability is wired to this run",
           "priority": 1,
           "parentId": "45495cc2430afe94275cbd56b038dd83",
           "depth": 1,
           "attempts": 1,
-          "blockedReason": "runner-availability: the concept is not in the knowledge state at all",
+          "blockedReason": "model: model call refused: max_tokens; research: no research capability is wired to this run",
           "blockedOn": [
             "runner-availability"
+          ],
+          "blockedCapabilities": [
+            {
+              "capability": "model",
+              "availability": "insufficient_allowance",
+              "detail": "model call refused: max_tokens",
+              "bound": "max_tokens",
+              "station": "UNDERSTAND"
+            },
+            {
+              "capability": "research",
+              "availability": "provider_unavailable",
+              "detail": "no research capability is wired to this run",
+              "bound": null,
+              "station": "RESEARCH"
+            }
           ],
           "createdAt": 4,
           "id": "badec653a5c0ebc5c28492fd533c2bf8"
@@ -145,13 +195,23 @@
           "goalId": "reverify:queue-eligibility",
           "source": "maintenance",
           "status": "success",
-          "note": "every concept reverify:queue-eligibility requires was ALREADY VERIFIED in the substrate (loop max_tokens); nothing was written back, so nothing was learned",
+          "note": "every concept reverify:queue-eligibility requires was ALREADY VERIFIED in the substrate (loop capability_unavailable); nothing was written back, so nothing was learned",
           "followUpId": null,
           "reawakened": [],
           "settled": [
             "queue-eligibility"
           ],
-          "learned": []
+          "learned": [],
+          "capabilities": [
+            {
+              "capability": "model",
+              "availability": "insufficient_allowance",
+              "detail": "model call refused: max_tokens",
+              "bound": "max_tokens",
+              "station": "UNDERSTAND"
+            }
+          ],
+          "reconsidered": []
         },
         {
           "episode": 1,
@@ -159,13 +219,23 @@
           "goalId": "reverify:dispatch-backoff",
           "source": "maintenance",
           "status": "success",
-          "note": "every concept reverify:dispatch-backoff requires was ALREADY VERIFIED in the substrate (loop max_tokens); nothing was written back, so nothing was learned",
+          "note": "every concept reverify:dispatch-backoff requires was ALREADY VERIFIED in the substrate (loop capability_unavailable); nothing was written back, so nothing was learned",
           "followUpId": null,
           "reawakened": [],
           "settled": [
             "dispatch-backoff"
           ],
-          "learned": []
+          "learned": [],
+          "capabilities": [
+            {
+              "capability": "model",
+              "availability": "insufficient_allowance",
+              "detail": "model call refused: max_tokens",
+              "bound": "max_tokens",
+              "station": "UNDERSTAND"
+            }
+          ],
+          "reconsidered": []
         },
         {
           "episode": 2,
@@ -173,11 +243,28 @@
           "goalId": "learn:runner-availability",
           "source": "knowledge_gap",
           "status": "blocked",
-          "note": "1 of 1 concepts still open after the loop (max_tokens)",
+          "note": "1 of 1 concepts still open: the loop could not use model (insufficient_allowance), research (provider_unavailable)",
           "followUpId": null,
           "reawakened": [],
           "settled": [],
-          "learned": []
+          "learned": [],
+          "capabilities": [
+            {
+              "capability": "model",
+              "availability": "insufficient_allowance",
+              "detail": "model call refused: max_tokens",
+              "bound": "max_tokens",
+              "station": "UNDERSTAND"
+            },
+            {
+              "capability": "research",
+              "availability": "provider_unavailable",
+              "detail": "no research capability is wired to this run",
+              "bound": null,
+              "station": "RESEARCH"
+            }
+          ],
+          "reconsidered": []
         },
         {
           "episode": 3,
@@ -185,14 +272,31 @@
           "goalId": "user:dispatch",
           "source": "user_request",
           "status": "blocked",
-          "note": "1 of 3 concepts still open after the loop (max_tokens)",
+          "note": "1 of 3 concepts still open: the loop could not use model (insufficient_allowance), research (provider_unavailable)",
           "followUpId": "badec653a5c0ebc5c28492fd533c2bf8",
           "reawakened": [],
           "settled": [
             "queue-eligibility",
             "dispatch-backoff"
           ],
-          "learned": []
+          "learned": [],
+          "capabilities": [
+            {
+              "capability": "model",
+              "availability": "insufficient_allowance",
+              "detail": "model call refused: max_tokens",
+              "bound": "max_tokens",
+              "station": "UNDERSTAND"
+            },
+            {
+              "capability": "research",
+              "availability": "provider_unavailable",
+              "detail": "no research capability is wired to this run",
+              "bound": null,
+              "station": "RESEARCH"
+            }
+          ],
+          "reconsidered": []
         },
         {
           "episode": 4,
@@ -200,11 +304,28 @@
           "goalId": "unblock:user:dispatch",
           "source": "follow_up",
           "status": "blocked",
-          "note": "1 of 1 concepts still open after the loop (max_tokens)",
+          "note": "1 of 1 concepts still open: the loop could not use model (insufficient_allowance), research (provider_unavailable)",
           "followUpId": null,
           "reawakened": [],
           "settled": [],
-          "learned": []
+          "learned": [],
+          "capabilities": [
+            {
+              "capability": "model",
+              "availability": "insufficient_allowance",
+              "detail": "model call refused: max_tokens",
+              "bound": "max_tokens",
+              "station": "UNDERSTAND"
+            },
+            {
+              "capability": "research",
+              "availability": "provider_unavailable",
+              "detail": "no research capability is wired to this run",
+              "bound": null,
+              "station": "RESEARCH"
+            }
+          ],
+          "reconsidered": []
         }
       ],
       "focus": {
@@ -217,7 +338,23 @@
           }
         ]
       },
-      "stop": "stalled"
+      "capabilities": [
+        {
+          "capability": "model",
+          "availability": "insufficient_allowance",
+          "detail": "model call refused: max_tokens",
+          "bound": "max_tokens",
+          "station": "UNDERSTAND"
+        },
+        {
+          "capability": "research",
+          "availability": "provider_unavailable",
+          "detail": "no research capability is wired to this run",
+          "bound": null,
+          "station": "RESEARCH"
+        }
+      ],
+      "stop": "capability_blocked"
     },
     "history": [
       {
@@ -226,13 +363,23 @@
         "goalId": "reverify:queue-eligibility",
         "source": "maintenance",
         "status": "success",
-        "note": "every concept reverify:queue-eligibility requires was ALREADY VERIFIED in the substrate (loop max_tokens); nothing was written back, so nothing was learned",
+        "note": "every concept reverify:queue-eligibility requires was ALREADY VERIFIED in the substrate (loop capability_unavailable); nothing was written back, so nothing was learned",
         "followUpId": null,
         "reawakened": [],
         "settled": [
           "queue-eligibility"
         ],
-        "learned": []
+        "learned": [],
+        "capabilities": [
+          {
+            "capability": "model",
+            "availability": "insufficient_allowance",
+            "detail": "model call refused: max_tokens",
+            "bound": "max_tokens",
+            "station": "UNDERSTAND"
+          }
+        ],
+        "reconsidered": []
       },
       {
         "episode": 1,
@@ -240,13 +387,23 @@
         "goalId": "reverify:dispatch-backoff",
         "source": "maintenance",
         "status": "success",
-        "note": "every concept reverify:dispatch-backoff requires was ALREADY VERIFIED in the substrate (loop max_tokens); nothing was written back, so nothing was learned",
+        "note": "every concept reverify:dispatch-backoff requires was ALREADY VERIFIED in the substrate (loop capability_unavailable); nothing was written back, so nothing was learned",
         "followUpId": null,
         "reawakened": [],
         "settled": [
           "dispatch-backoff"
         ],
-        "learned": []
+        "learned": [],
+        "capabilities": [
+          {
+            "capability": "model",
+            "availability": "insufficient_allowance",
+            "detail": "model call refused: max_tokens",
+            "bound": "max_tokens",
+            "station": "UNDERSTAND"
+          }
+        ],
+        "reconsidered": []
       },
       {
         "episode": 2,
@@ -254,11 +411,28 @@
         "goalId": "learn:runner-availability",
         "source": "knowledge_gap",
         "status": "blocked",
-        "note": "1 of 1 concepts still open after the loop (max_tokens)",
+        "note": "1 of 1 concepts still open: the loop could not use model (insufficient_allowance), research (provider_unavailable)",
         "followUpId": null,
         "reawakened": [],
         "settled": [],
-        "learned": []
+        "learned": [],
+        "capabilities": [
+          {
+            "capability": "model",
+            "availability": "insufficient_allowance",
+            "detail": "model call refused: max_tokens",
+            "bound": "max_tokens",
+            "station": "UNDERSTAND"
+          },
+          {
+            "capability": "research",
+            "availability": "provider_unavailable",
+            "detail": "no research capability is wired to this run",
+            "bound": null,
+            "station": "RESEARCH"
+          }
+        ],
+        "reconsidered": []
       },
       {
         "episode": 3,
@@ -266,14 +440,31 @@
         "goalId": "user:dispatch",
         "source": "user_request",
         "status": "blocked",
-        "note": "1 of 3 concepts still open after the loop (max_tokens)",
+        "note": "1 of 3 concepts still open: the loop could not use model (insufficient_allowance), research (provider_unavailable)",
         "followUpId": "badec653a5c0ebc5c28492fd533c2bf8",
         "reawakened": [],
         "settled": [
           "queue-eligibility",
           "dispatch-backoff"
         ],
-        "learned": []
+        "learned": [],
+        "capabilities": [
+          {
+            "capability": "model",
+            "availability": "insufficient_allowance",
+            "detail": "model call refused: max_tokens",
+            "bound": "max_tokens",
+            "station": "UNDERSTAND"
+          },
+          {
+            "capability": "research",
+            "availability": "provider_unavailable",
+            "detail": "no research capability is wired to this run",
+            "bound": null,
+            "station": "RESEARCH"
+          }
+        ],
+        "reconsidered": []
       },
       {
         "episode": 4,
@@ -281,11 +472,28 @@
         "goalId": "unblock:user:dispatch",
         "source": "follow_up",
         "status": "blocked",
-        "note": "1 of 1 concepts still open after the loop (max_tokens)",
+        "note": "1 of 1 concepts still open: the loop could not use model (insufficient_allowance), research (provider_unavailable)",
         "followUpId": null,
         "reawakened": [],
         "settled": [],
-        "learned": []
+        "learned": [],
+        "capabilities": [
+          {
+            "capability": "model",
+            "availability": "insufficient_allowance",
+            "detail": "model call refused: max_tokens",
+            "bound": "max_tokens",
+            "station": "UNDERSTAND"
+          },
+          {
+            "capability": "research",
+            "availability": "provider_unavailable",
+            "detail": "no research capability is wired to this run",
+            "bound": null,
+            "station": "RESEARCH"
+          }
+        ],
+        "reconsidered": []
       }
     ],
     "checkpoints": 3,
@@ -297,7 +505,24 @@
       "queue-eligibility",
       "dispatch-backoff"
     ],
-    "learned": []
+    "learned": [],
+    "capabilities": [
+      {
+        "capability": "model",
+        "availability": "insufficient_allowance",
+        "detail": "model call refused: max_tokens",
+        "bound": "max_tokens",
+        "station": "UNDERSTAND"
+      },
+      {
+        "capability": "research",
+        "availability": "provider_unavailable",
+        "detail": "no research capability is wired to this run",
+        "bound": null,
+        "station": "RESEARCH"
+      }
+    ],
+    "capabilityBlocks": 2
   },
   "notes": []
 }

@@ -48,6 +48,15 @@ import type { Gap, Goal } from "../knowledge/gaps.ts";
 import type { KnowledgeState } from "../knowledge/model.ts";
 import { type Clock, deterministicClock } from "../loop/seams.ts";
 import {
+  type Capability,
+  type CapabilityState,
+  AVAILABILITIES,
+  CAPABILITIES,
+  capabilityList,
+  isExecutable,
+  unavailable,
+} from "../loop/capability.ts";
+import {
   type Objective,
   type ObjectiveSource,
   type StaleSubject,
@@ -97,6 +106,27 @@ export type EpisodeOutcome = {
   readonly blockedOn: readonly string[];
   readonly blockedReason: string | null;
   /**
+   * v1.6 — EVERY CAPABILITY THIS EPISODE OBSERVED, refused AND working, and the
+   * distinction between "absent" and "available" is the whole reason it is the
+   * full list rather than the refused subset.
+   *
+   * `blockedOn` names CONCEPTS the episode could not settle: a knowledge gap,
+   * and a follow-up objective can go and close it. This names CAPABILITIES —
+   * a credential, a provider, a rate limit, an allowance. No follow-up can
+   * close one of those (there is nothing to research about a missing key), so
+   * the two never share a field; what a capability blocker earns instead is a
+   * dependency the backlog remembers and a RECONSIDERATION when the capability
+   * is next observed working.
+   *
+   * That reconsideration needs a POSITIVE observation, which is why reporting
+   * only the refusals would not do. An episode that never called the model has
+   * observed nothing about the model, and reading its silence as "available"
+   * would reawaken every objective on every cycle. Absent means not observed —
+   * the same union-not-an-array rule `SurveyResult` and `ResearchResult` both
+   * carry, in a third place.
+   */
+  readonly capabilities: readonly CapabilityState[];
+  /**
    * TWO DIFFERENT CLAIMS, AND COLLAPSING THEM WAS A REAL OVER-CLAIM CAUGHT BY
    * RUNNING THIS. `settled` is what the objective asked for and now holds;
    * `learned` is what THIS EPISODE moved. The first version reported the
@@ -126,6 +156,7 @@ export const REFUSING_EPISODE: RunEpisode = async () => ({
   note: "no episode runner is wired to this runtime",
   blockedOn: [],
   blockedReason: "no episode runner",
+  capabilities: [],
   settled: [],
   learned: [],
 });
@@ -143,6 +174,10 @@ export type EpisodeRecord = {
   readonly reawakened: readonly string[];
   readonly settled: readonly string[];
   readonly learned: readonly string[];
+  /** What this episode could and could not use. Resource accounting, audited. */
+  readonly capabilities: readonly CapabilityState[];
+  /** Objectives this episode returned to `pending` because a capability came back. */
+  readonly reconsidered: readonly string[];
 };
 
 export type RuntimeSnapshot = {
@@ -154,6 +189,13 @@ export type RuntimeSnapshot = {
   readonly history: readonly EpisodeRecord[];
   /** What the last episode worked on — the relevance signal for the next one. */
   readonly focus: Goal | null;
+  /**
+   * THE LAST OBSERVED STATE OF EVERY CONSEQUENTIAL CAPABILITY, and it is what
+   * makes a blocked objective recoverable across a process boundary rather than
+   * only within one invocation. Persisted, so a runtime that comes back after a
+   * credential is restored can tell that something changed.
+   */
+  readonly capabilities: readonly CapabilityState[];
   readonly stop: RuntimeStop | null;
 };
 
@@ -173,12 +215,28 @@ export const NO_CHECKPOINTS: CheckpointStore = {
   restore: async () => null,
 };
 
-export type RuntimeStop = "idle" | "blind" | "stalled" | "max_episodes" | "max_wall_ms" | "halted";
+export type RuntimeStop =
+  | "idle"
+  | "blind"
+  | "stalled"
+  /**
+   * v1.6 — A FOURTH WAY TO HAVE NOTHING RUNNABLE, AND IT IS THE ONE THE OWNER
+   * ASKED FOR BY NAME. The work exists, the reasoning is sound, and every
+   * remaining objective is waiting on a resource: a credential, a provider, a
+   * rate limit, an allowance. It is NOT `stalled` — a stall is cognitive and
+   * nothing outside can fix it, while this names a thing somebody can go and
+   * turn on, and the backlog is preserved so it resumes when they do.
+   */
+  | "capability_blocked"
+  | "max_episodes"
+  | "max_wall_ms"
+  | "halted";
 
 export const RUNTIME_STOPS: readonly RuntimeStop[] = [
   "idle",
   "blind",
   "stalled",
+  "capability_blocked",
   "max_episodes",
   "max_wall_ms",
   "halted",
@@ -229,6 +287,10 @@ export type RuntimeReport = {
   readonly surveyRefusals: number;
   readonly settled: readonly string[];
   readonly learned: readonly string[];
+  /** The runtime's view of every capability at the end. Observable, auditable. */
+  readonly capabilities: readonly CapabilityState[];
+  /** How many episodes ended waiting on a resource rather than on knowledge. */
+  readonly capabilityBlocks: number;
 };
 
 export function emptySnapshot(): RuntimeSnapshot {
@@ -239,6 +301,7 @@ export function emptySnapshot(): RuntimeSnapshot {
     backlog: [],
     history: [],
     focus: null,
+    capabilities: [],
     stop: null,
   };
 }
@@ -272,6 +335,18 @@ export function validateSnapshot(s: RuntimeSnapshot): readonly SnapshotProblem[]
   for (const o of s.backlog) {
     if (o.parentId !== null && !ids.has(o.parentId)) {
       problems.push({ code: "orphan_follow_up", detail: `${o.id} -> ${o.parentId}` });
+    }
+  }
+  // A capability row restored from disk decides whether a blocked objective is
+  // reconsidered, so an unrecognised name in it is a silent behaviour change
+  // rather than a cosmetic one: an availability this build does not know would
+  // never equal "available" and the objective would wait forever.
+  for (const c of [...s.capabilities, ...s.backlog.flatMap((o) => o.blockedCapabilities)]) {
+    if (!CAPABILITIES.includes(c.capability)) {
+      problems.push({ code: "unknown_capability", detail: String(c.capability) });
+    }
+    if (!AVAILABILITIES.includes(c.availability)) {
+      problems.push({ code: "unknown_availability", detail: String(c.availability) });
     }
   }
   return problems;
@@ -316,6 +391,64 @@ function replace(backlog: readonly Objective[], next: Objective): Objective[] {
   return backlog.map((o) => (o.id === next.id ? next : o));
 }
 
+/**
+ * THE RUNTIME'S LEDGER TAKES THE LATEST OBSERVATION, WHICH IS THE OPPOSITE OF
+ * THE RULE INSIDE ONE RUN — and the two are opposite on purpose.
+ *
+ * `recordCapability` keeps the FIRST refusal for the length of a run, because a
+ * run that was refused once did less than a run that was not, and the receipt
+ * has to say so. Across CYCLES the question is different: is this capability
+ * usable NOW? A ledger that preserved a refusal forever could never observe a
+ * credential coming back, so requirement 8 — "when the capability later becomes
+ * available, the blocked objective can be reconsidered" — would be unreachable
+ * by construction. Hence `set`, not `recordCapability`, and this comment rather
+ * than a reader assuming one of the two is a mistake.
+ *
+ * A capability the episode did not observe is left ALONE rather than cleared:
+ * silence is not evidence, and clearing on silence would reawaken everything
+ * every cycle.
+ */
+export function observeCapabilities(
+  ledger: ReadonlyMap<Capability, CapabilityState>,
+  observed: readonly CapabilityState[],
+): Map<Capability, CapabilityState> {
+  const out = new Map(ledger);
+  for (const c of observed) out.set(c.capability, c);
+  return out;
+}
+
+/**
+ * Return capability-blocked objectives to `pending` once every capability they
+ * named is observed working again. The runtime's half of requirement 5.
+ *
+ * IT IS THE MIRROR OF `reawaken`, AND IT IS A SEPARATE FUNCTION BECAUSE THE
+ * TRIGGER IS DIFFERENT. `reawaken` fires when a follow-up objective completes —
+ * a thing ONIQ did. This fires when the world changed underneath it, which no
+ * objective completing can signal. `MAX_ATTEMPTS` bounds both identically, so a
+ * capability that flaps cannot revive the same objective forever.
+ *
+ * An objective naming a capability the ledger has NEVER observed stays blocked.
+ * That is the same "absent is not available" rule as the outcome field: an
+ * unobserved capability is unknown, and reawakening on unknown would spin.
+ */
+export function reconsider(
+  backlog: readonly Objective[],
+  ledger: ReadonlyMap<Capability, CapabilityState>,
+): Objective[] {
+  return backlog.map((o) => {
+    if (o.status !== "blocked" || o.blockedCapabilities.length === 0) return o;
+    const back = o.blockedCapabilities.every((c) => {
+      const now = ledger.get(c.capability);
+      return now !== undefined && isExecutable(now.availability);
+    });
+    if (!back) return o;
+    if (o.attempts >= MAX_ATTEMPTS) {
+      return { ...o, status: "abandoned" as const, blockedReason: "attempts exhausted" };
+    }
+    return { ...o, status: "pending" as const, blockedCapabilities: [] };
+  });
+}
+
 export async function runAutonomousRuntime(input: RuntimeInput): Promise<RuntimeReport> {
   const survey = input.survey ?? NO_SURVEY;
   const runEpisode = input.runEpisode ?? REFUSING_EPISODE;
@@ -336,6 +469,19 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
   let generated = 0;
   let surveyRefusals = 0;
   let consecutiveBlocked = 0;
+  /**
+   * COUNTED APART FROM `consecutiveBlocked`, because the two mean different
+   * things to whoever reads the stop. A cognitive stall is ONIQ having run out
+   * of ways to make progress; a run of capability blocks is a resource nobody
+   * turned on, and it names a thing a person can go and fix. Collapsing them
+   * would report "stalled" for a missing credential — the exact "resource
+   * unavailability read as cognitive death" this version exists to remove.
+   */
+  let consecutiveCapabilityBlocked = 0;
+  let capabilityBlocks = 0;
+  let capabilities: ReadonlyMap<Capability, CapabilityState> = new Map(
+    snapshot.capabilities.map((c) => [c.capability, c] as const),
+  );
   let ranHere = 0;
   const learned: string[] = [];
   const settled: string[] = [];
@@ -375,7 +521,15 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
     // ---- SEE ------------------------------------------------------------
     const seen = await survey(ctx);
     let blindReason: string | null = null;
-    let backlog = snapshot.backlog;
+    /**
+     * RECONSIDER BEFORE SELECTING, EVERY CYCLE, INCLUDING THE FIRST. The ledger
+     * is restored from the snapshot, so a runtime that comes back after somebody
+     * raised an allowance finds its blocked work runnable on its very first
+     * pass — which is the only shape in which "return to it later" survives the
+     * process ending. Doing it after selection would leave a reconsidered
+     * objective waiting a whole extra cycle for no reason.
+     */
+    let backlog = reconsider(snapshot.backlog, capabilities);
     if (seen.ok) {
       const targets: LearningTarget[] = rankLearningTargets({
         gaps: seen.gaps,
@@ -411,7 +565,28 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
        * it: the first live run did.
        */
       const stuck = backlog.filter((o) => o.status === "blocked");
-      if (stuck.length > 0) {
+      const waiting = stuck.filter((o) => o.blockedCapabilities.length > 0);
+      if (stuck.length > 0 && waiting.length === stuck.length) {
+        /**
+         * v1.6 — EVERY REMAINING OBJECTIVE IS WAITING ON A RESOURCE, which is
+         * not a stall. The reasoning is sound and the backlog is intact; what
+         * is missing is a credential, a provider, a quota or an allowance, and
+         * naming it is what tells a person there is something to go and turn
+         * on. The objectives and their dependencies are preserved in the
+         * snapshot, so the next invocation reconsiders them for free.
+         */
+        stop = "capability_blocked";
+        stopDetail =
+          `nothing is pending: ${stuck.length} objective(s) are waiting on a capability — ` +
+          waiting
+            .map(
+              (o) =>
+                `${o.goal.id} (${o.blockedCapabilities
+                  .map((c) => `${c.capability}:${c.availability}`)
+                  .join(", ")})`,
+            )
+            .join("; ");
+      } else if (stuck.length > 0) {
         stop = "stalled";
         stopDetail =
           `nothing is pending: ${stuck.length} objective(s) remain blocked — ` +
@@ -425,7 +600,7 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
         stop = "idle";
         stopDetail = "nothing is pending and the survey found nothing open";
       }
-      snapshot = { ...snapshot, backlog, history };
+      snapshot = { ...snapshot, backlog, history, capabilities: capabilityList(capabilities) };
       break;
     }
 
@@ -436,6 +611,27 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
     let reawakened: readonly string[] = [];
     const step = snapshot.step + 1;
 
+    // Resource accounting, before anything is decided about the outcome: what
+    // the episode could and could not use is a fact about the run either way,
+    // and requirement 6 asks for it to stay observable whatever happened next.
+    capabilities = observeCapabilities(capabilities, outcome.capabilities);
+    const refused = unavailable(outcome.capabilities);
+    if (refused.length > 0) capabilityBlocks += 1;
+
+    /**
+     * A CAPABILITY THAT CAME BACK RELEASES ITS WAITERS IN THE SAME CYCLE IT WAS
+     * OBSERVED. Waiting until the next pass would be correct and slower, and
+     * would make a single-episode invocation — which is what a cron tick is —
+     * never reconsider anything at all.
+     */
+    const beforeReconsider = new Set(
+      backlog.filter((o) => o.status === "blocked").map((o) => o.id),
+    );
+    backlog = reconsider(backlog, capabilities);
+    const reconsidered = backlog
+      .filter((o) => beforeReconsider.has(o.id) && o.status !== "blocked")
+      .map((o) => o.id);
+
     if (outcome.status === "success") {
       const done: Objective = { ...chosen, status: "done", attempts: chosen.attempts + 1 };
       backlog = replace(backlog, done);
@@ -445,6 +641,7 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
         .filter((o) => wasBlocked.has(o.id) && o.status !== "blocked")
         .map((o) => o.id);
       consecutiveBlocked = 0;
+      consecutiveCapabilityBlocked = 0;
     } else if (outcome.status === "blocked") {
       const blocked: Objective = {
         ...chosen,
@@ -452,14 +649,25 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
         attempts: chosen.attempts + 1,
         blockedReason: outcome.blockedReason,
         blockedOn: outcome.blockedOn,
+        /**
+         * THE DEPENDENCY IS PRESERVED ON THE OBJECTIVE, not merely counted.
+         * `reconsider` reads exactly this list, and the snapshot carries it, so
+         * "return to it later" holds across a process boundary rather than only
+         * within one invocation — requirement 5.
+         */
+        blockedCapabilities: refused,
       };
       backlog = replace(backlog, blocked);
+      // A capability blocker earns NO follow-up: `followUpFor` reads `blockedOn`
+      // and a resource block names no concept, so the refusal is structural
+      // rather than a special case here. See its header.
       const follow = followUpFor(blocked, step);
       if (follow) {
         backlog = trimBacklog(mergeBacklog(backlog, [follow]), bounds.maxBacklog);
         followUpId = follow.id;
       }
       consecutiveBlocked += 1;
+      consecutiveCapabilityBlocked = refused.length > 0 ? consecutiveCapabilityBlocked + 1 : 0;
     } else {
       const attempts = chosen.attempts + 1;
       backlog = replace(backlog, {
@@ -471,6 +679,7 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
       // A failure is not a block. Resetting the counter keeps `stalled` a
       // statement about blocking specifically; `maxEpisodes` bounds the rest.
       consecutiveBlocked = 0;
+      consecutiveCapabilityBlocked = 0;
     }
 
     learned.push(...outcome.learned);
@@ -487,6 +696,8 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
       reawakened,
       settled: outcome.settled,
       learned: outcome.learned,
+      capabilities: outcome.capabilities,
+      reconsidered,
     });
 
     snapshot = {
@@ -496,6 +707,7 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
       backlog,
       history,
       focus: chosen.goal,
+      capabilities: capabilityList(capabilities),
       stop: null,
     };
 
@@ -503,13 +715,33 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
     checkpointAttempts += 1;
     if (await store.checkpoint(snapshot)) checkpoints += 1;
 
-    if (consecutiveBlocked >= bounds.maxConsecutiveBlocked) {
+    if (consecutiveCapabilityBlocked >= bounds.maxConsecutiveBlocked) {
+      /**
+       * CHECKED BEFORE THE STALL, AND IT IS NOT THE SAME STOP. Every one of
+       * those blocks named a resource, so the runtime is not out of ideas — it
+       * is waiting on something outside itself, the backlog is intact, and the
+       * next invocation reconsiders it the moment the resource returns. Calling
+       * that a stall is what "budget = 0 means the runtime stopped" looked like
+       * from the outside.
+       */
+      stop = "capability_blocked";
+      stopDetail =
+        `${consecutiveCapabilityBlocked} objectives in a row are waiting on a capability: ` +
+        unavailable(capabilityList(capabilities))
+          .map((c) => `${c.capability}:${c.availability} (${c.detail})`)
+          .join("; ");
+    } else if (consecutiveBlocked >= bounds.maxConsecutiveBlocked) {
       stop = "stalled";
       stopDetail = `${consecutiveBlocked} objectives blocked in a row`;
     }
   }
 
-  const final: RuntimeSnapshot = { ...snapshot, history, stop };
+  const final: RuntimeSnapshot = {
+    ...snapshot,
+    history,
+    capabilities: capabilityList(capabilities),
+    stop,
+  };
   checkpointAttempts += 1;
   if (await store.checkpoint(final)) checkpoints += 1;
 
@@ -526,5 +758,7 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
     surveyRefusals,
     settled,
     learned,
+    capabilities: capabilityList(capabilities),
+    capabilityBlocks,
   };
 }

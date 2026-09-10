@@ -31,6 +31,7 @@ import {
   type LoopState,
 } from "@/oqca/loop/loopState";
 import type { Goal } from "@/oqca/knowledge/gaps";
+import { CAPABILITY_UNAVAILABLE } from "@/oqca/loop/capability";
 
 /**
  * A fixture engine/router that costs nothing. Pricing has its OWN tests below;
@@ -150,11 +151,29 @@ describe("an unconfigured loop reasons and acts on nothing, and says which seam 
     });
     const understand = run.log.find((r) => r.station === "UNDERSTAND")!;
     expect(understand.refused).toBe("max_tokens");
-    // Starved, not halted: every station still ran, and the loop ended with an
-    // honest status rather than stopping at PERCEIVE.
-    expect(run.log.map((r) => r.station)).toEqual([...STATIONS]);
-    expect(run.state.status).toBe("budget_exhausted");
-    expect(run.terminated).toBe("max_tokens");
+    // Starved, not halted: every station still ran, in order.
+    expect(run.log.slice(0, STATIONS.length).map((r) => r.station)).toEqual([...STATIONS]);
+
+    /* ------------------------------------------------------------------ *
+     * v1.6 — THIS ASSERTION USED TO READ `budget_exhausted` / `max_tokens`,
+     * AND CHANGING IT IS THE POINT OF THE VERSION.
+     *
+     * A test that pins an implementation goes red when the implementation is
+     * corrected (`keyboardInset.test.ts`, 2026-09-07), and this is that. The
+     * old pair said a resource ran out and the run was over; the new pair says
+     * ONIQ is BLOCKED on a named capability, which is a state the runtime above
+     * can preserve, work around and return to. `budget_exhausted` now belongs
+     * to the RUN bounds alone.
+     * ------------------------------------------------------------------ */
+    expect(run.state.status).toBe("blocked");
+    expect(run.terminated).toBe(CAPABILITY_UNAVAILABLE);
+    const model = run.capabilities.find((c) => c.capability === "model")!;
+    expect(model.availability).toBe("insufficient_allowance");
+    expect(model.bound).toBe("max_tokens");
+    // AND IT RAN ALL FOUR ITERATIONS. A capability refusal does not shorten
+    // the run: only the last iteration turns it into a terminal state, so a
+    // loop that still has reasoning to do gets to do it.
+    expect(run.log.length).toBe(STATIONS.length * DEFAULT_BUDGETS.maxIterations);
   });
 
   it("with tokens allowed but no engine, the refusal names the engine", async () => {
@@ -225,8 +244,23 @@ describe("the spending bounds refuse BEFORE the spend, never after", () => {
     const run = await runCognitiveLoop(
       input({ engine: greedy, budgets: { ...OPEN, maxCostUsd: 0.6 } }),
     );
-    expect(run.terminated).toBe("max_cost");
-    expect(run.state.status).toBe("budget_exhausted");
+    /* -------------------------------------------------------------------- *
+     * THE BOUND IS STILL NAMED — it just is not the run's epitaph any more.
+     * `terminated` carries the capability token and the LEDGER carries which
+     * bound and which capability, so nothing that used to be knowable was lost;
+     * what changed is that a spent allowance no longer reads as the end of
+     * cognition. Both halves are asserted so a future edit cannot quietly drop
+     * the accounting while keeping the new word.
+     * -------------------------------------------------------------------- */
+    expect(run.terminated).toBe(CAPABILITY_UNAVAILABLE);
+    expect(run.state.status).toBe("blocked");
+    expect(run.capabilities).toContainEqual(
+      expect.objectContaining({
+        capability: "model",
+        availability: "insufficient_allowance",
+        bound: "max_cost",
+      }),
+    );
   });
 
   it("breach checks every bound, not the one the caller expects", () => {

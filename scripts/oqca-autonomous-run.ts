@@ -135,7 +135,7 @@ writeFileSync(
   `${JSON.stringify({ report, notes }, null, 2)}\n`,
 );
 
-console.log(`\n=== OQCA v1.5 autonomous runtime — process ${which} ===`);
+console.log(`\n=== OQCA v1.6 autonomous runtime — process ${which} ===`);
 console.log(`surveyed at              : T0 + ${ADVANCE_DAYS}d`);
 console.log(`restored from checkpoint : ${report.restored}`);
 console.log(`episodes THIS process    : ${report.episodes}`);
@@ -146,6 +146,20 @@ console.log(`survey refusals          : ${report.surveyRefusals}`);
 console.log(`checkpoints durably kept : ${report.checkpoints} of ${report.checkpointAttempts}`);
 console.log(`settled (concepts)       : ${[...new Set(report.settled)].join(", ") || "none"}`);
 console.log(`LEARNED (moved by a run) : ${[...new Set(report.learned)].join(", ") || "none"}`);
+/**
+ * v1.6 — THE RESOURCE ACCOUNTING, PRINTED. Requirement 6 asks for it to stay
+ * observable and auditable, and a number that only lives in a JSON file nobody
+ * opens is not observable. The stop above already names the resource when one
+ * is what stopped the lifecycle; this says which capabilities were reached at
+ * all and what each answered.
+ */
+console.log(`capability blocks        : ${report.capabilityBlocks}`);
+for (const c of report.capabilities) {
+  console.log(
+    `  ${c.capability.padEnd(13)} ${c.availability.padEnd(23)}` +
+      `${c.bound ? `bound=${c.bound} ` : ""}${c.station ? `at ${c.station} ` : ""}${c.detail}`,
+  );
+}
 for (const n of notes) console.log(`note                     : ${n}`);
 
 console.log(`\n--- episodes ---`);
@@ -153,7 +167,14 @@ for (const h of report.history) {
   console.log(
     `  #${h.episode} ${h.status.padEnd(8)} ${h.source.padEnd(13)} ${h.goalId}` +
       (h.followUpId ? `  -> follow-up ${h.followUpId.slice(0, 8)}` : "") +
-      (h.reawakened.length ? `  -> reawakened ${h.reawakened.length}` : ""),
+      (h.reawakened.length ? `  -> reawakened ${h.reawakened.length}` : "") +
+      (h.reconsidered.length ? `  -> reconsidered ${h.reconsidered.length}` : "") +
+      (h.capabilities.some((c) => c.availability !== "available")
+        ? `  -> waiting on ${h.capabilities
+            .filter((c) => c.availability !== "available")
+            .map((c) => c.capability)
+            .join(",")}`
+        : ""),
   );
 }
 
@@ -161,7 +182,12 @@ console.log(`\n--- backlog ---`);
 for (const o of [...report.snapshot.backlog].sort((a, b) => b.priority - a.priority)) {
   console.log(
     `  ${o.status.padEnd(10)} ${o.priority.toFixed(4)} d${o.depth} a${o.attempts} ` +
-      `${o.source.padEnd(13)} ${o.goal.id}`,
+      `${o.source.padEnd(13)} ${o.goal.id}` +
+      (o.blockedCapabilities.length
+        ? `  [waiting on ${o.blockedCapabilities
+            .map((c) => `${c.capability}:${c.availability}`)
+            .join(", ")}]`
+        : ""),
   );
 }
 console.log(`\ngap: ${autonomyGap()}\n`);

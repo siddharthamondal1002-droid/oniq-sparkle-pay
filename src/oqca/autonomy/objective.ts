@@ -40,6 +40,7 @@
 import { contentHash } from "../math/hash.ts";
 import type { Goal } from "../knowledge/gaps.ts";
 import type { KnowledgeState } from "../knowledge/model.ts";
+import type { CapabilityState } from "../loop/capability.ts";
 import type { LearningTarget } from "./select.ts";
 
 export type ObjectiveSource = "user_request" | "knowledge_gap" | "maintenance" | "follow_up";
@@ -102,6 +103,18 @@ export type Objective = {
   readonly blockedReason: string | null;
   /** The concept ids an episode could not resolve. A follow-up needs these. */
   readonly blockedOn: readonly string[];
+  /**
+   * v1.6 — THE RESOURCE DEPENDENCY THIS OBJECTIVE IS WAITING ON, and it is a
+   * SEPARATE field from `blockedOn` because nothing about it can be researched.
+   * `blockedOn` names concepts, and a follow-up objective goes and settles
+   * them; this names a credential, a provider, a rate limit or an allowance,
+   * and the only thing that clears one is somebody turning it on. So an
+   * objective blocked HERE spawns no follow-up (see `followUpFor`, which reads
+   * `blockedOn` alone) and is instead RECONSIDERED by the runtime when the
+   * capability is next observed available. Persisted on the snapshot, which is
+   * what makes that survive a process boundary.
+   */
+  readonly blockedCapabilities: readonly CapabilityState[];
   /** A LOGICAL step, never a wall clock — the whole tree bans one. */
   readonly createdAt: number;
 };
@@ -194,6 +207,7 @@ export function objectivesFromTargets(
       attempts: 0,
       blockedReason: null,
       blockedOn: [],
+      blockedCapabilities: [],
       createdAt: at,
     }),
   );
@@ -236,6 +250,7 @@ export function objectivesFromStale(stale: readonly StaleSubject[], at: number):
       attempts: 0,
       blockedReason: null,
       blockedOn: [],
+      blockedCapabilities: [],
       createdAt: at,
     }),
   );
@@ -251,7 +266,13 @@ export function objectivesFromStale(stale: readonly StaleSubject[], at: number):
  *                          stopped it has given the runtime nothing to work on,
  *                          and inventing a target here would be fabricating the
  *                          blocker — `NO_RESEARCH` refuses for the same reason
- *                          rather than answering "no findings".
+ *                          rather than answering "no findings". v1.6 makes this
+ *                          refusal load-bearing rather than defensive: an
+ *                          objective blocked purely on a CAPABILITY has an empty
+ *                          `blockedOn` by construction, and a follow-up saying
+ *                          "go and research the missing credential" would be a
+ *                          cognitive answer to a resource fact. The runtime
+ *                          reconsiders it instead.
  *   depth exhausted        the chain bound; see MAX_FOLLOW_UP_DEPTH
  *   same requirement set   the follow-up IS the parent. This is the regress in
  *                          its purest form and the content-derived id would
@@ -294,6 +315,7 @@ export function followUpFor(objective: Objective, at: number): Objective | null 
     attempts: 0,
     blockedReason: null,
     blockedOn: [],
+    blockedCapabilities: [],
     createdAt: at,
   });
 }
@@ -381,6 +403,7 @@ export function userObjective(goal: Goal, at: number, priority = 1): Objective {
     attempts: 0,
     blockedReason: null,
     blockedOn: [],
+    blockedCapabilities: [],
     createdAt: at,
   });
 }

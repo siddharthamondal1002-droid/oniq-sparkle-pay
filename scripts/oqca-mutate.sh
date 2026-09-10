@@ -1794,9 +1794,9 @@ restore $F
 cp $F "$BAK"
 mutate <<'PY2'
 p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
-old='    if (o.attempts >= MAX_ATTEMPTS) {'
+old='    if (!child) return o;\n    if (o.attempts >= MAX_ATTEMPTS) {'
 assert s.count(old)==1, s.count(old)
-s=s.replace(old,'    if (o.attempts >= Number.MAX_SAFE_INTEGER) {')
+s=s.replace(old,'    if (!child) return o;\n    if (o.attempts >= Number.MAX_SAFE_INTEGER) {')
 open(p,'w').write(s)
 PY2
 mirror
@@ -1842,6 +1842,218 @@ s=s.replace(old,'      availableActions: basis.map((c) => `research ${c}`),')
 open(p,'w').write(s)
 PY2
 report "M120 the world offers a research action ONIQ does not have" "$(run $AU)"
+restore $F
+
+# ================================================================== #
+# v1.6 — COGNITIVE AUTONOMY != RESOURCE AVAILABILITY.
+#
+# Every one of these puts back a version of the same defect: a resource being
+# unavailable ending the thinking. The ones that matter most are M121 and M122,
+# because they are what the code actually did before this version and each is a
+# one-line edit an unwary refactor would make.
+# ================================================================== #
+CA=src/oqca/__tests__/capabilityAware.test.ts
+LOOPF=src/oqca/loop/cognitiveLoop.ts
+CAPF=src/oqca/loop/capability.ts
+
+# M121: the terminal fires on the FIRST capability refusal instead of on the
+# last iteration — the run-level `starvedBy` behaviour, restored. Every station
+# after the first refusal stops running, which is the exact defect v1.6 removes.
+F=$LOOPF; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/loop/cognitiveLoop.ts'; s=open(p).read()
+old='            unavailable(capabilityList(capabilities)).length > 0 &&\n            spent.iterations + 1 >= budgets.maxIterations'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'            unavailable(capabilityList(capabilities)).length > 0')
+open(p,'w').write(s)
+PY2
+mirror
+report "M121 a capability refusal ends the run on the first iteration" "$(run $CA src/oqca/__tests__/cognitiveLoop.test.ts)"
+restore $F
+
+# M122: EVALUATE goes back to ending the RUN on an unaffordable plan. Self-
+# evaluation stopping self-evaluation, which is what it used to do.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/loop/cognitiveLoop.ts'; s=open(p).read()
+old='            state = step({ selectedPlan: null, spent });\n            const availability = availabilityForBound(wouldSpend);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'            state = step({ selectedPlan: null, spent });\n            if (wouldSpend) break outer;\n            const availability = availabilityForBound(wouldSpend);')
+open(p,'w').write(s)
+PY2
+mirror
+report "M122 EVALUATE ends the run on an unaffordable plan" "$(run $CA)"
+restore $F
+
+# M123: a budget ONIQ set for itself starts speaking for a provider's decision
+# about who ONIQ is. Raising a number would then read as an authorization fix.
+F=$CAPF; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/loop/capability.ts'; s=open(p).read()
+old='    case "max_tokens":\n    case "max_cost":'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    case "max_tokens":\n      return "unauthorized";\n    case "max_cost":')
+open(p,'w').write(s)
+PY2
+mirror
+report "M123 a spend bound reports itself as a permission refusal" "$(run $CA)"
+restore $F
+
+# M124: a RUN bound is filed as a capability, so "this run has no time left"
+# reads as something somebody could go and grant.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/loop/capability.ts'; s=open(p).read()
+old='    case "max_iterations":\n    case "max_state_transitions":\n    case "max_execution_time":\n      return null;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    case "max_iterations":\n    case "max_state_transitions":\n    case "max_execution_time":\n      return "insufficient_allowance";')
+open(p,'w').write(s)
+PY2
+mirror
+report "M124 a run bound is filed as a capability state" "$(run $CA)"
+restore $F
+
+# M125: the ledger keeps the FIRST refusal across cycles as well as within a
+# run. The rule is correct inside one run and makes recovery UNREACHABLE across
+# them — a credential that came back could never be observed.
+F=src/oqca/autonomy/runtime.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='  for (const c of observed) out.set(c.capability, c);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  for (const c of observed) { const prior = out.get(c.capability); if (prior && !isExecutable(prior.availability)) continue; out.set(c.capability, c); }')
+open(p,'w').write(s)
+PY2
+mirror
+report "M125 a refusal is kept forever, so a capability can never come back" "$(run $CA)"
+restore $F
+
+# M126: reconsideration on an UNOBSERVED capability. Silence read as
+# availability spins every blocked objective back to pending every cycle.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='      return now !== undefined && isExecutable(now.availability);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      return now === undefined || isExecutable(now.availability);')
+open(p,'w').write(s)
+PY2
+mirror
+report "M126 an unobserved capability counts as available" "$(run $CA)"
+restore $F
+
+# M127: reconsideration ignores the attempt bound, so a flapping resource
+# revives the same objective for ever.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='    if (!back) return o;\n    if (o.attempts >= MAX_ATTEMPTS) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    if (!back) return o;\n    if (o.attempts >= Number.MAX_SAFE_INTEGER) {')
+open(p,'w').write(s)
+PY2
+mirror
+report "M127 reconsideration ignores the attempt bound" "$(run $CA)"
+restore $F
+
+# M128: reconsideration removed outright — the backlog is preserved and never
+# looked at again, which is a graveyard with good bookkeeping.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='    let backlog = reconsider(snapshot.backlog, capabilities);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    let backlog = snapshot.backlog;')
+old2='    backlog = reconsider(backlog, capabilities);'
+assert s.count(old2)==1, s.count(old2)
+s=s.replace(old2,'')
+open(p,'w').write(s)
+PY2
+mirror
+report "M128 a capability-blocked objective is never reconsidered" "$(run $CA)"
+restore $F
+
+# M129: the dependency is counted and not PRESERVED, so nothing survives to be
+# reconsidered and the snapshot cannot answer what the objective is waiting on.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='        blockedCapabilities: refused,'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'        blockedCapabilities: [],')
+open(p,'w').write(s)
+PY2
+mirror
+report "M129 the blocked objective forgets what it is waiting on" "$(run $CA)"
+restore $F
+
+# M130: `capability_blocked` collapsed into `stalled` at selection. A missing
+# credential is then reported as ONIQ having run out of ideas.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='        stop = "capability_blocked";\n        stopDetail =\n          `nothing is pending: ${stuck.length} objective(s) are waiting on a capability — `'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'        stop = "stalled";\n        stopDetail =\n          `nothing is pending: ${stuck.length} objective(s) are waiting on a capability — `')
+open(p,'w').write(s)
+PY2
+mirror
+report "M130 a resource block is reported as a cognitive stall" "$(run $CA)"
+restore $F
+
+# M131: the same collapse at the consecutive-block guard.
+cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='    if (consecutiveCapabilityBlocked >= bounds.maxConsecutiveBlocked) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    if (false) {')
+open(p,'w').write(s)
+PY2
+mirror
+report "M131 a run of resource blocks is reported as a stall" "$(run $CA)"
+restore $F
+
+# M132: v1.6 quietly buys itself a budget so the tests stop exercising the zero
+# case. Requirements 8 and 9: autonomy being enabled may not start a bill.
+F=src/oqca/loop/seams.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/loop/seams.ts'; s=open(p).read()
+old='  maxCostUsd: 0,'
+assert s.count(old)>=1, s.count(old)
+s=s.replace(old,'  maxCostUsd: 0.5,',1)
+open(p,'w').write(s)
+PY2
+mirror
+report "M132 the shipped default grows a cost ceiling" "$(run $CA)"
+restore $F
+
+# M133: the episode reports only the REFUSALS. Every other test still passes —
+# the refusal rows are identical — and requirement 8 becomes unreachable,
+# because a capability that came back is never observed working.
+F=supabase/functions/_shared/oqcaRuntime/autonomous.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/autonomous.ts'; s=open(p).read()
+old='    const capabilities = run.capabilities;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    const capabilities = unavailable(run.capabilities);')
+open(p,'w').write(s)
+PY2
+report "M133 the episode reports only its refusals, never a working capability" "$(run $CA)"
+restore $F
+
+# M134: the RUNTIME filters the episode's report down to the refusals. Same
+# hole as M133, one layer up, and it would survive M133 being fixed.
+F=src/oqca/autonomy/runtime.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='    capabilities = observeCapabilities(capabilities, outcome.capabilities);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    capabilities = observeCapabilities(capabilities, unavailable(outcome.capabilities));')
+open(p,'w').write(s)
+PY2
+mirror
+report "M134 the runtime drops the episode's working capabilities" "$(run $CA)"
 restore $F
 
 echo "done"

@@ -10,25 +10,39 @@ Re-run everything with:
 
 ```
 npx tsx scripts/oqca-bench.ts      # the benchmark, all manifests, all seeds
-npx vitest run src/oqca            # 446 tests
-bash scripts/oqca-mutate.sh        # 64 mutations, all expected RED
+npx vitest run src/oqca            # 707 tests
+bash scripts/oqca-mutate.sh        # 134 mutations, all expected RED
 node scripts/oqca-mirror.mjs --check    # the edge mirror is byte-identical
 deno check supabase/functions/story-dispatch/index.ts
 ```
 
+## v1.6 — what capability-aware resource handling may be claimed to do
+
+| Claim                                                                       | Status                                                                                                                                                                                                             |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A zero execution allowance no longer ends a run                             | **ESTABLISHED** — all 23 stations run all 4 iterations at `DEFAULT_BUDGETS`; `terminated` is `capability_unavailable` and the status `blocked`, never `budget_exhausted`. M121/M122 red                            |
+| Generation, planning and gap identification survive a zero allowance        | **ESTABLISHED** — IDENTIFY_GAPS/IMAGINE/PLAN/EVALUATE each run every iteration; the runtime still reports `generated > 0`                                                                                          |
+| A RUN bound is still fatal, and is not filed as a capability                | **ESTABLISHED** — `max_execution_time` still terminates with its own name; `availabilityForBound` returns null for all three. M124 red                                                                             |
+| A blocked objective keeps its resource dependency across a process boundary | **ESTABLISHED** — `blockedCapabilities` on the objective and `capabilities` on the snapshot, through `JSON.stringify` and `validateSnapshot`; a second invocation runs it on its first pass. M128/M129 red         |
+| A capability that comes back reawakens the work                             | **ESTABLISHED IN TEST, NOT LIVE.** Proven by a two-invocation test; the live script cannot reach it because no seam in `makeLoopEpisode` can ever report `available` today. Stated at the assertion. M125/M126 red |
+| An allowance can never speak for an authorization decision                  | **ESTABLISHED** — asserted over every member of `BoundBreach`, read from `seams.ts` rather than a hand-kept list. M123 red                                                                                         |
+| Nothing is fabricated in place of the refused work                          | **ESTABLISHED** — a blocked episode adds nothing to `learned`/`settled`, marks nothing done, and spends 0 tokens / 0 tool calls / $0                                                                               |
+| Autonomy being enabled starts a bill                                        | **FALSE, and pinned.** The three spend bounds still ship at 0 and a mutation adding a ceiling goes red (M132)                                                                                                      |
+| The episode reports whether a capability WORKED, not only that it refused   | **ESTABLISHED BY SOURCE READ.** No behavioural test can distinguish the two today (no seam is ever available), and the limit is written at the assertion. M133/M134 red                                            |
+
 ## v1.5 — what the autonomous runtime may be claimed to do
 
-| Claim                                                         | Status                                                                                                                                                       |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| ONIQ creates an objective with no user request                | **ESTABLISHED** — `generateObjectives` is typed to `AutonomousSource`; M103 red; the live run generates one with nobody asking                               |
-| A blocked objective ends the objective, not the runtime       | **ESTABLISHED** — M113 red; the scripted run reaches every objective past the first block                                                                    |
-| The six-factor selector is a strict extension of `detectGaps` | **ESTABLISHED** — same ordering over 60 randomised states, scores equal to 10 places (the double rounding is the difference, and it is asserted as a limit)  |
-| The selector is not declaration order in disguise             | **ESTABLISHED** — a randomised control; the choice differs from the first-listed gap far more often than index order could explain                           |
-| The lifecycle survives a process boundary                     | **ESTABLISHED** — four separate `npx tsx` invocations; only `checkpoint*.json` crosses; history and statuses carried                                         |
-| ONIQ learns something during an episode                       | **FALSE, and reported as false.** No research capability, and `buildSubstrate` rebuilds per tick, so there is no write-back. `learned` is empty on every run |
-| The maintenance path can fire in production                   | **FALSE today.** Nothing persists, so nothing ages; `--advance-days` is the only way to reach it and says so                                                 |
-| A server hosts this                                           | **NOT TRUE.** Nothing is deployed; `autonomyGap()` says so                                                                                                   |
-| The runtime could spend money                                 | **NOT AT THE SHIPPED DEFAULTS.** `maxToolCalls`/`maxTokens`/`maxCostUsd` are 0; a tick costs $0                                                              |
+| Claim                                                         | Status                                                                                                                                                                                          |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ONIQ creates an objective with no user request                | **ESTABLISHED** — `generateObjectives` is typed to `AutonomousSource`; M103 red; the live run generates one with nobody asking                                                                  |
+| A blocked objective ends the objective, not the runtime       | **ESTABLISHED** — M113 red; the scripted run reaches every objective past the first block. v1.6 splits the STOP: a run of resource blocks is `capability_blocked`, a cognitive one is `stalled` |
+| The six-factor selector is a strict extension of `detectGaps` | **ESTABLISHED** — same ordering over 60 randomised states, scores equal to 10 places (the double rounding is the difference, and it is asserted as a limit)                                     |
+| The selector is not declaration order in disguise             | **ESTABLISHED** — a randomised control; the choice differs from the first-listed gap far more often than index order could explain                                                              |
+| The lifecycle survives a process boundary                     | **ESTABLISHED** — four separate `npx tsx` invocations; only `checkpoint*.json` crosses; history and statuses carried                                                                            |
+| ONIQ learns something during an episode                       | **FALSE, and reported as false.** No research capability, and `buildSubstrate` rebuilds per tick, so there is no write-back. `learned` is empty on every run                                    |
+| The maintenance path can fire in production                   | **FALSE today.** Nothing persists, so nothing ages; `--advance-days` is the only way to reach it and says so                                                                                    |
+| A server hosts this                                           | **NOT TRUE.** Nothing is deployed; `autonomyGap()` says so                                                                                                                                      |
+| The runtime could spend money                                 | **NOT AT THE SHIPPED DEFAULTS.** `maxToolCalls`/`maxTokens`/`maxCostUsd` are 0; a tick costs $0                                                                                                 |
 
 ## v1.2 — what became reachable, and what did NOT
 

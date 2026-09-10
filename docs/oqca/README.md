@@ -1,5 +1,37 @@
 # OQCA — what was built, and what it is worth
 
+> ## v1.6 — a zero budget stops an ACTION, never the thinking.
+>
+> - **[`OQCA_V1_6_REPORT.md`](OQCA_V1_6_REPORT.md)** — the exact code path
+>   before and after, and the ten lifecycle tests the directive named.
+>
+> **COGNITIVE AUTONOMY ≠ RESOURCE AVAILABILITY.** A run-level `starvedBy` flag
+> and four `break outer` jumps used to end a whole run on a capability bound —
+> and with the shipped defaults (`maxTokens`, `maxCostUsd`, `maxToolCalls` all
+> `0`) the FIRST model call tripped it, so 21 of the 23 stations never ran a
+> second time. Now each refusal is one row in a per-capability ledger, the loop
+> finishes every station, the blocked objective keeps its dependency, the
+> planner picks another, and `reconsider` brings it back when the resource does.
+>
+> **Nothing was relaxed.** `breach` / `wouldBreach` / `breachRun` are unchanged,
+> every gate still refuses before the call it guards, and the three spend bounds
+> still ship at zero. `insufficient_allowance` can never become `unauthorized`.
+>
+> ### Three things worth carrying
+>
+> - **The fix's own first draft was the bug with a new name.** Making CHECK_GOAL
+>   terminal on the FIRST refusal broke four shadow-run tests — the chain fell
+>   33 states to 12 and the decision margin 0.4189 to 0.2123. Terminal only on
+>   the last iteration.
+> - **Absent is not available.** The episode reports its WHOLE ledger, refused
+>   and working, because reconsideration needs a positive observation; a
+>   capability nobody touched is unknown, and waking on unknown spins.
+> - **A mutation caught a test that was not testing** (M131): with one objective
+>   the selection branch reported `capability_blocked` anyway, so the guard under
+>   test was never the thing being exercised.
+>
+> Nothing is deployed, published or merged; the flag still ships `off`; $0.
+
 > ## v1.5 — the loop runs itself, across two processes, with nobody asking.
 >
 > - **[`OQCA_V1_5_REPORT.md`](OQCA_V1_5_REPORT.md)** — the three capabilities.

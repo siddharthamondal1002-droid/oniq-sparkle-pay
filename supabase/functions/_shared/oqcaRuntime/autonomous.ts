@@ -40,6 +40,7 @@ import {
   validateSnapshot,
 } from "../oqca/autonomy/runtime.ts";
 import { CognitiveState, ROOT_CONTEXT } from "../oqca/formalState.ts";
+import { unavailable } from "../oqca/loop/capability.ts";
 import { runCognitiveLoop } from "../oqca/loop/cognitiveLoop.ts";
 import { EMPTY_WORLD, sealLoopState, type LoopState } from "../oqca/loop/loopState.ts";
 import { type Budgets, DEFAULT_BUDGETS, NO_SPEND } from "../oqca/loop/seams.ts";
@@ -255,6 +256,16 @@ export function makeLoopEpisode(
       .map((r) => r.conceptId)
       .filter((c) => !still.some((g) => g.conceptId === c));
 
+    /**
+     * v1.6 — THE LOOP'S OWN CAPABILITY LEDGER, PASSED THROUGH UNCHANGED. The
+     * episode does not re-derive who was refused: `runCognitiveLoop` recorded
+     * it at each station's own gate, and re-deriving a policy beside the policy
+     * is a mistake this repo has a receipt for. Every state in it, refused AND
+     * working, so the runtime can tell "not observed" from "available".
+     */
+    const capabilities = run.capabilities;
+    const blockedByCapability = unavailable(capabilities);
+
     if (still.length === 0) {
       return {
         status: "success",
@@ -263,15 +274,35 @@ export function makeLoopEpisode(
           `(loop ${run.terminated}); nothing was written back, so nothing was learned`,
         blockedOn: [],
         blockedReason: null,
+        capabilities,
         settled,
         learned: [],
       };
     }
+    /**
+     * WHICH BLOCKER IS NAMED DEPENDS ON WHY THE LOOP STOPPED, and getting this
+     * backwards is the whole bug this version removes. A loop that ran out of
+     * MODEL — the zero-token default — did not fail to understand the concepts;
+     * it never got to try. Reporting that as a knowledge gap would spawn a
+     * follow-up objective to research a concept whose only problem is that
+     * nobody could afford to think about it, and the follow-up would block the
+     * same way, forever. So when a capability was refused, the concepts are
+     * reported as still-open (which they are) and the BLOCKER is the resource.
+     */
+    const note =
+      blockedByCapability.length > 0
+        ? `${still.length} of ${goal.requires.length} concepts still open: the loop could not use ` +
+          blockedByCapability.map((c) => `${c.capability} (${c.availability})`).join(", ")
+        : `${still.length} of ${goal.requires.length} concepts still open after the loop (${run.terminated})`;
     return {
       status: "blocked",
-      note: `${still.length} of ${goal.requires.length} concepts still open after the loop (${run.terminated})`,
+      note,
       blockedOn: still.map((g) => g.conceptId),
-      blockedReason: still.map((g) => `${g.conceptId}: ${g.reason}`).join("; "),
+      blockedReason:
+        blockedByCapability.length > 0
+          ? blockedByCapability.map((c) => `${c.capability}: ${c.detail}`).join("; ")
+          : still.map((g) => `${g.conceptId}: ${g.reason}`).join("; "),
+      capabilities,
       settled,
       learned: [],
     };

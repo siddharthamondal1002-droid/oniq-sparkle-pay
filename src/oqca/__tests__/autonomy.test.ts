@@ -611,15 +611,22 @@ function scripted(by: (goalId: string, n: number) => Partial<EpisodeOutcome>): {
   const run: RunEpisode = async (o) => {
     const n = seen.filter((s) => s === o.goal.id).length;
     seen.push(o.goal.id);
-    return {
+    // NO `as EpisodeOutcome` HERE, deliberately. The cast this replaced is what
+    // let `capabilities` be added to the outcome without a single test going
+    // red — tsc checks an object literal against the annotated return type and
+    // an assertion tells it not to bother. A fixture that silences the compiler
+    // stops being a fixture for the shape it is fixing.
+    const outcome: EpisodeOutcome = {
       status: "success",
       note: "scripted",
       blockedOn: [],
       blockedReason: null,
+      capabilities: [],
       settled: [],
       learned: [],
       ...by(o.goal.id, n),
-    } as EpisodeOutcome;
+    };
+    return outcome;
   };
   return { run, seen };
 }
@@ -938,8 +945,40 @@ describe("v1.5 — the autonomous runtime is reachable from the runtime tree", (
       .filter((o) => o.status === "blocked")
       .flatMap((o) => o.blockedOn);
     expect(blockedOn).toContain("runner-availability");
-    // …and it did not report having nothing left to learn while stuck.
-    expect(report.stop).toBe("stalled");
+    /**
+     * v1.6 CHANGED THIS ASSERTION FROM `stalled`, AND THE CHANGE IS THE POINT
+     * RATHER THAN A WEAKENING. At the shipped budgets every model call is
+     * refused for want of an allowance, so what actually stopped this lifecycle
+     * was a RESOURCE and not the end of ONIQ's ideas. `stalled` said the
+     * second; `capability_blocked` says the first, and it names the thing
+     * somebody can go and turn on. Both arms stay live — a scripted episode
+     * that blocks with no capability refused still reports `stalled`, asserted
+     * in the lifecycle tests above.
+     */
+    expect(report.stop).toBe("capability_blocked");
+    expect(report.capabilityBlocks).toBeGreaterThan(0);
+    /**
+     * TWO REFUSALS, TWO DIFFERENT KINDS, AND THE MEASURED RUN IS WHAT SAYS SO.
+     * The model is refused by a number ONIQ set for itself; RESEARCH is refused
+     * because no adapter is wired at all. Collapsing those into one "blocked"
+     * would send whoever reads the log to raise a budget that would not help.
+     * Neither is `unauthorized`: a bound ONIQ owns must never be able to speak
+     * for a provider's decision about who ONIQ is (requirement 10).
+     */
+    const byName = new Map(report.capabilities.map((c) => [c.capability, c]));
+    expect(byName.get("model")).toMatchObject({
+      availability: "insufficient_allowance",
+      bound: "max_tokens",
+    });
+    expect(byName.get("research")).toMatchObject({
+      availability: "provider_unavailable",
+      bound: null,
+    });
+    expect(report.capabilities.some((c) => c.availability === "unauthorized")).toBe(false);
+    // And the dependency is PERSISTED on the objective, not merely counted, so
+    // the next invocation can reconsider it.
+    const waiting = report.snapshot.backlog.filter((o) => o.blockedCapabilities.length > 0);
+    expect(waiting.length).toBeGreaterThan(0);
   });
 
   it("an episode over this substrate LEARNS NOTHING, and that is pinned", async () => {

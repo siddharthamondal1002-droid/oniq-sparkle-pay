@@ -69,6 +69,16 @@ import {
   PROVENANCES,
 } from "./loopState.ts";
 import { type CognitiveRun, makeRun } from "./cognitiveRun.ts";
+import {
+  type Capability,
+  type CapabilityState,
+  CAPABILITY_UNAVAILABLE,
+  availabilityForBound,
+  availabilityForFailureClass,
+  capabilityList,
+  recordCapability,
+  unavailable,
+} from "./capability.ts";
 import type { Failure, IdempotencyClass } from "../recovery/failure.ts";
 import { fromBudget, fromStation, fromThrown } from "../recovery/classify.ts";
 import { type RecoveryDecision, type RecoveryContext, decideRecovery } from "../recovery/decide.ts";
@@ -205,6 +215,19 @@ export type LoopRun = {
   readonly persistedStates: number;
   /** Why it stopped. "completed" only when CHECK_GOAL said so. */
   readonly terminated: string;
+  /**
+   * v1.6 — WHAT COULD AND COULD NOT EXECUTE, one row per capability.
+   *
+   * This is the resource accounting the 2026-09-10 directive requires to stay
+   * observable: `spent` says what was used, and this says what was refused and
+   * in which of the directive's own terms. It is NOT on the hashed `LoopState`
+   * deliberately — a capability state is an observation about the world at a
+   * moment, and the chain exists to replay COGNITION. `spent` is hashed, the
+   * station log carries each refusal at its own station, and the runtime
+   * persists this ledger in its checkpoint, so the trail is complete without
+   * making every state id depend on whether a provider was up.
+   */
+  readonly capabilities: readonly CapabilityState[];
 };
 
 /**
@@ -265,11 +288,37 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
   // module-level binding would be shared by two concurrent runs, which is a
   // cross-run data leak that no test with one run could ever see.
   let lastResults: { step: string; result: ToolResult }[] = [];
-  // Set when a model call was refused for lack of tokens or money. The loop
-  // does NOT break out on it: the non-spending stations still have work to
-  // do and RESPOND can still say what was reached. CHECK_GOAL turns it into
-  // a terminal status so the run ends cleanly at the end of its cycle.
-  let starvedBy: BoundBreach | null = null;
+  /**
+   * v1.6 — THE CAPABILITY LEDGER, AND IT REPLACES A RUN-LEVEL STARVATION FLAG.
+   *
+   * What stood here was `starvedBy: BoundBreach | null`. Any refused model call
+   * set it — the first one, since `DEFAULT_BUDGETS.maxTokens` is 0 — and
+   * CHECK_GOAL turned it into the TERMINAL status `budget_exhausted`. A missing
+   * resource was being reported as the end of thinking, which is precisely the
+   * contradiction the 2026-09-10 directive names: cognitive autonomy is not
+   * resource availability.
+   *
+   * A ledger instead: one row per capability, saying what could not execute and
+   * WHY, in the directive's own vocabulary. Nothing here ends a run. LOCAL, not
+   * module-level, for the reason `lastResults` is: a ledger shared by two
+   * concurrent runs is a cross-run data leak no single-run test could see.
+   */
+  let capabilities: ReadonlyMap<Capability, CapabilityState> = new Map();
+  const noteCapability = (
+    capability: Capability,
+    availability: CapabilityState["availability"],
+    detail: string,
+    bound: BoundBreach | null,
+    station: string | null,
+  ) => {
+    capabilities = recordCapability(capabilities, {
+      capability,
+      availability,
+      detail,
+      bound,
+      station,
+    });
+  };
   /**
    * THE RECOVERY LEDGER, and it is LOCAL for the reason `lastResults` is: two
    * concurrent runs sharing a retry count is a cross-run data leak no
@@ -461,13 +510,36 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
         : { tokens: Math.max(quote.tokens, maxOutputTokens), costUsd: quote.costUsd },
     );
     if (b) {
-      starvedBy = b;
+      /* ---------------------------------------------------------------- *
+       * A REFUSED MODEL CALL IS A CAPABILITY STATE, NOT A VERDICT ON THE RUN.
+       *
+       * `availabilityForBound` returns null for the three RUN bounds, and that
+       * null is load-bearing: a run bound is genuinely fatal and the check at
+       * the top of the next station ends the run through `breachRun`. Recording
+       * one here as a capability would say the model is unavailable when what
+       * actually happened is that this run ran out of time.
+       * ---------------------------------------------------------------- */
+      const availability = availabilityForBound(b);
+      if (availability)
+        noteCapability("model", availability, `model call refused: ${b}`, b, station);
       return { ok: false as const, text: "", reason: b };
     }
     const reply = await engine.run(req);
     spent = addUsage(spent, reply.usage);
-    if (!reply.ok)
+    if (!reply.ok) {
+      // The engine itself refused. With no provider verdict to read, the honest
+      // classification is that the provider could not serve it — never
+      // `unauthorized`, which is a claim about who ONIQ is and needs evidence.
+      noteCapability(
+        "model",
+        "provider_unavailable",
+        reply.reason ?? "engine refused",
+        null,
+        station,
+      );
       return { ok: false as const, text: "", reason: reply.reason ?? "engine refused" };
+    }
+    noteCapability("model", "available", `answered by ${reply.model}`, null, station);
     return { ok: true as const, text: reply.text, reason: undefined };
   };
 
@@ -625,9 +697,18 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
           if (gaps.length === 0) {
             note(station, "no gaps to research");
           } else if (spent.researchOperations >= budgets.maxResearchOperations) {
-            terminated = "max_research_operations";
+            // v1.6: this used to set `terminated` and `break outer`, ending the
+            // run at station 10 of 23. An exhausted research allowance means
+            // ONIQ cannot ACQUIRE knowledge right now; it does not mean ONIQ
+            // cannot imagine, plan, evaluate, reflect or check its goal.
+            noteCapability(
+              "research",
+              "insufficient_allowance",
+              "the research allowance for this run is spent",
+              "max_research_operations",
+              station,
+            );
             note(station, "research bound reached", "max_research_operations");
-            break outer;
           } else {
             spent = { ...spent, researchOperations: spent.researchOperations + 1 };
             research = planResearch(state.goal.id, gaps);
@@ -666,15 +747,25 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
                 state = step({ percepts: [...state.percepts, ...learned], spent });
                 note(station, `${question}: ${learned.length} finding(s)`);
               } else {
-                recover(
-                  fromStation(
-                    site(station, 1, "READ"),
-                    "KNOWLEDGE",
-                    "research_unavailable",
-                    found.reason,
-                  ),
-                  { researchAvailable: false },
+                const refusal = fromStation(
+                  site(station, 1, "READ"),
+                  "KNOWLEDGE",
+                  "research_unavailable",
+                  found.reason,
                 );
+                // The recovery ladder still runs — a refused acquisition is a
+                // real failure and section 12 wants it recorded. What is NEW is
+                // that the same refusal also lands in the capability ledger, so
+                // the runtime above can tell "ONIQ cannot research" from "ONIQ
+                // researched and found nothing" without reading prose.
+                noteCapability(
+                  "research",
+                  availabilityForFailureClass(refusal.class),
+                  found.reason,
+                  null,
+                  station,
+                );
+                recover(refusal, { researchAvailable: false });
               }
             }
           }
@@ -921,14 +1012,38 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
           }
           const wouldSpend = wouldBreach(spent, budgets, planCost);
           if (wouldSpend) {
+            /* -------------------------------------------------------------- *
+             * v1.6 — THE PLAN IS REFUSED; THE RUN IS NOT.
+             *
+             * This block used to call `recover(fromBudget(...))`, whose BUDGET
+             * class the ladder turns TERMINAL, and then `break outer`. With
+             * `maxToolCalls: 0` — the shipped default — every plan holding a
+             * call is unaffordable, so EVALUATE ended the run before MEASURE,
+             * LEARN_OR_CORRECT, CONSOLIDATE, REFLECT or CHECK_GOAL had run.
+             * Self-evaluation was the station that stopped self-evaluation.
+             *
+             * A capability shortfall is not a failure, so it does not go
+             * through the recovery ladder at all: a ladder answers retry /
+             * replan / escalate, and retrying an action whose resource is
+             * absent is spend chasing a wall. The plan is cleared, the state is
+             * recorded, and the loop carries on.
+             *
+             * A RUN bound reaching here is different and stays fatal — it is
+             * caught at the top of the next station by `breachRun`.
+             * -------------------------------------------------------------- */
             state = step({ selectedPlan: null, spent });
-            // Section 23: BUDGET_EXHAUSTED names WHICH budget, and it says so
-            // through the recovery path rather than beside it, so the failure
-            // is on the hashed record like every other.
-            recover(fromBudget(site(station, 1, "READ"), wouldSpend), {
-              exhaustedBudget: wouldSpend,
-            });
-            break outer;
+            const availability = availabilityForBound(wouldSpend);
+            if (availability) {
+              noteCapability(
+                "tool",
+                availability,
+                `the plan cannot be afforded: ${wouldSpend}`,
+                wouldSpend,
+                station,
+              );
+            }
+            note(station, `plan refused: ${wouldSpend}`, wouldSpend);
+            break;
           }
 
           /* -------------------------------------------------------------- *
@@ -988,12 +1103,27 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
           }
           const predictions: Prediction[] = [];
           const results: { step: string; result: ToolResult }[] = [];
-          for (const step of plan.steps) {
+          /* ---------------------------------------------------------------- *
+           * v1.6 — THE LABEL IS THE FIX, AND IT IS A SMALL ONE WITH A LARGE
+           * CONSEQUENCE. Both refusals below used to `break outer`, which threw
+           * away every remaining station AND every remaining iteration. They
+           * break `steps` now: no further action is attempted — nothing is
+           * fabricated, nothing is retried against an absent resource — and
+           * OBSERVE, MEASURE, LEARN_OR_CORRECT, REFLECT and CHECK_GOAL still
+           * run on what did happen.
+           * ---------------------------------------------------------------- */
+          steps: for (const step of plan.steps) {
             if (!step.call) continue;
             if (spent.toolCalls >= budgets.maxToolCalls) {
+              noteCapability(
+                "tool",
+                "insufficient_allowance",
+                "the tool-call allowance for this run is spent",
+                "max_tool_calls",
+                station,
+              );
               note(station, "tool-call bound reached", "max_tool_calls");
-              terminated = "max_tool_calls";
-              break outer;
+              break steps;
             }
             // A TOOL CAN SPEND MONEY TOO, so it is priced on the same rule as a
             // model call. The count bound above and the cost bound here are
@@ -1002,9 +1132,12 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
             // names whichever one actually bound.
             const priced = wouldBreach(spent, budgets, router.estimate(step.call));
             if (priced) {
+              const availability = availabilityForBound(priced);
+              if (availability) {
+                noteCapability("tool", availability, `action refused: ${priced}`, priced, station);
+              }
               note(station, `action refused: ${priced}`, priced);
-              terminated = priced;
-              break outer;
+              break steps;
             }
             predictions.push({ stepId: step.id, expected: step.describes });
 
@@ -1068,10 +1201,19 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
               }
               attempt++;
               if (spent.toolCalls >= budgets.maxToolCalls) {
-                recover(fromBudget(site(station, attempt, props.idempotency), "max_tool_calls"), {
-                  exhaustedBudget: "max_tool_calls",
-                });
-                break outer;
+                // The retry ladder ran out of ACTIONS, not out of reasons. It
+                // stops attempting; it does not end the run. `recover` is not
+                // called here any more: its BUDGET class is terminal by design,
+                // and an allowance is not a fault to recover from.
+                noteCapability(
+                  "tool",
+                  "insufficient_allowance",
+                  "the tool-call allowance ran out mid-retry",
+                  "max_tool_calls",
+                  station,
+                );
+                note(station, "tool-call allowance spent mid-retry", "max_tool_calls");
+                break steps;
               }
             }
             // A RESULT IS RECORDED WHETHER OR NOT IT SUCCEEDED. OBSERVE judges
@@ -1191,12 +1333,47 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
           if (acted && open === 0) {
             state = step({ status: "success", spent });
             note(station, "success criteria satisfied");
-          } else if (starvedBy) {
-            state = step({ status: "budget_exhausted", spent });
-            // Section 23 again: name the bound, not just the status — and the
-            // bound's own name IS the budget's name.
-            terminated = starvedBy;
-            note(station, `cannot continue: ${starvedBy}`, starvedBy);
+          } else if (
+            unavailable(capabilityList(capabilities)).length > 0 &&
+            spent.iterations + 1 >= budgets.maxIterations
+          ) {
+            /* ---------------------------------------------------------- *
+             * v1.6 — `blocked`, NOT `budget_exhausted`, AND THE WORD IS THE
+             * WHOLE POINT.
+             *
+             * This arm read `else if (starvedBy)` and set the terminal status
+             * `budget_exhausted`. With `maxTokens: 0` the first model call set
+             * that flag, so EVERY run ended announcing that a budget was
+             * exhausted — which reads to anyone above as "this cognition is
+             * over" and which the autonomy layer had no way to tell apart from
+             * a run that genuinely had nowhere left to go.
+             *
+             * `blocked` is section 26's status for a run that stopped rather
+             * than failed and needs something from outside — which is exactly
+             * what an unavailable capability is. The ledger travels beside it
+             * naming WHICH capability and WHY, so the runtime can preserve the
+             * dependency, choose another objective, and come back when the
+             * capability returns. `budget_exhausted` now belongs to the RUN
+             * bounds alone, where it means what it says.
+             *
+             * AND IT IS TERMINAL ONLY ON THE LAST ITERATION, which is the half
+             * that took a measurement to get right. The first draft ended the
+             * run the moment any capability was refused — and the shadow run's
+             * chain fell from 33 states to 12, its evidence folded once instead
+             * of four times, and the replan that withdraws a refused dispatch
+             * never happened. That is the same disease in a new place: a loop
+             * with a working model and no tool allowance has three more
+             * iterations of real reasoning to do, and stopping it after the
+             * first is the resource deciding how much thinking is allowed.
+             * ---------------------------------------------------------- */
+            const blockers = unavailable(capabilityList(capabilities));
+            state = step({ status: "blocked", spent });
+            terminated = CAPABILITY_UNAVAILABLE;
+            note(
+              station,
+              `waiting on ${blockers.map((c) => `${c.capability}:${c.availability}`).join(", ")}`,
+              CAPABILITY_UNAVAILABLE,
+            );
           } else if (pendingRecovery?.action === "escalate") {
             /* ---------------------------------------------------------- *
              * AN ESCALATION IN A HEADLESS RUN IS A BLOCK, AND SAYING SO IS
@@ -1270,5 +1447,6 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
     spent,
     persistedStates,
     terminated,
+    capabilities: capabilityList(capabilities),
   };
 }
