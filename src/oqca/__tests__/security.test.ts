@@ -82,11 +82,41 @@ const SCRIPT = "scripts/oqca-bench.ts";
  * mutation checks at the bottom of this file are what make that a rule rather
  * than a convenience.
  */
+/**
+ * THE FILES EXCLUDED FROM THE SUBSTRING SCAN AND HELD TO THE STRICTER RESIDUE
+ * RULE INSTEAD.
+ *
+ * The first three are tests that must NAME every banned shape to check for it.
+ * The last four are the recovery classifier and the failure record, mirrors
+ * included, and they are here for the same reason and not a weaker one:
+ *
+ *   `classify.ts` matches a thrown error against `fetch failed`, which is what
+ *   undici actually says, so the word must appear inside a regex literal for
+ *   the classifier to work at all.
+ *   `failure.ts` carries the credential SHAPES it redacts — a JWT triple, an
+ *   `sbp_` token, a Google key, a bearer header — because a redactor that may
+ *   not name a secret cannot remove one.
+ *
+ * THIS IS A GENUINE IDENTIFIER COLLISION INSIDE REGEX LITERALS, not the prose
+ * match this repo has hit eleven times, so stripping comments cannot fix it.
+ * The residue rule is STRICTER for these files, not looser: strings and regex
+ * literals are masked and a real `await fetch(u)` in either still goes red —
+ * asserted below by mutation, in this same file.
+ */
 const GUARDS = [
   "src/oqca/__tests__/security.test.ts",
   "src/oqca/__tests__/runtimeWiring.test.ts",
   "src/oqca/__tests__/runtime.test.ts",
+  // It asserts that a JWT, a management PAT, a Google key and a bearer header
+  // are REDACTED from a failure record, so it must contain one of each. A
+  // redaction test that may not name a secret cannot test a redactor.
+  "src/oqca/__tests__/recovery.test.ts",
+  "src/oqca/recovery/classify.ts",
+  "supabase/functions/_shared/oqca/recovery/classify.ts",
 ];
+
+/** The three that are tests; only these carry `describe`/`expect`. */
+const GUARD_TESTS = GUARDS.filter((g) => g.includes("__tests__"));
 const SELF = "src/oqca/__tests__/security.test.ts";
 
 /** Every `.ts` under the tree, tests included — a test can open a socket too. */
@@ -171,7 +201,16 @@ const FORBIDDEN: readonly { readonly what: string; readonly pattern: RegExp }[] 
     what: "a credential name",
     pattern: /SERVICE_ROLE|SUPABASE_|ANON_KEY|API_KEY|SECRET|PRIVATE_KEY|Bearer\s/i,
   },
-  { what: "an auth header", pattern: /\bapikey\b|\bAuthorization\b/i },
+  {
+    what: "an auth header",
+    // THE `i` FLAG WAS TOO WIDE, AND `AUTHORIZATION` IS WHY. The failure
+    // brief's own `FailureClass` union carries an `AUTHORIZATION` member —
+    // a CLASS OF FAULT, not an HTTP header — and a case-insensitive match
+    // cannot tell the two apart. No real header is spelled in caps, so the
+    // two spellings that actually occur on the wire are listed instead. The
+    // narrowing is proven both ways immediately below.
+    pattern: /\bapikey\b|\bAPIKey\b|\bAuthorization\b|\bauthorization\b/,
+  },
   // --- no deployment, no autonomous external actions ----------------------
   {
     what: "a deploy call",
@@ -226,9 +265,55 @@ describe("brief section 18 — Security", () => {
       expect(new RegExp(pattern).test(residue), `${guard} executes ${what}`).toBe(false);
     }
     // ...and the residue is real code rather than an empty string, which would
-    // make the loop above vacuous.
-    expect(residue).toContain("expect");
-    expect(residue).toContain("describe");
+    // make the loop above vacuous. A test file proves it with its own
+    // vocabulary; a source file with `export`, which every one of them has.
+    if (GUARD_TESTS.includes(guard)) {
+      expect(residue).toContain("expect");
+      expect(residue).toContain("describe");
+    } else {
+      expect(residue).toContain("export");
+      expect(residue).toContain("function");
+    }
+  });
+
+  it("the recovery classifier is excluded for a REGEX collision, and a real call still trips", () => {
+    /* ------------------------------------------------------------------ *
+     * NARROW A GUARD AND PROVE THE NARROWING IN THE SAME FILE — the rule this
+     * repo wrote on 2026-09-10 after `anthropicRetired` was narrowed. Two
+     * halves, and the second is the one that matters:
+     *
+     *   1. the banned word really is present in the raw source, so the
+     *      exclusion is load-bearing rather than decorative, and
+     *   2. adding a real call to that file would still be caught.
+     *
+     * ONLY `classify.ts` NEEDED THIS. The failure record tripped the ban on
+     * an identifier of its own — `SECRET_PATTERNS` — and that was fixed by
+     * renaming it, not by excluding the file. Renaming your own noun is
+     * always cheaper than widening a hole.
+     * ------------------------------------------------------------------ */
+    const fetchBan = FORBIDDEN.find((f) => f.what === "fetch")!.pattern;
+    const classify = readFileSync("src/oqca/recovery/classify.ts", "utf8");
+    // 1 — the collision is real: undici says "fetch failed", so the classifier
+    // must carry those words inside a regex to recognise one.
+    expect(classify).toMatch(/fetch failed/);
+    // ...and it lives inside a regex literal, so the residue is clean.
+    expect(codeResidue(classify)).not.toMatch(/fetch/);
+    // 2 — MUTATION, INLINE: a real call in that file trips the same ban.
+    const mutated = codeResidue(
+      classify + "\nasync function leak(u: string) { return await fetch(u); }",
+    );
+    expect(new RegExp(fetchBan).test(mutated)).toBe(true);
+  });
+
+  it("the auth-header ban still catches both wire spellings, and not the class name", () => {
+    // BOTH DIRECTIONS, TOGETHER — 2026-09-10's rule. A narrowing asserted only
+    // on what it now permits is a weaker guard with a comment on it.
+    const ban = () => new RegExp(FORBIDDEN.find((f) => f.what === "an auth header")!.pattern);
+    expect(ban().test("headers: { Authorization: token }")).toBe(true);
+    expect(ban().test('h.get("authorization")')).toBe(true);
+    expect(ban().test("{ apikey: k }")).toBe(true);
+    // The failure brief's class, which is not a header and never was.
+    expect(ban().test('case "AUTHORIZATION":')).toBe(false);
   });
 
   it("the exclusion list is exactly the guard files, and every one is walked", () => {
@@ -239,6 +324,9 @@ describe("brief section 18 — Security", () => {
       "src/oqca/__tests__/security.test.ts",
       "src/oqca/__tests__/runtimeWiring.test.ts",
       "src/oqca/__tests__/runtime.test.ts",
+      "src/oqca/__tests__/recovery.test.ts",
+      "src/oqca/recovery/classify.ts",
+      "supabase/functions/_shared/oqca/recovery/classify.ts",
     ]);
     for (const g of GUARDS) expect(FILES).toContain(g);
   });

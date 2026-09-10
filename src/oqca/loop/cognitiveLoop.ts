@@ -47,18 +47,12 @@ import {
   type Spent,
   type ToolResult,
   type ToolRouter,
-  DEFAULT_BUDGETS,
-  EMPTY_MEMORY,
   NO_SPEND,
-  REFUSING_ENGINE,
-  REFUSING_ROUTER,
   addUsage,
   type BoundBreach,
   breachRun,
-  deterministicClock,
   wouldBreach,
   type SpendEstimate,
-  NO_VERIFIER,
   type Verifier,
   UNKNOWN_TOOL_PROPERTIES,
 } from "./seams.ts";
@@ -71,7 +65,14 @@ import {
   type Prediction,
   advance,
   isTerminal,
+  isEvidential,
+  PROVENANCES,
 } from "./loopState.ts";
+import { type CognitiveRun, makeRun } from "./cognitiveRun.ts";
+import type { Failure, IdempotencyClass } from "../recovery/failure.ts";
+import { fromBudget, fromStation, fromThrown } from "../recovery/classify.ts";
+import { type RecoveryDecision, type RecoveryContext, decideRecovery } from "../recovery/decide.ts";
+import { type RetryLedger, EMPTY_RETRY_LEDGER } from "../recovery/retry.ts";
 
 /** The brief's diagram, in order. 19 is a branch and records which arm ran. */
 export const STATIONS = [
@@ -101,6 +102,13 @@ export const STATIONS = [
 ] as const;
 
 export type Station = (typeof STATIONS)[number];
+
+/**
+ * The termination token for "level 7 wanted a person and none is attached".
+ * Exported so `classifyResponse` can list it rather than matching a string
+ * literal in two files that would drift the first time either was reworded.
+ */
+export const ESCALATION_REQUIRED = "escalation_required";
 
 /** The six stations permitted to call the model, and nothing else may. */
 export const ENGINE_STATIONS: Readonly<Record<string, EngineKind>> = {
@@ -162,6 +170,13 @@ export type LoopInput = {
   readonly memory?: MemoryStore;
   /** Section 14. Defaults to NO_VERIFIER, which answers `unverified`. */
   readonly verifier?: Verifier;
+  /**
+   * v1.3 SECTION 2. When supplied, this IS the run — every seam is read from
+   * it and the individual fields above are ignored. When absent, one is
+   * assembled from them, so there is still exactly one run object internally
+   * and no call site had to change.
+   */
+  readonly run?: CognitiveRun;
   /** Pause after N stations, for a resumable run. */
   readonly stopAfterStations?: number;
 };
@@ -181,6 +196,13 @@ export type LoopRun = {
   readonly gaps: readonly Gap[];
   readonly answer: string | null;
   readonly spent: Spent;
+  /**
+   * v1.3 SECTION 19: how many of `chain` the persistence adapter DURABLY
+   * stored. A count rather than a boolean, and read from the adapter's own
+   * answer rather than from `chain.length`, so an adapter that stores nothing
+   * reports 0 and cannot be mistaken for one that works.
+   */
+  readonly persistedStates: number;
   /** Why it stopped. "completed" only when CHECK_GOAL said so. */
   readonly terminated: string;
 };
@@ -202,12 +224,30 @@ function firstLine(text: string): string {
 }
 
 export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
-  const budgets = input.budgets ?? DEFAULT_BUDGETS;
-  const engine = input.engine ?? REFUSING_ENGINE;
-  const router = input.router ?? REFUSING_ROUTER;
-  const clock = input.clock ?? deterministicClock();
-  const memory = input.memory ?? EMPTY_MEMORY;
-  const verifier = input.verifier ?? NO_VERIFIER;
+  /**
+   * v1.3 SECTION 2: "One `CognitiveRun` object per run... No module-level
+   * mutable execution state." Assembled here when the caller did not supply
+   * one, so the seams are read from exactly one place whichever way the loop
+   * was called — and every default inside `makeRun` refuses rather than
+   * approximating.
+   */
+  const run: CognitiveRun =
+    input.run ??
+    makeRun({
+      runId: input.initial.stateId,
+      model: input.engine,
+      memory: input.memory,
+      tools: input.router,
+      verifier: input.verifier,
+      clock: input.clock,
+      budgets: input.budgets,
+    });
+  const budgets = run.budgets;
+  const engine = run.model;
+  const router = run.tools;
+  const clock = run.clock;
+  const memory = run.memory;
+  const verifier = run.verifier;
 
   let state = input.initial;
   const chain: LoopState[] = [state];
@@ -230,6 +270,31 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
   // do and RESPOND can still say what was reached. CHECK_GOAL turns it into
   // a terminal status so the run ends cleanly at the end of its cycle.
   let starvedBy: BoundBreach | null = null;
+  /**
+   * THE RECOVERY LEDGER, and it is LOCAL for the reason `lastResults` is: two
+   * concurrent runs sharing a retry count is a cross-run data leak no
+   * single-run test could see. Recovery brief section 5 — every budget finite,
+   * none unlimited.
+   */
+  let ledger: RetryLedger = EMPTY_RETRY_LEDGER;
+  /**
+   * Set by a recovery decision that the CURRENT station cannot act on alone —
+   * a replan, a research hop, an escalation. Read by the stations that can.
+   * Never a retry: a retry is performed where it failed, by the loop that
+   * failed, or it is not a retry.
+   */
+  let pendingRecovery: RecoveryDecision | null = null;
+  /**
+   * Actions a recovery decision has taken off the table for the rest of this
+   * run. THIS IS WHAT MAKES `replan` MEAN SOMETHING: without it, PLAN would
+   * re-select the highest-value future — which is the action that just failed —
+   * and the "replan" would be a retry with a different name, which is exactly
+   * what failure brief section 25 forbids.
+   */
+  const blockedActions = new Set<string>();
+  /** How much of `chain` the persistence adapter has been offered so far. */
+  let persistedUpTo = 0;
+  let persistedStates = 0;
 
   const note = (station: Station, text: string, refused: string | null = null) => {
     log.push({
@@ -256,6 +321,121 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
     const next = advance(state, changes);
     chain.push(next);
     return next;
+  };
+
+  /* ---------------------------------------------------------------- *
+   * RECOVERY — the failure brief, sections 1, 19, 20, 23, 24 and 31.
+   *
+   * "ONIQ must never respond to failure with an unconditional retry."
+   * FAILURE -> CLASSIFY -> DIAGNOSE -> RECOVER -> RETRY/REPLAN/RESEARCH/
+   * ESCALATE/STOP, and the middle three are `decideRecovery`'s job, not any
+   * station's. A station raises what it knows; it does not choose what happens
+   * next, because a station choosing its own recovery is how a planning failure
+   * becomes three retries.
+   * ---------------------------------------------------------------- */
+
+  const site = (station: Station, attempt: number, idempotency: IdempotencyClass) => ({
+    runId: run.runId,
+    stateId: state.stateId,
+    station,
+    attempt,
+    maxAttempts: run.retryBudgets.maxAttemptsPerOperation,
+    idempotency,
+  });
+
+  /** Which budget a level just spent. Every action lands in exactly one. */
+  const bumpLedger = (l: RetryLedger, d: RecoveryDecision, station: string): RetryLedger => {
+    const perStation = { ...l.perStation, [station]: (l.perStation[station] ?? 0) + 1 };
+    switch (d.action) {
+      case "retry":
+      case "retry_adjusted":
+        return { ...l, totalRetries: l.totalRetries + 1, perStation };
+      case "repair":
+        return { ...l, repairs: l.repairs + 1, perStation };
+      case "replan":
+        return { ...l, replans: l.replans + 1, perStation };
+      case "research":
+        return { ...l, researchRecoveries: l.researchRecoveries + 1, perStation };
+      case "escalate":
+        return { ...l, escalations: l.escalations + 1, perStation };
+      default:
+        return { ...l, perStation };
+    }
+  };
+
+  /**
+   * THE FAILURE IS RECORDED ON THE STATE BEFORE THE DECISION IS ACTED ON, and
+   * it is recorded whether or not the recovery then succeeds — sections 20 and
+   * 31: "Never mutate history to hide a failure", and "A failure must never
+   * disappear merely because a retry succeeded." A run that failed twice and
+   * then worked has three states, not one.
+   */
+  const recover = (raw: Failure, over: Partial<RecoveryContext> = {}): RecoveryDecision => {
+    const ctx: RecoveryContext = {
+      budgets: run.retryBudgets,
+      ledger,
+      backoff: run.backoff,
+      // What is LEFT on the run's wall-clock bound. Section 6: a backoff may
+      // never outlast it, because a run that ends asleep is not a recovery.
+      remainingRunMs: Math.max(0, budgets.maxExecutionTimeMs - spent.elapsedMs),
+      retryAfterMs: null,
+      jitterFraction: run.jitter(),
+      alternateAvailable: false,
+      repairAvailable: false,
+      ...over,
+    };
+    const decision = decideRecovery(raw, ctx);
+    const recorded: Failure = { ...raw, recoveryAction: decision.action };
+    state = step({ failures: [...state.failures, recorded], spent });
+    ledger = bumpLedger(ledger, decision, raw.station);
+    note(
+      raw.station as Station,
+      `${raw.class}/${raw.code} -> ${decision.action} (level ${decision.level}): ${decision.reason}`,
+      raw.code,
+    );
+    if (decision.terminal) {
+      state = step({ status: decision.terminalStatus ?? "failure", spent });
+      /* -------------------------------------------------------------- *
+       * SECTION 23: BUDGET_EXHAUSTED is a distinct outcome from FAILED and
+       * "must name which budget". Both halves already had homes — `status`
+       * carries the outcome, `terminated` carries the bound — so this assigns
+       * the BOUND NAME and nothing else.
+       *
+       * `terminated` IS A STABLE TOKEN, NEVER PROSE, and that is load-bearing
+       * rather than stylistic: `classifyResponse` in the runtime does exact set
+       * membership on it to tell a refusal from a failure. A first draft here
+       * wrote `budget_exhausted: max_cost` — strictly more words, and it would
+       * have silently reclassified every budget refusal as
+       * `partially_completed`, which is the exact mistake the comment above
+       * that set warns about. `terminatedIsAToken` pins it.
+       * -------------------------------------------------------------- */
+      terminated = decision.budgetName ?? decision.terminalStatus ?? "failure";
+    }
+    return decision;
+  };
+
+  /**
+   * v1.3 SECTION 19, AND THE GRANULARITY IS A DELIBERATE TRADE.
+   *
+   * States are offered to the adapter at the END OF EACH ITERATION and once
+   * more when the run stops, rather than inside `step`. Persisting inside
+   * `step` would make every one of the fourteen transition sites `await` — a
+   * change that turns a synchronous, obviously-total helper into an async one
+   * and buys durability of a partial iteration nobody replays.
+   *
+   * WHAT IS GIVEN UP, STATED: a crash mid-iteration loses that iteration's
+   * states. What is kept: the chain a replay actually needs, and the property
+   * that `step` stays the one synchronous way a state changes.
+   */
+  const flushChain = async (): Promise<number> => {
+    let stored = 0;
+    for (; persistedUpTo < chain.length; persistedUpTo++) {
+      // The adapter's OWN answer, never `chain.length`. An adapter that stores
+      // nothing must report 0, or every later reader believes a chain was
+      // saved that was not.
+      if (await run.persistence.persist(chain[persistedUpTo])) stored++;
+    }
+    return stored;
   };
 
   const ask = async (station: Station, prompt: string, maxOutputTokens: number) => {
@@ -307,9 +487,11 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
       spent = { ...spent, elapsedMs: clock() };
       const bound = breachRun(spent, budgets);
       if (bound) {
-        terminated = bound;
-        state = step({ status: "budget_exhausted", spent });
-        note(station, `stopped: ${bound}`, bound);
+        // A RUN BOUND IS FATAL AND STILL GETS A FAILURE RECORD, because
+        // section 23 wants BUDGET_EXHAUSTED to name its budget and section 20
+        // wants it to survive replay. `recover` sets the terminal status and
+        // `terminated` from the decision, so the naming happens in one place.
+        recover(fromBudget(site(station, 1, "READ"), bound), { exhaustedBudget: bound });
         break outer;
       }
 
@@ -338,18 +520,57 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
 
         case "LOAD_MEMORY": {
           const recalled = await memory.recall(state.goal.statement, 8);
-          state = step({ memoryRefs: recalled, spent });
-          note(station, `${recalled.length} records recalled (relevance-bounded at 8)`);
+          /* ------------------------------------------------------------ *
+           * v1.3 SECTIONS 5 AND 11. Memory is what this RUN has seen;
+           * knowledge is what ONIQ holds. They are separate adapters because
+           * they have separate lifetimes and separate deletion stories, and
+           * merging them would make "forget what I told you" unimplementable.
+           *
+           * BOTH ARE LIMITED, AND THE LIMIT IS AN ARGUMENT RATHER THAN A
+           * DEFAULT: section 5's "Do not dump the entire memory store into the
+           * model" is a property of the CALL, and a store that decided its own
+           * bound could satisfy the interface while breaking the rule.
+           * ------------------------------------------------------------ */
+          const known = await run.knowledge.lookup(state.goal.statement, 8);
+          const facts: Percept[] = known.map((f) => ({
+            id: `knowledge-${f.id}`,
+            kind: "memory" as const,
+            content: f.statement,
+            source: f.sourceRef,
+            confidence: f.confidence,
+            provenance: "OBSERVED" as const,
+          }));
+          state = step({
+            memoryRefs: recalled,
+            percepts: [...state.percepts, ...facts],
+            spent,
+          });
+          note(
+            station,
+            `${recalled.length} record(s) recalled and ${facts.length} fact(s) looked up, both bounded at 8`,
+          );
           break;
         }
 
-        case "BUILD_WORLD_STATE":
+        case "BUILD_WORLD_STATE": {
+          // v1.3 SECTIONS 6 AND 30. The census is reported rather than
+          // summarised, because "3 entities" cannot answer the question the
+          // section actually asks — how many of them did anyone actually SEE.
+          const census: Record<string, number> = {};
+          for (const e of state.worldState.entities) {
+            census[e.provenance] = (census[e.provenance] ?? 0) + 1;
+          }
+          const breakdown =
+            PROVENANCES.filter((p) => census[p])
+              .map((p) => `${census[p]} ${p}`)
+              .join(", ") || "no entities";
           note(
             station,
-            `${state.worldState.entities.length} entities, ${state.worldState.relations.length} relations, ` +
+            `${state.worldState.entities.length} entities (${breakdown}), ${state.worldState.relations.length} relations, ` +
               `${state.worldState.availableActions.length} actions available and ${state.worldState.unavailableActions.length} not`,
           );
           break;
+        }
 
         case "REPRESENT":
           note(station, `basis ${quantum.basis.length}, norm ${quantum.norm().toFixed(12)}`);
@@ -410,10 +631,52 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
           } else {
             spent = { ...spent, researchOperations: spent.researchOperations + 1 };
             research = planResearch(state.goal.id, gaps);
-            // Section 13 asks for acquisition. Planning is what happens without
-            // a router that may reach a source; the acquisition itself is a
-            // tool call and goes through ACT under the same budget as any other.
-            note(station, `next question: ${research.next?.concept ?? "nothing worth asking"}`);
+            const question = research.next?.concept ?? null;
+            if (question === null) {
+              note(station, "nothing worth asking");
+            } else {
+              /* -------------------------------------------------------- *
+               * v1.3 SECTION 12: "Never fabricate research."
+               *
+               * This station used to PLAN a question and stop. The adapter is
+               * what turns the plan into an acquisition — and its result is a
+               * UNION rather than an array precisely so that "I researched and
+               * found nothing" and "I cannot research" are different answers.
+               * The second is a KNOWLEDGE failure and goes to the recovery
+               * ladder; treating it as an empty finding set would be a
+               * fabricated negative result, which is what the section forbids.
+               * -------------------------------------------------------- */
+              const found = await run.research.investigate(question);
+              if (found.ok) {
+                // A FINDING BECOMES A PERCEPT AT `OBSERVED`, AND THAT IS NOT A
+                // CLAIM THAT IT IS TRUE. What was observed is that a named
+                // source says this — `sourceRef` is required by the type, so
+                // there is always one. How much it is believed travels in
+                // `confidence`, which is the field for that; collapsing the two
+                // would be section 30's "represent an inference as an
+                // observation" in the subtlest available form.
+                const learned: Percept[] = found.findings.map((f) => ({
+                  id: `research-${f.id}`,
+                  kind: "document" as const,
+                  content: `${f.question} -> ${f.answer}`,
+                  source: f.sourceRef,
+                  confidence: f.confidence,
+                  provenance: "OBSERVED" as const,
+                }));
+                state = step({ percepts: [...state.percepts, ...learned], spent });
+                note(station, `${question}: ${learned.length} finding(s)`);
+              } else {
+                recover(
+                  fromStation(
+                    site(station, 1, "READ"),
+                    "KNOWLEDGE",
+                    "research_unavailable",
+                    found.reason,
+                  ),
+                  { researchAvailable: false },
+                );
+              }
+            }
           }
           break;
 
@@ -576,11 +839,31 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
         }
 
         case "PLAN": {
-          const best = [...state.futures].sort((a, b) => b.expectedValue - a.expectedValue)[0];
+          // A REPLAN MUST NOT RE-SELECT WHAT JUST FAILED. Sorting the same
+          // futures again would return the same winner, and the recovery ladder
+          // would have spent a level to arrive back where it was.
+          const open = state.futures.filter((f) => !blockedActions.has(f.action));
+          if (blockedActions.size > 0) {
+            note(
+              station,
+              `${blockedActions.size} action(s) withdrawn by an earlier recovery; ${open.length} candidate(s) remain`,
+            );
+          }
+          const best = [...open].sort((a, b) => b.expectedValue - a.expectedValue)[0];
           if (!best) {
-            note(station, "nothing to plan", "no_futures");
+            note(
+              station,
+              blockedActions.size > 0
+                ? "every candidate action has been withdrawn"
+                : "nothing to plan",
+              blockedActions.size > 0 ? "no_candidates_left" : "no_futures",
+            );
             break;
           }
+          // Consumed HERE rather than at the top of the station list, because
+          // PLAN is the station that can act on it. A decision nobody consumed
+          // would silently persist into the next iteration.
+          pendingRecovery = null;
           const plan: Plan = {
             id: `plan-${state.iteration}-${best.action}`,
             objective: state.goal.statement,
@@ -638,11 +921,52 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
           }
           const wouldSpend = wouldBreach(spent, budgets, planCost);
           if (wouldSpend) {
-            state = step({ selectedPlan: null, status: "budget_exhausted", spent });
-            note(station, `refused: ${wouldSpend}`, wouldSpend);
-            terminated = wouldSpend;
+            state = step({ selectedPlan: null, spent });
+            // Section 23: BUDGET_EXHAUSTED names WHICH budget, and it says so
+            // through the recovery path rather than beside it, so the failure
+            // is on the hashed record like every other.
+            recover(fromBudget(site(station, 1, "READ"), wouldSpend), {
+              exhaustedBudget: wouldSpend,
+            });
             break outer;
           }
+
+          /* -------------------------------------------------------------- *
+           * v1.3 SECTIONS 6, 30 AND 31 — AND THIS IS THE GATE THAT MAKES
+           * PROVENANCE MORE THAN A LABEL.
+           *
+           * §31: "If any required information is unavailable, the operation
+           * should fail closed where safety, spending or production mutation is
+           * involved." A plan step that touches production is exactly that
+           * case, and the required information is whether the world it is about
+           * to change was ever actually SEEN.
+           *
+           * So a production step is refused when every entity backing it is
+           * INFERRED, PREDICTED or UNKNOWN. It is deliberately NOT refused for
+           * a read, a shadow run, or a plan over an empty world model — the
+           * gate is the mutation, not the tidiness of the model.
+           * -------------------------------------------------------------- */
+          const productionSteps = plan.steps.filter((st) => st.call?.touchesProduction);
+          const observedEntities = state.worldState.entities.filter((e) =>
+            isEvidential(e.provenance),
+          );
+          if (
+            productionSteps.length > 0 &&
+            state.worldState.entities.length > 0 &&
+            observedEntities.length === 0
+          ) {
+            state = step({ selectedPlan: null, spent });
+            recover(
+              fromStation(
+                site(station, 1, "READ"),
+                "PREDICTION",
+                "production_on_unobserved_world",
+                `${productionSteps.length} production step(s) rest on ${state.worldState.entities.length} entities, none of them OBSERVED`,
+              ),
+            );
+            break;
+          }
+
           if (irreversible.length > 0 && !plan.rollback) {
             state = step({ selectedPlan: null, spent });
             note(
@@ -682,11 +1006,79 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
               terminated = priced;
               break outer;
             }
-            spent = { ...spent, toolCalls: spent.toolCalls + 1 };
             predictions.push({ stepId: step.id, expected: step.describes });
-            const result = await router.execute(step.call);
-            spent = addUsage(spent, result.usage);
-            results.push({ step: step.id, result });
+
+            /* ---------------------------------------------------------- *
+             * THE RECOVERY LOOP, and this is the one place in ONIQ it is
+             * mandatory: failure brief section 32 — "mandatory for every
+             * consequential ONIQ action". A tool call is the only thing this
+             * loop does that changes the world.
+             *
+             * EVERY ATTEMPT COSTS A TOOL CALL, counted before the call and not
+             * after, so a retry spends the same budget an action does. A retry
+             * ladder that did not charge itself would be an unbounded action
+             * budget wearing a bounded one's name.
+             * ---------------------------------------------------------- */
+            const props = router.properties(step.call.tool) ?? UNKNOWN_TOOL_PROPERTIES;
+            let attempt = 1;
+            let result: ToolResult | null = null;
+            for (;;) {
+              spent = { ...spent, toolCalls: spent.toolCalls + 1 };
+              let thrown: unknown = null;
+              try {
+                result = await router.execute(step.call);
+              } catch (e) {
+                thrown = e;
+                result = null;
+              }
+              if (result) spent = addUsage(spent, result.usage);
+              if (result && result.ok) break;
+
+              const at = site(station, attempt, props.idempotency);
+              const failure =
+                thrown !== null
+                  ? fromThrown(at, thrown)
+                  : fromStation(
+                      at,
+                      "TOOL",
+                      result?.reason ?? "tool_refused",
+                      // The tool's own words. `observed` is the ENVIRONMENT's,
+                      // and a failed call has no environment answer to trust.
+                      result?.output || result?.reason || "the tool did not say why",
+                    );
+              const decision = recover(failure, {
+                // No alternate is offered here: a plan step names ONE tool, and
+                // choosing a different one is a REPLAN, which is what the
+                // decision returns when it wants that. Claiming an alternate
+                // exists when none has been registered would send the ladder to
+                // a level that cannot act.
+                alternateAvailable: false,
+              });
+              if (decision.terminal) break outer;
+              if (decision.action !== "retry" && decision.action !== "retry_adjusted") {
+                // Anything above a retry is a decision the NEXT station or the
+                // next iteration acts on — PLAN reads a cleared plan, RESEARCH
+                // reads a pending research decision. ACT does not act on it,
+                // because ACT is where the failure was.
+                pendingRecovery = decision;
+                if (decision.action === "replan" || decision.action === "alternate") {
+                  blockedActions.add(step.call.tool);
+                }
+                break;
+              }
+              attempt++;
+              if (spent.toolCalls >= budgets.maxToolCalls) {
+                recover(fromBudget(site(station, attempt, props.idempotency), "max_tool_calls"), {
+                  exhaustedBudget: "max_tool_calls",
+                });
+                break outer;
+              }
+            }
+            // A RESULT IS RECORDED WHETHER OR NOT IT SUCCEEDED. OBSERVE judges
+            // it against the prediction; dropping a failed attempt here would
+            // make the run look like it never acted, which is section 31's
+            // "a failure must never disappear" in the other direction.
+            if (result) results.push({ step: step.id, result });
           }
           state = step({ predictions, spent });
           note(station, `${results.length} action(s) attempted`);
@@ -801,8 +1193,26 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
             note(station, "success criteria satisfied");
           } else if (starvedBy) {
             state = step({ status: "budget_exhausted", spent });
+            // Section 23 again: name the bound, not just the status — and the
+            // bound's own name IS the budget's name.
             terminated = starvedBy;
             note(station, `cannot continue: ${starvedBy}`, starvedBy);
+          } else if (pendingRecovery?.action === "escalate") {
+            /* ---------------------------------------------------------- *
+             * AN ESCALATION IN A HEADLESS RUN IS A BLOCK, AND SAYING SO IS
+             * THE HONEST ANSWER. Section 19's level 7 escalates to a person;
+             * a scheduled tick has no person attached to it, so a loop that
+             * treated "escalate" as "carry on" would be inventing an approval
+             * nobody gave. `blocked` is section 26's state for exactly this —
+             * the run stopped, it did not fail, and it needs someone.
+             * ---------------------------------------------------------- */
+            state = step({ status: "blocked", spent });
+            terminated = ESCALATION_REQUIRED;
+            note(
+              station,
+              `escalation required and nobody is attached: ${pendingRecovery.reason}`,
+              "escalation_required",
+            );
           } else {
             note(
               station,
@@ -840,11 +1250,25 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
 
     spent = { ...spent, iterations: spent.iterations + 1 };
     state = step({ iteration: state.iteration + 1, spent });
+    persistedStates += await flushChain();
   }
 
   if (spent.iterations >= budgets.maxIterations && terminated === "completed") {
     terminated = "max_iterations";
   }
+  // The last stretch, including whatever a `break outer` left unflushed.
+  persistedStates += await flushChain();
 
-  return { state, quantum, log, chain, research, gaps, answer, spent, terminated };
+  return {
+    state,
+    quantum,
+    log,
+    chain,
+    research,
+    gaps,
+    answer,
+    spent,
+    persistedStates,
+    terminated,
+  };
 }

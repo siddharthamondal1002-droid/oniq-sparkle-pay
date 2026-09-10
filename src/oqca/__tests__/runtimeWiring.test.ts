@@ -173,7 +173,20 @@ describe("section 19 — every transition is on the chain", () => {
   it("the chain is returned, so a caller can persist it", () => {
     const src = code(`${KERNEL}/loop/cognitiveLoop.ts`);
     expect(src).toMatch(/readonly chain: readonly LoopState\[\];/);
-    expect(src).toMatch(/return \{ state, quantum, log, chain,/);
+    /* ------------------------------------------------------------------ *
+     * THIS USED TO PIN THE LITERAL `return { state, quantum, log, chain,`
+     * AND THAT PINNED THE FORMATTING, NOT THE PROPERTY. Adding one field
+     * pushed Prettier to break the object across lines and the assertion went
+     * red on a return statement that still returned everything it had before.
+     * A test that fails when nothing it cares about changed teaches whoever
+     * hits it to stop trusting it.
+     *
+     * The return's FIELD SET is what matters, so that is what is read.
+     * ------------------------------------------------------------------ */
+    const ret = src.slice(src.lastIndexOf("return {"));
+    for (const field of ["state", "quantum", "log", "chain", "spent", "persistedStates"]) {
+      expect(ret, `the run does not return ${field}`).toMatch(new RegExp(`\\b${field}\\b`));
+    }
   });
 });
 

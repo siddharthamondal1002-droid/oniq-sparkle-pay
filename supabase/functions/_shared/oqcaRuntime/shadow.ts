@@ -18,13 +18,18 @@
  */
 import { CognitiveState, ROOT_CONTEXT } from "../oqca/formalState.ts";
 import { runCognitiveLoop, type LoopRun } from "../oqca/loop/cognitiveLoop.ts";
+import { makeRun } from "../oqca/loop/cognitiveRun.ts";
 import { sealLoopState, EMPTY_WORLD, type LoopState } from "../oqca/loop/loopState.ts";
 import { DEFAULT_BUDGETS, NO_SPEND, type Budgets, type MemoryRecord } from "../oqca/loop/seams.ts";
 import { makeEngine, type EngineContext, type ModelCallRecord } from "./engine.ts";
 import { makeToolRouter, type RouterMode, type ToolCallRecord } from "./toolRouter.ts";
 import { makeMemory } from "./memory.ts";
+import { dispatchRules, makeKnowledge } from "./knowledge.ts";
+import { makeResearch } from "./research.ts";
+import { makeMemoryPersistence } from "./persistence.ts";
 import { buildEpisode, NOT_CHECKED, type Episode, type VerificationResult } from "./episode.ts";
 import {
+  DISPATCH_BACKOFF_MS,
   DISPATCH_GOAL,
   HOLD_ACTION,
   basisFrom,
@@ -68,6 +73,16 @@ export type ShadowComparison = {
   readonly failure: string | null;
   /** Section 12: how many episodes the adapter DURABLY stored. Currently 0. */
   readonly persistedEpisodes: number;
+  /** v1.3 section 19: how many states the persistence adapter actually stored. */
+  readonly persistedStates: number;
+  /** v1.3 section 5: how many knowledge lookups the run made. */
+  readonly knowledgeLookups: number;
+  /**
+   * v1.3 section 12: how many times research was ASKED FOR and REFUSED. A
+   * non-zero value here is the honest shape of "ONIQ cannot research yet" —
+   * it is not the same as never having wanted to.
+   */
+  readonly researchRefusals: number;
   /** Section 19: how many states the run produced, all of them replayable. */
   readonly stateTransitions: number;
 };
@@ -107,6 +122,7 @@ export function initialState(
     parentStateId: null,
     goal: DISPATCH_GOAL,
     percepts: [],
+    failures: [],
     activeHypotheses: basis,
     worldState: world,
     evidenceIds: [],
@@ -148,6 +164,9 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
   const modelCalls: ModelCallRecord[] = [];
   const toolCalls: ToolCallRecord[] = [];
   const memoryNotes: { attempted: number; persisted: number; reason: string }[] = [];
+  const knowledgeNotes: { query: string; returned: number; gap: string }[] = [];
+  const researchNotes: { question: string; reason: string }[] = [];
+  const persistenceNotes: { stateId: string; persisted: boolean; gap: string }[] = [];
 
   const budgets = opts.budgets ?? DEFAULT_BUDGETS;
   const env = opts.env;
@@ -178,6 +197,22 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
     record: (r) => toolCalls.push(r),
   });
   const memory = makeMemory(opts.seedMemory ?? [], { record: (n) => memoryNotes.push(n) });
+  /* -------------------------------------------------------------------- *
+   * v1.3'S THREE NEW ADAPTERS, and two of them refuse.
+   *
+   * knowledge  REAL: the dispatch rules as written in code, each carrying the
+   *            module it came from. Nothing generated, nothing summarised.
+   * research   REFUSES, and says why. ONIQ's only search-capable path is paid
+   *            and user-facing, so pointing a scheduled tick at it is a spend
+   *            decision the owner has not made.
+   * persist    REAL for the life of the process; durable storage needs a table
+   *            and a migration, which a shadow run may not make.
+   * -------------------------------------------------------------------- */
+  const knowledge = makeKnowledge(dispatchRules(DISPATCH_BACKOFF_MS), {
+    record: (n) => knowledgeNotes.push(n),
+  });
+  const research = makeResearch({ record: (n) => researchNotes.push(n) });
+  const persistence = makeMemoryPersistence({ record: (n) => persistenceNotes.push(n) });
 
   const run = await runCognitiveLoop({
     initial: state,
@@ -210,6 +245,24 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
     memory,
     // Section 14: the job's own verifier, called BY station 11.
     verifier: makeVerifier(env),
+    run: makeRun({
+      runId: opts.runId,
+      // SHADOW OR ASSISTED, NEVER `controlled_autonomy`. The router's mode is
+      // a two-value type and `parseMode` cannot produce the third, so the
+      // unattended mode is unreachable from configuration — which is where the
+      // recovery brief's closing sentence puts it until a person says
+      // otherwise.
+      mode: opts.mode,
+      model: engine,
+      tools: router,
+      memory,
+      knowledge,
+      research,
+      persistence,
+      verifier: makeVerifier(env),
+      budgets,
+      clock: () => env.nowMs() - startedAt,
+    }),
   });
   currentStateId = run.state.stateId;
 
@@ -325,6 +378,10 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
       undecidedReason,
       failure,
       persistedEpisodes,
+      // The adapter's own count, not `chain.length` — see `flushChain`.
+      persistedStates: run.persistedStates,
+      knowledgeLookups: knowledgeNotes.length,
+      researchRefusals: researchNotes.length,
       stateTransitions: run.chain.length,
     },
     episode,

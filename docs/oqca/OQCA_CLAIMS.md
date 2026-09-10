@@ -10,8 +10,8 @@ Re-run everything with:
 
 ```
 npx tsx scripts/oqca-bench.ts      # the benchmark, all manifests, all seeds
-npx vitest run src/oqca            # 317 tests
-bash scripts/oqca-mutate.sh        # 38 mutations, all expected RED
+npx vitest run src/oqca            # 446 tests
+bash scripts/oqca-mutate.sh        # 64 mutations, all expected RED
 node scripts/oqca-mirror.mjs --check    # the edge mirror is byte-identical
 deno check supabase/functions/story-dispatch/index.ts
 ```
@@ -27,6 +27,24 @@ deno check supabase/functions/story-dispatch/index.ts
 | Episodic memory persists                                                                                | **FALSE, and stated as false.** `consolidate` returns 0. ONIQ has no general memory store                           |
 | A real ONIQ job has traversed the 23 stations in production                                             | **NOT TRUE YET.** Nothing is deployed and the flag ships off                                                        |
 | OQCA decides better than the existing rule                                                              | **UNPROVEN and not claimed.** One workflow, no live data                                                            |
+
+## v1.3 + the failure-recovery brief — what is true now
+
+| Claim                                                                 | Status                                                                                                                                 |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Every consequential action goes through CLASSIFY → DIAGNOSE → RECOVER | **ESTABLISHED** for the one consequential action the loop has: a tool call. M49–M56 red                                                |
+| A safety violation can never reach the retry ladder                   | **ESTABLISHED** — the code check runs before the class switch, driven with the most retryable class; M49 red                           |
+| A planning failure is never retried (§25)                             | **ESTABLISHED** — no path from `PLANNING` to a retry at any attempt count; M52 red                                                     |
+| An unclassified failure is never retried (§24)                        | **ESTABLISHED** — `UNKNOWN` escalates, then STOPS; M51 red                                                                             |
+| A timeout is never replayed onto a non-idempotent write (§8)          | **ESTABLISHED** — and `UNKNOWN` idempotency counts as non-idempotent; M50/M56 red                                                      |
+| A failure survives a later success (§20, §31)                         | **ESTABLISHED** — failures are in the hashed state, so a replay that dropped one produces a different id; M63 red                      |
+| The world model distinguishes perception from inference (§6, §30)     | **ESTABLISHED** — `provenance` is required, not defaulted; M57 red. The EVALUATE gate refuses a production step on an unobserved world |
+| A wall clock never enters the state id (§3)                           | **ESTABLISHED** — `hashPayload` rebuilds each percept field by field; M58 red                                                          |
+| `controlled_autonomy` is unreachable from configuration               | **ESTABLISHED** — `parseMode` is a closed list of two; M62 red                                                                         |
+| ONIQ can research                                                     | **FALSE, and stated as false.** The adapter REFUSES; an empty finding set would be a fabricated negative result. M60 red               |
+| Cognitive states persist across processes                             | **FALSE, and stated as false.** In-process only; durable storage needs a migration                                                     |
+| A real ONIQ job has traversed the stations in PRODUCTION              | **STILL NOT TRUE.** Nothing is deployed, the flag ships off, and the traversal that exists ran offline against a fixture queue         |
+| The recovery loop has handled a real production failure               | **NOT TRUE.** Every number above is from tests                                                                                         |
 
 ---
 

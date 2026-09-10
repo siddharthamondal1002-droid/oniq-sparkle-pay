@@ -8,6 +8,7 @@
  * different state id. The episode is a REPORT about a run, not part of the
  * run's state, so a timestamp is safe here and only here.
  */
+import { ESCALATION_REQUIRED } from "../oqca/loop/cognitiveLoop.ts";
 import type { LoopRun, StationRecord } from "../oqca/loop/cognitiveLoop.ts";
 import type { Outcome, Prediction } from "../oqca/loop/loopState.ts";
 import type { ModelCallRecord } from "./engine.ts";
@@ -80,6 +81,9 @@ export function classifyResponse(run: LoopRun, verdict: Verdict): ResponseClass 
     "max_iterations",
     "unpriced",
     "budget_exhausted",
+    // Level 7 asked for a person and a scheduled tick has none. PREVENTED,
+    // not failed — which is the distinction this set exists to draw.
+    ESCALATION_REQUIRED,
   ]);
   if (BLOCKING.has(run.terminated)) return "blocked";
   if (verdict === "verified") return "completed";

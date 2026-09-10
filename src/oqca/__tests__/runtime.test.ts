@@ -483,6 +483,7 @@ describe("a tool that costs money cannot run outside the spend ledger", () => {
     name: "expensive",
     reversible: true,
     touchesProduction: false,
+    idempotency: "IDEMPOTENT_WRITE",
     estimate: () => ({ tokens: 0, costUsd: 0.25 }),
     authorize: async () => null,
     perform: async () => ({ ok: true, output: "done", observed: "the world changed" }),

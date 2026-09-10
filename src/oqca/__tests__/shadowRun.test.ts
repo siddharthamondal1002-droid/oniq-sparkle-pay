@@ -91,10 +91,47 @@ describe("a real ONIQ job traverses all 23 stations", () => {
 
   it("writes NOTHING to production, and refuses by the mode", async () => {
     const { env, out } = await execute();
+    // THE ONLY TWO ASSERTIONS THAT MATTER, and they are about the WORLD rather
+    // than about the loop's bookkeeping: no dispatch was sent, no row stamped.
     expect(env.sent).toEqual([]);
     expect(env.stamped).toEqual([]);
-    expect(out.comparison.toolAttempts).toBe(0);
     expect(out.comparison.toolsRefused).toBeGreaterThan(0);
+  });
+
+  it("replans a shadow-refused dispatch onto the hold, and the hold is what runs", async () => {
+    /* ------------------------------------------------------------------ *
+     * THIS ASSERTION REPLACES `toolAttempts === 0`, AND THE CHANGE IS THE
+     * RECOVERY LOOP WORKING RATHER THAN A REGRESSION.
+     *
+     * Before the failure brief was implemented, a shadow-mode refusal ended
+     * the plan: the dispatch was refused, nothing else was tried, and zero
+     * tools were attempted. Now the refusal is classified TOOL, `decideRecovery`
+     * returns `replan` (no alternate is registered for a plan step), the
+     * refused action is WITHDRAWN, and PLAN picks the next candidate — which
+     * is the hold, the one action shadow mode permits because it touches
+     * nothing.
+     *
+     * So a tool IS attempted, and it is the one that writes nothing. Pinning
+     * `toolAttempts === 0` would have pinned the pre-recovery behaviour and
+     * made this improvement read as a break.
+     * ------------------------------------------------------------------ */
+    const { env, out } = await execute();
+    // One action refused by the mode, one attempted after the replan.
+    expect(out.comparison.toolsRefused).toBeGreaterThan(0);
+    expect(out.comparison.toolAttempts).toBeGreaterThan(0);
+    // And the one that ran is the HOLD, identified by the observation only it
+    // produces — the loop's own record, not the router's bookkeeping.
+    expect(
+      out.run.state.outcomes.some((o) => /nothing was dispatched this tick/.test(o.observed)),
+    ).toBe(true);
+    // The refusal that caused the replan is on the hashed record, not
+    // merely in the log — failure brief section 20.
+    const failures = out.run.state.failures;
+    expect(failures.some((f) => f.class === "TOOL")).toBe(true);
+    expect(failures.some((f) => f.recoveryAction === "replan")).toBe(true);
+    // The world is still untouched, which is the point of all of it.
+    expect(env.sent).toEqual([]);
+    expect(env.stamped).toEqual([]);
   });
 
   it("prices every model call, and the estimate bounds the charge", async () => {

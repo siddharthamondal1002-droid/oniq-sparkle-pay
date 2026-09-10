@@ -21,6 +21,7 @@ import { contentHash } from "../math/hash.ts";
 import type { StateSnapshot } from "../formalState.ts";
 import type { Gap, Goal } from "../knowledge/gaps.ts";
 import type { Budgets, MemoryRecord, Spent, ToolCall, Verification } from "./seams.ts";
+import type { Failure } from "../recovery/failure.ts";
 
 /**
  * Section 4 PERCEIVE. Named `Percept` rather than `Observation` because
@@ -41,12 +42,42 @@ export type PerceptKind =
   | "environment"
   | "user_feedback";
 
+/**
+ * v1.3 sections 6 and 30. THE FUNDAMENTAL INVARIANT IS
+ * `PERCEPTION != INFERENCE != PREDICTION != ACTION != OBSERVATION != LEARNING`,
+ * and a world model that cannot say which of those a fact came from cannot
+ * hold it: "Never represent an inference as an observation."
+ *
+ * It is REQUIRED wherever it appears, never defaulted. A default would be a
+ * value nobody chose, and the only safe default — UNKNOWN — would quietly
+ * demote every genuine observation the day a construction site forgot it.
+ */
+export type Provenance = "OBSERVED" | "INFERRED" | "PREDICTED" | "UNKNOWN";
+
+export const PROVENANCES: readonly Provenance[] = ["OBSERVED", "INFERRED", "PREDICTED", "UNKNOWN"];
+
+/** Section 30: only a thing the environment actually said may act as evidence. */
+export function isEvidential(p: Provenance): boolean {
+  return p === "OBSERVED";
+}
+
 export type Percept = {
   readonly id: string;
   readonly kind: PerceptKind;
   readonly content: string;
   /** Where it came from. Section 13: no source becomes truth by being generated. */
   readonly source: string;
+  /** v1.3 section 3. How much this is trusted, 0..1. */
+  readonly confidence: number;
+  /** v1.3 sections 3 and 30. */
+  readonly provenance: Provenance;
+  /**
+   * v1.3 section 3, verbatim: "A timestamp may exist in an audit record. It
+   * must never enter the deterministic cognitive `stateId`." So it is optional
+   * here and STRIPPED in `hashPayload` — see the note there, which is where the
+   * rule is actually enforced rather than merely stated.
+   */
+  readonly observedAt?: number;
 };
 
 /**
@@ -59,6 +90,12 @@ export type WorldEntity = {
   readonly id: string;
   readonly kind: string;
   readonly properties: Readonly<Record<string, string>>;
+  /**
+   * v1.3 section 6. Required, so a station cannot add a thing it INFERRED to
+   * the world model without saying so — which is the one mistake section 30
+   * names as fundamental.
+   */
+  readonly provenance: Provenance;
   /** 0 = certain, 1 = nothing is known about this entity's state. */
   readonly uncertainty: number;
 };
@@ -137,7 +174,16 @@ export type Outcome = {
 export type LoopStatus =
   "running" | "success" | "failure" | "blocked" | "user_stop" | "budget_exhausted" | "safety_stop";
 
-/** Section 26: only these three mean the loop may not continue on its own. */
+/**
+ * Section 26, and v1.3 section 1: the loop "terminates only on an explicit
+ * terminal state". These six are that list.
+ *
+ * THE COMMENT HERE USED TO SAY "only these three" OVER A LIST OF SIX, and
+ * `isTerminal` was `status !== "running"` — which never read this array at all.
+ * Both were harmless today and wrong tomorrow: the day a second non-terminal
+ * status is added (a `paused`, a `waiting_for_user`), the old predicate calls
+ * it terminal and the loop stops on it silently.
+ */
 export const TERMINAL_STATUSES: readonly LoopStatus[] = [
   "success",
   "failure",
@@ -148,7 +194,7 @@ export const TERMINAL_STATUSES: readonly LoopStatus[] = [
 ];
 
 export function isTerminal(status: LoopStatus): boolean {
-  return status !== "running";
+  return TERMINAL_STATUSES.includes(status);
 }
 
 export type LoopState = {
@@ -172,6 +218,14 @@ export type LoopState = {
    * observations would be a replay that did not reproduce the run.
    */
   readonly verification: Verification | null;
+  /**
+   * RECOVERY BRIEF SECTION 20 AND 31, and it is why they are HASHED rather than
+   * logged beside the state: "Never mutate history to hide a failure" and "A
+   * failure must therefore never disappear merely because a retry succeeded."
+   * A replay that reproduced the successful attempt and not the two that failed
+   * before it would be a replay of a different run.
+   */
+  readonly failures: readonly Failure[];
   readonly memoryRefs: readonly MemoryRecord[];
   /** The OQCA amplitude state, serialized. Section 3's `quantumState`. */
   readonly quantumState: StateSnapshot;
@@ -194,7 +248,24 @@ function hashPayload(s: Omit<LoopState, "stateId" | "wallClock">) {
   return {
     parentStateId: s.parentStateId,
     goal: s.goal,
-    percepts: s.percepts,
+    /**
+     * v1.3 SECTION 3 IS ENFORCED HERE, NOT MERELY DECLARED ON THE TYPE:
+     * "A timestamp may exist in an audit record. It must never enter the
+     * deterministic cognitive `stateId`." `Percept.observedAt` is a real wall
+     * reading, so the percept is REBUILT field by field rather than spread —
+     * a spread would carry it in and every replay of the same run would
+     * produce a different id, which is the `Date.now()` fault v1.1 already
+     * recorded in `transition.ts`.
+     */
+    percepts: s.percepts.map((p) => ({
+      id: p.id,
+      kind: p.kind,
+      content: p.content,
+      source: p.source,
+      confidence: p.confidence,
+      provenance: p.provenance,
+    })),
+    failures: s.failures,
     activeHypotheses: s.activeHypotheses,
     worldState: s.worldState,
     evidenceIds: s.evidenceIds,

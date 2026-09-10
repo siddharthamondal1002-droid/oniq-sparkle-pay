@@ -39,7 +39,11 @@ import type { Goal } from "@/oqca/knowledge/gaps";
  */
 const FREE = () => ({ tokens: 0, costUsd: 0 });
 /** A fixture tool that is reversible and touches nothing. */
-const SAFE_TOOL = () => ({ reversible: true, touchesProduction: false });
+const SAFE_TOOL = () => ({
+  reversible: true,
+  touchesProduction: false,
+  idempotency: "IDEMPOTENT_WRITE" as const,
+});
 
 const GOAL: Goal = {
   id: "g1",
@@ -56,6 +60,7 @@ function baseState(over: Partial<Omit<LoopState, "stateId">> = {}): LoopState {
     parentStateId: null,
     goal: GOAL,
     percepts: [],
+    failures: [],
     activeHypotheses: [],
     worldState: EMPTY_WORLD,
     evidenceIds: [],
@@ -237,7 +242,20 @@ describe("the spending bounds refuse BEFORE the spend, never after", () => {
 describe("nothing is fabricated", () => {
   it("no evidence is folded in when the caller supplied none", async () => {
     const run = await runCognitiveLoop(
-      input({ percepts: [[{ id: "p1", kind: "text", content: "hello", source: "user" }]] }),
+      input({
+        percepts: [
+          [
+            {
+              id: "p1",
+              kind: "text",
+              content: "hello",
+              source: "user",
+              confidence: 1,
+              provenance: "OBSERVED",
+            },
+          ],
+        ],
+      }),
     );
     expect(run.log.find((r) => r.station === "UPDATE_STATE")!.note).toBe(
       "no evidence this iteration",
@@ -296,7 +314,11 @@ describe("EVALUATE is the gate above ACT", () => {
         // to be carried by a regex matching /delete/, which meant a production
         // write called anything else declared itself safe.
         router: {
-          properties: () => ({ reversible: false, touchesProduction: true }),
+          properties: () => ({
+            reversible: false,
+            touchesProduction: true,
+            idempotency: "NON_IDEMPOTENT_WRITE" as const,
+          }),
           estimate: FREE,
           execute: router,
         },

@@ -31,6 +31,7 @@
  */
 import { type Capability, type ServiceRpc, withProviderSpendGuard } from "../financialLedger.ts";
 import type { SpendEstimate, ToolCall, ToolResult, ToolRouter } from "../oqca/loop/seams.ts";
+import type { IdempotencyClass } from "../oqca/recovery/failure.ts";
 
 /**
  * WHAT THE ROUTER IS ALLOWED TO DO AT ALL, on this run.
@@ -62,6 +63,13 @@ export type ToolSpec = {
   readonly name: string;
   readonly reversible: boolean;
   readonly touchesProduction: boolean;
+  /**
+   * RECOVERY BRIEF SECTION 7. REQUIRED, with no default, because the only
+   * defensible default is UNKNOWN and a default UNKNOWN would silently make
+   * every registered tool unretryable after a timeout. Whoever registers a
+   * tool knows; nobody else can.
+   */
+  readonly idempotency: IdempotencyClass;
   /** What one call costs, or null when it cannot be priced. Never a guess. */
   readonly estimate: (call: ToolCall) => SpendEstimate | null;
   /**
@@ -194,7 +202,11 @@ export function makeToolRouter(tools: readonly ToolSpec[], ctx: RouterContext): 
     properties: (tool) => {
       const spec = registry.get(tool);
       if (!spec) return null;
-      return { reversible: spec.reversible, touchesProduction: spec.touchesProduction };
+      return {
+        reversible: spec.reversible,
+        touchesProduction: spec.touchesProduction,
+        idempotency: spec.idempotency,
+      };
     },
     estimate: (call) => {
       const spec = registry.get(call.tool);

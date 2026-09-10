@@ -137,9 +137,15 @@ export function worldFrom(queue: readonly QueuedJob[], nowMs: number): WorldStat
         waitingMinutes: String(Math.max(0, Math.round((nowMs - j.createdAtMs) / 60000))),
         dispatched: j.dispatchedAtMs === null ? "never" : "recently",
       },
-      // A queued row says what was ASKED for, never what a runner will do with
-      // it, so nothing here is certain and pretending otherwise would make
-      // IDENTIFY_GAPS find nothing to be uncertain about.
+      // OBSERVED and 0.5-uncertain AT THE SAME TIME, which is the distinction
+      // v1.3 section 30 draws and the reason `provenance` is not just a
+      // rename of `uncertainty`. The ROW was read from Postgres — nobody
+      // inferred it, so its provenance is OBSERVED and a plan may act on it.
+      // What it says is only what was ASKED for, never what a runner will do
+      // with it, so the uncertainty stays high. Collapsing the two would
+      // either let an inference act like a reading, or make a real reading
+      // unusable.
+      provenance: "OBSERVED",
       uncertainty: 0.5,
     })),
     relations: [],
@@ -156,6 +162,11 @@ export function perceptsFrom(queue: readonly QueuedJob[], nowMs: number): Percep
       kind: "app_state",
       content: `${queue.length} job(s) queued, ${dispatchable.length} dispatchable now`,
       source: "story_jobs via PostgREST",
+      // A count of rows the database returned. Exact, and read rather than
+      // reasoned to — so OBSERVED at confidence 1. Nothing else in this file
+      // gets to claim that.
+      confidence: 1,
+      provenance: "OBSERVED" as const,
     },
     ...queue.map((j) => ({
       id: `job-${j.id}`,
@@ -165,6 +176,8 @@ export function perceptsFrom(queue: readonly QueuedJob[], nowMs: number): Percep
         `waiting ${Math.max(0, Math.round((nowMs - j.createdAtMs) / 60000))} minute(s), ` +
         `${j.dispatchedAtMs === null ? "never dispatched" : "dispatched recently"}`,
       source: "story_jobs via PostgREST",
+      confidence: 1,
+      provenance: "OBSERVED" as const,
     })),
   ];
 }
@@ -259,6 +272,14 @@ export function dispatchTools(queue: readonly QueuedJob[], env: DispatchEnvironm
       // AND IT STILL TOUCHES PRODUCTION. Both are true at once, which is
       // exactly the pair the kernel used to derive one from the other.
       touchesProduction: true,
+      // NON-IDEMPOTENT, AND `reversible: true` DOES NOT SOFTEN IT — a third
+      // independent property, which is the point of section 7 being its own
+      // field. A dispatch hands work to a runner; handing it over twice hands
+      // it over twice. `authorize` re-reads and refuses a job already
+      // dispatched, which NARROWS the window and does not close it: the
+      // re-read and the write are not one transaction. So a timeout here is
+      // never replayed, which is recovery section 8 doing its job.
+      idempotency: "NON_IDEMPOTENT_WRITE" as const,
       estimate: () => DISPATCH_COST,
       authorize: async (call: ToolCall) => {
         const id = jobIdFrom(call.tool);
@@ -296,6 +317,8 @@ export function dispatchTools(queue: readonly QueuedJob[], env: DispatchEnvironm
     name: HOLD_ACTION,
     reversible: true,
     touchesProduction: false,
+    // A hold performs nothing, so replaying it is free and changes nothing.
+    idempotency: "READ" as const,
     estimate: () => DISPATCH_COST,
     authorize: async () => null,
     perform: async () => ({

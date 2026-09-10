@@ -22,6 +22,8 @@
  * seam was missing.
  */
 
+import type { IdempotencyClass } from "../recovery/failure.ts";
+
 /** What a caller must be able to say about a spend before it happens. */
 export type Usage = {
   readonly inputTokens: number;
@@ -167,6 +169,16 @@ export type ToolResult = {
  * from an action's NAME: only whoever registered the tool knows.
  */
 export type ToolProperties = {
+  /**
+   * RECOVERY BRIEF SECTION 7, and it is what makes section 8 enforceable
+   * rather than advisory. "Never assume a timeout means the operation did not
+   * happen" is only actionable if something knows whether replaying is safe —
+   * and only the ROUTER knows, because only the router registered the tool.
+   * `UNKNOWN_TOOL_PROPERTIES` declares UNKNOWN, which `safeToReplay` treats as
+   * non-idempotent: a tool whose idempotency nobody declared is a tool that may
+   * have charged somebody.
+   */
+  readonly idempotency: IdempotencyClass;
   readonly reversible: boolean;
   readonly touchesProduction: boolean;
 };
@@ -189,6 +201,7 @@ export type ToolRouter = {
  * action, and the safe direction to be wrong in is the one that refuses.
  */
 export const UNKNOWN_TOOL_PROPERTIES: ToolProperties = {
+  idempotency: "UNKNOWN",
   reversible: false,
   touchesProduction: true,
 };
@@ -214,7 +227,13 @@ export const REFUSING_ROUTER: ToolRouter = {
 export const RECORD_ONLY_ROUTER: ToolRouter = {
   // Honest about itself: it performs nothing, so nothing it is handed touches
   // production and everything it is handed is trivially reversible.
-  properties: () => ({ reversible: true, touchesProduction: false }),
+  properties: () => ({
+    reversible: true,
+    touchesProduction: false,
+    // It performs nothing, so replaying it is free — and this is the ONE
+    // router that may honestly say READ about every tool it is handed.
+    idempotency: "READ",
+  }),
   estimate: () => ({ tokens: 0, costUsd: 0 }),
   execute: async (call) => ({
     ok: true,
@@ -297,7 +316,25 @@ export function deterministicClock(stepMs = DETERMINISTIC_CLOCK_STEP_MS): Clock 
  * MEMORY — brief sections 6 and 24.
  * ------------------------------------------------------------------ */
 
-export type MemoryLayer = "working" | "episodic" | "semantic" | "procedural";
+/**
+ * v1.3 section 5's six, and the last two are not decoration. `project` is
+ * memory scoped to a piece of work rather than to a run or a fact; and
+ * `approved_user_context` is the only layer that may carry something a PERSON
+ * said about themselves — which is why it is a layer of its own rather than a
+ * flag on `semantic`. A retrieval that cannot tell those apart cannot honour a
+ * person asking for their context to be forgotten.
+ */
+export type MemoryLayer =
+  "working" | "episodic" | "semantic" | "procedural" | "project" | "approved_user_context";
+
+export const MEMORY_LAYERS: readonly MemoryLayer[] = [
+  "working",
+  "episodic",
+  "semantic",
+  "procedural",
+  "project",
+  "approved_user_context",
+];
 
 export type MemoryRecord = {
   readonly id: string;
@@ -507,3 +544,105 @@ export function addUsage(spent: Spent, usage: Usage): Spent {
     costUsd: spent.costUsd + usage.costUsd,
   };
 }
+
+/* ------------------------------------------------------------------ *
+ * v1.3 — THE ADAPTERS THAT DID NOT EXIST, and the two that did under
+ * another name.
+ *
+ * `Engine` and `MemoryStore` are the brief's `ModelEngine` and
+ * `MemoryAdapter`: the same contract, named before the brief was written. They
+ * are ALIASED rather than renamed, because the brief's own first constraint is
+ * "The loop must not become a second agent framework. It must extend the
+ * existing OQCA loop" — and a rename across two mirrored trees is churn that
+ * proves nothing. The alias makes the brief's vocabulary resolve at a call
+ * site without inventing a second type behind it.
+ * ------------------------------------------------------------------ */
+
+/** v1.3 section 2. Alias, not a new type — see the note above. */
+export type ModelEngine = Engine;
+/** v1.3 section 2. Alias, not a new type. */
+export type MemoryAdapter = MemoryStore;
+
+/**
+ * v1.3 section 2's third mode. `controlled_autonomy` is DEFINED here and
+ * reachable nowhere: `parseMode` in the runtime does not return it, and
+ * `runtimeWiring.test.ts` asserts that it cannot be selected from an
+ * environment variable.
+ *
+ * The recovery brief's own closing sentence is the reason it ships defined and
+ * shut: "This recovery loop is mandatory for every consequential ONIQ action
+ * before controlled autonomy is enabled." The recovery loop exists as of this
+ * change; whether it has been exercised enough to trust it with unattended
+ * writes is a judgement, and an authorization, that belongs to the owner.
+ */
+export type RunMode = "shadow" | "assisted" | "controlled_autonomy";
+
+export const RUN_MODES: readonly RunMode[] = ["shadow", "assisted", "controlled_autonomy"];
+
+/** Which modes may cause a production write at all. */
+export function mayAct(mode: RunMode): boolean {
+  return mode === "assisted" || mode === "controlled_autonomy";
+}
+
+/** Which modes may act WITHOUT a second, independent rule agreeing first. */
+export function mayActUnattended(mode: RunMode): boolean {
+  return mode === "controlled_autonomy";
+}
+
+/**
+ * v1.3 sections 5 and 11. A FACT MUST CARRY A SOURCE REFERENCE AND THE TYPE
+ * MAKES IT REQUIRED, which is the whole anti-fabrication guard: a knowledge
+ * layer that could return a statement with no `sourceRef` is a knowledge layer
+ * that can invent one.
+ */
+export type KnowledgeFact = {
+  readonly id: string;
+  readonly statement: string;
+  readonly confidence: number;
+  /** Where this came from. Never empty — `EMPTY_KNOWLEDGE` returns nothing. */
+  readonly sourceRef: string;
+};
+
+/**
+ * `limit` is required for the same reason `MemoryStore.recall`'s is: section 5
+ * says "Do not dump the entire memory store into the model", and an optional
+ * limit is a limit that a caller in a hurry omits.
+ */
+export type KnowledgeAdapter = {
+  readonly lookup: (query: string, limit: number) => Promise<readonly KnowledgeFact[]>;
+};
+
+export const EMPTY_KNOWLEDGE: KnowledgeAdapter = { lookup: async () => [] };
+
+/**
+ * v1.3 section 12: "Never fabricate research."
+ *
+ * THE RESULT IS A UNION AND NOT AN ARRAY, and that is the entire point of the
+ * type. An adapter that could only return findings would express "I researched
+ * this and found nothing" and "I cannot research" with the SAME empty array —
+ * and the first of those is a fabricated negative result, which is exactly what
+ * the section forbids. A refusal has to be sayable.
+ */
+export type ResearchFinding = {
+  readonly id: string;
+  readonly question: string;
+  readonly answer: string;
+  readonly sourceRef: string;
+  readonly confidence: number;
+};
+
+export type ResearchResult =
+  | { readonly ok: true; readonly findings: readonly ResearchFinding[] }
+  | { readonly ok: false; readonly reason: string };
+
+export type ResearchAdapter = {
+  readonly investigate: (question: string) => Promise<ResearchResult>;
+};
+
+/** Refuses, and says why. It does NOT answer "no findings". */
+export const NO_RESEARCH: ResearchAdapter = {
+  investigate: async () => ({
+    ok: false,
+    reason: "no research capability is wired to this run",
+  }),
+};

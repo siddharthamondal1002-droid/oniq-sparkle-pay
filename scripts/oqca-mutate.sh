@@ -783,4 +783,246 @@ mirror
 report "M48 the verdict is not part of the state id" "$(run src/oqca/__tests__/runtime.test.ts)"
 restore $F
 
+
+# ==================================================================== #
+# v1.3 AND THE FAILURE-RECOVERY BRIEF.
+#
+# The subject here is the REFUSALS. A recovery layer is only as good as what it
+# declines to do, so every mutation below opens one hole the briefs name as a
+# "never" — and the two that matter most are the ones that would make the loop
+# look SAFER than it is: a safety violation reaching the retry ladder (M49) and
+# a planning failure being retried (M52).
+# ==================================================================== #
+
+# M49: the safety check stops running FIRST, so a SECURITY fault mislabelled
+# TRANSIENT reaches the retry ladder. Recovery section 22: "Recovery cannot
+# override safety."
+F=src/oqca/recovery/decide.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/recovery/decide.ts'; s=open(p).read()
+old='  if (isSafetyViolation(failure.code)) {\n    return stop(`safety: ${failure.code}`, "safety_stop");\n  }\n'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'')
+open(p,'w').write(s)
+PY
+mirror
+report "M49 a safety violation reaches the retry ladder" "$(run src/oqca/__tests__/recovery.test.ts)"
+restore $F
+
+# M50: section 8 goes away — an operation whose effect is UNCERTAIN is replayed
+# onto a non-idempotent write. "Never assume a timeout means the operation did
+# not happen."
+F=src/oqca/recovery/decide.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/recovery/decide.ts'; s=open(p).read()
+old='  if (failure.effectUncertain && !safeToReplay(failure.idempotency)) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  if (false && failure.effectUncertain && !safeToReplay(failure.idempotency)) {')
+open(p,'w').write(s)
+PY
+mirror
+report "M50 an uncertain effect is replayed onto a non-idempotent write" "$(run src/oqca/__tests__/recovery.test.ts)"
+restore $F
+
+# M51: UNKNOWN defaults to a retry, which section 24 forbids in as many words.
+F=src/oqca/recovery/decide.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/recovery/decide.ts'; s=open(p).read()
+old='      return tryEscalate(ctx, "unclassified failure; not repeating an unknown action", "failure");'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      return tryRetry(failure, ctx, false, () => stop("unknown", "failure"));')
+open(p,'w').write(s)
+PY
+mirror
+report "M51 an unclassified failure defaults to a retry" "$(run src/oqca/__tests__/recovery.test.ts)"
+restore $F
+
+# M52: a PLANNING failure is retried. Section 25: "Never use repeated retries to
+# conceal a planning failure."
+F=src/oqca/recovery/decide.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/recovery/decide.ts'; s=open(p).read()
+old='      return tryReplan(failure, ctx, "the plan itself was wrong");'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      return tryRetry(failure, ctx, false, () => tryReplan(failure, ctx, "the plan itself was wrong"));')
+open(p,'w').write(s)
+PY
+mirror
+report "M52 a planning failure is retried" "$(run src/oqca/__tests__/recovery.test.ts)"
+restore $F
+
+# M53: the backoff stops being bounded by the run's own execution-time budget, so
+# a run can end asleep. Section 6: "Never sleep indefinitely."
+F=src/oqca/recovery/retry.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/recovery/retry.ts'; s=open(p).read()
+old='  if (delayMs > ctx.remainingRunMs) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  if (false) {')
+open(p,'w').write(s)
+PY
+mirror
+report "M53 a backoff may outlast the whole run" "$(run src/oqca/__tests__/recovery.test.ts)"
+restore $F
+
+# M54: a never-retry code becomes retryable when a caller says so, so section 4
+# would depend on every call site remembering it.
+F=src/oqca/recovery/failure.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/recovery/failure.ts'; s=open(p).read()
+old='    retryable: never ? false : (draft.retryable ?? false),'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    retryable: draft.retryable ?? false,')
+open(p,'w').write(s)
+PY
+mirror
+report "M54 a never-retry code is retryable if the caller says so" "$(run src/oqca/__tests__/recovery.test.ts)"
+restore $F
+
+# M55: redaction leaves the constructor, so a credential can enter a HASHED,
+# PERSISTED failure record.
+F=src/oqca/recovery/failure.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/recovery/failure.ts'; s=open(p).read()
+old='    message: redactMessage(draft.message),'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    message: draft.message,')
+open(p,'w').write(s)
+PY
+mirror
+report "M55 a credential reaches the failure record" "$(run src/oqca/__tests__/recovery.test.ts)"
+restore $F
+
+# M56: UNKNOWN idempotency is treated as safe to replay. Section 7's fourth member
+# exists precisely so that it is not.
+F=src/oqca/recovery/failure.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/recovery/failure.ts'; s=open(p).read()
+old='  return idempotency === "READ" || idempotency === "IDEMPOTENT_WRITE";'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  return idempotency !== "NON_IDEMPOTENT_WRITE";')
+open(p,'w').write(s)
+PY
+mirror
+report "M56 an undeclared tool is treated as safe to replay" "$(run src/oqca/__tests__/recovery.test.ts)"
+restore $F
+
+# M59: `isTerminal` goes back to testing for `running`, so the day a second
+# non-terminal status exists the loop stops on it silently.
+F=src/oqca/loop/loopState.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/loop/loopState.ts'; s=open(p).read()
+old='  return TERMINAL_STATUSES.includes(status);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  return status !== "running";')
+open(p,'w').write(s)
+PY
+mirror
+report "M59 isTerminal stops reading the terminal list" "$(run src/oqca/__tests__/v13Wiring.test.ts)"
+restore $F
+
+# M60: the research adapter answers "no findings" instead of refusing. Section 12:
+# an empty finding set is a fabricated NEGATIVE result.
+F=supabase/functions/_shared/oqcaRuntime/research.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/research.ts'; s=open(p).read()
+old='      return { ok: false, reason: RESEARCH_GAP };'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      return { ok: true, findings: [] };')
+open(p,'w').write(s)
+PY
+report "M60 research fabricates an empty negative result" "$(run src/oqca/__tests__/v13Wiring.test.ts)"
+restore $F
+
+# M61: persistence reports the chain length rather than what the adapter actually
+# stored, so a store that forgets reads as one that works.
+F=src/oqca/loop/cognitiveLoop.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/loop/cognitiveLoop.ts'; s=open(p).read()
+old='      if (await run.persistence.persist(chain[persistedUpTo])) stored++;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      await run.persistence.persist(chain[persistedUpTo]);\n      stored++;')
+open(p,'w').write(s)
+PY
+mirror
+report "M61 persistence counts the chain, not the adapter's answer" "$(run src/oqca/__tests__/v13Wiring.test.ts)"
+restore $F
+
+# M63: the failure record leaves the hashed state, so a run that failed twice and
+# then worked replays as one that never failed. Sections 20 and 31.
+F=src/oqca/loop/loopState.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/loop/loopState.ts'; s=open(p).read()
+old='    failures: s.failures,\n'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'')
+open(p,'w').write(s)
+PY
+mirror
+# RETARGETED. This first pointed at `shadowRun.test.ts`, which asserts the
+# failures ARRAY is populated — and the array survives the mutation untouched;
+# only the HASH changes. It reported GREEN on a genuine hole. The assertion
+# that moves is "two states differing only in `failures` have different ids".
+report "M63 failures are not part of the state id" "$(run src/oqca/__tests__/v13Wiring.test.ts)"
+restore $F
+
+# M64: a shadow-refused action is NOT withdrawn, so the "replan" re-selects the
+# action that just failed — a retry wearing level 5, which section 25 forbids.
+F=src/oqca/loop/cognitiveLoop.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/loop/cognitiveLoop.ts'; s=open(p).read()
+old='          const open = state.futures.filter((f) => !blockedActions.has(f.action));'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'          const open = state.futures;')
+open(p,'w').write(s)
+PY
+mirror
+report "M64 a replan re-selects the action that just failed" "$(run src/oqca/__tests__/shadowRun.test.ts)"
+restore $F
+
+# M57: the world-state provenance becomes optional, so a station can add
+# something it INFERRED without saying so. v1.3 section 30's invariant.
+F=src/oqca/loop/loopState.ts; cp $F "$BAK"
+mutate <<'PY'
+p='src/oqca/loop/loopState.ts'; s=open(p).read()
+old='  readonly provenance: Provenance;'
+assert s.count(old)==2, s.count(old)
+s=s.replace(old,'  readonly provenance?: Provenance;')
+open(p,'w').write(s)
+PY
+mirror
+report "M57 provenance becomes optional" "$(run src/oqca/__tests__/v13Wiring.test.ts)"
+restore $F
+
+# M58: a wall clock enters the hashed state through the percept, so every replay
+# of the same run produces a different id. v1.3 section 3.
+F=src/oqca/loop/loopState.ts; cp $F "$BAK"
+mutate <<'PY'
+import re
+p='src/oqca/loop/loopState.ts'; s=open(p).read()
+m = re.search(r'    percepts: s\.percepts\.map\(\(p\) => \((?:.|\n)*?\}\)\),\n', s)
+assert m, 'stale anchor'
+s = s[:m.start()] + '    percepts: s.percepts,\n' + s[m.end():]
+open(p,'w').write(s)
+PY
+mirror
+report "M58 a percept timestamp enters the state id" "$(run src/oqca/__tests__/v13Wiring.test.ts)"
+restore $F
+
+# M62: `controlled_autonomy` becomes reachable from the environment, ahead of
+# the authorization the recovery brief's closing sentence requires.
+F=supabase/functions/_shared/oqcaRuntime/flag.ts; cp $F "$BAK"
+mutate <<'PY'
+p='supabase/functions/_shared/oqcaRuntime/flag.ts'; s=open(p).read()
+old='export type OqcaMode = "off" | "shadow" | "assisted";'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'export type OqcaMode = "off" | "shadow" | "assisted" | "controlled_autonomy";')
+old2='  if (v === "assisted") return "assisted";'
+assert s.count(old2)==1, s.count(old2)
+s=s.replace(old2, old2 + chr(10) + '  if (v === "controlled_autonomy") return "controlled_autonomy";')
+open(p,'w').write(s)
+PY
+report "M62 controlled_autonomy becomes settable from the environment" "$(run src/oqca/__tests__/v13Wiring.test.ts)"
+restore $F
+
 echo "done"
