@@ -329,8 +329,8 @@ and that is a non-zero-budget decision, which is the owner's.
 ## Gates
 
 ```
-  vitest src/oqca            638 tests across 23 files
-  whole suite               (see the closing report)
+  vitest src/oqca            639 tests across 23 files
+  whole suite               6,840 tests across 381 files
   tsc --noEmit              clean
   npm run lint:ci           clean
   prettier                  clean
@@ -338,3 +338,5 @@ and that is a non-zero-budget decision, which is the owner's.
   deno check story-dispatch/index.ts      clean
   scripts/oqca-mutate.sh    102 mutations, every one RED, none GREEN, none NOTAPPLIED
 ```
+
+**Final SHA: `e82f342f`** on `claude/check-56jtg5`.
