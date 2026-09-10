@@ -1,5 +1,38 @@
 # OQCA — what was built, and what it is worth
 
+> ## v1.1 is the current state. Read these two first.
+>
+> - **[`OQCA_CLAIMS.md`](OQCA_CLAIMS.md)** — ESTABLISHED / EXPERIMENTAL / UNPROVEN.
+> - **[`OQCA_V1_1_REPORT.md`](OQCA_V1_1_REPORT.md)** — the full v1.1 report.
+>
+> **What v1.1 changed, in three lines.** The interference operator is now
+> parameterised by ANGLE, so it is unitary by construction rather than by
+> rescue. The single 7-task fixture became a benchmark FAMILY: four manifests,
+> 40 randomised seeds each, three baselines, eight adversarial controls, and
+> exact paired McNemar statistics. And the v1.0 headline below **did not
+> survive that** — see the next box.
+>
+> ### The v1.1 verdict, and it is a falsification
+>
+> ```
+> contextuality/phase-tie-break, 40 seeds
+>   oqca_phase vs bayes_uninformed  100.0% vs 42.5%  discordant 23/0  p<0.0001
+>   oqca_phase vs bayes_informed    100.0% vs 100.0% discordant  0/0  p=1.0000
+>   oqca_phase vs vector_context    100.0% vs 100.0% discordant  0/0  p=1.0000
+> ```
+>
+> All three `expected_to_fail` controls FELL. Given the identical fact, a
+> probability vector reaches the identical answer on **40 of 40** trials, and so
+> does a real-valued vector with one extra channel. **The gap against the
+> uninformed control is the information, not the representation** — which is
+> what v1.0's single row could only assert and v1.1 measured.
+>
+> Two v1.0 fixture properties also turned out to be defects, found by
+> randomising the answer: its tie task was solvable by "always name the first
+> hypothesis" (100% then, 50% now), and the first v1.1 generator got the
+> operator's ORIENTATION backwards and scored 0% where chance is 50%. A single
+> hand-written task shows that as a plausible-looking loss.
+
 A "quantum-inspired cognitive architecture" specification (OQCA v1.0, 40
 sections) was handed to this repo on 2026-09-10. This is the kernel of it,
 built in TypeScript in `src/oqca/`, and benchmarked against a Bayesian control.
@@ -7,7 +40,11 @@ built in TypeScript in `src/oqca/`, and benchmarked against a Bayesian control.
 **Read the verdict first, because it is smaller than the specification's own
 framing and that is the point.**
 
-## The verdict
+## The v1.0 verdict, kept because v1.1 corrected it
+
+Everything in this section is the v1.0 measurement. It is accurate as far as it
+goes and it is superseded: one hand-written row cannot support a claim, which is
+precisely what v1.1 was built to establish.
 
 ```
 OQCA 7 vs Bayes 6 of 7
@@ -118,20 +155,69 @@ never been built. A second unbuilt runtime would not have been an architecture.
 
 ## Files
 
-| File                     | What it is                                                                                 |
-| ------------------------ | ------------------------------------------------------------------------------------------ |
-| `src/oqca/state.ts`      | Immutable complex state, normalization, `CollapsedStateError`                              |
-| `src/oqca/gates.ts`      | `superpose` `interfere` `phase` `reweight` `damp`, all unitary or explicitly renormalizing |
-| `src/oqca/measure.ts`    | maximum / seeded-sample / threshold policies, entropy                                      |
-| `src/oqca/baseline.ts`   | The Bayesian control — the thing OQCA has to beat                                          |
-| `src/oqca/benchmark.ts`  | The harness, written so it can report a loss                                               |
-| `src/oqca/tasks.ts`      | Seven tasks; five of them OQCA cannot win                                                  |
-| `scripts/oqca-mutate.sh` | Seven mutations, every one RED                                                             |
+**v1.1 — the physical layer, which knows nothing about hypotheses**
 
-`npx vitest run src/oqca` — 33 tests. `./scripts/oqca-mutate.sh` — the mutations
-that matter most are the ones that would make OQCA look BETTER than it is: a
-fixture that stops isolating the phase, a control task handed an interference,
-and a summary sentence that always claims a win.
+| File              | What it is                                                               |
+| ----------------- | ------------------------------------------------------------------------ |
+| `math/complex.ts` | The complex field, extracted so the physics can be read on its own       |
+| `math/unitary.ts` | `rotation` `mixing` `dagger` `inverse` `unitarityResidual`, swept-tested |
+| `math/hash.ts`    | `canonicalJson` + `contentHash` — replay identity, not a commitment      |
+| `operators.ts`    | `pair` `diagonal` `project` `prepare` `embed`; channels say so in `kind` |
+| `transition.ts`   | The brief's snake_case transition record; logical timestamp, not a clock |
+
+**v1.1 — state, cognition, backends**
+
+| File                          | What it is                                                             |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| `formalState.ts`              | `CognitiveState` — immutable, hashed, validating, replayable           |
+| `cognitive.ts`                | The nine gates with A/B/C categories; `ENTANGLE`/`CORRECT` refuse      |
+| `backends/classicalSimulator` | The only backend that runs                                             |
+| `backends/qpu.ts`             | Refuses every method and names five concrete gaps                      |
+| `backends/tensor.ts`          | Conversions real; contraction refuses. No library is in `package.json` |
+
+**v1.1 — the benchmark**
+
+| File                   | What it is                                                          |
+| ---------------------- | ------------------------------------------------------------------- |
+| `bench/manifest.ts`    | The machine-readable experiment; the runner loads it, never guesses |
+| `bench/trials.ts`      | Four generators; every one randomises the truth AND the order       |
+| `bench/arms.ts`        | Five arms; every trial carries its fact in all three currencies     |
+| `bench/stats.ts`       | Exact paired McNemar, Wilson intervals, Cohen's h                   |
+| `bench/adversarial.ts` | Eight controls, three of them expected to FAIL                      |
+| `bench/runner.ts`      | Pure; refuses to name a winner the design does not support          |
+| `bench/loader.ts`      | The only file in the subsystem that touches `node:fs`               |
+| `benchmarks/*/*.json`  | Four manifests, 40 seeds each; three families hold a README instead |
+
+**v1.1 — knowledge and loop, neither run on anything real**
+
+| File                   | What it is                                                      |
+| ---------------------- | --------------------------------------------------------------- |
+| `knowledge/model.ts`   | Concept / Evidence / Relation / Confidence / Context, in memory |
+| `knowledge/gaps.ts`    | UNKNOWN / UNCERTAIN / CONTRADICTED / VERIFIED, a pure function  |
+| `knowledge/planner.ts` | Information gain per unit cost. Performs no research            |
+| `loop/megaLoop.ts`     | 18 phases, bounded, pausable; `maxToolCalls` defaults to **0**  |
+
+**v1.0 — still here, still passing**
+
+| File                                    | What it is                                                         |
+| --------------------------------------- | ------------------------------------------------------------------ |
+| `state.ts` `gates.ts`                   | The v1.0 kernel; `interfere` now builds its rotation from an angle |
+| `measure.ts`                            | maximum / seeded-sample / threshold policies, entropy              |
+| `baseline.ts` `benchmark.ts` `tasks.ts` | The v1.0 Bayesian control and its seven tasks                      |
+
+**Commands**
+
+```
+npx vitest run src/oqca        209 tests across 10 files
+npx tsx scripts/oqca-bench.ts  every manifest, every seed, the full report
+bash scripts/oqca-mutate.sh    15 mutations, every one expected RED
+```
+
+The mutations that matter most are the ones that would make OQCA look BETTER
+than it is: a fixture that stops isolating the phase, a control task handed an
+interference, a summary sentence that always claims a win, the central
+falsification control deleted from a manifest, and a drift metric stubbed to
+zero.
 
 ## If this is taken further
 

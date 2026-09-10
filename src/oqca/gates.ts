@@ -33,16 +33,11 @@
  *
  * Zero dependencies, pure, no I/O. Each function returns a NEW state.
  */
-import {
-  type Amplitude,
-  type CognitiveState,
-  c,
-  cAdd,
-  cMul,
-  cScale,
-  fromAmplitudes,
-  indexOf,
-} from "./state";
+import { type CognitiveState, cMul, cScale, fromAmplitudes, indexOf } from "./state";
+import { c } from "./math/complex";
+import { angleFromStrength, applyPair, rotation } from "./math/unitary";
+
+export { assertUnitary2 } from "./math/unitary";
 
 /** What each gate MEANS, kept separate from the arithmetic (brief §7). */
 export const COGNITIVE_GATES = {
@@ -54,31 +49,6 @@ export const COGNITIVE_GATES = {
 } as const;
 
 export type CognitiveGate = keyof typeof COGNITIVE_GATES;
-
-/**
- * A 2x2 complex matrix is unitary when M† M = I. Exported so that any gate
- * added later can be checked rather than asserted — the brief's QPU path
- * depends on it and nothing else in the module would notice a violation.
- */
-export function assertUnitary2(
-  m: readonly [Amplitude, Amplitude, Amplitude, Amplitude],
-  tol = 1e-9,
-) {
-  const [a, b, cc, d] = m;
-  const conj = (z: Amplitude): Amplitude => ({ re: z.re, im: -z.im });
-  // (M† M)_00, _01, _11 — _10 is the conjugate of _01.
-  const m00 = cAdd(cMul(conj(a), a), cMul(conj(cc), cc));
-  const m01 = cAdd(cMul(conj(a), b), cMul(conj(cc), d));
-  const m11 = cAdd(cMul(conj(b), b), cMul(conj(d), d));
-  const ok =
-    Math.abs(m00.re - 1) < tol &&
-    Math.abs(m00.im) < tol &&
-    Math.abs(m01.re) < tol &&
-    Math.abs(m01.im) < tol &&
-    Math.abs(m11.re - 1) < tol &&
-    Math.abs(m11.im) < tol;
-  if (!ok) throw new Error("OQCA: gate is not unitary");
-}
 
 /**
  * Admit a new hypothesis with a given SHARE of the probability mass.
@@ -117,14 +87,24 @@ export function interfere(
   const j = indexOf(state, b);
   if (i === j) throw new Error("OQCA: a hypothesis cannot interfere with itself");
 
-  const k = 1 / Math.sqrt(1 + strength * strength);
-  assertUnitary2([c(k), c(strength * k), c(-strength * k), c(k)]);
-
+  // v1.1: the operator is a ROTATION, built from its angle. `strength` was
+  // tan(theta) all along, so `angleFromStrength` is a conversion rather than a
+  // second code path, and rotation(-theta) is the same matrix the rescued
+  // k*[[1,s],[-s,1]] produced — measured equal to within 1 ulp before the swap.
+  //
+  // THE MINUS SIGN IS THE WHOLE COMPATIBILITY STORY, and it is not cosmetic.
+  // `ROTATION_TRANSFERS_TOWARD` is "second": a positive angle moves amplitude
+  // toward the SECOND named hypothesis. v1.0's `strength` convention moves it
+  // toward the FIRST. So this entry point is the MIRROR of
+  // `cognitive.interfere`, deliberately, to keep every v1.0 number reproducible
+  // — and `orientation.test.ts` pins both directions, because two functions
+  // called `interfere` with opposite signs is exactly the trap that made the
+  // v1.1 benchmark's first run score 0% where chance is 50%.
+  const u = rotation(-angleFromStrength(strength));
   const next = state.amplitudes.map((x) => ({ ...x }));
-  const ai = state.amplitudes[i];
-  const aj = state.amplitudes[j];
-  next[i] = cScale(cAdd(ai, cScale(aj, strength)), k);
-  next[j] = cScale(cAdd(aj, cScale(ai, -strength)), k);
+  const [x, y] = applyPair(u, state.amplitudes[i], state.amplitudes[j]);
+  next[i] = { ...x };
+  next[j] = { ...y };
   return fromAmplitudes(state.labels, next, state.timestep + 1);
 }
 

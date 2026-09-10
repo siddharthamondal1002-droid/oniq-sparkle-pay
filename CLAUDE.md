@@ -4730,3 +4730,114 @@ Nothing imports `src/oqca` — it is a measured subsystem, not a feature, so the
 is no migration, no edge function, no Lovable message and no publish. 33 tests
 in the module; whole suite 360 files / 6,233 green; tsc, `lint:ci` and Prettier
 clean.
+
+### 2026-09-10 — OQCA v1.1: the 7–6 falsified by the controls written to falsify it
+
+The owner's 20-section v1.1 brief: turn the v1.0 experiment into "a
+mathematically disciplined, falsifiable quantum-cognitive research kernel", with
+the scope drawn explicitly — _"Do NOT deploy or publish anything. Do NOT modify
+`main`. Do NOT introduce paid external services, cloud resources, Python
+services, QPU APIs, or new recurring costs."_ Done on `claude/check-56jtg5`.
+`docs/oqca/OQCA_CLAIMS.md` and `docs/oqca/OQCA_V1_1_REPORT.md` are the record.
+
+**THE V1.0 HEADLINE DID NOT SURVIVE, AND THE THING THAT KILLED IT WAS BUILT TO
+KILL IT.** The 7–6 became four benchmark families, 40 randomised seeds each,
+three baselines and eight adversarial controls with their expectations pinned
+BEFORE the run. On `contextuality/phase-tie-break`:
+
+    oqca_phase vs bayes_uninformed  100.0% vs 42.5%  discordant 23/0  p<0.0001
+    oqca_phase vs bayes_informed    100.0% vs 100.0% discordant  0/0  p=1.0000
+    oqca_phase vs vector_context    100.0% vs 100.0% discordant  0/0  p=1.0000
+
+All three `expected_to_fail` controls FELL. Given the identical fact, a
+probability vector reaches the identical answer on 40 of 40 trials — and so does
+a real-valued vector with one extra channel. **The gap is the INFORMATION, not
+the representation**, which v1.0's single row could only assert. The runner's own
+sentence is "beat 1 of 3 baselines and did NOT beat the rest".
+
+**RANDOMISING THE ANSWER IS WHAT MADE v1.0'S FIXTURE A DEFECT RATHER THAN A
+CHOICE.** Its tie task was solvable by "always name the first hypothesis of the
+pair" — 100% then, 50.0% now, measured by a control rather than assumed. A
+random phase also scores 50.0%, and 0 of 40 trials change under a basis
+permutation, so the trials leak nothing.
+
+**THE SUITE'S FIRST RUN SCORED 0.0% WHERE CHANCE IS 50%**, and that is the
+methodological headline. Not a loss — a systematic inversion. Measured rather
+than re-derived: `cognitive.interfere(A,B,+θ)` favours **B** and
+`gates.interfere(A,B,s)` favours **A**; same verb, same argument order, opposite
+orientation. The fix went into the KERNEL, not the fixture — `phasesFavouring`
+is exported so a fixture cannot guess the mapping, and
+`ROTATION_TRANSFERS_TOWARD` states the convention once. **A single hand-written
+task would have shown this as a plausible-looking loss.**
+
+**UNITARY BY CONSTRUCTION IS A DIFFERENT CLAIM FROM UNITARY**, and the brief was
+right to insist. v1.0's operator WAS unitary and `assertUnitary2` checked every
+call; it was built by rescuing the spec's `M = [[1,s],[−s,1]]` with a factor.
+v1.1 parameterises by ANGLE, so there is nothing to normalise. Checked before
+writing any code: `cos(atan s) = 1/√(1+s²)` to ≤1.11e-16, which is why the v1.0
+numbers reproduce bit for bit through the swap.
+
+**`untouched_drift` READ 0.0000 ON EVERY ARM OF EVERY RUN**, which is the right
+answer and indistinguishable from a metric that computes nothing. Driven with
+the spec's own operator until it moved: kernel 8.3e-17, spec **0.2477, losing 10
+of 10 trials** in the family built to detect it. A second check mis-declares
+which pair is touched (0.1040 vs 0), so a stubbed `return 0` is caught too — and
+mutation M14 proves it. **A check that has never been non-zero has never been
+tested**, for the third time in this repo.
+
+**THE STATE ID HASHES THE STATE, NOT THE HISTORY.** The first draft hashed both
+— and the last record's `toState` names the id, so the id depended on a record
+that depended on the id, and every transitioned state failed `validate()`. The
+resolution is not a provisional hash: **the id is the state and the history is
+the path**, verified separately by linking each record's `fromState`. Same
+family of reasoning as the logical timestamp: `Date.now()` in a hashed record
+makes every replay produce a different id, so a wall clock may be attached and
+is excluded from the hash.
+
+**TWO REAL DEFECTS FOUND BY TESTING RATHER THAN READING:**
+
+- `applyOperator` and `inverseOperator` had **no `default` branch**. The switch
+  is exhaustive over the union so `tsc` proves no TYPED caller reaches it — and
+  a transition record replayed from JSON is not a typed caller. An unknown
+  `kind` returned `undefined`, which the caller would then treat as an amplitude
+  vector. Both throw now. **A type that nothing runs is not a guard**, the same
+  lesson `deno check` taught on `STATUS_FOR_REASON` two days ago.
+- **The security guard scanned itself**, and it is the one file that must NAME
+  every banned word. Excluding it would leave a file the walker never visits —
+  escape number two from the health red team. So it is excluded from the
+  substring scan and checked by a STRICTER rule: after string AND regex literals
+  are masked, its executable residue must contain none of the banned shapes. A
+  real `fetch` there still goes red; `/\bfetch\b/` in its table does not.
+
+**AND A GUARD WAS NARROWED FOR A GENUINE COLLISION, WITH THE NARROWING PROVEN IN
+THE SAME FILE.** Banning the bare word `lovable` flagged `backends/tensor.ts`,
+whose refusal message honestly says a contraction library is not in
+`package.json`, "which Lovable owns". That is an identifier collision in a
+STRING, not the prose match this repo has hit eleven times — strings are kept on
+purpose, because a masked one hid a real fetch in the health red team. The
+pattern matches call and URL shapes now, and both directions are asserted
+together (2026-09-10's rule, in a second file).
+
+**THE COMMENT-STRIP IS LOAD-BEARING HERE AND WAS THE ELEVENTH PROSE MATCH.**
+`measure.ts`'s header says it was chosen "over Math.random" and `transition.ts`'s
+says `Date.now()` destroys replay — so a raw grep flags exactly the two files
+that explain why they avoid the thing they are accused of.
+
+**M15 MUTATES THE SOURCE, NOT THE GUARD.** A mutation that edits the assertion
+it is testing can only ever print RED — which is what M7's first draft was, and
+why it had to be rewritten. So the network ban is proven by adding a real
+`fetch` to `backends/qpu.ts` and watching `security.test.ts` go red.
+
+**WHAT IS DELIBERATELY NOT BUILT, and it is the brief's own list**: no Python
+service, no standing endpoint, no QPU vendor, no network research. `QPUBackend`
+throws `BackendUnavailable` on every method and names five concrete gaps;
+`TensorBackend`'s conversions are real and its contraction refuses;
+`megaLoop`'s `maxToolCalls` defaults to **0** and mutation M11 proves it.
+`ENTANGLE` and `CORRECT` are category C and refuse BY NAME. Nothing imports
+`src/oqca`.
+
+Numbers: 209 tests across 10 files in the module; whole suite 368 files / 6,409
+(the one unrelated `arapStep11dDiagnosis` timing flake passes alone, as
+recorded); tsc, `lint:ci` and Prettier green; **15 mutations, every one RED,
+none NOTAPPLIED**. No migration, no edge function, no Lovable message, no
+credits, no publish, and `main` untouched.

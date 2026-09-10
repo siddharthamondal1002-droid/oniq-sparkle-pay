@@ -1,0 +1,20 @@
+{
+  "id": "hypothesis/late-admission",
+  "version": "1.1",
+  "family": "hypothesis",
+  "hypothesis": "Both representations recover the correct hypothesis from a prior that disfavours it, given repeated evidence.",
+  "null_hypothesis": "They do not tie, which would mean the EVIDENCE operation is not Bayes and the bridge the whole suite rests on is broken.",
+  "baselines": ["bayes_uninformed"],
+  "treatment": "oqca_phase",
+  "controls": ["basis_permutation_changes_the_answer", "index_order_artifact"],
+  "seeds": [
+    1000, 1007, 1014, 1021, 1028, 1035, 1042, 1049, 1056, 1063, 1070, 1077, 1084, 1091, 1098, 1105,
+    1112, 1119, 1126, 1133, 1140, 1147, 1154, 1161, 1168, 1175, 1182, 1189, 1196, 1203, 1210, 1217,
+    1224, 1231, 1238, 1245, 1252, 1259, 1266, 1273
+  ],
+  "metrics": ["accuracy", "confidence"],
+  "generator": "late_hypothesis",
+  "parameters": { "hypotheses": 3, "strong": 0.9, "weak": 0.1 },
+  "information_note": "Identical information to both arms: the same prior and the same likelihoods, no phase and no contextual fact. This is a BRIDGE test — EVIDENCE is sqrt-scaling plus renormalisation, so the probabilities must update exactly as Bayes does.",
+  "expected_behaviour": "A tie at 100%/100% with zero discordant pairs. Any divergence at all is a bug in EVIDENCE, not a result."
+}

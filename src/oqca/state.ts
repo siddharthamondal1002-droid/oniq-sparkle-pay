@@ -26,25 +26,15 @@
  * model and costs nothing.
  */
 
-/** A complex amplitude. Kept as a plain pair so the module needs no library. */
-export type Amplitude = { re: number; im: number };
-
-export const c = (re: number, im = 0): Amplitude => ({ re, im });
-
-export const cAdd = (a: Amplitude, b: Amplitude): Amplitude => ({
-  re: a.re + b.re,
-  im: a.im + b.im,
-});
-
-export const cMul = (a: Amplitude, b: Amplitude): Amplitude => ({
-  re: a.re * b.re - a.im * b.im,
-  im: a.re * b.im + a.im * b.re,
-});
-
-export const cScale = (a: Amplitude, k: number): Amplitude => ({ re: a.re * k, im: a.im * k });
-
-/** |a|^2 — the Born probability of one hypothesis. */
-export const cNorm2 = (a: Amplitude): number => a.re * a.re + a.im * a.im;
+/**
+ * THE COMPLEX FIELD MOVED IN v1.1 and is re-exported here rather than
+ * duplicated. Two implementations of `cMul` is one more than can be kept in
+ * agreement, and the v1.1 layering (math/ knows nothing about hypotheses) needs
+ * the arithmetic to sit below this file, not inside it. Every v1.0 import site
+ * keeps working unchanged.
+ */
+export { type Amplitude, c, cAdd, cMul, cScale, cNorm2 } from "./math/complex";
+import { type Amplitude, c, cNorm2, cScale } from "./math/complex";
 
 /**
  * The smallest norm a state may have before it is treated as collapsed.

@@ -1,0 +1,37 @@
+{
+  "id": "contextuality/phase-tie-break",
+  "version": "1.1",
+  "family": "contextuality",
+  "hypothesis": "When the likelihoods leave two hypotheses exactly tied, a contextual fact supplied as a phase lets the amplitude state decide, where a probability vector cannot.",
+  "null_hypothesis": "The phase adds nothing a probability vector could not be given as ordinary evidence; any gap against the uninformed control is the extra information and not the representation.",
+  "baselines": ["bayes_uninformed", "bayes_informed", "vector_context"],
+  "treatment": "oqca_phase",
+  "controls": [
+    "phase_provides_no_benefit",
+    "classical_vector_can_encode_it",
+    "bayes_with_equivalent_information",
+    "random_phase_produces_gains",
+    "basis_permutation_changes_the_answer",
+    "step_order_changes_the_answer",
+    "index_order_artifact",
+    "information_not_representation"
+  ],
+  "seeds": [
+    1000, 1007, 1014, 1021, 1028, 1035, 1042, 1049, 1056, 1063, 1070, 1077, 1084, 1091, 1098, 1105,
+    1112, 1119, 1126, 1133, 1140, 1147, 1154, 1161, 1168, 1175, 1182, 1189, 1196, 1203, 1210, 1217,
+    1224, 1231, 1238, 1245, 1252, 1259, 1266, 1273
+  ],
+  "metrics": ["accuracy", "confidence"],
+  "generator": "phase_tie_break",
+  "parameters": {
+    "hypotheses": 3,
+    "steps": 2,
+    "theta": 0.7328151017865066,
+    "tiedLikelihood": 0.5,
+    "otherLikelihood": 0.2,
+    "matchedFavour": 0.95,
+    "matchedDiscount": 0.05
+  },
+  "information_note": "oqca_phase receives the fact as a half-turn of phase on one member of the tied pair. bayes_informed receives THE SAME FACT as a likelihood vector. vector_context receives it as a real-valued context feature. bayes_uninformed receives NOTHING beyond the likelihoods and must break the tie by index order. The phase is DERIVED FROM THE TRUTH by the generator, so this measures whether a representation can carry a supplied fact and never whether it can infer one.",
+  "expected_behaviour": "oqca_phase near 100%; bayes_informed and vector_context also near 100% (which falsifies any representation claim); bayes_uninformed near 50% because the tie is broken by index and the truth is randomised."
+}

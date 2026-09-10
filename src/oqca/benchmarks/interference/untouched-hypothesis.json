@@ -1,0 +1,26 @@
+{
+  "id": "interference/untouched-hypothesis",
+  "version": "1.1",
+  "family": "interference",
+  "hypothesis": "A unitary pair operator leaves hypotheses outside the pair untouched, so evidence for a third hypothesis survives repeated interference between the other two.",
+  "null_hypothesis": "Interference drains hypotheses it was never applied to, so a correct third answer is lost by arithmetic rather than by evidence.",
+  "baselines": ["bayes_uninformed"],
+  "treatment": "oqca_phase",
+  "controls": ["basis_permutation_changes_the_answer", "index_order_artifact"],
+  "seeds": [
+    1000, 1007, 1014, 1021, 1028, 1035, 1042, 1049, 1056, 1063, 1070, 1077, 1084, 1091, 1098, 1105,
+    1112, 1119, 1126, 1133, 1140, 1147, 1154, 1161, 1168, 1175, 1182, 1189, 1196, 1203, 1210, 1217,
+    1224, 1231, 1238, 1245, 1252, 1259, 1266, 1273
+  ],
+  "metrics": ["accuracy", "untouched_drift"],
+  "generator": "untouched_hypothesis",
+  "parameters": {
+    "hypotheses": 4,
+    "rounds": 6,
+    "theta": 0.4636476090008061,
+    "lead": 0.55,
+    "rival": 0.45
+  },
+  "information_note": "Both arms receive exactly the same likelihoods and no contextual fact of any kind. The ONLY difference is that the treatment applies a pair rotation each round. Any divergence is therefore the OPERATOR, which is what this family measures.",
+  "expected_behaviour": "Both arms near 100% and untouched_drift at 0 for the unitary operator. The v1.0 rescued matrix would drain the untouched hypotheses and lose trials here."
+}
