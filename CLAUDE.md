@@ -6354,3 +6354,51 @@ Numbers: 389 files / **7,050** tests (was 7,044); `src/oqca` 29 files / 825;
 files) and `deno check` of `oqca-observe`, `story-dispatch`, `shadow`,
 `storyDispatchHook` and `improvement` all clean. Migration `20260911200000`
 applied from here and recorded in `schema_migrations`.
+
+#### LIVE AND VERIFIED, 2026-09-11
+
+`main` at `94474c8e`, fast-forwarded from the branch. ONE Lovable message after
+`latest_commit_sha` read `94474c8e` == HEAD, **0.5 credits**, and it edited
+nothing, migrated nothing and published nothing:
+
+    grep withProviderSpendGuard  engine.ts                4   (asked: at least 2)
+    grep TAP_BUDGETS             oqca-observe/index.ts    2   (asked: at least 2)
+    grep serviceRoleRpc          oqca-observe/index.ts    3   (asked: at least 2)
+    grep serviceRoleRpc          story-dispatch/index.ts  3   (asked: at least 2)
+    -> Successfully deployed edge functions: oqca-observe, story-dispatch
+
+**THE AGENT'S FOUR COUNTS ARE IDENTICAL TO THE ONES MEASURED HERE, and that is
+what makes them evidence** rather than a report: the tree it deployed is the
+tree that was verified. **Stating them as MINIMUMS is what let it proceed** —
+the 2026-09-11 entry above records the previous message saying "expect 2" where
+the truth was 4 and 3, and the agent correctly stopping to reason about whether
+an exact count had been violated. An exact number invites a correct refusal on a
+healthy tree.
+
+VERIFIED BY PROBE, with the three-way control this file asks for, read from
+inside the database with `pg_net` because `*.supabase.co` is proxy-blocked here:
+
+    POST /functions/v1/oqca-observe                401 {"error":"Unauthorized"}
+    POST /functions/v1/definitely-not-a-function…  404 NOT_FOUND
+
+**`story-dispatch` WAS DELIBERATELY NOT PROBED.** A POST to it runs the
+dispatcher, and a verification that dispatches a film is not a verification.
+
+**AND `get_message` LAGS THE SAME WAY `list_messages` DOES — this is new.** The
+agent finished at **18:27:15Z**, one minute after the send; `get_message` on the
+user message read `running` for roughly fifteen minutes afterwards, across four
+polls. The 2026-09-08 entry records `list_messages` lagging a send by minutes;
+this adds that the STATUS lags a completion too, and by longer. Neither is
+evidence that anything is wrong — poll the ARTIFACT (here, the assistant
+message's own text) rather than the status field, and never resend on a status
+that has not advanced.
+
+**WHAT IS STILL UNPROVEN, AND IT IS THE ONLY THING THAT MATTERS.** No model call
+has been made through the deployed engine. The ledger has never admitted a real
+one — `provider_spend_day` for TEXT is `reserved 0, settled 0` — so the wiring
+is proven by mutation and by the cap's own refusals, not by a charge. **The gate
+is one tap of "Observe ONIQ" on `/app/admin/oqca`**: the response must carry a
+`spend` block (a field that existed in NO earlier build) with a non-zero `calls`
+count, and `provider_spend_day` for TEXT must move off zero. If `spend.refusals`
+carries `the spend ledger refused: …` instead, the reason names which ceiling
+stopped it — which is the whole point of surfacing it.
