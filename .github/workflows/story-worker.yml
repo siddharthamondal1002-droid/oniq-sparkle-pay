@@ -149,6 +149,30 @@ jobs:
       # token in its environment, so the auth path is untouched. The token is a
       # one-hour single-job capability, but a printed credential is a printed
       # credential.
+      # PIPER IS THE PRODUCTION VOICE, AND IT WAS RE-DOWNLOADED EVERY RUN.
+      # ~230 MB of sha256-pinned tarballs from GitHub Releases on every single
+      # film, guarded by nothing but curl's retry. On 2026-09-11 one socket
+      # reset mid-download (curl 35) and a 60-second film failed and was
+      # refunded -- for a file that had downloaded fine twice that morning.
+      # curl now retries a reset (localTts.mjs), and this removes the download
+      # from the common path altogether: a cache hit means the voice is
+      # already on disk before the worker asks for it.
+      #
+      # THE KEY IS THE ASSET MANIFEST, NOT A VERSION STRING. localTts.mjs holds
+      # every piper URL and every sha256, so changing an asset changes the key
+      # and a stale voice can never be served from cache. A miss costs exactly
+      # what today costs; nothing regresses.
+      #
+      # restore-keys is deliberately ABSENT. A prefix match would happily
+      # restore the PREVIOUS asset set under a new manifest, which is the one
+      # outcome the sha256 pinning exists to prevent -- ensureLocalTts would
+      # find its marker files present and skip verification entirely.
+      - name: cached in-house voice
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.oniq-piper
+          key: piper-${{ runner.os }}-${{ hashFiles('remotion/scripts/localTts.mjs') }}
+
       - name: redact the job token from the log
         run: |
           tok="$(jq -r '.client_payload.token // ""' "$GITHUB_EVENT_PATH")"
@@ -197,6 +221,11 @@ jobs:
           # flips to cloud from here — 'only' is checked before the first
           # line is spoken, not after a failure.
           STORY_LOCAL_TTS: only
+          # Where the cached voice lives. defaultTtsCache() falls back to
+          # os.tmpdir(), which actions/cache cannot restore into reliably, so
+          # the path is named here and the cache step above points at the same
+          # one. Both must agree or the cache silently does nothing.
+          STORY_TTS_CACHE: ${{ github.workspace }}/.oniq-piper
           # OWNER-ACTOR conditioning, opt-in per JOB — never globally on.
           #   repository_dispatch: on ONLY when story-dispatch marks THIS job's
           #     client_payload.actor_refs true (a story_jobs.actor_refs flag);

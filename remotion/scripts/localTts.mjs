@@ -66,10 +66,28 @@ function download(url, file) {
   // curl rather than fetch: these are 100-130MB tarballs and curl's retry
   // and redirect handling has already been proven by the model downloads in
   // this repo's other stages.
-  execFileSync('curl', ['-sSL', '--fail', '--retry', '3', '-o', file, url], {
-    stdio: 'pipe',
-    timeout: 10 * 60 * 1000,
-  });
+  //
+  // --retry-all-errors IS LOAD-BEARING, and its absence killed a film.
+  // Measured 2026-09-11, job 25bd27fd: the piper tarball died on
+  // `curl: (35) Recv failure: Connection reset by peer` WITH `--retry 3`
+  // already set, because plain --retry covers transient HTTP statuses and
+  // a handful of timeouts -- not a connection torn down mid-body. curl
+  // retried nothing, the in-house voice was reported unavailable, and a
+  // 60-second film failed and was refunded. The same URL answered 200 from
+  // a different machine minutes later, and the two runs before it that
+  // morning had downloaded it fine, so this was one bad socket and nothing
+  // more. --retry-delay spaces the attempts so a blip has time to pass;
+  // --connect-timeout stops a black-holed connect from eating the budget.
+  execFileSync(
+    'curl',
+    [
+      '-sSL', '--fail',
+      '--retry', '5', '--retry-all-errors', '--retry-delay', '2',
+      '--connect-timeout', '20',
+      '-o', file, url,
+    ],
+    { stdio: 'pipe', timeout: 10 * 60 * 1000 },
+  );
 }
 
 function verify(file, sha256) {

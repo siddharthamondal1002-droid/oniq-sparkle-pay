@@ -938,17 +938,55 @@ function depthModel() {
  * broken mirror degrades to exactly the old behaviour instead of a crash.
  */
 let localTtsPromise = null;
+/**
+ * WHY the in-house voice is unavailable, kept so the FILM'S recorded error can
+ * name it. Without this the reason existed only in a console.log on a runner
+ * nobody reads, while the row the user sees carried a hard-coded sentence that
+ * blamed a different provider entirely. See voiceUnavailable() below.
+ */
+let localTtsFailure = null;
 function localTts() {
-  if ((process.env.STORY_LOCAL_TTS ?? 'on') === 'off') return Promise.resolve(null);
+  if ((process.env.STORY_LOCAL_TTS ?? 'on') === 'off') {
+    localTtsFailure = 'STORY_LOCAL_TTS=off';
+    return Promise.resolve(null);
+  }
   if (!localTtsPromise) {
     localTtsPromise = Promise.resolve()
       .then(() => ensureLocalTts(defaultTtsCache()))
       .catch((err) => {
-        console.log(`local tts unavailable (${err?.message ?? err})`);
+        localTtsFailure = String(err?.message ?? err).replace(/\s+/g, ' ').trim();
+        console.log(`local tts unavailable (${localTtsFailure})`);
         return null;
       });
   }
   return localTtsPromise;
+}
+
+/**
+ * The message a film dies with when the in-house voice will not load.
+ *
+ * IT MUST NOT NAME A PROVIDER NOBODY ASKED ANYTHING OF. The string this
+ * replaced was `in-house tts unavailable and cloud voice exhausted`, thrown
+ * unconditionally -- and reaching it ALWAYS means the cloud voice was never
+ * tried. The only other way into that branch is the flip at the end of the
+ * cloud catch, and that flip is gated on `await localTts()` being truthy: the
+ * same cached promise, so it cannot be null a line later. So the half of the
+ * sentence about the cloud was false every single time it was shown.
+ *
+ * It cost an hour on 2026-09-11. The owner saw "cloud voice exhausted", which
+ * sends you to Google quota; the real cause -- a socket reset while
+ * downloading piper -- was one line above it in the runner log. Same shape as
+ * the auth/internal-error day: a catch-all standing in for the sentence
+ * underneath it.
+ */
+function voiceUnavailable() {
+  const why = localTtsFailure ?? 'reason not recorded';
+  const mode = process.env.STORY_LOCAL_TTS ?? 'on';
+  const cloud =
+    mode === 'only'
+      ? `the cloud voice was not tried (STORY_LOCAL_TTS=${mode})`
+      : 'the cloud voice did not carry this film either';
+  return `in-house voice unavailable: ${why.slice(0, 200)} — ${cloud}`;
 }
 
 /**
@@ -2173,7 +2211,7 @@ if (offline) {
       }
       if (ttsEngine === 'local') {
         const tts = await localTts();
-        if (!tts) throw new Error('in-house tts unavailable and cloud voice exhausted');
+        if (!tts) throw new Error(voiceUnavailable());
         synthLocal(ffmpeg, tts, shot.narration, wav);
       }
 
@@ -2209,7 +2247,7 @@ if (offline) {
           }
           if (ttsEngine === 'local') {
             const tts = await localTts();
-            if (!tts) throw new Error('in-house tts unavailable');
+            if (!tts) throw new Error(voiceUnavailable());
             const speaker = speakerFor(shot.dialogue.speaker, tts.castSpeakers);
             synthLocal(ffmpeg, tts, shot.dialogue.line, dwav, { speaker });
             spokenBy = `piper#${speaker}`;
