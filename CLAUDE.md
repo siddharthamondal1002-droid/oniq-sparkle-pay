@@ -6507,6 +6507,7 @@ the only files under `src/` in this commit are tests:
     grep MAX_TAP_MS                                oqca-observe/index.ts            4  (asked: at least 2)
     grep MAX_WALL_MS                               oqca-observe/index.ts            0  (asked: exactly 0)
     -> Successfully deployed edge functions: oqca-observe, story-dispatch
+    cost_credits                                                          0.5
 
 **THE AGENT'S FOUR COUNTS ARE IDENTICAL TO THE ONES MEASURED HERE**, which is
 what makes them evidence rather than a report: the tree it deployed is the tree
