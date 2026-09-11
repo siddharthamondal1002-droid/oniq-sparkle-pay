@@ -5937,12 +5937,12 @@ lesson one layer up**: that entry fixed _a zero budget stops the thinking_; this
 is _an unauthorized capability stops the ranking_, the same confusion of "ONIQ
 may not" with "this does not matter", moved from the loop into the planner.
 v1.6's own rule for context factors is that a modifier "may re-rank and may not
-veto"; `capability` and `dependencies` are PLANNING factors and carry no floor,
-and at 0.00 one annihilates the other five. `MODIFIER_FLOOR` exists in
-`select.ts` for this exact shape and is not applied here. NOT FIXED — whether
-the answer is that floor or a separate "needs a person" lane that ranks by
-importance alone and reports rather than attempts is a design question, not a
-constant to nudge.
+veto". **[CORRECTED BELOW — the next entry measured this and the sentence that
+stood here was wrong.** It said `capability` and `dependencies` "carry no floor";
+`planningModifier` floors all six and its own header says so. The real mechanism
+is that TWO factors hit the floor for ONE fact, 0.05 x 0.05 = 0.0025, because
+`dependencies` measured the same list `capability` reads.**]** FIXED in the entry
+below.
 
 **AND THE RUN STOPPED ON THE OWNER'S OTHER OPEN NUMBER:** `capability_blocked —
 model:insufficient_allowance (max_tokens)`. With `maxTokens` shipped at 0, the
@@ -5957,3 +5957,130 @@ able to surprise the test".
 score (0.6 scored 0.6× the 1.0 readings); the severity-0 reading — the dispatcher
 answering 200 × 159, i.e. up and being REFUSED rather than down — was correctly
 dropped by `actionable()`; and nothing was executed or fabricated.
+
+#### 2026-09-11 (later) — both defects fixed, and my own account of the first one was wrong
+
+**A CORRECTION FIRST.** The entry above says `capability` and `dependencies`
+"are PLANNING factors and carry no floor". **That is false and I wrote it.**
+`planningModifier` applies `floor()` to all six, and the header two lines up
+says so. The reason the outage sank was not an unfloored zero; it was that TWO
+factors hit the floor for ONE fact, and 0.05 x 0.05 = 0.0025 against a chore's
+0.168. Reading the header instead of the function is how a wrong cause gets
+written down confidently.
+
+**THE MECHANISM, MEASURED WITH A PROBE RATHER THAN READ:**
+
+    real fault, EMPTY ledger (every cold start)  cap=0.00 dep=0.05 -> 0.0025
+    real fault, resource known-but-refused       cap=0.00 dep=1.00 -> 0.0500
+    chore needing nothing                        cap=1.00 dep=1.00 -> 0.1680
+
+`dependencies` was `known / needs.length` computed over the SAME list
+`capability` reads, and met is a subset of known — two nested measures of one
+fact, multiplied. **So SILENCE was punished twenty times harder than a stated
+refusal**, which is backwards: a refusal is strictly more informative. That is
+v1.6's "ABSENT IS NOT AVAILABLE" read the wrong way round — absence must be
+REPORTED, never counted as a second failure.
+
+**AND THE COLD START WAS A CLOSED LOOP, which is the part that made it
+permanent.** The v1.6 ledger learns a capability's state by OBSERVING an episode
+use it. Nothing may attempt an unauthorized capability, so nothing ever observes
+it, so the ledger stays silent forever, so the objective sits at the floor, so
+it is never selected, so nothing attempts it. **Authorization is not something
+to discover by trying — it is a column in `selfModel.ts`, true before any
+episode runs.** `registryCapabilityStates()` reports it in the ledger's own
+vocabulary and `RuntimeInput.knownCapabilities` merges it UNDER the snapshot and
+under everything an episode observed, so a real observation always wins.
+`verification` is deliberately ABSENT from that table — three authorized members,
+but whether one WORKS is still only an episode's to say, and a host asserting
+`available` from a table would be fabricating the one thing it may not.
+
+**THE FIX IS A DISTINCTION THE TYPE ALREADY CARRIED AND THE PLANNER NEVER READ.**
+`needsAPerson` splits `unauthorized`/`no_credentials` — v1.6's own two
+"somebody else's decision about who ONIQ is" — from everything ONIQ's own number
+controls. For the second, deferring is right. For the first there is nothing to
+come back for, so the objective's whole value is the REPORT, and reporting is
+work ONIQ can always do. `ESCALATION_CAPABILITY = 0.5`: half the work is
+available to it, half is not. **The constant is semantic; the ORDERING is what
+the tests pin** — an escalation-blocked severity-1.0 fault outranks a
+never-observed chore, and an ACTIONABLE fault of equal importance outranks the
+escalation one. A future change to `cost`, `risk` or `informationGainOf` that
+re-buries the report goes red instead of passing quietly.
+
+MEASURED AFTER, same six readings, same corpus:
+
+    before  0.00030  14th of 18   stop: capability_blocked (max_tokens only)
+    after   0.06000   1st of 18   stop: capability_blocked —
+              model:insufficient_allowance (max_tokens);
+              tool:unauthorized (no tool capability is authorized in this
+              build: CREATE_EXPERIMENT, REBUILD_ARTIFACT, RUN_BENCHMARK,
+              RUN_MUTATION_TEST, UPDATE_CONFIGURATION)
+
+**That second line is the whole point.** v1.6 built `capability_blocked` to be
+"the difference between 'ONIQ is stuck' and 'a credential is missing'", and
+until now it could not reach the case it was built for.
+
+**THE SECOND DEFECT: A FILM THE DISPATCHER KEEPS TOUCHING CANNOT BE EXPIRED.**
+`story-sweep`'s own comment already records this failure and its fix — "the
+first live Story sat queued while every dispatch failed — charged,
+unrefundable... Ageing it out is the missing half of the lifecycle" — and a
+later change quietly defeated it. Read from `pg_proc` rather than assumed:
+`story_jobs_guard_transition` OPENS with `new.updated_at := now()`,
+unconditional on every UPDATE, and `story-dispatch` stamps `dispatched_at`
+BEFORE its GitHub call. So a refused dispatch refreshes `updated_at` every ten
+minutes and the 30-minute window never elapses.
+
+`QUEUED_ABANDONED_TTL_MS` is a second clock on `created_at`, which nothing
+writes after the insert — so no retry can refresh it and no future write to any
+other column can defeat it either. **Six hours, measured rather than picked:**
+over 117 films that reached `ready` the longest wait between `created_at` and
+`dispatched_at` was 65.1 minutes, so six hours is 5.5x the worst real wait. It
+is deliberately NOT mirrored into `storyLifecycle.ts` — `owesPurge` decides
+whether BYTES are owed a deletion and an abandoned queued job has none. Expiry
+and purge are different questions; a constant exported there with no caller
+would be dead code.
+
+**AND THE FAILURE MESSAGE WAS POINTING AT THE WRONG SUSPECT.** `why` read
+`dispatched_at` first, but a stamp means a dispatch was ATTEMPTED — never that a
+runner took it. During an outage every abandoned film carries one, so each
+person was told "a renderer took this one and never finished": a guess presented
+as fact, pointing at a busy queue when the fault was ours and total. That is the
+exact failure the comment eight lines above it already warns about. The
+dispatcher's own health is read FIRST now.
+
+**9 MUTATIONS, EVERY ONE RED**, `scripts/dispatch-fix-mutate.sh`, on a green
+baseline: `needsAPerson` always false; the escalation factor back to the floor;
+the double penalty restored; the registry reporting nothing; the table
+fabricating `available`; the abandoned clause deleted; the abandoned clause
+keyed on `updated_at` (the shape that LOOKS like a guard and is defeated by the
+same retry loop); the window dropped below the worst real wait; and the stamp
+read before the health.
+
+**AND KILLING A MUTATION RUN LEAVES THE TREE MUTATED.** Two redundant full runs
+were started by accident (a `grep -c` and a `grep -E` each re-running the whole
+script), and `pkill`ing them skipped the `restore` at the end of the block that
+was live. `git status` then showed
+`supabase/functions/_shared/oqcaRuntime/research.ts` modified — a file this
+change never touches — and the diff was M153 verbatim, the `MIN_SUBSTANCE` guard
+deleted. **The suite was green with that hole open**, because M153's own test is
+the only thing that reads it and the run had already passed it. The 2026-09-10
+rule says do not let anything else read the repo during a mutation run; this adds
+the other half: **after one is interrupted, diff the tree before trusting it,
+and treat any file you did not edit as a mutation left standing.** Restored with
+`git checkout` and the suite re-run on the restored tree.
+
+**AND THE SECURITY GUARD CAUGHT ME, exactly as v1.6 records.** My describe title
+read "authorization is a table…" — the lowercase wire spelling of the auth
+header. Reworded rather than exempted, for the second time; a security guard
+does not get a hole cut in it for a sentence's sake.
+
+Numbers: 386 files / **6,997** tests (was 385 / 6,981); `src/oqca` gains
+`capabilityRanking.test.ts` (12) and `storyLifecycle.test.ts` gains 4; 9 new
+mutations all RED plus the existing 162 re-run; tsc, `lint:ci`, Prettier,
+`node scripts/oqca-mirror.mjs --check` (50 files) and `deno check` of
+`story-sweep`, `story-dispatch` and the runtime chain all clean.
+
+**NOTHING IS DEPLOYED OR MERGED.** `story-sweep` is an EDGE FUNCTION and does not
+ship with a web publish — it needs one deploy message, and it is worth batching
+with whatever else the next turn needs. The OQCA change reaches nothing: the
+flag still ships `off` and nothing imports the runtime. **And neither fix
+restores video** — that is still the owner replacing `GITHUB_DISPATCH_TOKEN`.

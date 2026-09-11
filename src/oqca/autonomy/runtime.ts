@@ -364,6 +364,13 @@ export type RuntimeInput = {
    * keeps the capability factor neutral rather than inventing a dependency.
    */
   readonly needs?: (o: Observation) => readonly Capability[];
+  /**
+   * What the host knows about a resource WITHOUT observing an episode use it —
+   * authorization, which is a table rather than a discovery. Merged UNDER the
+   * restored snapshot and under everything an episode reports, so it can never
+   * overwrite a measurement. Omit it and the runtime behaves exactly as before.
+   */
+  readonly knownCapabilities?: readonly CapabilityState[];
   /** User requests. The generator provably cannot produce these. */
   readonly seed?: readonly Objective[];
   /** Used only when the store restored nothing. */
@@ -628,9 +635,22 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
    */
   let consecutiveCapabilityBlocked = 0;
   let capabilityBlocks = 0;
-  let capabilities: ReadonlyMap<Capability, CapabilityState> = new Map(
-    snapshot.capabilities.map((c) => [c.capability, c] as const),
-  );
+  /**
+   * THE HOST'S STATIC TABLE GOES IN FIRST AND THE SNAPSHOT OVERWRITES IT.
+   *
+   * `knownCapabilities` is what the host can say without attempting anything —
+   * in practice, which resource kinds no registered capability is authorized to
+   * use. An OBSERVATION always wins, so the snapshot's rows are applied second
+   * and the derivation is only ever a floor under silence. Without it an
+   * unauthorized kind is unobservable by construction (nothing may attempt it,
+   * so nothing reports it) and `planningFor` scores every objective needing one
+   * at the modifier floor forever — the closed loop measured on the 2026-09-11
+   * dispatch outage.
+   */
+  let capabilities: ReadonlyMap<Capability, CapabilityState> = new Map([
+    ...(input.knownCapabilities ?? []).map((c) => [c.capability, c] as const),
+    ...snapshot.capabilities.map((c) => [c.capability, c] as const),
+  ]);
   let ranHere = 0;
   const learned: string[] = [];
   const settled: string[] = [];

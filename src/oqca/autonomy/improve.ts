@@ -32,7 +32,7 @@
 import type { Gap, GapStatus, Goal } from "../knowledge/gaps.ts";
 import { type LearningTarget, MODIFIER_FLOOR, rankLearningTargets } from "./select.ts";
 import type { KnowledgeState } from "../knowledge/model.ts";
-import type { Capability, CapabilityState } from "../loop/capability.ts";
+import { type Capability, type CapabilityState, needsAPerson } from "../loop/capability.ts";
 import type { Observation } from "./observation.ts";
 import { type SystemWorldState, worldConcerns } from "./world.ts";
 
@@ -192,6 +192,37 @@ export function planningModifier(f: PlanningFactors): number {
 }
 
 /**
+ * WHAT A FAULT IS WORTH WHEN ONLY A PERSON CAN CLEAR IT.
+ *
+ * `capability` asks "can ONIQ execute this now", and for a self-improvement
+ * loop holding three read-only capabilities the answer for any real product
+ * fault is permanently no. Treated as a flat discount that made the factor stop
+ * discriminating and start expressing a bias: anything about the PRODUCT lost
+ * to anything about ONIQ's own file tree, whatever the severity. Measured on
+ * the 2026-09-11 story-dispatch outage, a severity-1.0 production outage ranked
+ * 14th of 18, behind thirteen "establish how to observe X" chores.
+ *
+ * The distinction that fixes it already existed and the planner simply never
+ * read it. `needsAPerson` splits a shortfall ONIQ's own number controls — an
+ * allowance, a rate limit — from one that is somebody else's decision about who
+ * ONIQ is. For the first, deferring is right: come back when the number moves.
+ * For the second there is nothing to come back for, and the objective's whole
+ * value is the REPORT — which is work ONIQ can always do, so it may not be
+ * discounted into invisibility. Otherwise the outage can never be SELECTED, so
+ * `capability_blocked` can never name it, and v1.6's claim that that stop is
+ * "the difference between 'ONIQ is stuck' and 'a credential is missing'" is
+ * unreachable in the one case it was built for.
+ *
+ * BELOW 1 ON PURPOSE. A fault ONIQ can actually fix outranks one it can only
+ * report, at equal importance — half the work is available to it, so half is
+ * the factor. The two ORDERING properties that matter are asserted in
+ * `selfImprovement.test.ts` rather than derived from this number, so a future
+ * change to any other factor makes the test fail instead of silently
+ * re-burying the report.
+ */
+export const ESCALATION_CAPABILITY = 0.5;
+
+/**
  * What an improvement objective would need in order to run, derived from the
  * concern and checked against the ledger. A concern whose required capability
  * is refused keeps a `capability` factor at the FLOOR rather than at zero.
@@ -219,8 +250,16 @@ export function planningFor(
 ): PlanningFactors {
   const byName = new Map(ledger.map((c) => [c.capability, c] as const));
   const met = need.needs.filter((n) => byName.get(n)?.availability === "available").length;
-  const known = need.needs.filter((n) => byName.has(n)).length;
-  const capability = need.needs.length === 0 ? 1 : met / need.needs.length;
+  const escalation = need.needs.some((n) => {
+    const state = byName.get(n);
+    return state ? needsAPerson(state.availability) : false;
+  });
+  const capability =
+    need.needs.length === 0 || met === need.needs.length
+      ? 1
+      : escalation
+        ? ESCALATION_CAPABILITY
+        : met / need.needs.length;
   return {
     capability,
     // A concern ONIQ can read off its own tree costs nothing; one that needs a
@@ -233,7 +272,19 @@ export function planningFor(
     reversibility: 1,
     // A fault ONIQ has measured is safer to act on than one it has inferred.
     risk: o.state === "OBSERVED" ? 1 : 0.8,
-    dependencies: need.needs.length === 0 ? 1 : Math.max(known / need.needs.length, MODIFIER_FLOOR),
+    // NEUTRAL, DELIBERATELY, AND THAT IS A NARROWING RATHER THAN A FIELD NOBODY
+    // SET. It used to be `known / needs.length` — the fraction of the needed
+    // resources the ledger had ever heard of — computed over the SAME list
+    // `capability` reads. Since met is a subset of known the two were nested
+    // measures of one fact, and multiplying them squared the penalty: on a cold
+    // ledger a concern scored 0.05 x 0.05 = 0.0025 where an explicit refusal
+    // scored 0.05 x 1 = 0.05, so SILENCE was punished twenty times harder than
+    // a known refusal. That is backwards — a refusal is strictly more
+    // informative than silence — and it is v1.6's "ABSENT IS NOT AVAILABLE"
+    // read the wrong way round: absence must be REPORTED, never counted as a
+    // second failure. One shortfall, one factor. This stays 1 until it measures
+    // something `capability` does not.
+    dependencies: 1,
     // The severity IS the expected movement: a 0.9-severity fault has more room
     // to improve than a 0.2 one. Reusing it rather than inventing a second
     // scale keeps the two from disagreeing.

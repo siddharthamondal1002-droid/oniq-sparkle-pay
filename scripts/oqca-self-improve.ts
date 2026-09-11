@@ -40,7 +40,10 @@ import { dirname, join, relative, resolve } from "node:path";
 import { type Observation } from "../src/oqca/autonomy/observation.ts";
 import { type SystemIdentity } from "../src/oqca/autonomy/world.ts";
 import { runAutonomousRuntime, DEFAULT_RUNTIME_BOUNDS } from "../src/oqca/autonomy/runtime.ts";
-import { resourcesFor } from "../supabase/functions/_shared/oqcaRuntime/selfModel.ts";
+import {
+  registryCapabilityStates,
+  resourcesFor,
+} from "../supabase/functions/_shared/oqcaRuntime/selfModel.ts";
 import type {
   CapabilityExecutor,
   CapabilityRequest,
@@ -263,6 +266,9 @@ async function main() {
     observe: makeSystemObserver(evidence, ctx.at),
     identity,
     needs: (o: Observation) => resourcesFor(o.requires),
+    // Authorization is a table, not a discovery: an unauthorized kind can never
+    // be observed, because nothing may attempt it. See registryCapabilityStates.
+    knownCapabilities: registryCapabilityStates(),
     runEpisode: makeImprovementEpisode(ctx, {
       research: makeLocalEvidenceResearch(corpusFrom(modules)),
       durable: makeSinkDurableStore({

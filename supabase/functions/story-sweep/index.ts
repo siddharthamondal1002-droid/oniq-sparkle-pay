@@ -50,6 +50,38 @@ const STALE_TTL_MS = 30 * 60 * 1000;
  */
 const RENDER_ACTIVE_TTL_MS = 150 * 60 * 1000;
 
+/**
+ * queued -> ABANDONED, measured on the clock the dispatcher cannot move.
+ *
+ * STALE_TTL_MS above is keyed on `updated_at`, and on 2026-09-11 that turned out
+ * to be unreachable during exactly the outage it was written for. `story-dispatch`
+ * stamps `dispatched_at` BEFORE its GitHub call — deliberately, so an isolate
+ * that dies mid-flight does not re-dispatch a minute later — and
+ * `story_jobs_guard_transition` opens with `new.updated_at := now()` on EVERY
+ * update, unconditionally. So a dispatcher whose every call is refused refreshes
+ * `updated_at` about every ten minutes, the 30-minute window never elapses, and
+ * the film is never expired, never failed and never refunded. Two films sat
+ * `queued` for two days that way while the person was told only "queued".
+ *
+ * The comment below already says "the first live Story sat queued while every
+ * dispatch failed — charged, unrefundable, and re-dispatched every minute
+ * forever. Ageing it out is the missing half of the lifecycle." That fix was
+ * right and a later change quietly defeated it, which is why this second clock
+ * reads `created_at`: nothing writes it after the insert, so no retry can
+ * refresh it and no future write to any other column can defeat it either.
+ *
+ * SIX HOURS, AND THE NUMBER IS MEASURED RATHER THAN PICKED. Over 117 films that
+ * reached `ready`, the longest any of them ever waited between `created_at` and
+ * `dispatched_at` was 65.1 minutes. Six hours is 5.5x that worst observed wait,
+ * so a genuinely busy queue is never mistaken for an outage, and it is short
+ * enough that somebody is told the same day instead of never. It is deliberately
+ * NOT mirrored into `src/lib/storyLifecycle.ts`: that module's `owesPurge`
+ * decides whether BYTES are owed a deletion, and an abandoned queued job has
+ * none. Expiry and purge are different questions and a constant exported there
+ * with no caller would be dead code.
+ */
+const QUEUED_ABANDONED_TTL_MS = 6 * 60 * 60 * 1000;
+
 /** Same bucket as everything else. */
 const BUCKET = "video-gen";
 
@@ -148,10 +180,15 @@ Deno.serve(async (req) => {
     // 30-minute sweep from killing every 300s film mid-render.
     const deadBefore = new Date(now - STALE_TTL_MS).toISOString();
     const renderDeadBefore = new Date(now - RENDER_ACTIVE_TTL_MS).toISOString();
+    // The second queued clause is the one a failing dispatcher cannot defeat —
+    // see QUEUED_ABANDONED_TTL_MS. It reads `created_at`, which nothing writes
+    // after the insert, so a retry loop cannot hold a film out of this query.
+    const abandonedBefore = new Date(now - QUEUED_ABANDONED_TTL_MS).toISOString();
     const dead = await fetch(
       `${supabaseUrl}/rest/v1/story_jobs` +
         `?has_bytes=is.false` +
         `&or=(and(status.eq.queued,updated_at.lt.${deadBefore}),` +
+        `and(status.eq.queued,created_at.lt.${abandonedBefore}),` +
         `and(status.in.(generating,assembling),updated_at.lt.${renderDeadBefore}))` +
         `&select=id,dispatched_at&limit=${BATCH}`,
       { headers: svc },
@@ -196,10 +233,18 @@ Deno.serve(async (req) => {
     if (dead.ok) {
       const deadRows = (await dead.json()) as { id: string; dispatched_at: string | null }[];
       for (const row of Array.isArray(deadRows) ? deadRows : []) {
-        const why = row.dispatched_at
-          ? "a renderer took this one and never finished — your time has been returned"
-          : dispatcherDown
-            ? "we couldn't reach the renderer — your time has been returned"
+        // THE DISPATCHER'S OWN HEALTH IS READ FIRST, AND `dispatched_at` SECOND.
+        // It used to be the other way round, and that was wrong for the one
+        // case this file already warns about. `story-dispatch` stamps
+        // `dispatched_at` BEFORE its GitHub call, so a stamp means a dispatch
+        // was ATTEMPTED — never that a runner took it. During an outage every
+        // abandoned film carries a stamp, so the old order told each person "a
+        // renderer took this one and never finished": a guess presented as
+        // fact, pointing at a busy queue when the fault was ours and total.
+        const why = dispatcherDown
+          ? "we couldn't reach the renderer — your time has been returned"
+          : row.dispatched_at
+            ? "a renderer took this one and never finished — your time has been returned"
             : "no renderer picked this up in time — your time has been returned";
         const marked = await fetch(`${supabaseUrl}/rest/v1/story_jobs?id=eq.${row.id}`, {
           method: "PATCH",

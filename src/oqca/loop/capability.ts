@@ -91,6 +91,29 @@ export function isExecutable(a: CapabilityAvailability): boolean {
   return a === "available";
 }
 
+/**
+ * WHO CAN CLEAR A SHORTFALL, which is the question a PLANNER needs and
+ * `isExecutable` does not answer. Both say "cannot run now"; only this one says
+ * whether waiting will ever help.
+ *
+ * `unauthorized` and `no_credentials` are the two members this file already
+ * singles out as somebody else's decision about who ONIQ is — the invariant
+ * above is that no BOUND can ever produce them, precisely so that "was this
+ * authorized" stays unanswerable by editing a number. Their mirror is that ONIQ
+ * cannot clear them either: no budget, no retry and no amount of thinking turns
+ * one into `available`. A person must act, so the only work ONIQ can do on such
+ * an objective is to REPORT it — and reporting is work it can always do.
+ *
+ * Everything else clears without a person: an allowance is ONIQ's own number, a
+ * rate limit expires, and an unavailable provider or resource comes back. Those
+ * are worth deferring. These are worth saying out loud.
+ */
+export const PERSON_CLEARED: readonly CapabilityAvailability[] = ["unauthorized", "no_credentials"];
+
+export function needsAPerson(a: CapabilityAvailability): boolean {
+  return PERSON_CLEARED.includes(a);
+}
+
 export function unavailable(states: readonly CapabilityState[]): CapabilityState[] {
   return states.filter((s) => !isExecutable(s.availability));
 }

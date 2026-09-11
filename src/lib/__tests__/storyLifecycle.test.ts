@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { stripComments } from "../../test/sourceText.ts";
 import {
   READY_TTL_MS,
   RENDER_ACTIVE_TTL_MS,
@@ -101,8 +102,12 @@ describe("every Story eventually leaves our servers", () => {
     // its workflow could not still be alive.
     for (const status of ["generating", "assembling"] as const) {
       expect(owesPurge(job(status, STALE_TTL_MS + 1000), NOW), `${status} @31min`).toBe(false);
-      expect(owesPurge(job(status, RENDER_ACTIVE_TTL_MS - 1000), NOW), `${status} @149min`).toBe(false);
-      expect(owesPurge(job(status, RENDER_ACTIVE_TTL_MS + 1000), NOW), `${status} @151min`).toBe(true);
+      expect(owesPurge(job(status, RENDER_ACTIVE_TTL_MS - 1000), NOW), `${status} @149min`).toBe(
+        false,
+      );
+      expect(owesPurge(job(status, RENDER_ACTIVE_TTL_MS + 1000), NOW), `${status} @151min`).toBe(
+        true,
+      );
       expect(purgeReason(job(status, RENDER_ACTIVE_TTL_MS + 1000), NOW)).toBe("stale");
     }
   });
@@ -214,5 +219,63 @@ describe("story-sweep mirrors the lifecycle rules", () => {
     // never see the row whose delete failed after it was marked purged.
     expect(sweeper).toMatch(/has_bytes=is\.true/);
     expect(sweeper).toMatch(/status === "purged"\) return true/);
+  });
+});
+
+/**
+ * A FILM THAT CANNOT BE EXPIRED IS A FILM NOBODY IS EVER TOLD ABOUT.
+ *
+ * Measured 2026-09-11. `story-dispatch` stamps `dispatched_at` BEFORE its GitHub
+ * call — deliberately, so an isolate that dies mid-flight does not re-dispatch a
+ * minute later — and `story_jobs_guard_transition` opens with
+ * `new.updated_at := now()` on EVERY update, read from `pg_proc` rather than
+ * assumed. So during a dispatch outage the retry loop refreshes `updated_at`
+ * about every ten minutes, `STALE_TTL_MS` never elapses, and the film is never
+ * failed and never refunded. Two films sat `queued` for two days that way.
+ *
+ * These assertions read the SOURCE TEXT for the same reason the block above
+ * does — the sweep needs a Deno runtime and a storage client to execute — and
+ * they strip comments first, because every comment in that region quotes
+ * `updated_at`, `created_at`, `dispatched_at` and `dispatcherDown` in order to
+ * explain them.
+ */
+describe("story-sweep can expire a film the dispatcher keeps touching", () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const code = stripComments(
+    readFileSync(resolve(here, "../../../supabase/functions/story-sweep/index.ts"), "utf8"),
+  );
+
+  /** The worst queue wait ever observed over 117 films that reached `ready`. */
+  const WORST_OBSERVED_QUEUE_WAIT_MS = 66 * 60 * 1000;
+
+  it("carries a second queued clock, longer than the worst real wait", () => {
+    const m = /const QUEUED_ABANDONED_TTL_MS\s*=\s*([^;]+);/.exec(code);
+    expect(m, "QUEUED_ABANDONED_TTL_MS missing from story-sweep").toBeTruthy();
+    const value = Number(eval(m![1]));
+    expect(value).toBeGreaterThan(STALE_TTL_MS);
+    expect(value).toBeGreaterThan(WORST_OBSERVED_QUEUE_WAIT_MS);
+  });
+
+  it("keys that clock on created_at, which nothing writes after the insert", () => {
+    // updated_at would be refreshed by the very retry loop this exists to
+    // survive; created_at cannot be moved by any later write.
+    expect(code).toMatch(/abandonedBefore\s*=\s*new Date\(now - QUEUED_ABANDONED_TTL_MS\)/);
+    expect(code).toContain("and(status.eq.queued,created_at.lt.${abandonedBefore})");
+  });
+
+  it("keeps BOTH queued clauses — the new one adds a route, it does not replace one", () => {
+    const queuedClauses = [...code.matchAll(/and\(status\.eq\.queued,/g)];
+    expect(queuedClauses).toHaveLength(2);
+    expect(code).toContain("and(status.eq.queued,updated_at.lt.${deadBefore})");
+  });
+
+  it("words the failure from the dispatcher's health BEFORE the dispatch stamp", () => {
+    // `dispatched_at` is stamped before the call, so a stamp means ATTEMPTED and
+    // never "a runner took it". Reading it first told every person in an outage
+    // that a renderer had taken their film and abandoned it.
+    const why = code.slice(code.indexOf("const why ="), code.indexOf("const marked ="));
+    expect(why).toBeTruthy();
+    expect(why.indexOf("dispatcherDown")).toBeGreaterThan(-1);
+    expect(why.indexOf("dispatcherDown")).toBeLessThan(why.indexOf("row.dispatched_at"));
   });
 });

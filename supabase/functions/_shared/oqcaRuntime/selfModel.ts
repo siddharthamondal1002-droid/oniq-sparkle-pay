@@ -24,7 +24,7 @@
  * NOTHING HERE READS A CLOCK, OPENS A SOCKET OR TOUCHES A DISK. The executor is
  * a seam with a refusing default, exactly like every other in this runtime.
  */
-import type { Capability } from "../oqca/loop/capability.ts";
+import type { Capability, CapabilityState } from "../oqca/loop/capability.ts";
 
 /** §12's list, verbatim and closed. A tenth member is a deliberate change. */
 export type RegisteredCapabilityId =
@@ -159,6 +159,55 @@ export function registeredCapability(id: string): RegisteredCapability | null {
 
 export function isRegistered(id: string): boolean {
   return BY_ID.has(id as RegisteredCapabilityId);
+}
+
+/**
+ * WHAT THE REGISTRY ALREADY KNOWS WITHOUT ATTEMPTING ANYTHING, and why the
+ * planner has to be told it.
+ *
+ * The v1.6 ledger learns a capability's state by OBSERVING an episode use it.
+ * That works for an allowance or a provider outage — something is attempted and
+ * refused. It cannot work for an UNAUTHORIZED capability, and the failure is a
+ * closed loop: nothing may attempt it, so nothing observes it, so the ledger
+ * stays silent about it forever, so `planningFor` sees an unknown resource and
+ * scores the objective at the floor, so it is never selected, so nothing
+ * attempts it. Measured on the 2026-09-11 story-dispatch outage, which sat at
+ * `cap=0.00` with an EMPTY ledger and came 14th of 18.
+ *
+ * Authorization is not something to discover by trying — it is a column in the
+ * table above, true before any episode runs. So the host reports it, in the
+ * ledger's own vocabulary, and the runtime merges it UNDER anything an episode
+ * actually observed: a real observation always beats this derivation.
+ *
+ * A kind is only claimed `unauthorized` when NO registered capability using it
+ * is authorized. `verification` has three authorized members, so it is absent
+ * here and must still be observed — "absent is not available" (v1.6), and a
+ * host asserting `available` from a table would be fabricating an observation.
+ */
+export function registryCapabilityStates(): readonly CapabilityState[] {
+  const byResource = new Map<Capability, RegisteredCapability[]>();
+  for (const cap of CAPABILITY_REGISTRY) {
+    const list = byResource.get(cap.resource) ?? [];
+    list.push(cap);
+    byResource.set(cap.resource, list);
+  }
+  const out: CapabilityState[] = [];
+  for (const [resource, caps] of [...byResource].sort((a, b) => a[0].localeCompare(b[0]))) {
+    if (caps.some((c) => c.authorized)) continue;
+    out.push({
+      capability: resource,
+      availability: "unauthorized",
+      detail: `no ${resource} capability is authorized in this build: ${caps
+        .map((c) => c.id)
+        .sort()
+        .join(", ")}`,
+      // An authorization refusal has no bound to name — naming one would send
+      // whoever reads the log to raise a number that would not help.
+      bound: null,
+      station: null,
+    });
+  }
+  return out;
 }
 
 /** The RESOURCE kinds a set of registered ids would consume, deduped. */
