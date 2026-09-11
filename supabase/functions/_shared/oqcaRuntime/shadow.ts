@@ -23,6 +23,7 @@ import { sealLoopState, EMPTY_WORLD, type LoopState } from "../oqca/loop/loopSta
 import { DEFAULT_BUDGETS, NO_SPEND, type Budgets, type MemoryRecord } from "../oqca/loop/seams.ts";
 import { makeEngine, type EngineContext, type ModelCallRecord } from "./engine.ts";
 import { makeToolRouter, type RouterMode, type ToolCallRecord } from "./toolRouter.ts";
+import { type ServiceRpc } from "../financialLedger.ts";
 import { makeMemory } from "./memory.ts";
 import { recordingKnowledge } from "./knowledge.ts";
 import { openGaps } from "../oqca/knowledge/gaps.ts";
@@ -134,6 +135,13 @@ export type ShadowOptions = {
    * REQUIRED — see engine.ts on why there is no default.
    */
   readonly call: EngineContext["call"];
+  /**
+   * The service-role RPC the spend ledger admits and settles through, handed to
+   * BOTH the engine and the tool router so one run has one financial boundary.
+   * Absent means every model call and every paying tool is REFUSED — not run
+   * unguarded — which is what a test with no ledger should get.
+   */
+  readonly rpc?: ServiceRpc | null;
   readonly seedMemory?: readonly MemoryRecord[];
   /**
    * v1.4-R item D. What ONIQ BELIEVES the dispatch backoff to be, normally read
@@ -282,12 +290,30 @@ export async function runShadow(opts: ShadowOptions): Promise<ShadowResult> {
     now: () => env.nowMs(),
     record: (r) => modelCalls.push(r),
     call: opts.call,
+    rpc: opts.rpc ?? null,
+    /**
+     * NO JOB ID, AND THAT IS MEASURED RATHER THAN AN OMISSION.
+     *
+     * `admit_provider_spend` increments `provider_spend_job.attempts` on EVERY
+     * admission under a job id and refuses at `max_attempts_per_job`, which the
+     * table's own CHECK caps at 10. One cognitive run makes up to twenty model
+     * calls — five stations over four iterations — so binding them to one job
+     * would refuse call eleven with `job-attempts-exhausted`, and the loop would
+     * report it as a model that had nothing to say.
+     *
+     * The ceiling is not the wrong SIZE, it is the wrong SHAPE: a job ceiling
+     * bounds a RETRY LADDER — one film regenerating one shot — and a cognitive
+     * run is twenty distinct questions, not twenty attempts at one. What bounds
+     * a single run is `Budgets.maxCostUsd`, and what bounds the total is the
+     * ledger's DAILY cap.
+     */
   });
   const router = makeToolRouter(dispatchTools(queue, env), {
     runId: opts.runId,
     mode: opts.mode,
     now: () => env.nowMs(),
     record: (r) => toolCalls.push(r),
+    rpc: opts.rpc ?? null,
   });
   const memory = makeMemory(opts.seedMemory ?? [], { record: (n) => memoryNotes.push(n) });
   /* -------------------------------------------------------------------- *

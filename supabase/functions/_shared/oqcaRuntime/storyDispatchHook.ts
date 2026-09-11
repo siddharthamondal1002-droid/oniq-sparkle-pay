@@ -56,6 +56,11 @@ export type HookConfig = {
    * and the seam already existed; it just stopped one level too early.
    */
   readonly call: Parameters<typeof runShadow>[0]["call"];
+  /**
+   * The spend ledger's service-role RPC. Absent means the loop cannot spend at
+   * all — every model call and paying tool is refused rather than run unguarded.
+   */
+  readonly rpc?: Parameters<typeof runShadow>[0]["rpc"];
 };
 
 /**
@@ -89,6 +94,7 @@ export async function runOqcaForDispatch(cfg: HookConfig): Promise<OqcaHookResul
       mode: cfg.mode === "assisted" ? "assisted" : "shadow",
       env,
       call: cfg.call,
+      rpc: cfg.rpc ?? null,
       budgets: budgetsFrom(getEnv),
     });
 

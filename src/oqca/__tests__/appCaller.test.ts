@@ -480,14 +480,48 @@ describe("oqca-observe", () => {
     expect(read).toBeGreaterThan(forbid);
   });
 
-  it("raises no budget: a tap costs nothing at the shipped defaults", () => {
+  /**
+   * THIS GUARD USED TO ASSERT THAT A TAP COSTS NOTHING, and it went red on
+   * purpose. Owner directive 2026-09-11 — "increase the budget to 100$" —
+   * superseded the premise, so the assertion was rewritten rather than deleted:
+   * what replaces it is the set of things that must STILL be true now that the
+   * tap can spend.
+   */
+  it("spends under a per-run runaway guard, and never names the owner's total here", () => {
     const src = fn();
-    // The three spend bounds live in DEFAULT_BUDGETS and are 0. A caller that
-    // wanted to spend would have to name one here, and none is named.
-    expect(src).not.toMatch(/maxTokens/);
-    expect(src).not.toMatch(/maxCostUsd/);
-    expect(src).not.toMatch(/maxToolCalls/);
-    expect(src).not.toMatch(/budgets:/);
+    expect(src).toMatch(/budgets: TAP_BUDGETS/);
+    // THE OWNER'S $100 MUST NOT APPEAR IN A PER-RUN BOUND. `Budgets` is rebuilt
+    // by every `runCognitiveLoop` call, so 100 here would mean $100 PER RUN and
+    // no total at all — the exact confusion this change exists to end. The
+    // total lives in `provider_budget_config.daily_usd_cap` for TEXT.
+    expect(src).not.toMatch(/maxCostUsd:\s*100\b/);
+    expect(src).toMatch(/maxCostUsd:\s*0\.05\b/);
+    expect(src).toMatch(/maxTokens:\s*50_000\b/);
+  });
+
+  it("keeps the tool budget at zero: thinking about ONIQ is not changing it", () => {
+    // A separate permission the owner has not been asked for, and one of two
+    // independent guards — the other being that all six writing capabilities
+    // are `authorized: false`. Raising this would remove one and buy nothing.
+    expect(fn()).toMatch(/maxToolCalls:\s*0\b/);
+  });
+
+  it("reaches a model only through the spend ledger, and passes no job id", () => {
+    const src = fn();
+    // `serviceRoleRpc()` rather than an `if`: a null rpc REFUSES inside
+    // `withProviderSpendGuard`, so a forgotten wiring cannot spend unguarded.
+    expect(src).toMatch(/rpc: serviceRoleRpc\(\)/);
+    expect(src).toMatch(/call: callTextProvider/);
+    /**
+     * NO JOB ID, AND THIS IS THE ONE THAT WOULD BE "HELPFULLY" ADDED BACK.
+     * `admit_provider_spend` increments `attempts` on EVERY admission under a
+     * job id and refuses at `max_attempts_per_job`, which the table's CHECK
+     * caps at 10 — while one cognitive run makes TWENTY model calls. So a job
+     * id here refuses call eleven with `job-attempts-exhausted`, and the loop
+     * reports it as a model with nothing to say. `fn()` strips comments, which
+     * matters here because the paragraph above names the thing it bans.
+     */
+    expect(src).not.toMatch(/jobId:/);
   });
 
   it("runs a bounded number of episodes per tap, and it matches what is tested", () => {

@@ -6244,3 +6244,113 @@ neither is the first fetch after it.
 FINAL STATE: `oqca_state` **0 rows** — nothing has run, because the first tap is
 the owner's. The function is up and gating; the screen is served; the door is on
 Profile. **The gate is a tap that returns a ranked backlog, not a green check.**
+
+## Owner directive, 2026-09-11 — "non-zero execution budget: yes", then "increase the budget to 100$"
+
+Two answers to the two questions every OQCA report since v1.5 has closed with.
+The first — **a durable knowledge table — yes** — was already done: `oqca_state`
+shipped hours earlier and is live, so the answer to that half is a correction
+rather than a task, and it is recorded as one. The second is the entry.
+
+**THE NUMBER COULD NOT GO WHERE IT WAS ASKED FOR, and finding out why is the
+whole of this change.** `Budgets.maxCostUsd` is a **PER-RUN** bound: `Spent` is
+constructed fresh by every `runCognitiveLoop` call, so `maxCostUsd: 100` means
+$100 **per traversal** — three traversals a tap, nothing bounding taps. Measured
+at `seams.ts:480`, and `engine.ts` does **not** go through
+`withProviderSpendGuard` (only `toolRouter` did), so there was no cumulative
+ceiling anywhere. The same word, four orders of magnitude apart.
+
+So the owner's total went to the thing that can hold one:
+`provider_budget_config`, row-locked in Postgres, which has bounded every other
+capability ONIQ spends on since August — **and which had no `TEXT` row at all**,
+so text spend reached no ledger. Checked before adding one that nothing else
+already sent TEXT and was being silently refused: `engine.ts` is the only caller
+in the repository that names it.
+
+    request_usd_cap    0.01   13x the worst single call
+    job_usd_cap        1.00   UNUSED by OQCA, present for the ordering CHECK
+    daily_usd_cap    100.00   THE OWNER'S NUMBER — cumulative, row-locked
+    Budgets.maxCostUsd 0.05   a RUNAWAY GUARD on one run, not the policy
+
+MEASURED WITH THE SHIPPED `estimateFor` over the five real `ask` sites, before
+any figure was chosen — the caps are arithmetic, not taste:
+
+    IMAGINE 400 out  1,012 tokens  $0.00075300   <- the worst single call
+    one RUN, 5 stations x 4 iterations, 20 calls  $0.00804200
+    one TAP, 3 episodes                           $0.02412600
+    what $100 buys                                4,144 taps
+
+**THE JOB CEILING IS THE WRONG SHAPE, AND WIRING IT WOULD HAVE KILLED THE LOOP
+AT CALL ELEVEN.** `admit_provider_spend` increments `provider_spend_job.attempts`
+on EVERY admission under a job id and refuses at `max_attempts_per_job`, which
+the table's own CHECK caps at **10** — while one cognitive run makes **twenty**
+model calls. A `jobId: runId` had already been written and was backed out on
+measuring the function rather than reading its name: a job ceiling bounds a
+RETRY LADDER (one film regenerating one shot), and a cognitive run is twenty
+distinct questions, not twenty attempts at one. Failing that way would have read
+as a model with nothing to say. The note now sits at all three sites someone
+would reintroduce it, and mutation B6 proves the guard.
+
+**AND THE BUDGET REACHED NOTHING ANYWAY, WHICH NO AMOUNT OF RAISING IT WOULD
+HAVE FIXED.** `oqca-observe` passed no engine and `ImprovementDeps` had no
+engine FIELD, so the kernel fell back to `REFUSING_ENGINE`: raising `maxTokens`
+would only have changed the refusal from `insufficient_allowance` to `no engine
+configured` — the same silence, differently worded, and an owner reading either
+would reasonably conclude the number was too low. That is this repository's
+most-recorded failure arriving in the one place it would have been read as the
+owner's fault. The seam is a FACTORY over the objective, because
+`ModelCallRecord.stateId` is documented as naming the state a call was made
+from and a host outside the episode cannot see the loop's state ids — it can
+see which objective is running, which is the honest thing to name.
+
+**ABSENT MEANS REFUSE, NEVER MEANS SKIP.** A null rpc makes
+`withProviderSpendGuard` answer `guard-unavailable`, so a caller that forgets to
+wire the ledger gets a loop that cannot spend rather than one that spends
+uncounted — deliberately not an `if (ctx.rpc)` bypass, which is one refactor
+from being the normal path. Both `story-dispatch` hook sites and the tap pass
+`serviceRoleRpc()`; four new assertions in `runtime.test.ts` pin the refusal,
+the admission shape (TEXT / tokens / the registry's provider), settlement at the
+MEASURED charge, and that a refused call never reaches the provider.
+
+**PROVEN ON PRODUCTION, FOR ZERO MONEY, BECAUSE A CEILING THAT HAS NEVER REFUSED
+HAS NEVER BEEN TESTED.** Three free gates first (`over-request-cap` at $0.02,
+`zero-estimate`, and exactly-at-the-cap ADMITTED at `remainingUsd 99.99`, whose
+reserved cent was released). Then the cumulative ceiling, inside a DO block
+whose outer `raise` aborts everything — the same pattern that proved the
+health audit trigger:
+
+    caps squeezed to $0.01, then two admissions
+      first   ok: true   remainingUsd 0.000000
+      second  ok: false  reason "daily-cap-reached"
+      day     reserved 0.010000
+    rolled back: daily back to 100, day reserved 0, both rows gone
+
+**`maxToolCalls` STAYS 0, and that is stated rather than assumed.** The owner
+raised a BUDGET; a tool call writes to production, and thinking about ONIQ is
+not the same permission as changing it. It costs nothing either way today — all
+six writing capabilities are `authorized: false` — so raising it would remove
+one of two independent guards and buy nothing.
+
+#### The mutation runner deleted the work it was testing
+
+`scripts/oqca-budget-mutate.sh`'s first version restored with
+`git checkout -- <file>`. That reverts to **HEAD**, and the changes under test
+were uncommitted — so each "restore" did not undo the mutation, it deleted the
+work. Two blocks reported a correct RED and wiped `engine.ts` and
+`oqca-observe/index.ts` back to HEAD; the next four then found no anchors and
+printed **NOTAPPLIED**, which is the only reason it was caught at all. Had those
+four been written against anchors that survive at HEAD they would have printed
+GREEN or RED and the loss would have shipped.
+
+CLAUDE.md already records the neighbouring failure — _"killing a mutation run
+leaves the tree mutated ... after one is interrupted, diff the tree before
+trusting it"_. **This is the other half: a mutation runner must own its own
+undo, because git's undo is relative to a COMMIT and a mutation is relative to
+the file it found.** It copies to a temp dir and copies back now. Everything was
+reconstructed and re-verified; 6/6 RED, none GREEN, none NOTAPPLIED.
+
+Numbers: 389 files / **7,050** tests (was 7,044); `src/oqca` 29 files / 825;
+**6 mutations, every one RED**; tsc, `lint:ci`, Prettier, the mirror check (50
+files) and `deno check` of `oqca-observe`, `story-dispatch`, `shadow`,
+`storyDispatchHook` and `improvement` all clean. Migration `20260911200000`
+applied from here and recorded in `schema_migrations`.

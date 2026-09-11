@@ -26,6 +26,7 @@ import { mintJobToken } from "../_shared/jobToken.ts";
 import { OQCA_FLAG_ENV, parseMode } from "../_shared/oqcaRuntime/flag.ts";
 import { callTextProvider } from "../_shared/oqcaRuntime/provider.ts";
 import { runOqcaForDispatch } from "../_shared/oqcaRuntime/storyDispatchHook.ts";
+import { serviceRoleRpc } from "../_shared/financialLedger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -211,6 +212,12 @@ Deno.serve(async (req) => {
         mode: oqcaMode,
         runId: crypto.randomUUID(),
         call: callTextProvider,
+        // THE SPEND LEDGER. Without it every model call refuses with
+        // `guard-unavailable`, which is the right failure for the wrong reason:
+        // the loop would look like a broken provider rather than a missing
+        // wire. The ceiling that binds is `provider_budget_config` for TEXT —
+        // owner directive 2026-09-11, $100/day, cumulative and row-locked.
+        rpc: serviceRoleRpc(),
         envConfig: {
           supabaseUrl: supabaseUrl!,
           serviceKey,
@@ -324,6 +331,12 @@ Deno.serve(async (req) => {
         mode: oqcaMode,
         runId: crypto.randomUUID(),
         call: callTextProvider,
+        // THE SPEND LEDGER. Without it every model call refuses with
+        // `guard-unavailable`, which is the right failure for the wrong reason:
+        // the loop would look like a broken provider rather than a missing
+        // wire. The ceiling that binds is `provider_budget_config` for TEXT —
+        // owner directive 2026-09-11, $100/day, cumulative and row-locked.
+        rpc: serviceRoleRpc(),
         envConfig: {
           supabaseUrl: supabaseUrl!,
           serviceKey,

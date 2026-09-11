@@ -59,6 +59,10 @@ import { makeSystemObserver } from "../_shared/oqcaRuntime/observe.ts";
 import { makeImprovementEpisode } from "../_shared/oqcaRuntime/improvement.ts";
 import { makeLocalEvidenceResearch } from "../_shared/oqcaRuntime/research.ts";
 import { makeSinkDurableStore } from "../_shared/oqcaRuntime/durableStore.ts";
+import { makeEngine } from "../_shared/oqcaRuntime/engine.ts";
+import { callTextProvider } from "../_shared/oqcaRuntime/provider.ts";
+import { serviceRoleRpc } from "../_shared/financialLedger.ts";
+import { DEFAULT_BUDGETS } from "../_shared/oqca/loop/seams.ts";
 import {
   type CapabilityExecutor,
   type CapabilityRequest,
@@ -108,6 +112,50 @@ const MAX_WALL_MS = 20_000;
 const WINDOW_HOURS = 24;
 /** A bound on every read, so one tap cannot drag a table through the function. */
 const MAX_ROWS = 200;
+
+/**
+ * WHAT ONE TRAVERSAL MAY SPEND, AND WHY THIS IS NOT THE OWNER'S $100.
+ *
+ * Owner directive 2026-09-11 set the budget to $100. That number is a TOTAL,
+ * and it lives in `provider_budget_config.daily_usd_cap` for capability TEXT —
+ * cumulative, row-locked, one audited UPDATE to change and no deploy. It cannot
+ * live here: `Budgets` is rebuilt by every `runCognitiveLoop` call, so a $100
+ * value in this object would mean $100 PER RUN, three runs a tap, unbounded
+ * taps. The same word, four orders of magnitude apart.
+ *
+ * SO THESE TWO ARE RUNAWAY GUARDS, NOT THE SPEND POLICY — the distinction
+ * `seams.ts` already draws for `maxExecutionTimeMs`. They are sized from the
+ * loop's own shape, measured with the shipped `estimateFor` over the five real
+ * `ask` sites in `cognitiveLoop.ts` at their real output budgets:
+ *
+ *     UNDERSTAND  120 out    366 tokens   $0.00024150
+ *     PLAN        200 out    446 tokens   $0.00036150
+ *     IMAGINE     400 out  1,012 tokens   $0.00075300   <- the worst call
+ *     REFLECT     160 out    406 tokens   $0.00030150
+ *     RESPOND     200 out    412 tokens   $0.00035300
+ *     one iteration                       $0.00201050
+ *     one RUN, x4 iterations, 20 calls    $0.00804200   2,642 tokens
+ *     one TAP, x3 episodes                $0.02412600
+ *
+ * `maxCostUsd` is therefore ~6x one run and `maxTokens` ~2.5x, which leaves
+ * room for a prompt to grow without leaving room for a loop to run away. At
+ * these figures $100 buys about 4,144 taps; the ledger, not this file, is what
+ * stops the 4,145th.
+ *
+ * `maxToolCalls` STAYS 0, and that is a separate decision the owner has not
+ * been asked for: a tool call writes to production, and thinking about ONIQ is
+ * not the same permission as changing it. It costs nothing today either way —
+ * all six capabilities that could write anything are `authorized: false` in
+ * `selfModel.ts` — so raising it would remove one of two independent guards and
+ * buy nothing.
+ */
+const TAP_BUDGETS = {
+  ...DEFAULT_BUDGETS,
+  maxCostUsd: 0.05,
+  maxTokens: 50_000,
+  maxToolCalls: 0,
+  maxExecutionTimeMs: MAX_WALL_MS,
+} as const;
 
 type Db = ReturnType<typeof createClient>;
 
@@ -285,6 +333,20 @@ Deno.serve(async (req) => {
 
   const startedMs = Date.now();
   const notes: string[] = [];
+  /**
+   * EVERY MODEL CALL THE TAP MADE, returned to the caller. A spend that is not
+   * visible on the screen that caused it is a spend nobody reconciles — and a
+   * ledger refusal looks exactly like a quiet model unless its reason is shown.
+   */
+  const modelCalls: {
+    purpose: string;
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+    costUsd: number;
+    ok: boolean;
+    reason: string | null;
+  }[] = [];
   const at = new Date(startedMs).toISOString();
   const ctx = { at: () => at, nowMs: () => Date.now(), elapsedMs: () => Date.now() - startedMs };
 
@@ -317,6 +379,41 @@ Deno.serve(async (req) => {
       // `registryCapabilityStates` and the 2026-09-11 ranking fix.
       knownCapabilities: registryCapabilityStates(),
       runEpisode: makeImprovementEpisode(ctx, {
+        /**
+         * THE MODEL, REACHED ONLY THROUGH THE SPEND LEDGER.
+         *
+         * `makeEngine` admits every call through `withProviderSpendGuard` as
+         * capability TEXT, so the owner's $100/day ceiling in
+         * `provider_budget_config` binds here whatever this file says. A null
+         * rpc — no service role in the environment — REFUSES rather than
+         * spending unguarded, which is why this is `serviceRoleRpc()` and not
+         * an `if` around the engine.
+         *
+         * NO JOB ID, deliberately: `admit_provider_spend` counts one per
+         * admission against `max_attempts_per_job` (capped at 10 by the table's
+         * own CHECK) and one run makes twenty calls, so binding them to a job
+         * would refuse call eleven and read as a model with nothing to say.
+         * The migration and `shadow.ts` carry the same note at both sites.
+         */
+        engine: (objective) =>
+          makeEngine({
+            runId: `oqca-observe:${at}`,
+            stateId: () => objective.id,
+            now: () => Date.now(),
+            record: (r) =>
+              modelCalls.push({
+                purpose: r.purpose,
+                model: r.answeredBy,
+                inputTokens: r.inputTokens,
+                outputTokens: r.outputTokens,
+                costUsd: r.costUsd,
+                ok: r.ok,
+                reason: r.reason ?? null,
+              }),
+            call: callTextProvider,
+            rpc: serviceRoleRpc(),
+          }),
+        budgets: TAP_BUDGETS,
         // THE CORPUS IS THE READINGS THEMSELVES. A production measurement is a
         // document: verbatim, located by the query that produced it, first-hand.
         research: makeLocalEvidenceResearch(productionCorpus(snapshot)),
@@ -357,6 +454,23 @@ Deno.serve(async (req) => {
         persisted: report.persisted,
         improvementsVerified: report.improvementsVerified,
         capabilityBlocks: report.capabilityBlocks,
+      },
+      /**
+       * WHAT THIS TAP SPENT, and what refused it.
+       *
+       * `costUsd` is the sum of what the engine RECORDED, which is the measured
+       * charge where the provider reported one and the estimate where it did
+       * not — never zero for a call that was made. `refusals` carries the
+       * reason verbatim, because "the spend ledger refused: daily-cap-reached"
+       * and "the provider returned no text" are the same silence on screen and
+       * completely different things to do about.
+       */
+      spend: {
+        calls: modelCalls.length,
+        costUsd: Number(modelCalls.reduce((a, c) => a + c.costUsd, 0).toFixed(6)),
+        inputTokens: modelCalls.reduce((a, c) => a + c.inputTokens, 0),
+        outputTokens: modelCalls.reduce((a, c) => a + c.outputTokens, 0),
+        refusals: modelCalls.filter((c) => !c.ok).map((c) => c.reason),
       },
       // Best first. This is the ranking the 2026-09-11 fix corrected, and it is
       // the answer to "what should somebody look at next".

@@ -14,6 +14,7 @@
  * claim would be.
  */
 import { describe, expect, it, vi } from "vitest";
+import { makeLedgerDouble } from "./ledgerDouble.ts";
 import { readFileSync } from "node:fs";
 import { stripComments } from "@/test/sourceText";
 import { fakeEnv, job, reply, T0 } from "./runtimeFixtures";
@@ -36,7 +37,12 @@ import {
   outcomeClass,
   type ToolSpec,
 } from "../../../supabase/functions/_shared/oqcaRuntime/toolRouter";
-import { estimateFor, makeEngine } from "../../../supabase/functions/_shared/oqcaRuntime/engine";
+import {
+  LOOP_MODEL,
+  LOOP_PROVIDER,
+  estimateFor,
+  makeEngine,
+} from "../../../supabase/functions/_shared/oqcaRuntime/engine";
 import { estimateUsd, isPriced } from "../../../supabase/functions/_shared/oqcaRuntime/pricing";
 import {
   makeMemory,
@@ -828,6 +834,7 @@ describe("the caller is safe by construction", () => {
       now: () => 0,
       record: (r) => records.push(r),
       call: answer,
+      rpc: makeLedgerDouble().rpc,
     });
     const out = await engine.run({ kind: "reason", prompt: "why", maxOutputTokens: 200 });
     expect(out.ok).toBe(true);
@@ -847,6 +854,7 @@ describe("the caller is safe by construction", () => {
       stateId: () => "S",
       now: () => 0,
       record: (r) => records.push(r as never),
+      rpc: makeLedgerDouble().rpc,
       call: async () => ({
         ok: true as const,
         provider: "gemini",
@@ -870,6 +878,7 @@ describe("the caller is safe by construction", () => {
       stateId: () => "S",
       now: () => 0,
       record: (r) => records.push(r as never),
+      rpc: makeLedgerDouble().rpc,
       call: async () => {
         throw new Error("socket hang up");
       },
@@ -878,6 +887,92 @@ describe("the caller is safe by construction", () => {
     expect(out.ok).toBe(false);
     expect(out.usage.costUsd).toBeGreaterThan(0);
     expect(records[0].ok).toBe(false);
+  });
+
+  /* ------------------------------------------------------------------ *
+   * THE LEDGER IS THE ONLY PATH TO A MODEL CALL.
+   *
+   * `Budgets.maxCostUsd` is per-RUN — `Spent` is rebuilt by every
+   * `runCognitiveLoop` call — so it can never express a total. The owner's
+   * figure is a total, and only something that outlives the run can hold one.
+   * These four assertions are what make that true rather than described.
+   * ------------------------------------------------------------------ */
+
+  it("refuses a model call when no ledger is wired, rather than spending unguarded", async () => {
+    const records: Record<string, unknown>[] = [];
+    const engine = makeEngine({
+      runId: "R",
+      stateId: () => "S",
+      now: () => 0,
+      record: (r) => records.push(r as never),
+      call: answer,
+    });
+    const out = await engine.run({ kind: "reason", prompt: "why", maxOutputTokens: 200 });
+    expect(out.ok).toBe(false);
+    expect(out.reason).toContain("the spend ledger refused");
+    // NOTHING WAS CHARGED, and that is the one path where zero is honest: the
+    // guard refuses before the callback runs, so no request ever left.
+    expect(out.usage.costUsd).toBe(0);
+    expect(records[0].costUsd).toBe(0);
+  });
+
+  it("admits through the ledger as TEXT, in tokens, naming the registry's provider", async () => {
+    const ledger = makeLedgerDouble();
+    const engine = makeEngine({
+      runId: "R",
+      stateId: () => "S",
+      now: () => 0,
+      record: () => {},
+      call: answer,
+      rpc: ledger.rpc,
+      jobId: "tap-1",
+    });
+    await engine.run({ kind: "reason", prompt: "why", maxOutputTokens: 200 });
+    const [admission] = ledger.admissions();
+    expect(admission).toBeDefined();
+    expect(admission.args._capability).toBe("TEXT");
+    expect(admission.args._unit).toBe("tokens");
+    // READ FROM THE REGISTRY, so the ledger row and the model entry cannot name
+    // two different providers for one call.
+    expect(admission.args._provider).toBe(LOOP_PROVIDER);
+    expect(admission.args._model).toBe(LOOP_MODEL);
+    expect(admission.args._job_id).toBe("tap-1");
+    expect(Number(admission.args._estimated_usd)).toBeGreaterThan(0);
+  });
+
+  it("settles at the MEASURED charge when the provider reported one", async () => {
+    const ledger = makeLedgerDouble();
+    const engine = makeEngine({
+      runId: "R",
+      stateId: () => "S",
+      now: () => 0,
+      record: () => {},
+      call: answer,
+      rpc: ledger.rpc,
+    });
+    await engine.run({ kind: "reason", prompt: "why", maxOutputTokens: 200 });
+    const [settle] = ledger.settlements();
+    expect(settle).toBeDefined();
+    expect(settle.args._outcome).toBe("ACCEPTED");
+    expect(Number(settle.args._actual_usd)).toBeGreaterThan(0);
+  });
+
+  it("a refusal from the ledger stops the call, and the provider is never reached", async () => {
+    let reached = 0;
+    const engine = makeEngine({
+      runId: "R",
+      stateId: () => "S",
+      now: () => 0,
+      record: () => {},
+      call: async () => {
+        reached += 1;
+        return answer();
+      },
+      rpc: makeLedgerDouble({ admit: false, reason: "daily-cap" }).rpc,
+    });
+    const out = await engine.run({ kind: "reason", prompt: "why", maxOutputTokens: 200 });
+    expect(reached).toBe(0);
+    expect(out.reason).toContain("daily-cap");
   });
 
   it("jobIdFrom is the inverse of actionFor and rejects anything else", () => {

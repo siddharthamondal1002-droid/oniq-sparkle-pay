@@ -14,6 +14,7 @@
  * replay.
  */
 import { describe, expect, it } from "vitest";
+import { makeLedgerDouble } from "./ledgerDouble.ts";
 import {
   initialState,
   quantumFor,
@@ -51,7 +52,14 @@ const provider = async () => reply(RECORDED, 220, 60);
 
 async function execute(mode: "shadow" | "assisted" = "shadow") {
   const env = fakeEnv(QUEUE);
-  const out = await runShadow({ runId: "run-1", mode, env, call: provider, budgets: BUDGETS });
+  const out = await runShadow({
+    runId: "run-1",
+    mode,
+    env,
+    call: provider,
+    budgets: BUDGETS,
+    rpc: makeLedgerDouble().rpc,
+  });
   return { env, out };
 }
 
@@ -270,6 +278,7 @@ describe("a real ONIQ job traverses all 23 stations", () => {
           60,
         ),
       budgets: BUDGETS,
+      rpc: makeLedgerDouble().rpc,
     });
     expect(out.comparison.oqcaMargin).toBe(0);
     expect(out.comparison.oqcaDecision).toBeNull();

@@ -74,7 +74,7 @@ import {
 import { type CapabilityState, unavailable } from "../oqca/loop/capability.ts";
 import { CognitiveState } from "../oqca/formalState.ts";
 import { runCognitiveLoop } from "../oqca/loop/cognitiveLoop.ts";
-import { type Budgets, DEFAULT_BUDGETS } from "../oqca/loop/seams.ts";
+import { type Budgets, DEFAULT_BUDGETS, type Engine } from "../oqca/loop/seams.ts";
 import { objectiveState, type SubstrateContext } from "./autonomous.ts";
 import { buildSubstrate, CODEBASE_SOURCE, type SubstrateBuild } from "./substrate.ts";
 import { type LocalEvidenceResearch } from "./research.ts";
@@ -128,6 +128,21 @@ export type ImprovementDeps = {
   readonly durable?: DurableKnowledgeStore;
   /** §12. Absent means every registered capability refuses. */
   readonly executor?: CapabilityExecutor;
+  /**
+   * THE MODEL, AND ABSENT MEANS THE 23 STATIONS REASON ABOUT NOTHING.
+   *
+   * This was missing entirely, which made the budget question unanswerable: with
+   * no engine the kernel falls back to `REFUSING_ENGINE`, so raising `maxTokens`
+   * only changed the refusal from `insufficient_allowance` to `no engine
+   * configured` — the same silence, differently worded. An owner reading either
+   * would reasonably conclude the number was too low.
+   *
+   * It stays OPTIONAL because the refusing default is the right one for a
+   * caller that has not decided to spend; what was wrong was that no caller
+   * COULD decide. `engine.ts` reaches a provider only through the spend ledger,
+   * so supplying one here still cannot spend past the ledger's ceilings.
+   */
+  readonly engine?: (objective: Objective) => Engine;
   readonly budgets?: Budgets;
 };
 
@@ -472,6 +487,17 @@ export function makeImprovementEpisode(
        * invisible and every experiment came back BLOCKED.
        */
       research: deps.research?.adapter,
+      // Absent leaves `REFUSING_ENGINE`, which is what a caller that has not
+      // chosen to spend should get — and is what every episode got before the
+      // seam existed.
+      //
+      // A FACTORY RATHER THAN AN ENGINE, so the caller can bind the objective.
+      // `ModelCallRecord.stateId` is documented as naming the state a call was
+      // made FROM, and a host outside this function cannot see the loop's state
+      // ids — it CAN see which objective is running, which is the honest thing
+      // for a record to name here rather than a constant that reads like a
+      // state reference and is not one.
+      engine: deps.engine?.(objective),
     });
     capabilities.push(...run.capabilities);
 
