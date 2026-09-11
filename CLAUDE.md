@@ -6544,3 +6544,49 @@ Measured immediately before the deploy:
 (~$0.0014 against ~$0.0067 for the same work). `actual_set` moving off zero is
 the proof the label fix is live in the DEPLOYED function — stronger than any
 grep, because it is the money. If it is still null, the deploy did not take.
+
+#### The gate is passed: the next taps priced for real, 2026-09-11
+
+The owner tapped twice after the deploy — 19:40:37→19:41:27 and 19:41:51→19:42:38,
+36 calls each, separated by a 24-second gap. Both fixes are confirmed by the
+ledger rather than by a screen:
+
+    provider_spend_ledger, TEXT, created_at > 19:00
+      model         gemini-3.1-flash-lite      the PINNED id, named at last
+      calls         72
+      unpriced      0                          was 24 of 24
+      estimated     $0.020332
+      ACTUAL        $0.004189                  the estimate was 4.85x
+      per tap       36 calls, ~50 s, 3 episodes
+
+**`unpriced 0` IS THE WHOLE PROOF, and it is the money rather than a grep.**
+Before the deploy every successful Gemini call carried `actual_usd NULL` because
+`MODEL_RATES` could not price the constant label; now every one prices. The tap
+does 50% more work than before AND draws a THIRD of what it used to from the
+owner's $100 — $0.0021 a tap against $0.0067 — because the ledger charges what
+Google charged instead of an estimate 4.85x too high. $100 now buys ~47,000 taps.
+
+**AND THE EPISODE COUNT WAS READ FROM THE ARTIFACT, NOT FROM 72÷24.** The
+checkpoint history went 2 → 8; six new episodes over two taps is three each,
+which is `EPISODES_PER_TAP` exactly — and the ledger's two clusters, ~50 s each,
+are `MAX_TAP_MS = 50_000` admitting the third episode and refusing the fourth,
+which is what it was sized to do. Inferring "3 episodes" from the call count
+would have been the same shape as the 19,968 ms coincidence one entry above; the
+two-cluster timing is what separates two taps from one long run.
+
+**AND THE OWNER PASTED THE PRE-FIX RESULT, which is worth a line because the
+JSON says so in three places.** `at 18:32:43Z` predates the 19:22:32Z deploy;
+`stopDetail` names "the lifecycle bound of 20000ms", the constant this change
+replaced; and the capability row still reads `gemini-fallback/gemini-3.6-flash`.
+**A response body carries its own build's constants — read those before reading
+its numbers**, and a stale paste is indistinguishable from a failed deploy until
+you do.
+
+**WHAT DID NOT CHANGE, exactly as predicted:** `oqca_state.knowledge` is still
+ABSENT and all eight episodes are `blocked`. The backlog does now advance past
+`learn:runner-availability` — `improve:motion_failure` → `learn:motion_failure`
+→ `improve:missing_telemetry` → … — so the follow-up chain works and the third
+episode is real work. It still learns nothing, because every objective it
+reaches is one no corpus ONIQ holds can close. **A third attempt is not a fourth
+outcome**, which the previous entry said in advance; making the loop learn is
+the corpus-and-selection question and remains unbuilt.
