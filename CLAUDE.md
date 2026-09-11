@@ -6494,3 +6494,52 @@ ignored; the call site handing the default; the two bounds collapsed, swapped,
 and each returned to 20_000. 390 files / 7,060 tests; tsc 0 errors, `lint:ci`,
 Prettier, the mirror check (50 files) and `deno check` of `oqca-observe`,
 `story-dispatch` and `translate-message` all clean.
+
+#### LIVE AND VERIFIED, 2026-09-11
+
+`main` at `76c3b80b`, fast-forwarded from the branch. ONE Lovable message after
+`latest_commit_sha` read `76c3b80b` == HEAD, and it edited nothing, migrated
+nothing and published nothing — **no web publish was needed at all**, because
+the only files under `src/` in this commit are tests:
+
+    grep translateGeminiResponseToAnthropic(parsed, geminiModel)  llm.ts            1  (asked: at least 1)
+    grep MAX_RUN_MS                                oqca-observe/index.ts            4  (asked: at least 2)
+    grep MAX_TAP_MS                                oqca-observe/index.ts            4  (asked: at least 2)
+    grep MAX_WALL_MS                               oqca-observe/index.ts            0  (asked: exactly 0)
+    -> Successfully deployed edge functions: oqca-observe, story-dispatch
+
+**THE AGENT'S FOUR COUNTS ARE IDENTICAL TO THE ONES MEASURED HERE**, which is
+what makes them evidence rather than a report: the tree it deployed is the tree
+that was verified. Stated as MINIMUMS again, and the one exact figure is a zero
+— which is safe to state exactly because it is an absence.
+
+**AND THE `gemini-fallback` COUNT WAS DELIBERATELY NOT A SELF-CHECK.** The
+obvious fourth grep is "the retired label must be gone", and on the raw file it
+answers **4** — every occurrence in the new comment that QUOTES the retired
+label to explain it. The test passes because it strips comments first; a
+self-check phrased as "must be 0" would have earned a correct refusal on a
+healthy tree. **The thirteenth prose match in this repo, caught before it was
+sent rather than after.**
+
+VERIFIED BY PROBE, three-way control, read from inside the database with
+`pg_net` because `*.supabase.co` is proxy-blocked here:
+
+    POST /functions/v1/oqca-observe                401 {"error":"Unauthorized"}
+    POST /functions/v1/definitely-not-a-function…  404 NOT_FOUND
+
+`story-dispatch` was NOT probed: a POST to it runs the dispatcher, and a
+verification that dispatches a film is not a verification.
+
+**WHAT IS STILL UNPROVEN, AND THE BASELINE THAT WILL SETTLE IT.** No model call
+has been made through the corrected label, so the ledger has never priced one.
+Measured immediately before the deploy:
+
+    provider_spend_ledger, TEXT, gemini-3.1-flash-lite
+      SETTLED / ACCEPTED     n 24   actual_usd NULL on all 24   est $0.006748
+      RELEASED / NOT_CALLED  n  1   (the earlier cap probe)
+
+**The next tap is the measurement**: its rows must carry a NON-NULL
+`actual_usd`, and the charge should fall to roughly a quarter of the estimate
+(~$0.0014 against ~$0.0067 for the same work). `actual_set` moving off zero is
+the proof the label fix is live in the DEPLOYED function — stronger than any
+grep, because it is the money. If it is still null, the deploy did not take.
