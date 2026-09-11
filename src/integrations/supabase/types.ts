@@ -3713,6 +3713,24 @@ export type Database = {
         }
         Relationships: []
       }
+      oqca_state: {
+        Row: {
+          doc: string
+          key: string
+          updated_at: string
+        }
+        Insert: {
+          doc: string
+          key: string
+          updated_at?: string
+        }
+        Update: {
+          doc?: string
+          key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           created_at: string | null
