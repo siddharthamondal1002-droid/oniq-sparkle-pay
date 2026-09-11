@@ -6189,3 +6189,58 @@ the new function all clean. **A tap costs $0**: `DEFAULT_BUDGETS` ships
 `maxTokens`, `maxCostUsd` and `maxToolCalls` at 0, every model call is refused at
 its own gate, and the six capabilities that could change anything are registered
 and NOT authorized — the run names all five of them in its stop.
+
+#### LIVE AND VERIFIED, 2026-09-11
+
+`main` at `55ccd3ba`. Migration `20260911180000` applied from here, one statement
+per call, and read back: RLS on, **0 policies**, the key CHECK closed to
+`{knowledge, checkpoint}`, `service_role` holding select/insert/update and
+`anon`/`authenticated` holding nothing at all. Recorded in
+`supabase_migrations.schema_migrations` under `claude-code via Lovable
+query_database`, the third route this project's migrations take.
+
+**THE DEPLOY IS PROVEN BY THE FUNCTION'S OWN ANSWER CHANGING, with the
+three-way control this file asks for**, read from inside the database with
+`pg_net` (`oniqhub.com` and `*.supabase.co` are proxy-blocked here):
+
+    before   POST /functions/v1/oqca-observe          404 NOT_FOUND
+    control  POST /functions/v1/definitely-not-a-...  404 NOT_FOUND  (identical)
+    after    POST /functions/v1/oqca-observe          401 {"error":"Unauthorized"}
+
+ONE Lovable message, named by STATE after `latest_commit_sha` read `55ccd3ba` ==
+HEAD, **0.5 credits**. Its only side effect on the repo was regenerating
+`src/integrations/supabase/types.ts` (+18 lines, the new table's client types).
+
+**AND MY OWN SELF-CHECK NUMBERS WERE WRONG.** The message said
+`grep -c makeStateSink … expect 2` and the real counts were **4 and 3**. The
+agent stopped, reasoned that "expect N" reads as a minimum, and deployed — which
+was right, and was luck rather than design. **State a self-check as a MINIMUM
+("at least 2"), never as an exact count**: an exact number invites a correct
+refusal on a healthy tree, and this repo has already lost a turn to that.
+
+SERVED BUNDLE, entry `index-ChA99Sq-.js`, and it is the CROSS-PATTERN rather
+than either line:
+
+    app.admin_.oqca-BvDWVvuW.js   2,182 B   oqca-observe-run       1
+                                            oqca-observe-result    1
+                                            "Observe ONIQ"         1
+                                            /app/admin/oqca        0
+    app.profile-DJ9TtafZ.js      26,700 B   /app/admin/oqca        1  <- the door
+                                            every oqca marker      0
+    entry index-ChA99Sq-.js     482,508 B   oqca-observe-run       0
+
+**THE UNDERSCORE IN THE CHUNK NAME IS THE STRUCTURAL EVIDENCE.**
+`app.admin_.oqca` IS the route id, so a chunk carrying it cannot be the nested
+build that would mount the Moderation inbox instead — the 2026-09-07 lesson
+applied on the way in rather than after the report.
+
+**AND THE FIRST READ OF THE PUBLISHED BUNDLE WAS A STALE ONE.** Two minutes
+after `deploy_project` the served entry was `index-B4aBMv23.js` and its profile
+chunk carried the health-ai link but NOT `/app/admin/oqca` — which reads exactly
+like a failed deploy. It was mid-publish: two minutes later the entry had moved
+to `index-ChA99Sq-.js` and every marker was there. `pending` is not live, and
+neither is the first fetch after it.
+
+FINAL STATE: `oqca_state` **0 rows** — nothing has run, because the first tap is
+the owner's. The function is up and gating; the screen is served; the door is on
+Profile. **The gate is a tap that returns a ranked backlog, not a green check.**
