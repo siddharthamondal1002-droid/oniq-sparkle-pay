@@ -55,6 +55,21 @@ const fn = () => stripComments(readFileSync(FUNCTION, "utf8"));
 /** Matches `EPISODES_PER_TAP` in the function; see the note there. */
 const EPISODES_PER_TAP = 3;
 
+/**
+ * One COMPLETE traversal, measured 2026-09-11 through the deployed engine:
+ * 39,936 ms for two episodes that both ended `loop max_iterations`. Rounded
+ * down so the assertions below are conservative about how much a run needs.
+ */
+const MEASURED_TRAVERSAL_MS = 19_968;
+
+/**
+ * The longest this repo already lets one of its edge functions run —
+ * `story-plot`'s own self-imposed cap, "because an edge function has a wall
+ * clock". `smart-scout` records the hosted platform ceiling as 400 s; this is
+ * the tighter, first-party figure and therefore the one worth binding to.
+ */
+const EDGE_FUNCTION_BUDGET_MS = 90_000;
+
 const AT = "2026-09-11T12:00:00.000Z";
 
 /** A live outage, in the shape the host reads it. */
@@ -528,6 +543,56 @@ describe("oqca-observe", () => {
     const src = fn();
     expect(src).toMatch(new RegExp(`const EPISODES_PER_TAP = ${EPISODES_PER_TAP};`));
     expect(src).toMatch(/maxEpisodes: EPISODES_PER_TAP/);
+  });
+
+  /**
+   * THE RUN BOUND AND THE LIFECYCLE BOUND ARE DIFFERENT THINGS.
+   *
+   * They were one constant at 20_000 until 2026-09-11, which was invisible
+   * while every model call was refused instantly. MEASURED on the first tap
+   * that reached a real model, and read from the checkpoint it wrote rather
+   * than inferred from the elapsed time: two COMPLETE traversals in 39,936 ms,
+   * both ending `loop max_iterations` — the designed end at four iterations —
+   * so ~19,968 ms each, and the per-run bound was sitting within ~32 ms of an
+   * ordinary run without having bitten yet.
+   *
+   * That is the dangerous shape: the stations that learn and persist are at the
+   * END of a traversal, so a per-run bound that starts biting kills exactly the
+   * work and reports a loop with nothing to say.
+   */
+  it("keeps the two wall-clock bounds separate, and the run bound above a real run", () => {
+    const src = fn();
+    const runMs = Number(/const MAX_RUN_MS = ([\d_]+);/.exec(src)?.[1]?.replace(/_/g, ""));
+    const tapMs = Number(/const MAX_TAP_MS = ([\d_]+);/.exec(src)?.[1]?.replace(/_/g, ""));
+    expect(Number.isFinite(runMs)).toBe(true);
+    expect(Number.isFinite(tapMs)).toBe(true);
+    // One constant used twice is what this replaced; they must not collapse
+    // back into the same number by a later "tidy".
+    expect(src).toMatch(/maxExecutionTimeMs: MAX_RUN_MS/);
+    expect(src).toMatch(/maxWallMs: MAX_TAP_MS/);
+    expect(src).not.toMatch(/MAX_WALL_MS/);
+    // A runaway guard sits well above normal operation, not beside it.
+    expect(runMs).toBeGreaterThanOrEqual(2 * MEASURED_TRAVERSAL_MS);
+  });
+
+  /**
+   * `runtime.ts` checks the lifecycle bound BEFORE each cycle, so the last
+   * episode can start just inside it and run a whole episode past it. The tap's
+   * worst case is therefore MAX_TAP_MS + MAX_RUN_MS, and it must stay inside
+   * what this repo already allows an edge function: `story-plot` caps itself at
+   * 90 s "because an edge function has a wall clock".
+   */
+  it("admits the third episode and still lands inside the platform budget", () => {
+    const src = fn();
+    const runMs = Number(/const MAX_RUN_MS = ([\d_]+);/.exec(src)?.[1]?.replace(/_/g, ""));
+    const tapMs = Number(/const MAX_TAP_MS = ([\d_]+);/.exec(src)?.[1]?.replace(/_/g, ""));
+    // Episode N starts at (N-1) x traversal; the check is `elapsed >= bound`.
+    const startsOfThird = 2 * MEASURED_TRAVERSAL_MS;
+    expect(startsOfThird).toBeLessThan(tapMs);
+    // And a fourth must not, or EPISODES_PER_TAP would be the only thing
+    // stopping it and the two bounds would disagree about the same tap.
+    expect(3 * MEASURED_TRAVERSAL_MS).toBeGreaterThanOrEqual(tapMs);
+    expect(tapMs + runMs).toBeLessThanOrEqual(EDGE_FUNCTION_BUDGET_MS);
   });
 
   it("executes only UPDATE_KNOWLEDGE and refuses the rest by name", () => {

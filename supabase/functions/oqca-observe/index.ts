@@ -106,8 +106,45 @@ import {
  * no tool touches production.
  */
 const EPISODES_PER_TAP = 3;
-/** Well inside an edge function's wall clock, so a tick reports rather than dies. */
-const MAX_WALL_MS = 20_000;
+/**
+ * TWO BOUNDS, NOT ONE, AND THEY ARE DIFFERENT KINDS OF THING.
+ *
+ * Both were one constant at 20_000 until 2026-09-11, which was harmless while
+ * every model call was refused instantly and wrong the moment one was not.
+ *
+ * MEASURED, from the first tap that reached a real model — read from the
+ * checkpoint it wrote, not inferred from the elapsed time:
+ *
+ *     2 episodes in 39,936 ms          ~19,968 ms per complete traversal
+ *     both ended `loop max_iterations` the DESIGNED end (4 iterations), so
+ *                                      neither was cut short by time
+ *     tap stopped `max_wall_ms`        the third episode never started
+ *
+ * So the per-run bound was sitting within ~32 ms of an ordinary traversal. It
+ * had not yet bitten; one slow provider minute and it would, killing runs
+ * mid-traversal — and the stations that learn and persist are at the END of a
+ * traversal, so that failure is silent and looks like a loop with nothing to
+ * say. A runaway guard belongs well above normal operation, not beside it.
+ *
+ * `MAX_RUN_MS` is that runaway guard: 2x a measured traversal. It is a RUN
+ * bound in `seams.ts`'s vocabulary — fatal to the run, never a capability
+ * refusal.
+ *
+ * `MAX_TAP_MS` is the lifecycle bound, and `runtime.ts` checks it BEFORE each
+ * cycle, so the last episode can start just inside it and run a full episode
+ * past it. Worst case is therefore MAX_TAP_MS + MAX_RUN_MS = 90 s, which is
+ * exactly the ceiling `story-plot` already sets for itself on the same
+ * platform ("an edge function has a wall clock"); `smart-scout` records the
+ * hosted limit as 400 s. At the measured ~20 s an episode this admits three
+ * and refuses a fourth, and it keeps admitting three while an episode stays
+ * under 25 s.
+ *
+ * RAISING THESE COSTS MONEY, and it is the third episode's worth: ~1.5x a tap.
+ * Bounded above by `TAP_BUDGETS.maxCostUsd` per run and by the owner's $100/day
+ * in `provider_budget_config`, neither of which moves.
+ */
+const MAX_RUN_MS = 40_000;
+const MAX_TAP_MS = 50_000;
 /** How far back the error and renderer readings look. */
 const WINDOW_HOURS = 24;
 /** A bound on every read, so one tap cannot drag a table through the function. */
@@ -154,7 +191,7 @@ const TAP_BUDGETS = {
   maxCostUsd: 0.05,
   maxTokens: 50_000,
   maxToolCalls: 0,
-  maxExecutionTimeMs: MAX_WALL_MS,
+  maxExecutionTimeMs: MAX_RUN_MS,
 } as const;
 
 type Db = ReturnType<typeof createClient>;
@@ -425,7 +462,7 @@ Deno.serve(async (req) => {
       bounds: {
         ...DEFAULT_RUNTIME_BOUNDS,
         maxEpisodes: EPISODES_PER_TAP,
-        maxWallMs: MAX_WALL_MS,
+        maxWallMs: MAX_TAP_MS,
       },
     });
 

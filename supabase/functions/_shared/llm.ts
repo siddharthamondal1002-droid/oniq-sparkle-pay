@@ -618,8 +618,38 @@ export function translateMessagesToGemini(msgs: ClaudeMessage[]): unknown[] {
   });
 }
 
-// Gemini candidates → Anthropic-shaped response body.
-function translateGeminiResponseToAnthropic(gem: any): any {
+/**
+ * Gemini candidates → Anthropic-shaped response body.
+ *
+ * `model` IS THE ID THAT WAS ACTUALLY CALLED, AND TAKING IT AS AN ARGUMENT IS
+ * THE WHOLE POINT OF THIS PARAMETER. It used to stamp every reply with the
+ * constant `gemini-fallback/${GEMINI_FALLBACK_MODEL}`, which this function
+ * could compute without being told anything — because it never saw which model
+ * answered. So a reply from the PINNED `gemini-3.1-flash-lite` came back
+ * labelled `gemini-fallback/gemini-3.6-flash`: the retired model the September
+ * bill blamed for 41.3% of spend, and the one the 2026-09-05 directive pinned
+ * every call site away from. The pin was never broken; the label was.
+ *
+ * Measured 2026-09-11, from an OQCA tap through the deployed engine: 24 calls
+ * on `gemini-3.1-flash-lite`, every one reporting `gemini-fallback/…`.
+ *
+ * IT COST MORE THAN A WRONG STRING, and that is why it is a parameter rather
+ * than a corrected constant. Two callers read this field:
+ *
+ *   engine.ts   prices with it. `MODEL_RATES` carries no `gemini-fallback/*`
+ *               entry, so `actualUsd` was null on every successful call and the
+ *               ESTIMATE was charged instead — 4.7x the real figure on that
+ *               tap ($0.006748 charged against $0.001440 of Google). Safe
+ *               direction for a ceiling and wrong for a ledger.
+ *   translate-message  writes it into `message_translations.engine`, i.e. into
+ *               a column a future bill investigation would read. That table is
+ *               empty today; the next one would have been pointed at the
+ *               retired model by ONIQ's own records.
+ *
+ * A constant cannot report a variable. Anything that names who answered has to
+ * be handed who answered.
+ */
+export function translateGeminiResponseToAnthropic(gem: any, model: string): any {
   const cand = Array.isArray(gem?.candidates) ? gem.candidates[0] : null;
   const parts = Array.isArray(cand?.content?.parts) ? cand.content.parts : [];
   const content: any[] = [];
@@ -651,7 +681,7 @@ function translateGeminiResponseToAnthropic(gem: any): any {
     id: `msg_gemini_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
     type: "message",
     role: "assistant",
-    model: `gemini-fallback/${GEMINI_FALLBACK_MODEL}`,
+    model,
     content,
     stop_reason,
     stop_sequence: null,
@@ -759,7 +789,7 @@ export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult
       console.warn(`callGemini: http ${res.status} body=${text.slice(0, 200)}`);
       return { ok: false, reason: `gemini http ${res.status}` };
     }
-    const translated = translateGeminiResponseToAnthropic(parsed);
+    const translated = translateGeminiResponseToAnthropic(parsed, geminiModel);
 
     // A FORCED TOOL CALL THAT DID NOT ARRIVE IS A FAILURE, NOT AN ANSWER.
     //

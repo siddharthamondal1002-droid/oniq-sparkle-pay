@@ -6402,3 +6402,95 @@ is one tap of "Observe ONIQ" on `/app/admin/oqca`**: the response must carry a
 count, and `provider_spend_day` for TEXT must move off zero. If `spend.refusals`
 carries `the spend ledger refused: …` instead, the reason names which ceiling
 stopped it — which is the whole point of surfacing it.
+
+### Owner directive, 2026-09-11 — "fix both": the reply label, and the tap's two wall clocks
+
+The first tap spent real money and its capability row read
+`answered by gemini-fallback/gemini-3.6-flash` — the retired model the September
+bill blamed for 41.3% of spend and the one every call site was pinned away from
+on 2026-09-05. **THE PIN WAS NEVER BROKEN. THE LABEL WAS.**
+
+    callText  ->  geminiModel: TEXT_DIRECT_STANDARD.id   "gemini-3.1-flash-lite"
+    translateGeminiResponseToAnthropic(gem)              took ONLY the body
+      -> model: `gemini-fallback/${GEMINI_FALLBACK_MODEL}`   a constant, always
+    callGemini: ok model=${geminiModel}                  the truth, one line below
+
+A function that reports who answered was never told who answered, so it reported
+the only thing it could compute. **It had NO TEST AT ALL** — one definition, one
+call site, nothing asserting the label either way, which is why it survived the
+2026-09-05 pin, the directive that followed it, and eleven days of callers.
+
+**IT COST MORE THAN A WRONG STRING.** `engine.ts` prices from that field and
+`MODEL_RATES` carries no `gemini-fallback/*`, so `actualUsd` was null on every
+successful Gemini call and the ESTIMATE was charged instead — **$0.006748
+against $0.001440 of Google, 4.7x**, on the owner's $100 ceiling. Safe direction
+for a ceiling, wrong for a ledger. The second reader is `translate-message`,
+which writes it into `message_translations.engine`: that table is empty today,
+so nothing is polluted, and the next bill investigation would have been pointed
+at the retired model by ONIQ's own records. Both `engine.ts` and `pricing.ts`
+carried comments EXPLAINING the label as "callText may fall through to Claude",
+which was never the mechanism — it was unconditional. Corrected beside the code.
+
+**THE TEST IS BEHAVIOURAL AND THE IMPORT IS DELIBERATELY NOT AN IMPORT.**
+Measured: of ~80 `_shared` modules reachable from `src/`, exactly three name
+`Deno` (`llm.ts`, `financialLedger.ts`, `googleAuth.ts`) and **not one is
+statically imported by any `src/` file** — `tsconfig` includes `src/**`, so the
+first static import turns three `Deno.` references into three `tsc` errors and
+the CI gate goes red. A non-literal specifier is opaque to `tsc` and resolved by
+vite at run time, so `geminiReplyModel.test.ts` exercises the real module in CI
+without crossing that boundary. The pair of assertions is what proves it: two
+different ids in, two different ids out — one alone passes against a constant
+that happens to match.
+
+**AND MY OWN "PRE-EXISTING" CLAIM WAS WRONG, from `git stash` without `-u`.**
+Asked whether the three `Deno` errors predated the change, the check stashed the
+tracked edits and left the UNTRACKED new test file in place — which was the
+thing dragging `llm.ts` into the program. tsc reported the errors, they were
+written down as pre-existing, and they were not: `git stash -u` returns exit 0
+and zero errors. **`git stash` does not give you HEAD while an untracked file is
+doing the damage.**
+
+#### The tap's two wall clocks were one constant doing two jobs
+
+`MAX_WALL_MS = 20_000` was BOTH `TAP_BUDGETS.maxExecutionTimeMs` (a RUN bound,
+fatal to a traversal) and the lifecycle `maxWallMs` (how long the tap keeps
+starting episodes). Invisible while every model call was refused instantly.
+
+**READ FROM THE CHECKPOINT, NOT INFERRED — AND THE INFERENCE WAS WRONG.**
+39,936 ms over 2 episodes is 19,968 ms each, which sits 32 ms under a 20,000 ms
+bound; that arithmetic reads as "the per-run bound killed both runs" and it is
+a coincidence. `oqca_state.checkpoint` says both ended `loop max_iterations` —
+the designed end at four iterations. Both traversals COMPLETED. **An inference
+that lands exactly on a bound is a coincidence until the artifact says
+otherwise**, and the artifact was one query away.
+
+What that leaves is still worth fixing: a runaway guard sitting 32 ms above
+normal operation is one slow provider minute from killing runs mid-traversal,
+and the stations that learn and persist are at the END of a traversal — so that
+failure is silent and reads as a loop with nothing to say. Split:
+
+    MAX_RUN_MS  40_000   2x a measured traversal. A runaway guard, not a limit.
+    MAX_TAP_MS  50_000   admits episode 3 (starts ~40 s), refuses episode 4.
+
+`runtime.ts` checks the lifecycle bound BEFORE each cycle, so the last episode
+can start just inside it and run a whole episode past it: worst case is
+MAX_TAP_MS + MAX_RUN_MS = 90 s, exactly the ceiling `story-plot` already sets
+for itself on the same platform ("an edge function has a wall clock").
+`smart-scout` records the hosted limit as 400 s.
+
+**AND A THIRD EPISODE DOES NOT BY ITSELF BUY LEARNING — stated so it is not
+read as a promise.** The checkpoint shows both episodes blocked on objectives no
+corpus ONIQ holds can close (`learn:runner-availability`, then
+`improve:motion_failure:motion_failure`), each with `residual uncertainty
+1.000 -> 1.000` and `followUpId: null`, and `investigateNext` names
+`improve:blocked_capability:blocked_capability` — another never-observed chore.
+What the third episode buys is the third attempt, not a fourth outcome. Making
+the loop learn is the corpus-and-selection question, and it is a different
+change.
+
+7 mutations, every one RED, none GREEN, none NOTAPPLIED
+(`scripts/oqca-label-mutate.sh`): the constant label back; the parameter
+ignored; the call site handing the default; the two bounds collapsed, swapped,
+and each returned to 20_000. 390 files / 7,060 tests; tsc 0 errors, `lint:ci`,
+Prettier, the mirror check (50 files) and `deno check` of `oqca-observe`,
+`story-dispatch` and `translate-message` all clean.

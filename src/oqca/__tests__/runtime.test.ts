@@ -183,7 +183,9 @@ describe("shadow mode reasons alongside production and changes nothing", () => {
 describe("nothing spends before it can price", () => {
   it("a model with no published rate is refused, never treated as free", () => {
     expect(isPriced("gemini-3.1-flash-lite")).toBe(true);
-    expect(isPriced("gemini-fallback/whatever")).toBe(false);
+    expect(isPriced("no-such-model-anywhere")).toBe(false);
+    // The heavy tier is the REAL unpriced id, not a hypothetical one.
+    expect(isPriced("gemini-3.1-pro-preview")).toBe(false);
     expect(estimateUsd("no-such-model", 100, 100)).toBeNull();
     expect(estimateUsd("gemini-3.1-flash-lite", 100, 100)).toBeGreaterThan(0);
   });
@@ -859,7 +861,11 @@ describe("the caller is safe by construction", () => {
         ok: true as const,
         provider: "gemini",
         data: {
-          model: "gemini-fallback/gemini-3.6-flash",
+          // The HEAVY tier id, which is genuinely absent from MODEL_RATES. Was
+          // `gemini-fallback/gemini-3.6-flash` until 2026-09-11, when that label
+          // stopped being something any reply can carry — a fixture naming a
+          // string nothing emits tests a case that cannot occur.
+          model: "gemini-3.1-pro-preview",
           content: [{ type: "text", text: "hi" }],
           usage: { input_tokens: 10, output_tokens: 10 },
         },

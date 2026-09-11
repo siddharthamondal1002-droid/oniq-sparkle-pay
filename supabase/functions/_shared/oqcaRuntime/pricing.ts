@@ -58,13 +58,22 @@ export function estimateUsd(
  * What a call ACTUALLY cost, from what the provider reported.
  *
  * THE ANSWERER IS NOT ALWAYS THE MODEL THAT WAS PRICED. `callText` tries Gemini
- * direct and catches with Claude, and the Gemini path labels its reply
- * `gemini-fallback/<id>` — an id `MODEL_RATES` does not carry. So this returns
- * null there, and the caller must fall back to the ESTIMATE rather than to
- * zero. That is exactly what `financialLedger` does with the same null
+ * direct and catches with Claude, so a run priced against the standard id can
+ * be answered by either engine — and the HEAVY tier's id,
+ * `gemini-3.1-pro-preview`, is genuinely absent from `MODEL_RATES`. So this
+ * returns null there, and the caller must fall back to the ESTIMATE rather
+ * than to zero. That is exactly what `financialLedger` does with the same null
  * ("a null here means unknown, and the ledger then charges the ESTIMATE, never
  * zero"), and it is why the estimate is retained after the call rather than
  * discarded.
+ *
+ * UNTIL 2026-09-11 THIS RETURNED NULL ON EVERY GEMINI CALL, AND NOT FOR THAT
+ * REASON. `translateGeminiResponseToAnthropic` stamped every reply with the
+ * constant `gemini-fallback/gemini-3.6-flash` whatever model was called, so no
+ * Gemini answer was ever priceable and the estimate was charged for all of
+ * them — 4.7x the real figure on the first measured OQCA tap. The label is now
+ * the id that was called, so the standard path prices for real and this null
+ * means what it says.
  */
 export function actualUsd(model: string, usage: ProviderUsage | null | undefined): number | null {
   return actualUsdFromUsage(model, readUsage(usage));

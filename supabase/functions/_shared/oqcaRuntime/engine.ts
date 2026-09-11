@@ -274,9 +274,17 @@ export function makeEngine(ctx: EngineContext): Engine {
 
     const data = res.data as { content?: unknown; usage?: unknown; model?: unknown };
     // WHO ANSWERED IS READ FROM THE REPLY, NEVER ASSUMED. `callText` may fall
-    // through to Claude, and the Gemini path labels itself
-    // `gemini-fallback/<id>` — an id with no published rate, which is the
-    // whole reason `actualCostUsd` can be null on a successful call.
+    // through to Claude, so the id that answered is not always `LOOP_MODEL`,
+    // and the HEAVY tier's `gemini-3.1-pro-preview` has no published rate —
+    // which is why `actualCostUsd` can still be null on a successful call.
+    //
+    // IT WAS NULL ON *EVERY* SUCCESSFUL GEMINI CALL UNTIL 2026-09-11, AND THIS
+    // COMMENT NAMED THE WRONG MECHANISM FOR IT. `llm.ts` stamped a constant
+    // `gemini-fallback/…` on every translated reply rather than the model it
+    // had just called, so this line read a label that could never be priced
+    // and the estimate was charged for all 24 calls of the first real tap —
+    // $0.006748 against $0.001440 of Google. Reading the reply was right; the
+    // reply was lying.
     const answeredBy = typeof data?.model === "string" ? data.model : LOOP_MODEL;
     const { inputTokens, outputTokens } = measuredTokens(data?.usage as never);
     const measured = actualUsd(answeredBy, data?.usage as never);
