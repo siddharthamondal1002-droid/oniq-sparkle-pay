@@ -22,6 +22,18 @@ import {
 const ROOT = process.cwd();
 const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
 const MIGRATION = read("supabase/migrations/20260903120000_story_language_cloud_voice.sql");
+/**
+ * THE SET LIVES IN THREE PLACES AND THIS IS THE NEWEST. Pinning only the
+ * 2026-09-03 migration went stale the moment Punjabi was added: that file
+ * still says six, production says seven, and a test reading only the old file
+ * would have stayed green while the two disagreed -- the exact drift it exists
+ * to catch, inverted. Assertions below derive the expected set from
+ * FILM_LANGUAGE_CODES rather than retyping it, so adding a language cannot
+ * pass without this migration naming it too.
+ */
+const LANGUAGE_MIGRATION = read(
+  "supabase/migrations/20260911160000_story_jobs_language_punjabi.sql",
+);
 const WORKER = read("remotion/scripts/story-worker.mjs");
 const CALLBACK = read("supabase/functions/story-callback/index.ts");
 const PLOT = read("supabase/functions/story-plot/index.ts");
@@ -30,7 +42,7 @@ const STUDIO = read("src/components/stories/StoryStudio.tsx");
 describe("the language list is the set a voice exists for", () => {
   it("starts with English and offers only languages the cloud voice speaks", () => {
     expect(FILM_LANGUAGE_CODES[0]).toBe("en");
-    expect([...FILM_LANGUAGE_CODES]).toEqual(["en", "hi", "bn", "mr", "ta", "te"]);
+    expect([...FILM_LANGUAGE_CODES]).toEqual(["en", "hi", "bn", "mr", "ta", "te", "pa"]);
     for (const l of FILM_LANGUAGES) expect(l.native.length).toBeGreaterThan(0);
   });
 
@@ -42,11 +54,35 @@ describe("the language list is the set a voice exists for", () => {
   });
 
   it("the database CHECK and the claim validation carry the same set", () => {
-    const set = "('en', 'hi', 'bn', 'mr', 'ta', 'te')";
-    expect(MIGRATION).toContain(`check (language in ${set})`);
+    // The 2026-09-03 original, kept as the record of what shipped then.
+    const original = "('en', 'hi', 'bn', 'mr', 'ta', 'te')";
+    expect(MIGRATION).toContain(`check (language in ${original})`);
     expect(MIGRATION).toContain(
-      `if lang_clean not in ${set} then raise exception 'no such language'`,
+      `if lang_clean not in ${original} then raise exception 'no such language'`,
     );
+  });
+
+  it("the NEWEST migration widens BOTH database gates to the current list", () => {
+    // THREE PLACES, NOT TWO. claim_story_seconds refuses an unknown language
+    // BEFORE the CHECK constraint is ever reached, so widening only the
+    // constraint ships a chip that raises 'no such language' and produces no
+    // film at all -- silently, which is how "Spoken in not working" looked.
+    const quoted = FILM_LANGUAGE_CODES.map((c) => `'${c}'`);
+
+    // The CHECK: every code present, as a ::text array member.
+    for (const c of FILM_LANGUAGE_CODES) {
+      expect(LANGUAGE_MIGRATION).toContain(`'${c}'::text`);
+    }
+
+    // The claim guard: the exact widened list, derived not retyped.
+    expect(LANGUAGE_MIGRATION).toContain(`lang_clean not in (${quoted.join(", ")})`);
+  });
+
+  it("refuses to guess if the claim guard is not in the expected shape", () => {
+    // Without this the migration could silently do half its job: a missed
+    // match would leave the claim refusing the new language forever.
+    expect(LANGUAGE_MIGRATION).toContain("refusing to guess");
+    expect(LANGUAGE_MIGRATION).toContain("raise exception");
   });
 });
 

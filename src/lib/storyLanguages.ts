@@ -17,6 +17,36 @@
  * documents as supported, so a film can only be requested in a language a
  * voice exists for. Extend it only alongside evidence the voice speaks the
  * language; the database CHECK constraint carries the same set.
+ *
+ * PUNJABI ADDED 2026-09-11, and here is the evidence the rule above demands.
+ * The owner reported "Spoken in not working" and, asked which way, chose
+ * "Punjabi isn't there" -- their last three films were written in Gurmukhi and
+ * recorded as English.
+ *
+ * MEASURED, not read off a docs page. story-voice sends NO language code at
+ * all: it posts the text and a prebuilt voice name, and the model reads
+ * whatever script it is handed (story-voice/index.ts, the `contents` body). So
+ * "supported" here is not a parameter the code can set -- it is only ever the
+ * question "does the model read this script", and the only honest test is a
+ * POST. Through the DEPLOYED story-voice, one Gurmukhi sentence, Charon:
+ *
+ *     POST /functions/v1/story-voice  {"text":"<one Punjabi sentence>"}
+ *     -> 200  {"configured":true,"mime":"audio/wav", ...}
+ *        RIFF/WAVE, PCM mono, 24000 Hz, 16-bit, 193,920 bytes of data
+ *        = 4.04 seconds of audio
+ *
+ * Not a refusal, not a 502, and not a stub: four seconds is the right length
+ * for that sentence. A web search also reports Punjabi among Gemini TTS's
+ * languages, but that is a [SNIPPET] -- ai.google.dev, docs.cloud.google.com
+ * and firebase.google.com are all egress-blocked from this container, so no
+ * [PAGE] was obtainable and the POST is the load-bearing evidence.
+ *
+ * WHAT IS STILL UNPROVEN, stated as unproven: nobody has LISTENED to it.
+ * Four seconds of 24 kHz speech is consistent with correct Punjabi and equally
+ * consistent with a voice reading Gurmukhi badly. Pronunciation cannot be
+ * verified from here at all. THE GATE IS THE OWNER HEARING ONE PUNJABI FILM --
+ * the same shape as "the first real sign-in is the test". If it reads wrong,
+ * removing `pa` from this array and the CHECK is the whole rollback.
  */
 export const FILM_LANGUAGES = [
   { code: "en", name: "English", native: "English" },
@@ -25,6 +55,7 @@ export const FILM_LANGUAGES = [
   { code: "mr", name: "Marathi", native: "मराठी" },
   { code: "ta", name: "Tamil", native: "தமிழ்" },
   { code: "te", name: "Telugu", native: "తెలుగు" },
+  { code: "pa", name: "Punjabi", native: "ਪੰਜਾਬੀ" },
 ] as const;
 
 export type FilmLanguage = (typeof FILM_LANGUAGES)[number]["code"];
