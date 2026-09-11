@@ -5752,3 +5752,131 @@ production, both for v1.5's reason: nothing persists, so nothing ages.
 tick costs $0, and no Lovable message was sent. **The two things that are the
 owner's are unchanged and still open**: a non-zero execution budget, and a
 durable knowledge table.
+
+## Owner directive, 2026-09-11 — ONIQ v1.7: the autonomous self-improvement loop
+
+The owner's 25-section brief, with its objective in one sentence: _"ONIQ
+continuously observes ONIQ, discovers useful improvements, learns what is
+required, verifies its conclusions, applies only authorized changes, measures
+the result, persists what it learned, and autonomously selects the next
+improvement."_ Scope drawn twice: _"Do NOT create a second autonomous loop.
+Extend the existing autonomy kernel"_, and nothing deployed or merged to `main`.
+Done on `claude/check-56jtg5`; `docs/oqca/OQCA_V1_7_REPORT.md` is the record.
+
+**HALF THE MILESTONE IS REACHED AND THE OTHER HALF WAS NEVER AUTHORIZED, and
+that is the first sentence.** Six real OS processes, sharing nothing but two
+JSON files, observed ONIQ, ranked concerns from what they saw, chose objectives
+nobody asked for, retrieved verbatim evidence, verified it, persisted it, ran
+the real 23 stations against the upgraded knowledge, measured before and after,
+compared, and continued. What ONIQ improved is **what it knows about itself**.
+What it did NOT do is change anything about itself: §12's registry has nine
+capabilities, three are authorized (run tests, run static analysis, write
+knowledge) and the six that write anywhere else are `authorized: false` and
+refused BY NAME. §28's self-modification stays behind its own gate.
+
+**THE COMPOUNDING PROOF IS ONE LINE OF THE LOG.** Episode #6 — the FIRST episode
+of the THIRD process — began at residual uncertainty **0.125 rather than
+1.000**, because the SECOND process had written those records to
+`knowledge.json` and this one restored them. A later process started where an
+earlier one finished, and nothing but a JSON string crossed between them. The
+controlled version is in `selfImproveLifecycle.test.ts`, where both invocations
+get the same objective and the same sinks and nothing else.
+
+**`tsc` HAD NEVER LOOKED AT FOUR OF THE NEW FILES.** `tsconfig.json`'s `include`
+is `src/**` only, so anything under `supabase/functions/` is typechecked ONLY
+when something under `src/` reaches it. `improvement.ts`'s first draft called
+`ctx.staleness?.()` — a field `SubstrateContext` has never had — and
+`tsc --noEmit` came back **clean**. That is this repository's most-recorded
+failure arriving in the TYPECHECKER. Found by noticing that a property which
+cannot exist was passing; `deno check` then also caught `applyPromotion`
+imported from the wrong module. **The fix is the same one it always is: the test
+files import all four runtime modules, which is what puts them in the program.**
+
+**SIX FACTORS, ONE ZERO, AND THE WHOLE RANKING WAS ALPHABETICAL.** `dependencyOf`
+returned `others / min(total, 6)` — zero for any subject no other observation
+mentions, which on a real world state is almost all of them. Every concern
+scored 0.000000 and `planImprovements` fell through to the id tiebreak. The plan
+was non-empty, ordered, reproducible and completely uninformed, and it was found
+by PRINTING the scores rather than by reading the function — the same shape as
+v1.2b's IMAGINE scoring the action's own name. `detectGaps` had it right all
+along: `1 + dependents/(n-1)`, a boost that is never a veto.
+
+**THE METRIC IS RESIDUAL UNCERTAINTY, NOT A COUNT, AND THE COUNT MADE THE WHOLE
+DEMONSTRATION VACUOUS.** `openGaps` drops only VERIFIED concepts, and
+`detectGaps` needs support ≥ 0.85 with mean evidence volatility ≤ 0.2. A line
+retrieved from a source file is `slow` knowledge, which `project.ts` maps to
+0.25 — so a perfectly good first-hand retrieval leaves the concept UNCERTAIN,
+the count does not move, and every experiment answers NO_DIFFERENCE. Measured:
+three records retrieved, promoted and persisted, gaps 1 → 1. **The wrong fix was
+to relabel the record `stable` so the threshold clears** — a fixture built to
+flatter its subject. The right one was to measure what actually changed:
+1.000 → 0.125.
+
+**AND THE RESEARCH ADAPTER MADE ONIQ CLAIM LESS, TWICE.** `MIN_SUBSTANCE` was
+added after the first live run, where asking about `motion_failure` returned
+`"motion_failure",` — the concept's own entry in `OBSERVATION_KINDS`. Verbatim,
+located, hashed, true, and the question read back. Then, with that rule in, the
+same concept matched a COMMENT in `research.ts` explaining the `motion_failure`
+example — **the prose match, this repo's twelfth, arriving in the research
+corpus.** Stripping comments would destroy the good result to kill the bad one:
+every genuinely informative `runner-availability` finding is also a comment.
+Recorded as a LIMIT rather than fixed, and bounded by the predicate itself:
+`is_documented_as` claims the concept is documented as that line and nothing
+more.
+
+**THE RUN CONTRADICTED ITS OWN CALLER ABOUT RESEARCH.** The episode retrieved
+while station 10 held `NO_RESEARCH`, so one run reported research as BOTH
+available and unavailable; `unavailable()` reads the refusal, the successful
+retrieval became invisible, and every experiment came back BLOCKED while records
+were being learned and persisted. `LoopInput` carries a research seam now.
+
+**NINETEEN OBJECTIVES FROM ONE FACT.** A runtime with no observer wired filled
+its backlog with "establish how to observe X" for every kind, from the single
+fact that nothing is wired — `maxBacklog` left doing the policy work. The world
+state still reports all nineteen UNOBSERVED rows (§3 lives there); the PLANNER
+now runs only when an observer actually answered.
+
+**AND `learned` COUNTED RE-PROMOTION** — a follow-up re-retrieving the same three
+lines announced "3 learned, 3 persisted" beside a verdict of NO_DIFFERENCE. That
+is v1.5's settled/learned over-claim in a second place. `settled`, `learned` and
+`persisted` are three fields and three claims, and `persisted` is read from the
+store's own answer rather than the count handed to it.
+
+**162 MUTATIONS, EVERY ONE RED, NONE GREEN, NONE NOTAPPLIED** — 28 new, one per
+line of §23's list. **Six escaped on the first run and every escape was a test
+that was not testing:**
+
+- **THE BASELINE WAS RED AND THE VERDICTS WERE READ ANYWAY.** The script's own
+  first line says "must be green before any verdict counts"; two mutations that
+  reported RED under a red baseline reported GREEN under a green one. A verdict
+  taken against a failing baseline is not a verdict.
+- **A FIXTURE WHOSE FIELDS ARE ALL AT THEIR DEFAULT TESTS ONLY THE DEFAULTS.**
+  The durable round-trip fixture had every list field empty, so a mutation that
+  DROPPED a list produced `[]` either way and the content hash matched.
+- **An assertion on an EARLY return cannot catch a mutation of the FINAL one.**
+  Every `improvementVerified` assertion hit `compare`'s unmeasured branch, where
+  the flag is written `false` inline.
+- Three more had no assertion for the hole at all, and one anchor was stale —
+  `NOTAPPLIED`, announced rather than reported as a verdict, for the sixth time.
+
+**TWO GUARDS MET GENUINE COLLISIONS AND BOTH WERE HANDLED THE WAY v1.6 DID IT.**
+A test TITLE carrying the lowercase wire spelling of the auth header was
+reworded rather than exempted; a clock parameter named `at` collided with
+`linalg.ts`'s exported `at` and was renamed `stampAt` rather than widening
+`edgeImports`'s local-binding detector to admit a two-letter name. The ONE guard
+that was genuinely wrong — `v13Wiring`'s file-wide ban on `ok: true` in
+`research.ts` — was narrowed to `makeResearch`'s own body, **with the narrowing
+proven both ways in the same file**, because a retrieval over a corpus IN HAND
+may honestly answer "I read these N documents and none of them says anything
+about X".
+
+Numbers: `src/oqca` 27 files / **780** tests (65 of them v1.7); whole suite 385
+files / **6,981**; 162 mutations all RED; tsc, `lint:ci`, Prettier,
+`node scripts/oqca-mirror.mjs --check` (50 files, was 44) and `deno check` of the
+four new runtime modules plus the story-dispatch chain all clean.
+
+**NOTHING IS DEPLOYED, PUBLISHED OR MERGED TO `main`.** The flag ships `off`, a
+tick costs $0, no Lovable message was sent, no dependency was added, and
+`maxTokens` / `maxCostUsd` / `maxToolCalls` all still ship at 0. **The two things
+that are the owner's are unchanged**: a non-zero execution budget, and whether
+ONIQ may ever change itself rather than only what it knows about itself.

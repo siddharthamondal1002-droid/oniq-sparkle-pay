@@ -624,6 +624,8 @@ function scripted(by: (goalId: string, n: number) => Partial<EpisodeOutcome>): {
       capabilities: [],
       settled: [],
       learned: [],
+      persisted: [],
+      experiment: null,
       ...by(o.goal.id, n),
     };
     return outcome;

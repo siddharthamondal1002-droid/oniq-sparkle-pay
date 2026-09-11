@@ -178,9 +178,40 @@ describe("sections 5, 11 and 12 — knowledge is sourced and research may refuse
   });
 
   it("the runtime research adapter refuses and never fabricates", () => {
+    /**
+     * SCOPED TO `makeResearch`, NOT TO THE FILE, AND THE NARROWING IS PROVEN
+     * BOTH WAYS BELOW.
+     *
+     * The whole-file version was right while `research.ts` held one adapter. It
+     * now also holds `makeLocalEvidenceResearch`, which retrieves VERBATIM
+     * lines from a corpus the host supplies and legitimately answers `ok: true`
+     * — including with an empty finding list, because "I read these N documents
+     * and none of them says anything about X" over a corpus IN HAND is an
+     * ESTABLISHED negative rather than an invented one. That is the exact
+     * distinction section 12 draws, and a file-wide ban cannot see it.
+     *
+     * What must never soften is the EXTERNAL adapter: `makeResearch` stands for
+     * the paid, search-capable path ONIQ has not been authorized to point an
+     * unattended loop at, and it must refuse.
+     */
     const src = code(`${RUNTIME}/research.ts`);
-    expect(src).toMatch(/ok: false/);
-    expect(src).not.toMatch(/ok: true/);
+    const start = src.indexOf("export function makeResearch(");
+    expect(start).toBeGreaterThan(-1);
+    const body = src.slice(start, src.indexOf("\n}", start));
+    expect(body).toMatch(/ok: false/);
+    expect(body).not.toMatch(/ok: true/);
+
+    // BOTH DIRECTIONS, in the same file — 2026-09-10's rule. The narrowing must
+    // still catch the thing it was written for.
+    const fabricated = src.replace(
+      "      return { ok: false, reason: RESEARCH_GAP };",
+      "      return { ok: true, findings: [] };",
+    );
+    const mutatedBody = fabricated.slice(
+      fabricated.indexOf("export function makeResearch("),
+      fabricated.indexOf("\n}", fabricated.indexOf("export function makeResearch(")),
+    );
+    expect(mutatedBody).toMatch(/ok: true/);
   });
 
   it("every knowledge fact must carry a source reference", () => {

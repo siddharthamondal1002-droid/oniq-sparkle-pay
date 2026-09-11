@@ -1,5 +1,15 @@
 # OQCA — what was built, and what it is worth
 
+> ## v1.7 — ONIQ observes ONIQ, learns, persists, and continues.
+>
+> - **[`OQCA_V1_7_REPORT.md`](OQCA_V1_7_REPORT.md)** — the §25 report: the
+>   lifecycle as run, the four-process compounding proof, the six defects that
+>   only running it exposed, and the limits stated as limits.
+> - `scripts/oqca-self-improve.ts` re-runs it; `self-improve/console.txt` is the
+>   record of six real OS processes sharing two JSON files and nothing else.
+> - **Nothing is deployed, published or merged.** $0 spent, no Lovable message,
+>   no dependency added, the flag still `off` and the three spend bounds still 0.
+>
 > ## v1.6 — a zero budget stops an ACTION, never the thinking.
 >
 > - **[`OQCA_V1_6_REPORT.md`](OQCA_V1_6_REPORT.md)** — the exact code path

@@ -45,8 +45,26 @@
  * with refusing defaults, and `security.test.ts` walks this directory.
  */
 import type { Gap, Goal } from "../knowledge/gaps.ts";
-import type { KnowledgeState } from "../knowledge/model.ts";
+import { type KnowledgeState, EMPTY_KNOWLEDGE } from "../knowledge/model.ts";
 import { type Clock, deterministicClock } from "../loop/seams.ts";
+import {
+  type Observation,
+  type ObservationProvenance,
+  type SystemObserver,
+  NO_OBSERVER,
+  completeObservations,
+} from "./observation.ts";
+import {
+  type KnowledgeCensus,
+  type SystemIdentity,
+  type SystemWorldState,
+  EMPTY_CENSUS,
+  UNIDENTIFIED,
+  buildWorldState,
+} from "./world.ts";
+import type { ExperimentRecord, Verdict } from "./experiment.ts";
+import { type PlannedConcern, planImprovements } from "./improve.ts";
+import { type SelfEvaluation, selfEvaluate } from "./selfEval.ts";
 import {
   type Capability,
   type CapabilityState,
@@ -80,6 +98,13 @@ export type SurveyResult =
       readonly knowledge: KnowledgeState;
       readonly stale: readonly StaleSubject[];
       readonly staleness?: ReadonlyMap<string, number>;
+      /**
+       * v1.7 — WHAT THE SURVEY COUNTED, including how much of it came back from
+       * a DURABLE store rather than from this tick's rebuild. The world state
+       * reports it and `selfEvaluate` reads it; the survey is the only thing
+       * that can know, because it is the only thing that touched the substrate.
+       */
+      readonly census?: KnowledgeCensus;
     }
   | { readonly ok: false; readonly reason: string };
 
@@ -138,6 +163,25 @@ export type EpisodeOutcome = {
   readonly settled: readonly string[];
   /** Concept ids this episode MOVED. Reported, never inferred from `status`. */
   readonly learned: readonly string[];
+  /**
+   * v1.7 — THE DURABLE ROW IDS THIS EPISODE ACTUALLY WROTE, read from the
+   * store's own answer and never from the number it tried to write. §8's
+   * durability claim is only checkable if a claim is made, and `learned` cannot
+   * carry it: a concept can move in memory and fail to persist, which is the
+   * exact state a restart would then silently discard.
+   *
+   * REQUIRED, NOT OPTIONAL, and v1.6 has the receipt for why: a fixture ending
+   * `} as EpisodeOutcome` hid a whole new field and every test ran with it
+   * `undefined` until the runtime threw. An episode that persisted nothing says
+   * `[]` out loud.
+   */
+  readonly persisted: readonly string[];
+  /**
+   * v1.7 §11 — THE EXPERIMENT THIS EPISODE RAN, or null because it ran none.
+   * Null is not a failure and is not `INCONCLUSIVE`: it is the absence of a
+   * comparison, which `selfEvaluate` answers `unestablished` rather than `no`.
+   */
+  readonly experiment: ExperimentRecord | null;
 };
 
 export type RunEpisode = (objective: Objective, ctx: CycleContext) => Promise<EpisodeOutcome>;
@@ -159,9 +203,22 @@ export const REFUSING_EPISODE: RunEpisode = async () => ({
   capabilities: [],
   settled: [],
   learned: [],
+  persisted: [],
+  experiment: null,
 });
 
-export const SNAPSHOT_VERSION = 1;
+/**
+ * BUMPED FOR v1.7, AND THE COST IS STATED RATHER THAN HIDDEN. The snapshot grew
+ * three fields — baselines, the failure log and the experiment ledger — and
+ * `validateSnapshot` refuses a version it does not know rather than migrating
+ * it, by its own rule: "a migration nobody wrote is a guess about what the
+ * other version meant". So a v1 checkpoint left by a v1.6 runtime is REFUSED
+ * and that runtime starts from empty. That is the honest outcome — reading a v1
+ * snapshot as v2 would hand every later reader a baseline map that is
+ * `undefined`, and a baseline nobody has is exactly the thing §13 says must
+ * report IMPROVEMENT_UNVERIFIED rather than be invented.
+ */
+export const SNAPSHOT_VERSION = 2;
 
 export type EpisodeRecord = {
   readonly episode: number;
@@ -178,6 +235,12 @@ export type EpisodeRecord = {
   readonly capabilities: readonly CapabilityState[];
   /** Objectives this episode returned to `pending` because a capability came back. */
   readonly reconsidered: readonly string[];
+  /** v1.7 §8 — durable row ids written. `[]` means nothing survived this episode. */
+  readonly persisted: readonly string[];
+  /** v1.7 §11 — the verdict, or null because no experiment ran. Never inferred. */
+  readonly experimentVerdict: Verdict | null;
+  /** v1.7 §19 — the eight questions, answered from THIS episode's evidence. */
+  readonly selfEvaluation: SelfEvaluation | null;
 };
 
 export type RuntimeSnapshot = {
@@ -196,6 +259,18 @@ export type RuntimeSnapshot = {
    * credential is restored can tell that something changed.
    */
   readonly capabilities: readonly CapabilityState[];
+  /**
+   * v1.7 §13 — THE BEST READING ONIQ HAS EVER RECORDED FOR EACH METRIC, as
+   * PAIRS rather than a Map because a snapshot is written to a file, a column
+   * or another process and `JSON.stringify(new Map())` is `{}`. A baseline that
+   * serialised to nothing would make every restored process measure against an
+   * empty set and call every first reading an improvement.
+   */
+  readonly baselines: readonly (readonly [string, number])[];
+  /** v1.7 §15 — what failed, oldest first, so a REPEAT is visible as a repeat. */
+  readonly failureLog: readonly string[];
+  /** v1.7 §11 — every experiment this lifetime has completed, with its verdict. */
+  readonly experiments: readonly ExperimentRecord[];
   readonly stop: RuntimeStop | null;
 };
 
@@ -249,6 +324,15 @@ export type RuntimeBounds = {
   readonly maxWallMs: number;
 };
 
+/**
+ * How many failure lines the snapshot carries. BOUNDED because the snapshot is
+ * written on every episode and an unbounded log would grow a checkpoint file
+ * without limit — the same reason the backlog is trimmed. The OLDEST are
+ * dropped, so a repeat that is still happening stays visible and one that
+ * stopped a hundred episodes ago falls off.
+ */
+export const MAX_FAILURE_LOG = 64;
+
 /** Runaway guards, not spend. See the header. */
 export const DEFAULT_RUNTIME_BOUNDS: RuntimeBounds = {
   maxEpisodes: 8,
@@ -259,10 +343,27 @@ export const DEFAULT_RUNTIME_BOUNDS: RuntimeBounds = {
 
 export type RuntimeInput = {
   readonly survey?: Survey;
+  /**
+   * v1.7 §3 — ONIQ LOOKING AT ONIQ. A seam with a REFUSING default, like every
+   * other: a runtime with no observer reports every kind UNOBSERVED and
+   * generates "connect an observer" objectives, which is the correct behaviour
+   * and is not the same as reporting a healthy system.
+   */
+  readonly observe?: SystemObserver;
   readonly runEpisode?: RunEpisode;
   readonly store?: CheckpointStore;
   readonly clock?: Clock;
   readonly bounds?: RuntimeBounds;
+  /** What ONIQ says it is. The host establishes it; `commit` may be null. */
+  readonly identity?: SystemIdentity;
+  /** Where the host READ that identity. Absent means the claim carries no receipt. */
+  readonly identityProvenance?: ObservationProvenance | null;
+  /**
+   * Which RESOURCE kinds acting on a given concern would consume. The host owns
+   * the §12 registry, so the host answers; the default says "nothing", which
+   * keeps the capability factor neutral rather than inventing a dependency.
+   */
+  readonly needs?: (o: Observation) => readonly Capability[];
   /** User requests. The generator provably cannot produce these. */
   readonly seed?: readonly Objective[];
   /** Used only when the store restored nothing. */
@@ -291,6 +392,23 @@ export type RuntimeReport = {
   readonly capabilities: readonly CapabilityState[];
   /** How many episodes ended waiting on a resource rather than on knowledge. */
   readonly capabilityBlocks: number;
+  /** v1.7 §4 — the last world state built, or null if no cycle got that far. */
+  readonly world: SystemWorldState | null;
+  /** Every observation the last cycle held, completed to the full kind list. */
+  readonly observations: readonly Observation[];
+  /** v1.7 §5 — the ranked concerns the last cycle produced, best first. */
+  readonly concerns: readonly PlannedConcern[];
+  readonly experiments: readonly ExperimentRecord[];
+  /** Durable row ids written across this invocation. `[]` means nothing stuck. */
+  readonly persisted: readonly string[];
+  readonly selfEvaluations: readonly SelfEvaluation[];
+  /**
+   * How many experiments this invocation VERIFIED as improvements. Counted from
+   * `improvementVerified`, which `compare` sets only for an `improvement`
+   * design that actually beat its criterion — never from a verdict string, so
+   * an INCONCLUSIVE can never be summed in as progress.
+   */
+  readonly improvementsVerified: number;
 };
 
 export function emptySnapshot(): RuntimeSnapshot {
@@ -302,6 +420,9 @@ export function emptySnapshot(): RuntimeSnapshot {
     history: [],
     focus: null,
     capabilities: [],
+    baselines: [],
+    failureLog: [],
+    experiments: [],
     stop: null,
   };
 }
@@ -348,6 +469,31 @@ export function validateSnapshot(s: RuntimeSnapshot): readonly SnapshotProblem[]
     if (!AVAILABILITIES.includes(c.availability)) {
       problems.push({ code: "unknown_availability", detail: String(c.availability) });
     }
+  }
+  /**
+   * A BASELINE RESTORED FROM A FILE DECIDES WHETHER A CHANGE COUNTS AS AN
+   * IMPROVEMENT, so a corrupted one is not cosmetic. `JSON.parse` of a Map
+   * yields `{}` and of a missing field `undefined`; either would arrive here as
+   * a non-array and then be spread into a Map that silently holds nothing, and
+   * §13's "if no reliable measurement exists, IMPROVEMENT_UNVERIFIED" would be
+   * replaced by "every first reading is a win".
+   */
+  if (!Array.isArray(s.baselines)) {
+    problems.push({ code: "bad_baselines", detail: typeof s.baselines });
+  } else {
+    for (const b of s.baselines) {
+      if (!Array.isArray(b) || b.length !== 2 || typeof b[0] !== "string") {
+        problems.push({ code: "bad_baseline_entry", detail: JSON.stringify(b) });
+      } else if (typeof b[1] !== "number" || !Number.isFinite(b[1])) {
+        problems.push({ code: "bad_baseline_value", detail: `${b[0]}=${String(b[1])}` });
+      }
+    }
+  }
+  if (!Array.isArray(s.failureLog)) {
+    problems.push({ code: "bad_failure_log", detail: typeof s.failureLog });
+  }
+  if (!Array.isArray(s.experiments)) {
+    problems.push({ code: "bad_experiments", detail: typeof s.experiments });
   }
   return problems;
 }
@@ -451,10 +597,13 @@ export function reconsider(
 
 export async function runAutonomousRuntime(input: RuntimeInput): Promise<RuntimeReport> {
   const survey = input.survey ?? NO_SURVEY;
+  const observe = input.observe ?? NO_OBSERVER;
   const runEpisode = input.runEpisode ?? REFUSING_EPISODE;
   const store = input.store ?? NO_CHECKPOINTS;
   const clock = input.clock ?? deterministicClock();
   const bounds = input.bounds ?? DEFAULT_RUNTIME_BOUNDS;
+  const identity: SystemIdentity = input.identity ?? UNIDENTIFIED;
+  const needsOf = input.needs ?? (() => []);
 
   const loaded = await store.restore();
   const restored = loaded !== null && validateSnapshot(loaded).length === 0;
@@ -485,7 +634,21 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
   let ranHere = 0;
   const learned: string[] = [];
   const settled: string[] = [];
+  const persisted: string[] = [];
+  const selfEvaluations: SelfEvaluation[] = [];
   const history: EpisodeRecord[] = [...snapshot.history];
+  /**
+   * CARRIED ACROSS PROCESSES, WHICH IS THE WHOLE POINT OF §18. The baselines
+   * and the failure log come off the restored snapshot and go back onto it, so
+   * the fourth process compares against a reading the second process took.
+   */
+  let baselines = new Map<string, number>(snapshot.baselines.map(([k, v]) => [k, v] as const));
+  let failureLog: readonly string[] = snapshot.failureLog;
+  let experiments: readonly ExperimentRecord[] = snapshot.experiments;
+  let world: SystemWorldState | null = null;
+  let observations: readonly Observation[] = [];
+  let concerns: readonly PlannedConcern[] = [];
+  let improvementsVerified = 0;
   let stop: RuntimeStop | null = null;
   let stopDetail = "";
 
@@ -530,26 +693,89 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
      * objective waiting a whole extra cycle for no reason.
      */
     let backlog = reconsider(snapshot.backlog, capabilities);
-    if (seen.ok) {
-      const targets: LearningTarget[] = rankLearningTargets({
-        gaps: seen.gaps,
-        knowledge: seen.knowledge,
-        staleness: seen.staleness,
-        focus: snapshot.focus,
-      });
-      const fresh = generateObjectives({
-        targets,
-        knowledge: seen.knowledge,
-        stale: seen.stale,
-        at: snapshot.step,
-      });
-      const before = backlog.length;
-      backlog = trimBacklog(mergeBacklog(backlog, fresh), bounds.maxBacklog);
-      generated += Math.max(0, backlog.length - before);
-    } else {
+    if (!seen.ok) {
       surveyRefusals += 1;
       blindReason = seen.reason;
     }
+
+    // ---- OBSERVE ONIQ ---------------------------------------------------
+    /**
+     * §3, AND IT RUNS WHETHER OR NOT THE SURVEY ANSWERED. Those are two
+     * different instruments looking at two different things: the survey reads
+     * the KNOWLEDGE substrate, the observer reads the SYSTEM. A substrate ONIQ
+     * cannot query says nothing about whether its tests are failing, so gating
+     * observation on the survey would make one refusal blind ONIQ to both — and
+     * `blind` would then be reported for a runtime that could see its own
+     * faults perfectly well.
+     */
+    const reported = await observe({ episode: snapshot.episode, step: snapshot.step });
+    observations = completeObservations(reported);
+    const knowledge = seen.ok ? seen.knowledge : EMPTY_KNOWLEDGE;
+    world = buildWorldState({
+      identity,
+      // COVERAGE FOLLOWS THE RECEIPT, NOT THE VALUE. `buildWorldState` scores
+      // the identity claim 1 only when a provenance came with it, so a host
+      // that names a branch without saying where it read it gets coverage 0 —
+      // and `UNIDENTIFIED` gets 0 for free, which is the answer.
+      identityProvenance: input.identityProvenance ?? null,
+      observations,
+      capabilities: capabilityList(capabilities),
+      knowledge: seen.ok ? (seen.census ?? EMPTY_CENSUS) : EMPTY_CENSUS,
+      backlog,
+      experiments,
+      baselines,
+      failureLog,
+    });
+
+    // ---- GENERATE / UPDATE OBJECTIVES -----------------------------------
+    /**
+     * NINETEEN UNOBSERVED ROWS FROM A REFUSED OBSERVER ARE ONE FACT, NOT
+     * NINETEEN OBJECTIVES — and the first run of this file generated all
+     * nineteen. A runtime with no observer wired filled its backlog with
+     * "establish how to observe X" for every kind, from the single fact that
+     * nothing is wired, and `maxBacklog` was left doing the policy work: a
+     * bound silently deciding what ONIQ cares about, which is the shape
+     * `staleSubjectsFor` already guards against.
+     *
+     * So the world state still reports all nineteen — §3 lives there, and a
+     * dark instrument panel must be visible as dark — while the PLANNER runs
+     * only when an observer actually answered. The distinction is real: a kind
+     * a working observer did not mention is a genuine hole worth closing, and a
+     * kind nobody looked at because nobody is looking is the same hole as the
+     * other eighteen.
+     */
+    concerns = reported.ok
+      ? planImprovements({
+          world,
+          knowledge,
+          staleness: seen.ok ? seen.staleness : undefined,
+          focus: snapshot.focus,
+          capabilities: capabilityList(capabilities),
+          needs: needsOf,
+        })
+      : [];
+    const targets: LearningTarget[] = seen.ok
+      ? rankLearningTargets({
+          gaps: seen.gaps,
+          knowledge: seen.knowledge,
+          staleness: seen.staleness,
+          focus: snapshot.focus,
+        })
+      : [];
+    const fresh = generateObjectives({
+      targets,
+      knowledge,
+      stale: seen.ok ? seen.stale : [],
+      improvements: concerns.map((c) => ({
+        goal: c.goal,
+        score: c.score,
+        reason: c.target.reason,
+      })),
+      at: snapshot.step,
+    });
+    const before = backlog.length;
+    backlog = trimBacklog(mergeBacklog(backlog, fresh), bounds.maxBacklog);
+    generated += Math.max(0, backlog.length - before);
 
     // ---- CHOOSE ---------------------------------------------------------
     const chosen = selectObjective(backlog);
@@ -600,7 +826,15 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
         stop = "idle";
         stopDetail = "nothing is pending and the survey found nothing open";
       }
-      snapshot = { ...snapshot, backlog, history, capabilities: capabilityList(capabilities) };
+      snapshot = {
+        ...snapshot,
+        backlog,
+        history,
+        capabilities: capabilityList(capabilities),
+        baselines: [...baselines.entries()].map(([k, v]) => [k, v] as const),
+        failureLog,
+        experiments,
+      };
       break;
     }
 
@@ -684,7 +918,69 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
 
     learned.push(...outcome.learned);
     settled.push(...outcome.settled);
+    persisted.push(...outcome.persisted);
     ranHere += 1;
+
+    // ---- MEASURE / COMPARE AGAINST BASELINE -----------------------------
+    /**
+     * THE LEDGER TAKES A NEW BEST READING AND NOTHING ELSE, which is what makes
+     * `regression` in the world state mean something on the next cycle. Taking
+     * the LATEST reading instead would let a regression quietly become the new
+     * baseline and then compare clean — a metric that can never report getting
+     * worse. `direction` decides which way "better" runs, so the rule is one
+     * comparison rather than a per-metric table.
+     */
+    if (outcome.experiment) {
+      const x = outcome.experiment;
+      experiments = [...experiments, x];
+      if (x.improvementVerified) improvementsVerified += 1;
+      const m = x.candidate;
+      if (m && m.value !== null) {
+        const prior = baselines.get(m.metric);
+        const better =
+          prior === undefined ||
+          (m.direction === "higher_is_better" ? m.value > prior : m.value < prior);
+        if (better) {
+          baselines = new Map(baselines);
+          baselines.set(m.metric, m.value);
+        }
+      }
+    }
+
+    /**
+     * §15 — A FAILURE BECOMES KNOWLEDGE, AND THE SCOPE IS STORED WITH IT. The
+     * directive's own rider is "do not generalize beyond the evidence", so what
+     * is written is the goal that failed and the note it failed with, never a
+     * lesson about the class of goal it belongs to. `failureCensus` then reads a
+     * REPEAT of the identical line as `recurring`, which is a fact about two
+     * observations rather than an inference from one.
+     */
+    if (outcome.status === "failure" || outcome.status === "blocked") {
+      failureLog = [...failureLog, `${chosen.goal.id}: ${outcome.note}`].slice(-MAX_FAILURE_LOG);
+    }
+
+    // ---- SELF-EVALUATE --------------------------------------------------
+    /**
+     * The eight questions, answered from THIS episode's record. `nextConcern` is
+     * the best-ranked concern that is not the one just worked on — read off the
+     * planner's own ordering rather than re-derived here, so the report cannot
+     * disagree with what the next cycle will choose.
+     */
+    const evaluation = selfEvaluate({
+      objectiveId: chosen.id,
+      goalId: chosen.goal.id,
+      status: outcome.status,
+      settled: outcome.settled,
+      learned: outcome.learned,
+      persisted: outcome.persisted,
+      experiment: outcome.experiment,
+      blockedOn: outcome.blockedOn,
+      blockedCapabilities: refused.map((c) => c.capability),
+      world,
+      nextConcern: concerns.find((c) => c.goal.id !== chosen.goal.id)?.goal.id ?? null,
+    });
+    selfEvaluations.push(evaluation);
+
     history.push({
       episode: snapshot.episode,
       objectiveId: chosen.id,
@@ -698,6 +994,9 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
       learned: outcome.learned,
       capabilities: outcome.capabilities,
       reconsidered,
+      persisted: outcome.persisted,
+      experimentVerdict: outcome.experiment?.verdict ?? null,
+      selfEvaluation: evaluation,
     });
 
     snapshot = {
@@ -708,6 +1007,9 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
       history,
       focus: chosen.goal,
       capabilities: capabilityList(capabilities),
+      baselines: [...baselines.entries()].map(([k, v]) => [k, v] as const),
+      failureLog,
+      experiments,
       stop: null,
     };
 
@@ -760,5 +1062,12 @@ export async function runAutonomousRuntime(input: RuntimeInput): Promise<Runtime
     learned,
     capabilities: capabilityList(capabilities),
     capabilityBlocks,
+    world,
+    observations,
+    concerns,
+    experiments,
+    persisted,
+    selfEvaluations,
+    improvementsVerified,
   };
 }

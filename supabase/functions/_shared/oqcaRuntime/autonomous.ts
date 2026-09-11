@@ -277,6 +277,16 @@ export function makeLoopEpisode(
         capabilities,
         settled,
         learned: [],
+        /**
+         * v1.7 — NOTHING WAS WRITTEN AND NOTHING WAS COMPARED, said out loud.
+         * This episode has no durable store and runs no experiment; reporting
+         * `[]` and `null` is the same discipline as `learned: []` above, and it
+         * is what keeps `selfEvaluate` answering "did my knowledge change" with
+         * a measured `no` rather than an `unestablished` it had to guess.
+         * `makeImprovementEpisode` in `improvement.ts` is the one that does.
+         */
+        persisted: [],
+        experiment: null,
       };
     }
     /**
@@ -305,6 +315,8 @@ export function makeLoopEpisode(
       capabilities,
       settled,
       learned: [],
+      persisted: [],
+      experiment: null,
     };
   };
 }

@@ -43,13 +43,22 @@ import type { KnowledgeState } from "../knowledge/model.ts";
 import type { CapabilityState } from "../loop/capability.ts";
 import type { LearningTarget } from "./select.ts";
 
-export type ObjectiveSource = "user_request" | "knowledge_gap" | "maintenance" | "follow_up";
+/**
+ * v1.7 adds `improvement`: an objective that came from ONIQ OBSERVING ITSELF
+ * rather than from a gap in what it knows. The distinction is load-bearing —
+ * a knowledge gap is closed by learning something, an improvement objective is
+ * closed by a MEASURED delta, and collapsing them would let "I now understand
+ * the fault" count as "I fixed it".
+ */
+export type ObjectiveSource =
+  "user_request" | "knowledge_gap" | "maintenance" | "follow_up" | "improvement";
 
 export const OBJECTIVE_SOURCES: readonly ObjectiveSource[] = [
   "user_request",
   "knowledge_gap",
   "maintenance",
   "follow_up",
+  "improvement",
 ];
 
 /**
@@ -62,6 +71,7 @@ export const AUTONOMOUS_SOURCES: readonly AutonomousSource[] = [
   "knowledge_gap",
   "maintenance",
   "follow_up",
+  "improvement",
 ];
 
 export function isAutonomous(source: ObjectiveSource): source is AutonomousSource {
@@ -214,6 +224,55 @@ export function objectivesFromTargets(
 }
 
 /**
+ * v1.7 — ONE RANKED CONCERN, IN THE SHAPE THIS FILE CAN READ WITHOUT IMPORTING
+ * THE PLANNER.
+ *
+ * A STRUCTURAL PARAMETER, AND THE REASON IS A CYCLE RATHER THAN A PREFERENCE.
+ * `improve.ts` imports `world.ts`, which imports THIS file for `Objective`; so
+ * taking `PlannedConcern` here would close the ring `objective -> improve ->
+ * world -> objective`. It is also the honest boundary: what this file needs of
+ * a ranked concern is a goal, a number and a sentence, and nothing about how
+ * the number was arrived at.
+ */
+export type ImprovementSeed = {
+  readonly goal: Goal;
+  /** The six-factor score after the clamped planning modifier. */
+  readonly score: number;
+  /** Why, in the observation's own words. Never a template. */
+  readonly reason: string;
+};
+
+/**
+ * Objectives ONIQ raised about ITSELF, from §5's "objectives must arise from
+ * observed system state".
+ *
+ * `source` is `improvement`, which is a member of `AutonomousSource` — so the
+ * runtime still provably cannot mint a `user_request`, and a person's request
+ * still outranks every one of these in `selectObjective` unconditionally.
+ */
+export function objectivesFromImprovements(
+  seeds: readonly ImprovementSeed[],
+  at: number,
+): Objective[] {
+  return seeds.map((s) =>
+    seal({
+      source: "improvement",
+      goal: s.goal,
+      status: "pending",
+      rationale: s.reason,
+      priority: s.score,
+      parentId: null,
+      depth: 0,
+      attempts: 0,
+      blockedReason: null,
+      blockedOn: [],
+      blockedCapabilities: [],
+      createdAt: at,
+    }),
+  );
+}
+
+/**
  * A record that has gone past its verification interval. `demand` is the same
  * 0..1 scale the learning selector uses, so a maintenance objective and a gap
  * objective are comparable rather than living on two invented scales.
@@ -328,6 +387,8 @@ export type GenerationInput = {
   readonly targets: readonly LearningTarget[];
   readonly knowledge: KnowledgeState;
   readonly stale: readonly StaleSubject[];
+  /** v1.7 — ranked concerns from what ONIQ observed about itself. */
+  readonly improvements?: readonly ImprovementSeed[];
   readonly at: number;
 };
 
@@ -341,6 +402,7 @@ export function generateObjectives(
   const out = [
     ...objectivesFromTargets(input.targets, input.knowledge, input.at),
     ...objectivesFromStale(input.stale, input.at),
+    ...objectivesFromImprovements(input.improvements ?? [], input.at),
   ];
   return out as readonly (Objective & { readonly source: AutonomousSource })[];
 }

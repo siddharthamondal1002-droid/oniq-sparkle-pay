@@ -146,6 +146,8 @@ function outcome(over: Partial<EpisodeOutcome> = {}): EpisodeOutcome {
     capabilities: [],
     settled: [],
     learned: [],
+    persisted: [],
+    experiment: null,
     ...over,
   };
 }

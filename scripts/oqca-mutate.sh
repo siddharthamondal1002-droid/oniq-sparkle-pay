@@ -2056,4 +2056,405 @@ mirror
 report "M134 the runtime drops the episode's working capabilities" "$(run $CA)"
 restore $F
 
+
+# ---------------------------------------------------------------------------
+# v1.7 — the owner directive of 2026-09-11, §23's own list. Each of these is a
+# way the self-improvement loop could look autonomous while being a fixture, or
+# could claim a result it did not measure.
+# ---------------------------------------------------------------------------
+SI=src/oqca/__tests__/selfImprovement.test.ts
+SL=src/oqca/__tests__/selfImproveLifecycle.test.ts
+
+# M135: OBJECTIVE GENERATION becomes a fixed list — the one thing §5 forbids by
+# name, and the shape the HARD RULE exists to catch. Every concern collapses
+# onto one goal id, so the decision stops being a fact about what ONIQ saw.
+F=src/oqca/autonomy/improve.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/improve.ts'; s=open(p).read()
+old='  const id = `improve:${concernId(o)}`;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  const id = "improve:fixed-objective";')
+open(p,'w').write(s)
+PY2
+mirror
+report "M135 objective generation collapses to a fixed list" "$(run $SI $SL)"
+restore $F
+
+# M136: PRIORITIZATION stops reading the observation — every factor becomes a
+# constant, so the ranking is a fact about this function rather than about ONIQ.
+F=src/oqca/autonomy/improve.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/improve.ts'; s=open(p).read()
+old='export function uncertaintyOf(o: Observation): number {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old, old+'\n  return 0.5;')
+open(p,'w').write(s)
+PY2
+mirror
+report "M136 the uncertainty factor stops reading the observation" "$(run $SI)"
+restore $F
+
+# M137: the DEPENDENCY factor goes back to the fraction that is zero for an
+# isolated subject. This is the live defect the first four-process run exposed:
+# six multiplied factors, one zero, every score 0.000000 and an alphabetical
+# ranking that still looks ordered and reproducible.
+F=src/oqca/autonomy/improve.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/improve.ts'; s=open(p).read()
+old='  return 1 + others / total;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  return others / total;')
+open(p,'w').write(s)
+PY2
+mirror
+report "M137 the dependency factor can zero the whole score again" "$(run $SI)"
+restore $F
+
+# M138: the PLANNING modifier becomes a veto. A capability ONIQ cannot use now
+# would then DELETE the objective rather than defer it, and v1.6's whole
+# correction — a resource shortfall is not cognitive death — is undone one
+# layer up.
+F=src/oqca/autonomy/improve.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/improve.ts'; s=open(p).read()
+old='function floor(x: number): number {\n  return Math.min(1, Math.max(MODIFIER_FLOOR, x));\n}'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'function floor(x: number): number {\n  return Math.min(1, x);\n}')
+open(p,'w').write(s)
+PY2
+mirror
+report "M138 the planning modifier becomes a veto" "$(run $SI)"
+restore $F
+
+# M139: KNOWLEDGE-GAP DETECTION treats a stale record as known, so research is
+# skipped for exactly the claim where acting on the stored answer is worst.
+F=src/oqca/autonomy/improve.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/improve.ts'; s=open(p).read()
+old='  return needs.every((n) => n.verdict === "known") ? "SKIP_RESEARCH" : "RESEARCH";'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  return needs.every((n) => n.verdict === "known" || n.verdict === "stale") ? "SKIP_RESEARCH" : "RESEARCH";')
+open(p,'w').write(s)
+PY2
+mirror
+report "M139 a stale record is read as known and research is skipped" "$(run $SI)"
+restore $F
+
+# M140: KNOWLEDGE PERSISTENCE silently loses a field on the round trip. The
+# record still LOOKS right and reconciles onto a different content — the
+# split-brain across a restart a durable store exists to prevent.
+F=src/oqca/knowledge/substrate/durable.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/knowledge/substrate/durable.ts'; s=open(p).read()
+old='    contradicts: row.contradicts,'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    contradicts: [],')
+open(p,'w').write(s)
+PY2
+mirror
+report "M140 the durable round trip drops a field" "$(run $SI)"
+restore $F
+
+# M141: the durable store reads a CORRUPTED file as an empty one. A runtime
+# would then start from nothing every morning with nothing anywhere saying so.
+F=supabase/functions/_shared/oqcaRuntime/durableStore.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/durableStore.ts'; s=open(p).read()
+old='      const reason = "the durable knowledge store could not be parsed";\n      sink.note?.(reason);\n      return { ok: false, reason };'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      return { ok: true, rows: [] };')
+open(p,'w').write(s)
+PY2
+report "M141 a corrupted durable store reads as an empty one" "$(run $SI)"
+restore $F
+
+# M142: the store reports the count it was HANDED rather than the count the
+# sink confirmed — the silent no-op this repo has a receipt for.
+F=supabase/functions/_shared/oqcaRuntime/durableStore.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/durableStore.ts'; s=open(p).read()
+old='      if (!wrote) return { ok: false, reason: "the durable sink did not confirm the write" };'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      void wrote;')
+open(p,'w').write(s)
+PY2
+report "M142 a write the sink refused is reported as written" "$(run $SI)"
+restore $F
+
+# M143: KNOWLEDGE PROMOTION is bypassed — a retrieved line is written VERIFIED
+# at the point of creation, which is the one property `draftRecord` exists to
+# make impossible.
+F=supabase/functions/_shared/oqcaRuntime/improvement.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/improvement.ts'; s=open(p).read()
+old='            const decided = applyPromotion(draft, evaluatePromotion(draft, sources));'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'            const decided = { ...draft, status: "VERIFIED" as const, confidence: 1 };')
+open(p,'w').write(s)
+PY2
+report "M143 promotion is bypassed and a draft is written VERIFIED" "$(run $SL)"
+restore $F
+
+# M144: the LEARNED-vs-SETTLED distinction collapses — re-promoting a record
+# ONIQ already held counts as learning. This is the live over-claim the first
+# four-process run produced: "3 learned" beside a verdict of NO_DIFFERENCE.
+F=supabase/functions/_shared/oqcaRuntime/improvement.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/improvement.ts'; s=open(p).read()
+old='              if (held === null || held.status !== "VERIFIED") learned.push(decided.subject);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'              learned.push(decided.subject);')
+open(p,'w').write(s)
+PY2
+report "M144 re-promoting knowledge ONIQ already held counts as learning" "$(run $SL)"
+restore $F
+
+# M145: the BASELINE is measured AFTER the intervention, so both arms read the
+# same state and every experiment answers NO_DIFFERENCE — a loop that can never
+# detect its own improvement.
+F=supabase/functions/_shared/oqcaRuntime/improvement.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/improvement.ts'; s=open(p).read()
+old='    const baselineGaps = residualUncertainty(goal, before);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    const baselineGaps = residualUncertainty(goal, before) * 0 + 0.125;')
+open(p,'w').write(s)
+PY2
+report "M145 the baseline is not the pre-intervention reading" "$(run $SL)"
+restore $F
+
+# M146: INCONCLUSIVE becomes success. §11's own sentence, inverted.
+F=src/oqca/autonomy/experiment.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/experiment.ts'; s=open(p).read()
+old='    improvementVerified: d.kind === "improvement" && improved,'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    improvementVerified: true,')
+open(p,'w').write(s)
+PY2
+mirror
+report "M146 every comparison counts as a verified improvement" "$(run $SI)"
+restore $F
+
+# M147: a capability refusal produces a MEASURED NEGATIVE rather than BLOCKED.
+# Both arms are equal because nothing was intervened, so `compare` would answer
+# "no difference" — a statement that the intervention was tried and did nothing.
+F=supabase/functions/_shared/oqcaRuntime/improvement.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/improvement.ts'; s=open(p).read()
+old='    const intervened = decision === "SKIP_RESEARCH" || retrievalRan;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    const intervened = true;')
+open(p,'w').write(s)
+PY2
+report "M147 a refused intervention is reported as a measured negative" "$(run $SL)"
+restore $F
+
+# M148: CAPABILITY AUTHORIZATION is dropped — registration alone admits, so
+# `RUN_BENCHMARK` and `UPDATE_CONFIGURATION` reach the executor.
+F=supabase/functions/_shared/oqcaRuntime/selfModel.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/selfModel.ts'; s=open(p).read()
+old='  if (!cap.authorized) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  if (false) {')
+open(p,'w').write(s)
+PY2
+report "M148 registration alone admits a capability" "$(run $SI)"
+restore $F
+
+# M149: the §12 gate sinks BELOW the write it guards, so the durable store is
+# written and the refusal is reported afterwards.
+F=supabase/functions/_shared/oqcaRuntime/improvement.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/improvement.ts'; s=open(p).read()
+old='      if (!permitted.ok) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      const rowsAnyway = promoted.map((r) => toDurable(r, { createdAt: at, updatedAt: at }));\n      await durable.save(rowsAnyway);\n      if (!permitted.ok) {')
+open(p,'w').write(s)
+PY2
+report "M149 the capability gate sinks below the write it guards" "$(run $SL)"
+restore $F
+
+# M150: a §12 capability that would SPEND becomes authorized. Under CLAUDE.md's
+# first rule that is the owner's decision, not a default.
+F=supabase/functions/_shared/oqcaRuntime/selfModel.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/selfModel.ts'; s=open(p).read()
+old='    describe: "ask an external provider a question; spends money per call",'
+assert s.count(old)==1, s.count(old)
+s=s.replace('    authorized: false,\n    describe: "ask an external provider a question; spends money per call",',
+            '    authorized: true,\n    describe: "ask an external provider a question; spends money per call",')
+open(p,'w').write(s)
+PY2
+report "M150 a spending capability is authorized by default" "$(run $SI)"
+restore $F
+
+# M151: RESEARCH fabricates. An empty corpus answers "I searched and found
+# nothing" — the negative result §9 forbids inventing, arriving through the one
+# door nobody watches.
+F=supabase/functions/_shared/oqcaRuntime/research.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/research.ts'; s=open(p).read()
+old='      return { ok: false, reason: "the local evidence corpus is empty: nothing was searched" };'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      return { ok: true, findings: [], searched: 0 };')
+open(p,'w').write(s)
+PY2
+report "M151 an empty corpus answers 'found nothing' instead of refusing" "$(run $SI)"
+restore $F
+
+# M152: the excerpt stops being verbatim. A reworded quotation is a fabricated
+# citation with a real locator on it, which is worse than none.
+F=supabase/functions/_shared/oqcaRuntime/research.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/research.ts'; s=open(p).read()
+old='          excerpt: line.slice(0, MAX_LOCAL_EXCERPT),'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'          excerpt: `a document mentions ${terms.join(" ")}`,')
+open(p,'w').write(s)
+PY2
+report "M152 the excerpt stops being verbatim" "$(run $SI)"
+restore $F
+
+# M153: the substance rule goes, so a line that is only the question's own words
+# is promoted as an answer — the measured tautology from the live run.
+F=supabase/functions/_shared/oqcaRuntime/research.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/research.ts'; s=open(p).read()
+old='        if (substance(line, terms) < MIN_SUBSTANCE) continue;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'')
+open(p,'w').write(s)
+PY2
+report "M153 a line that restates the question counts as a finding" "$(run $SI)"
+restore $F
+
+# M154: the OBSERVER reads a missing severity as zero, so "I looked and cannot
+# tell" becomes "I looked and it is fine" — §3's own failure, in the one place
+# §3 is enforced.
+F=supabase/functions/_shared/oqcaRuntime/observe.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/observe.ts'; s=open(p).read()
+old='  if (item.severity === null) {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  if (false) {')
+s=s.replace('    severity: item.severity,','    severity: item.severity ?? 0,')
+open(p,'w').write(s)
+PY2
+report "M154 an unknown severity is read as healthy" "$(run $SI)"
+restore $F
+
+# M155: a refused observer produces SILENCE rather than nineteen UNOBSERVED
+# rows, so "no observation" reads as "healthy" one layer down.
+F=src/oqca/autonomy/observation.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/observation.ts'; s=open(p).read()
+i=s.index('  const filled = kinds')
+j=s.index('\n', s.index('unobserved(k, k, why));', i))
+s=s[:i]+'  const filled: Observation[] = [];\n  void why;\n  void kinds;'+s[j:]
+open(p,'w').write(s)
+PY2
+mirror
+report "M155 an unmentioned kind is absent instead of UNOBSERVED" "$(run $SI $SL)"
+restore $F
+
+# M156: an UNREGISTERED capability name is carried through, so a concern
+# declares a need no registry knows and the planner ranks it as free.
+F=supabase/functions/_shared/oqcaRuntime/observe.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/observe.ts'; s=open(p).read()
+old='  return requires.filter((r) => isRegistered(r));'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  return requires;')
+open(p,'w').write(s)
+PY2
+report "M156 an unregistered capability name is carried into the plan" "$(run $SI)"
+restore $F
+
+# M157: CHECKPOINT PERSISTENCE loses the new fields, so a restored runtime has
+# no baselines and every first reading looks like a win.
+F=src/oqca/autonomy/runtime.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='      baselines: [...baselines.entries()].map(([k, v]) => [k, v] as const),\n      failureLog,\n      experiments,\n      stop: null,'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      baselines: [],\n      failureLog: [],\n      experiments: [],\n      stop: null,')
+open(p,'w').write(s)
+PY2
+mirror
+report "M157 the snapshot drops the baselines and the experiment ledger" "$(run $SL)"
+restore $F
+
+# M158: CROSS-PROCESS RESTORATION is dropped — the durable rows are loaded and
+# never put into the tick's store, so every process starts from nothing while
+# the file grows.
+F=supabase/functions/_shared/oqcaRuntime/improvement.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/improvement.ts'; s=open(p).read()
+old='    for (const r of hydrated.records) build.store.put(r);'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    void hydrated;')
+open(p,'w').write(s)
+PY2
+report "M158 durable knowledge is loaded and never used" "$(run $SL)"
+restore $F
+
+# M159: the SNAPSHOT VERSION is not bumped, so a v1 checkpoint is read as a v2
+# one and its missing fields arrive as `undefined`.
+F=src/oqca/autonomy/runtime.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='export const SNAPSHOT_VERSION = 2;'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'export const SNAPSHOT_VERSION = 1;')
+open(p,'w').write(s)
+PY2
+mirror
+report "M159 the snapshot version is not bumped for the new fields" "$(run $SL)"
+restore $F
+
+# M160: OBJECTIVE CONTINUATION breaks — the observer's findings never reach the
+# backlog, so ONIQ observes itself and does nothing about it.
+F=src/oqca/autonomy/runtime.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/runtime.ts'; s=open(p).read()
+old='      improvements: concerns.map((c) => ({'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      improvements: [].map((c: never) => ({')
+open(p,'w').write(s)
+PY2
+mirror
+report "M160 observed concerns never become objectives" "$(run $SL)"
+restore $F
+
+# M161: the loop is handed a REFUSING research adapter while the episode
+# retrieves, so one run reports research as both available and unavailable and
+# every experiment comes back BLOCKED. The live defect, restored.
+F=supabase/functions/_shared/oqcaRuntime/improvement.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='supabase/functions/_shared/oqcaRuntime/improvement.ts'; s=open(p).read()
+old='      research: deps.research?.adapter,'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      research: undefined,')
+open(p,'w').write(s)
+PY2
+report "M161 the 23 stations get a refusing adapter the episode is not using" "$(run $SL)"
+restore $F
+
+# M162: SELF-EVALUATION answers `no` where it measured nothing. "ONIQ checked
+# and did not improve" is a claim; `unestablished` is the truth, and it is the
+# answer that generates the next objective rather than the wrong one.
+F=src/oqca/autonomy/selfEval.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/selfEval.ts'; s=open(p).read()
+old='      x === null\n        ? "unestablished"\n        : x.improvementVerified'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'      x === null\n        ? "no"\n        : x.improvementVerified')
+open(p,'w').write(s)
+PY2
+mirror
+report "M162 a cycle that measured nothing answers 'no' rather than unestablished" "$(run $SI)"
+restore $F
+
 echo "done"

@@ -55,6 +55,7 @@ import {
   type SpendEstimate,
   type Verifier,
   UNKNOWN_TOOL_PROPERTIES,
+  type ResearchAdapter,
 } from "./seams.ts";
 import {
   type ImaginedFuture,
@@ -181,6 +182,20 @@ export type LoopInput = {
   /** Section 14. Defaults to NO_VERIFIER, which answers `unverified`. */
   readonly verifier?: Verifier;
   /**
+   * v1.7 §9. Defaults to `NO_RESEARCH`, which REFUSES rather than answering
+   * "no findings".
+   *
+   * IT IS HERE SO THE RUN CANNOT CONTRADICT ITS OWN CALLER. Before this, an
+   * episode that had a retrieval capability and used it still handed the loop a
+   * refusing adapter, so one run reported research as BOTH available (from the
+   * episode) and unavailable (from station 10) — and `unavailable()` reads the
+   * refusal, so the episode's own successful retrieval was invisible and every
+   * experiment came back BLOCKED. Measured on the first live four-process run,
+   * not reasoned: three records were retrieved, verified and persisted while
+   * the verdict said nothing had been intervened.
+   */
+  readonly research?: ResearchAdapter;
+  /**
    * v1.3 SECTION 2. When supplied, this IS the run — every seam is read from
    * it and the individual fields above are ignored. When absent, one is
    * assembled from them, so there is still exactly one run object internally
@@ -262,6 +277,7 @@ export async function runCognitiveLoop(input: LoopInput): Promise<LoopRun> {
       memory: input.memory,
       tools: input.router,
       verifier: input.verifier,
+      research: input.research,
       clock: input.clock,
       budgets: input.budgets,
     });

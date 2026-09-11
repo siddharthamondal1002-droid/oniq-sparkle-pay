@@ -1,0 +1,104 @@
+reset: docs/oqca/self-improve removed
+read 172 module(s); derived 27 finding(s) from the import graph
+
+restored      false
+episodes      3
+stop          capability_blocked — 3 objectives in a row are waiting on a capability: model:insufficient_allowance (model call refused: max_tokens)
+generated     46 objective(s) this invocation
+concerns      44 ranked; top: improve:unreachable_path:src/oqca/loop/cognitiveLoop.ts
+observed      27/44 kinds
+settled       0
+learned       3: runner-availability
+persisted     3
+experiments   3; verified improvements 1
+  objective_residual_uncertainty: IMPROVED — objective_residual_uncertainty moved -0.875 concepts-of-doubt (1 -> 0.125) over 1 sample(s), lower is better
+  objective_residual_uncertainty: NO_DIFFERENCE — |0| is below the 0.05 the design calls a change; the arms are indistinguishable on objective_residual_uncertainty
+  objective_residual_uncertainty: NO_DIFFERENCE — |0| is below the 0.05 the design calls a change; the arms are indistinguishable on objective_residual_uncertainty
+checkpoints   4/4
+  #0 learn:runner-availability blocked [IMPROVED]
+      1 of 1 concepts still open (loop capability_unavailable); restored 0 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 0.125 (IMPROVED)
+      7/8 of the self-evaluation questions are answerable from recorded evidence; 3 learned, 3 persisted, experiment IMPROVED
+  #1 improve:unreachable_path:src/oqca/loop/cognitiveLoop.ts blocked [NO_DIFFERENCE]
+      1 of 1 concepts still open (loop capability_unavailable); restored 3 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 1.000 (NO_DIFFERENCE)
+      6/8 of the self-evaluation questions are answerable from recorded evidence; 0 learned, 0 persisted, experiment NO_DIFFERENCE
+  #2 learn:unreachable_path:src/oqca/loop/cognitiveLoop.ts blocked [NO_DIFFERENCE]
+      1 of 1 concepts still open (loop capability_unavailable); restored 3 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 1.000 (NO_DIFFERENCE)
+      6/8 of the self-evaluation questions are answerable from recorded evidence; 0 learned, 0 persisted, experiment NO_DIFFERENCE
+
+read 172 module(s); derived 27 finding(s) from the import graph
+
+restored      true
+episodes      3
+stop          capability_blocked — 3 objectives in a row are waiting on a capability: model:insufficient_allowance (model call refused: max_tokens)
+generated     1 objective(s) this invocation
+concerns      44 ranked; top: improve:unreachable_path:src/oqca/loop/megaLoop.ts
+observed      27/44 kinds
+settled       0
+learned       3: motion_failure:motion_failure
+persisted     3
+experiments   6; verified improvements 1
+  objective_residual_uncertainty: NO_DIFFERENCE — |0| is below the 0.05 the design calls a change; the arms are indistinguishable on objective_residual_uncertainty
+  objective_residual_uncertainty: NO_DIFFERENCE — |0| is below the 0.05 the design calls a change; the arms are indistinguishable on objective_residual_uncertainty
+  objective_residual_uncertainty: IMPROVED — objective_residual_uncertainty moved -0.875 concepts-of-doubt (1 -> 0.125) over 1 sample(s), lower is better
+checkpoints   4/4
+  #3 improve:unreachable_path:src/oqca/loop/megaLoop.ts blocked [NO_DIFFERENCE]
+      1 of 1 concepts still open (loop capability_unavailable); restored 3 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 1.000 (NO_DIFFERENCE)
+      6/8 of the self-evaluation questions are answerable from recorded evidence; 0 learned, 0 persisted, experiment NO_DIFFERENCE
+  #4 learn:unreachable_path:src/oqca/loop/megaLoop.ts blocked [NO_DIFFERENCE]
+      1 of 1 concepts still open (loop capability_unavailable); restored 3 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 1.000 (NO_DIFFERENCE)
+      6/8 of the self-evaluation questions are answerable from recorded evidence; 0 learned, 0 persisted, experiment NO_DIFFERENCE
+  #5 improve:motion_failure:motion_failure blocked [IMPROVED]
+      1 of 1 concepts still open (loop capability_unavailable); restored 3 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 0.125 (IMPROVED)
+      7/8 of the self-evaluation questions are answerable from recorded evidence; 3 learned, 3 persisted, experiment IMPROVED
+
+read 172 module(s); derived 27 finding(s) from the import graph
+
+restored      true
+episodes      3
+stop          capability_blocked — 3 objectives in a row are waiting on a capability: model:insufficient_allowance (model call refused: max_tokens)
+generated     2 objective(s) this invocation
+concerns      44 ranked; top: improve:configuration_mismatch:configuration_mismatch
+observed      27/44 kinds
+settled       0
+learned       0
+persisted     3
+experiments   9; verified improvements 0
+  objective_residual_uncertainty: NO_DIFFERENCE — |0| is below the 0.05 the design calls a change; the arms are indistinguishable on objective_residual_uncertainty
+  objective_residual_uncertainty: NO_DIFFERENCE — |0| is below the 0.05 the design calls a change; the arms are indistinguishable on objective_residual_uncertainty
+  objective_residual_uncertainty: NO_DIFFERENCE — |0| is below the 0.05 the design calls a change; the arms are indistinguishable on objective_residual_uncertainty
+checkpoints   4/4
+  #6 learn:motion_failure:motion_failure blocked [NO_DIFFERENCE]
+      1 of 1 concepts still open (loop capability_unavailable); restored 6 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 0.125 -> 0.125 (NO_DIFFERENCE)
+      6/8 of the self-evaluation questions are answerable from recorded evidence; 0 learned, 3 persisted, experiment NO_DIFFERENCE
+  #7 improve:configuration_mismatch:configuration_mismatch blocked [NO_DIFFERENCE]
+      1 of 1 concepts still open (loop capability_unavailable); restored 6 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 1.000 (NO_DIFFERENCE)
+      6/8 of the self-evaluation questions are answerable from recorded evidence; 0 learned, 0 persisted, experiment NO_DIFFERENCE
+  #8 learn:configuration_mismatch:configuration_mismatch blocked [NO_DIFFERENCE]
+      1 of 1 concepts still open (loop capability_unavailable); restored 6 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 1.000 (NO_DIFFERENCE)
+      6/8 of the self-evaluation questions are answerable from recorded evidence; 0 learned, 0 persisted, experiment NO_DIFFERENCE
+
+read 172 module(s); derived 27 finding(s) from the import graph
+
+restored      true
+episodes      3
+stop          capability_blocked — 3 objectives in a row are waiting on a capability: model:insufficient_allowance (model call refused: max_tokens)
+generated     1 objective(s) this invocation
+concerns      44 ranked; top: improve:runtime_failure:runtime_failure
+observed      27/44 kinds
+settled       0
+learned       0
+persisted     0
+experiments   12; verified improvements 0
+  objective_residual_uncertainty: NO_DIFFERENCE — |0| is below the 0.05 the design calls a change; the arms are indistinguishable on objective_residual_uncertainty
+  objective_residual_uncertainty: NO_DIFFERENCE — |0| is below the 0.05 the design calls a change; the arms are indistinguishable on objective_residual_uncertainty
+  objective_residual_uncertainty: NO_DIFFERENCE — |0| is below the 0.05 the design calls a change; the arms are indistinguishable on objective_residual_uncertainty
+checkpoints   4/4
+  #9 improve:runtime_failure:runtime_failure blocked [NO_DIFFERENCE]
+      1 of 1 concepts still open (loop capability_unavailable); restored 6 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 1.000 (NO_DIFFERENCE)
+      6/8 of the self-evaluation questions are answerable from recorded evidence; 0 learned, 0 persisted, experiment NO_DIFFERENCE
+  #10 learn:runtime_failure:runtime_failure blocked [NO_DIFFERENCE]
+      1 of 1 concepts still open (loop capability_unavailable); restored 6 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 1.000 (NO_DIFFERENCE)
+      6/8 of the self-evaluation questions are answerable from recorded evidence; 0 learned, 0 persisted, experiment NO_DIFFERENCE
+  #11 improve:test_health:test_health blocked [NO_DIFFERENCE]
+      1 of 1 concepts still open (loop capability_unavailable); restored 6 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 1.000 (NO_DIFFERENCE)
+      6/8 of the self-evaluation questions are answerable from recorded evidence; 0 learned, 0 persisted, experiment NO_DIFFERENCE
