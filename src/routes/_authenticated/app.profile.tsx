@@ -468,6 +468,9 @@ function SafetySection() {
               <Link to="/app/admin/health-ai" className={linkClass}>
                 Health AI
               </Link>
+              <Link to="/app/admin/oqca" className={linkClass}>
+                OQCA
+              </Link>
             </div>
           </div>
         )}

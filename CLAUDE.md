@@ -6084,3 +6084,108 @@ ship with a web publish — it needs one deploy message, and it is worth batchin
 with whatever else the next turn needs. The OQCA change reaches nothing: the
 flag still ships `off` and nothing imports the runtime. **And neither fix
 restores video** — that is still the owner replacing `GITHUB_DISPATCH_TOKEN`.
+
+### 2026-09-11 — "the substrate, the autonomy runtime, the self-improvement loop have no caller in the app at all add it"
+
+The owner was right, and it is this repository's most-recorded failure at its
+largest scale: nine versions of a cognitive kernel, a knowledge substrate, an
+autonomous runtime and a self-improvement episode, and the only thing that ever
+ran any of them was a script on a developer's disk. `story-dispatch` calls the
+LOOP behind a flag that ships off; the other three had no caller anywhere.
+
+**THEY HAVE ONE NOW, AND IT IS A TAP RATHER THAN A DAEMON.**
+`supabase/functions/oqca-observe` is admin-gated, reads five things from ONIQ's
+own production tables, ranks them, retrieves evidence from those readings,
+verifies it, **writes what it learned to a table that outlives the tap**, and
+runs the 23 stations against the result. `/app/admin/oqca` is the button; the
+link is on Profile beside the other admin tools.
+
+**`oqca_state` IS THE THING EVERY REPORT SINCE v1.5 SAID WAS MISSING.** Two rows
+of bytes, RLS on with no policy, service role only. Every OQCA entry above closes
+with the same sentence — _"nothing persists, so nothing ages"_ — and this is the
+answer. It is deliberately NOT a knowledge schema: `durable.ts` already owns the
+serialisation, the schema version and the row validation, and a second model in
+Postgres would drift from the first the way the film-language list did this
+morning in three places.
+
+**A FAILED READ THROWS, AND THAT IS THE ONE DESIGN DECISION WORTH ARGUING
+ABOUT.** `DurableSink.read` answers `string | null`, and `null` means "empty,
+and honestly so" — what a first run returns. Mapping a failed read onto it makes
+an unreachable store indistinguishable from a fresh morning: ONIQ starts from
+zero, reports `restored 0 record(s)`, and nothing anywhere says a backlog was
+lost. The function turns the throw into a **503 naming the reason**, never a
+green report that quietly began from nothing.
+
+**THE CORPUS IS THE READINGS THEMSELVES, which is why the loop learns anything
+at all.** A production measurement is a document: verbatim, located by the query
+that produced it, first-hand — the strongest evidence class the substrate has.
+Each corpus line opens with the concept id (`${kind}:${subject}`) because
+`makeLocalEvidenceResearch` requires EVERY term of the question, and the question
+IS the concept id. Drop that prefix and every line stays true, stays located, and
+retrieves nothing — mutation C7.
+
+**THREE EPISODES PER TAP, AND THE NUMBER IS MEASURED.** One is too few, and
+nothing in the code says why: the FIRST objective a tap selects is
+`learn:runner-availability`, the substrate's own permanent gap, which outranks
+every observation-driven concern and which no corpus ONIQ holds can close.
+Measured over six — episode 1 blocks on it, episode 2 reaches
+`improve:runtime_failure:story_worker` and both LEARNS and PERSISTS, episode 3
+runs its follow-up. The blocked gap keeps its status in the checkpoint, so a
+LATER tap starts on real work.
+
+**THE COMPOUNDING WAS MEASURED AND THE ASSERTION WRITTEN FOR IT WAS WRONG.** It
+expected the durable row count to hold steady across taps, on the assumption
+that a second tap re-persists the same assertion. It grew **1 → 3**: the first
+tap's objective is `blocked` in the restored checkpoint, so the second reaches
+the concerns below it and learns about the dispatcher and the film queue as
+well. The two claims worth pinning are that nothing is LOST and that the second
+tap moved something the first did not — and both are now asserted from reads
+taken at different times, because comparing one read against itself passes
+however the store behaves.
+
+**AND THE RANKING HAS A LIMIT, ASSERTED RATHER THAN DISCOVERED LATER.** Measured
+on the real outage shape:
+
+    severity 1.00, needs a person   1.00 x 0.060 = 0.060000   <- first
+    severity 0.30, needs nothing    0.30 x 0.168 = 0.050400
+    severity 0.76, needs a person   0.76 x 0.060 = 0.034656   <- below a chore
+
+So the three severity-1.0 faults rank above every never-observed chore, which is
+what the 2026-09-11 fix established — and a MID-severity measured fault can
+still fall below one, because escalation halves what ONIQ cannot do itself. That
+is a modifier re-ranking rather than vetoing (v1.6's own rule) and a near-tie,
+not the 67× inversion that was fixed this morning. Forcing the order with a new
+constant would be inventing a number nobody measured, so it is pinned as a limit
+instead.
+
+**`deno check` CAUGHT TWO THINGS `tsc` CANNOT SEE, AGAIN.** `SystemIdentity`
+imported from `runtime.ts` when it lives in `world.ts`, and `branch` typed as
+`string` where a null was passed. `tsconfig.json` includes `src/**` only, so an
+edge function is typechecked only when something under `src/` reaches it — which
+is why the test file imports all the new runtime modules, and why it says so at
+the top. Twelve more errors came from `.then(({ data, error }) => …)` on a
+PostgREST builder losing its types; awaiting the query instead fixed all twelve
+and reads better.
+
+**THE HEALTH SEAL HELD AND CHANGED THE DESIGN.** The obvious fourth reading was
+the health AI gateway's refusal rate — and `health_ai_requests` is one of the
+seven tables `src/health/__tests__/isolation.test.ts` forbids outside the health
+module. That seal is a privacy boundary, not a convenience, so the reading became
+the RENDERER instead (minutes since a film last reached `ready`), which is a
+separate fact from the dispatcher's own health row and is exactly the pair that
+said "no film since 05 Sep" while the dispatcher still looked green.
+
+**AND THE SECURITY GUARD CAUGHT ME FOR THE THIRD TIME IN THE SAME WAY.** A test
+window anchored on the literal that registers the request handler — the Deno
+namespace, which `security.test.ts` bans across this tree. Reworded to anchor on
+the handler's first statement rather than exempting anything; a security guard
+does not get a hole cut in it for a test's convenience.
+
+15 mutations, every one RED, none GREEN, none NOTAPPLIED (C6's anchor went stale
+on the first run and the script said so rather than printing a verdict — the
+seventh time that fix has earned itself). 389 files / 7,044 tests (was 386 /
+6,997); tsc, `lint:ci`, Prettier, the mirror check (50 files) and `deno check` of
+the new function all clean. **A tap costs $0**: `DEFAULT_BUDGETS` ships
+`maxTokens`, `maxCostUsd` and `maxToolCalls` at 0, every model call is refused at
+its own gate, and the six capabilities that could change anything are registered
+and NOT authorized — the run names all five of them in its stop.
