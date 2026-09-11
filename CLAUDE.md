@@ -5880,3 +5880,80 @@ tick costs $0, no Lovable message was sent, no dependency was added, and
 `maxTokens` / `maxCostUsd` / `maxToolCalls` all still ship at 0. **The two things
 that are the owner's are unchanged**: a non-zero execution budget, and whether
 ONIQ may ever change itself rather than only what it knows about itself.
+
+### 2026-09-11 — "create video not working", and "tell oqca to resolve it"
+
+Two findings, and the second was found by the first.
+
+**THE VIDEO FAULT IS A DEAD CREDENTIAL, measured on production.** `story-dispatch`
+cannot reach GitHub: every `repository_dispatch` answers `401 Bad credentials`
+against `GITHUB_DISPATCH_TOKEN`. Four independent readings — 33 × 502 in
+`net._http_response` over three hours, 38 `Bad credentials` rows in
+`client_error_reports`, the last `story worker` run at `2026-09-05T14:24:04Z` and
+none since, and two films `queued` with `shot_count` and `storage_path` null.
+
+**THE 401 IS NOT A 403, and the function's own comment draws that line** ("a
+wrong-scope token reads differently from a missing one"). So the scopes were
+right and the token itself expired or was revoked. **The token died between
+05 Sep 14:24 and 09 Sep 14:50** — the last successful render and the first film
+asked for afterwards; the errors only begin on 09 Sep because that is the first
+time the dispatcher had anything to send. Replacing the secret is the OWNER's:
+the service role cannot reach `api.supabase.com`, and the GitHub account is
+theirs. **The trap**: `findGithubToken()` takes the FIRST of
+`GITHUB_DISPATCH_TOKEN`, `GITHUB_TOKEN`, `GITHUB_PERSONAL_ACCESS_TOKEN`, so a
+good token added under a different name is shadowed by the dead one.
+
+**AND A FAILED DISPATCH MAKES A FILM IMMORTAL.** `dispatched_at` is stamped
+BEFORE the GitHub call — deliberately, to prevent a re-dispatch storm — which
+bumps `updated_at`; `story-sweep` only expires a `queued` job whose `updated_at`
+is older than 30 minutes, and the failing dispatcher refreshes it every ten. So
+a dispatch outage yields films that are never rendered, never failed, never
+refunded, and the person is told only "queued". Recorded, not fixed.
+
+**OQCA WAS GIVEN THE INCIDENT AND RANKED IT 14th OF 18.**
+`scripts/oqca-dispatch-incident.ts` feeds it six production readings with their
+SQL/API locators, no diagnosis, no remedy, and the real source of the three
+functions as its corpus; `docs/oqca/DISPATCH_INCIDENT.md` is the record. The
+severity-1.0 outage lost to thirteen "establish how to observe X" chores by
+168×, and the run's own factor dump says exactly why:
+
+    chore (never observed)  cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30 -> 0.1680
+    the live outage         cap=0.00 cost=1.00 rev=1.00 risk=1.00 dep=0.05 exp=1.00 -> 0.0025
+
+**THE LEARNING HALF IS ROUGHLY RIGHT AND THE PLANNING HALF INVERTS IT.** The real
+fault carries `importance = 1.000` against a chore's `0.300` and loses the
+learning score only 0.12 to 0.30. What decides it is the planning modifier, and
+exactly two of its six factors: `capability = 0.00` and `dependencies = 0.05`,
+both zero-ish for one reason — acting needs `UPDATE_CONFIGURATION`, which is
+registered and NOT authorized. Every other factor says do this one, including
+`expectedImprovement = 1.00`.
+
+**SO ONIQ DEPRIORITISES A FAULT BY 67× PRECISELY BECAUSE NOBODY HAS AUTHORIZED IT
+TO FIX THAT FAULT** — and the consequence is not bad ordering, it is that the
+outage can never be SELECTED, so `capability_blocked` can never name it. v1.6's
+claim that the stop is "the difference between 'ONIQ is stuck' and 'a credential
+is missing'" is unreachable in the one case it was built for. **This is the v1.6
+lesson one layer up**: that entry fixed _a zero budget stops the thinking_; this
+is _an unauthorized capability stops the ranking_, the same confusion of "ONIQ
+may not" with "this does not matter", moved from the loop into the planner.
+v1.6's own rule for context factors is that a modifier "may re-rank and may not
+veto"; `capability` and `dependencies` are PLANNING factors and carry no floor,
+and at 0.00 one annihilates the other five. `MODIFIER_FLOOR` exists in
+`select.ts` for this exact shape and is not applied here. NOT FIXED — whether
+the answer is that floor or a separate "needs a person" lane that ranks by
+importance alone and reports rather than attempts is a design question, not a
+constant to nudge.
+
+**AND THE RUN STOPPED ON THE OWNER'S OTHER OPEN NUMBER:** `capability_blocked —
+model:insufficient_allowance (max_tokens)`. With `maxTokens` shipped at 0, the
+loop cannot reason about any objective at all, real or chore. Three stacked
+gates, then, and only the third was predicted in the host's header before the
+run: the ranking, the budget, and the authorization. **The prediction was wrong
+and the run said so**, which is what §hard-rule asked for — "the system must be
+able to surprise the test".
+
+**WHAT OQCA GOT RIGHT, so the defect is not read as rot:** the observer is honest
+(6/19 OBSERVED, the other 13 UNOBSERVED with reasons); severity does reach the
+score (0.6 scored 0.6× the 1.0 readings); the severity-0 reading — the dispatcher
+answering 200 × 159, i.e. up and being REFUSED rather than down — was correctly
+dropped by `actionable()`; and nothing was executed or fabricated.

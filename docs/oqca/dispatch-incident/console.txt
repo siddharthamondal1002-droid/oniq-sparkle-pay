@@ -1,0 +1,52 @@
+reset: docs/oqca/dispatch-incident removed
+6 measured reading(s); corpus 3 file(s)
+
+restored      false
+episodes      1
+stop          max_episodes — ran 1 of 1 permitted this invocation (1 over the lifetime)
+generated     19 objective(s)
+concerns      18 ranked
+  0.05040 tgt=0.30000 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:blocked_capability:blocked_capability
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=1.000] UNKNOWN
+  0.05040 tgt=0.30000 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:dead_branch:dead_branch
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=1.000] UNKNOWN
+  0.05040 tgt=0.30000 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:knowledge_gap:knowledge_gap
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=1.000] UNKNOWN
+  0.05040 tgt=0.30000 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:latency:latency
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=1.000] UNKNOWN
+  0.05040 tgt=0.30000 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:missing_validation:missing_validation
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=1.000] UNKNOWN
+  0.05040 tgt=0.30000 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:motion_failure:motion_failure
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=1.000] UNKNOWN
+  0.05040 tgt=0.30000 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:mutation_coverage:mutation_coverage
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=1.000] UNKNOWN
+  0.05040 tgt=0.30000 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:runtime_failure:runtime_failure
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=1.000] UNKNOWN
+  0.05040 tgt=0.30000 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:stale_knowledge:stale_knowledge
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=1.000] UNKNOWN
+  0.05040 tgt=0.30000 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:story_continuity:story_continuity
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=1.000] UNKNOWN
+  0.05040 tgt=0.30000 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:test_health:test_health
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=1.000] UNKNOWN
+  0.05040 tgt=0.30000 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:unreachable_path:unreachable_path
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=1.000] UNKNOWN
+  0.05040 tgt=0.30000 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:unused_capability:unused_capability
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=1.000] UNKNOWN
+  0.00030 tgt=0.12000 cap=0.00 cost=1.00 rev=1.00 risk=1.00 dep=0.05 exp=1.00  OBSERVED   improve:configuration_mismatch:GITHUB_DISPATCH_TOKEN
+          learn[imp=1.000 unc=0.300 dep=1.000 gain=0.400 stale=1.000 rel=1.000] UNCERTAIN
+  0.00030 tgt=0.12000 cap=0.00 cost=1.00 rev=1.00 risk=1.00 dep=0.05 exp=1.00  OBSERVED   improve:error_rate:story_worker_workflow
+          learn[imp=1.000 unc=0.300 dep=1.000 gain=0.400 stale=1.000 rel=1.000] UNCERTAIN
+  0.00030 tgt=0.12000 cap=0.00 cost=1.00 rev=1.00 risk=1.00 dep=0.05 exp=1.00  OBSERVED   improve:generation_failure:story_jobs
+          learn[imp=1.000 unc=0.300 dep=1.000 gain=0.400 stale=1.000 rel=1.000] UNCERTAIN
+  0.00030 tgt=0.12000 cap=0.00 cost=1.00 rev=1.00 risk=1.00 dep=0.05 exp=1.00  OBSERVED   improve:provider_failure:github_repository_dispatch
+          learn[imp=1.000 unc=0.300 dep=1.000 gain=0.400 stale=1.000 rel=1.000] UNCERTAIN
+  0.00011 tgt=0.07200 cap=0.00 cost=1.00 rev=1.00 risk=1.00 dep=0.05 exp=0.60  OBSERVED   improve:missing_telemetry:story_sweep_stale_queue
+          learn[imp=0.600 unc=0.300 dep=1.000 gain=0.400 stale=1.000 rel=1.000] UNCERTAIN
+observed      6/19 kinds
+settled       0
+learned       0
+persisted     0
+checkpoints   2/2
+  #0 learn:runner-availability blocked [NO_DIFFERENCE]
+      1 of 1 concepts still open (loop capability_unavailable); restored 0 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 1.000 (NO_DIFFERENCE)
+      6/8 of the self-evaluation questions are answerable from recorded evidence; 0 learned, 0 persisted, experiment NO_DIFFERENCE
