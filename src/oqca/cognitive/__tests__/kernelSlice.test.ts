@@ -241,6 +241,68 @@ describe("openai adapter: shape only — no call has ever been made", () => {
     expect(r.ok).toBe(false);
   });
 
+  /**
+   * THE BUG THIS BLOCK EXISTS FOR, measured on production models rather than
+   * reasoned about. `toolsOffered` was `readonly string[]`, so the body went
+   * out as `{type:"function", name}` with no description and no parameters.
+   * Both frontier arms of the video benchmark then called `db_error_detail`
+   * six times each with `{}` — there was no `surface` field to fill — read
+   * `no surface named ` every time, never saw the evidence naming the dead
+   * credential, and scored zero causes found. Fifty kernel tests were green
+   * throughout, because not one of them looked at what a tool offer CONTAINS.
+   */
+  it("offers each tool with its description and every argument it reads", () => {
+    const body = responsesBody("m", {
+      instructions: "i",
+      input: "x",
+      toolsOffered: [
+        { name: "db_error_detail", description: "detail for one surface", schema: ["surface"] },
+      ],
+    });
+    const tools = body.tools as Record<string, unknown>[];
+    expect(tools).toHaveLength(1);
+    expect(tools[0].name).toBe("db_error_detail");
+    expect(tools[0].description).toBe("detail for one surface");
+    const params = tools[0].parameters as Record<string, unknown>;
+    expect(params.properties).toEqual({ surface: { type: "string" } });
+    expect(params.required).toEqual(["surface"]);
+  });
+
+  /**
+   * `strict: true` is only legal when every declared property is also
+   * required and `additionalProperties` is false — OpenAI rejects the whole
+   * request otherwise, which is how the FIRST version of this benchmark
+   * failed (a 400 on the tool name). Asserted so the pair cannot drift apart.
+   */
+  it("keeps strict mode consistent with its own schema", () => {
+    const body = responsesBody("m", {
+      instructions: "i",
+      input: "x",
+      toolsOffered: [{ name: "two_args", description: "d", schema: ["a", "b"] }],
+    });
+    const tool = (body.tools as Record<string, unknown>[])[0];
+    const params = tool.parameters as Record<string, unknown>;
+    expect(tool.strict).toBe(true);
+    expect(params.additionalProperties).toBe(false);
+    expect(Object.keys(params.properties as object).sort()).toEqual(params.required);
+  });
+
+  /** A tool that reads nothing still needs a valid empty object schema. */
+  it("gives an argument-free tool an empty object schema rather than none", () => {
+    const body = responsesBody("m", {
+      instructions: "i",
+      input: "x",
+      toolsOffered: [{ name: "db_job_counts", description: "counts", schema: [] }],
+    });
+    const params = (body.tools as Record<string, unknown>[])[0].parameters as Record<
+      string,
+      unknown
+    >;
+    expect(params.type).toBe("object");
+    expect(params.properties).toEqual({});
+    expect(params.required).toEqual([]);
+  });
+
   it("reads a documented function_call shape into a tool wish", () => {
     const r = readResponse("m", {
       output: [{ type: "function_call", name: "db_read", arguments: '{"q":"1"}' }],

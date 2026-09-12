@@ -20,12 +20,32 @@
 
 export type ReasoningEffort = "low" | "medium" | "high";
 
+/**
+ * A tool the caller is willing to let the model ASK for.
+ *
+ * THE NAME ALONE IS NOT AN OFFER. The first version of this seam carried
+ * `readonly string[]`, so the OpenAI adapter emitted `{type, name}` with no
+ * description and no parameter schema. Three of the video benchmark's four
+ * tools take no arguments and worked; `db_error_detail` needs one, the model
+ * was never told the field existed, and both frontier arms called it six
+ * times with `{}` — reading `no surface named ` each time and never seeing
+ * the evidence that names the dead credential. The run scored zero and the
+ * cause was this type. A tool offered without its arguments is a tool that
+ * cannot be called.
+ */
+export type OfferedTool = {
+  readonly name: string;
+  readonly description: string;
+  /** Argument names the tool reads. Empty means it takes none. */
+  readonly schema: readonly string[];
+};
+
 export type ModelRequest = {
   readonly instructions: string;
   readonly input: string;
   readonly effort?: ReasoningEffort;
-  /** Names of tools the caller is willing to let the model ASK for. */
-  readonly toolsOffered?: readonly string[];
+  /** Tools the caller is willing to let the model ASK for, with their arguments. */
+  readonly toolsOffered?: readonly OfferedTool[];
 };
 
 export type ToolWish = {

@@ -51,6 +51,7 @@ import {
   type ModelAdapter,
   type ModelRequest,
   type ModelResult,
+  type OfferedTool,
   type ToolWish,
 } from "../../oqca/cognitive/modelAdapter.ts";
 
@@ -92,7 +93,38 @@ export function responsesBody(model: string, req: ModelRequest): Record<string, 
     instructions: req.instructions,
     input: req.input,
     reasoning: { effort: req.effort ?? "medium" },
-    ...(tools.length > 0 ? { tools: tools.map((name) => ({ type: "function", name })) } : {}),
+    ...(tools.length > 0 ? { tools: tools.map(functionTool) } : {}),
+  };
+}
+
+/**
+ * One offered tool as the Responses API wants it.
+ *
+ * `strict: true` REQUIRES that every declared property also appear in
+ * `required` and that `additionalProperties` is false. `ToolSpec.schema` is a
+ * flat list of argument names the tool reads, all of which it needs, so the
+ * two agree by construction — and a tool that takes none produces an empty
+ * object schema, which is valid and is what the three argument-free benchmark
+ * tools want.
+ *
+ * Every argument is typed `string` because `ToolWish.args` is
+ * `Record<string, string>` and `argsFrom` below coerces to it. Declaring a
+ * number here would let the model send one that the wish type cannot carry.
+ */
+function functionTool(t: OfferedTool): Record<string, unknown> {
+  const properties: Record<string, unknown> = {};
+  for (const arg of t.schema) properties[arg] = { type: "string" };
+  return {
+    type: "function",
+    name: t.name,
+    description: t.description,
+    parameters: {
+      type: "object",
+      properties,
+      required: [...t.schema],
+      additionalProperties: false,
+    },
+    strict: true,
   };
 }
 

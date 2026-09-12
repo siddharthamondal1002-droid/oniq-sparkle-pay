@@ -23,7 +23,7 @@ import {
   uncertaintyOf,
 } from "./cognitiveState.ts";
 import { type ExecutionMode } from "./executionMode.ts";
-import { type ModelAdapter, REFUSING_MODEL } from "./modelAdapter.ts";
+import { type ModelAdapter, type OfferedTool, REFUSING_MODEL } from "./modelAdapter.ts";
 import { type Registry, invoke } from "./capabilityRegistry.ts";
 import {
   type VerificationEngine,
@@ -116,7 +116,15 @@ export async function runKernel(cfg: KernelConfig): Promise<KernelReport> {
   let stop: Stop = "BLOCKED";
   let stopDetail = "the loop ended without reaching a stop";
 
-  const offered = cfg.registry.specs.filter((s) => s.authorized).map((s) => s.name);
+  /**
+   * WHAT AN OFFER CARRIES. The name, the description and the argument names —
+   * all three, because a model cannot fill a field it was never shown. See
+   * `OfferedTool`: offering names alone is what made the video benchmark score
+   * zero on both frontier arms.
+   */
+  const offered: readonly OfferedTool[] = cfg.registry.specs
+    .filter((s) => s.authorized)
+    .map((s) => ({ name: s.name, description: s.description, schema: s.schema }));
 
   for (let i = 0; i < maxIterations; i += 1) {
     state = { ...state, iteration: state.iteration + 1 };
