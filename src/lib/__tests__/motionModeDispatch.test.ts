@@ -45,7 +45,6 @@ describe("per-job motion mode (Veo select validation plumbing)", () => {
     expect(dispatch).toMatch(/\.\.\.\(motionMode \? \{ story_movie: motionMode \} : \{\}\)/);
   });
 
-
   it("actor_refs graduation is untouched by the new field", () => {
     expect(dispatch).toMatch(
       /const actorRefs = rows\[0\]\.actor_refs === true \|\| rows\[0\]\.grade === "movie";/,

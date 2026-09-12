@@ -153,5 +153,4 @@ describe("the runner passes the signals the renderer reads", () => {
       expect(line).not.toMatch(/\|\|\s*'on'\s*\}\}/);
     }
   });
-
 });

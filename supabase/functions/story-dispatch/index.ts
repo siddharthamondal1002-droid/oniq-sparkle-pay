@@ -184,7 +184,6 @@ Deno.serve(async (req) => {
     // authorizeScheduledCaller above is already the stronger gate — a second,
     // narrower one below it can only subtract callers it was never meant to.
     if (new URL(req.url).searchParams.get("action") === "workflow_head") {
-
       const wf = await fetch(
         `https://api.github.com/repos/${repo}/contents/.github/workflows/story-worker.yml?ref=main`,
         {
@@ -268,17 +267,16 @@ Deno.serve(async (req) => {
         { headers: ghHeaders },
       );
       if (!jl.ok) return json({ status: jl.status, detail: (await jl.text()).slice(0, 300) });
-      const jobs = ((await jl.json()) as { jobs?: Array<{ id?: number; name?: string }> }).jobs ??
-        [];
+      const jobs =
+        ((await jl.json()) as { jobs?: Array<{ id?: number; name?: string }> }).jobs ?? [];
       const wanted =
         /(motion route|route\.engine|in-house|in_house|story-motion|story-clip|gpu job|shot \d+|voice engine|PREFLIGHT|still)/i;
       const lines: string[] = [];
       for (const j of jobs) {
         if (typeof j.id !== "number") continue;
-        const lg = await fetch(
-          `https://api.github.com/repos/${repo}/actions/jobs/${j.id}/logs`,
-          { headers: ghHeaders },
-        );
+        const lg = await fetch(`https://api.github.com/repos/${repo}/actions/jobs/${j.id}/logs`, {
+          headers: ghHeaders,
+        });
         if (!lg.ok) continue;
         const text = await lg.text();
         for (const l of text.split(/\r?\n/)) {
@@ -288,13 +286,7 @@ Deno.serve(async (req) => {
         if (lines.length >= 160) break;
       }
       return json({ status: 200, jobs: jobs.map((j) => j.name), matched: lines.length, lines });
-
     }
-
-
-
-
-
 
     // Queued AND not asked for in the last ten minutes. Without the second
     // half, a runner that cannot claim gets re-summoned every sixty seconds —
@@ -367,14 +359,12 @@ Deno.serve(async (req) => {
             // Both modes need the clip stage ON — see the two-gates note at
             // `const motionMode` below; 'in_house' only chooses the engine.
             ...(rows.find((r) => r.id === id)?.motion_mode === "select" ||
-                rows.find((r) => r.id === id)?.motion_mode === "in_house"
+            rows.find((r) => r.id === id)?.motion_mode === "in_house"
               ? { story_movie: "select" }
               : {}),
             ...(rows.find((r) => r.id === id)?.motion_mode === "in_house"
               ? { in_house_motion: true }
               : {}),
-
-
           }),
         },
       });
@@ -466,7 +456,6 @@ Deno.serve(async (req) => {
           actor_refs: actorRefs,
           ...(motionMode ? { story_movie: motionMode } : {}),
           ...(inHouseMotion ? { in_house_motion: true } : {}),
-
         },
       }),
     });
