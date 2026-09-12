@@ -7215,3 +7215,126 @@ under this file's first rule. The ONIQ-native answer is the `health_config`
 shape: the id lives in a config row, ships EMPTY, and an empty id refuses — so
 the path is deployed, dark and one audited `UPDATE` from live, with no constant
 an agent chose baked into it.
+
+### Owner directive, 2026-09-12 — "use open ai through lovable and fix all issues"
+
+**"THROUGH LOVABLE" NAMES A DIFFERENT BILL, AND THAT IS THE WHOLE READING.**
+`ai.gateway.lovable.dev/v1/chat/completions` is an OpenAI-SHAPED endpoint on
+`LOVABLE_API_KEY` whose ids are vendor-NAMESPACED — ONIQ already calls
+`google/gemini-3.1-flash-lite` there. So `openai/…` on that host is OpenAI
+reached through CREDITS THE OWNER ALREADY BUYS rather than through the second
+metered provider bill the previous entry measured. `callGatewayText` already
+existed to carry it; only the id was missing.
+
+**MEASURED BY POST BEFORE ANY ID WAS WRITTEN, and the result chose the id:**
+
+    openai/gpt-5-mini     200  13 in / 16 out   outputText ""     <- EMPTY
+    openai/gpt-5          200  13 in / 16 out   outputText ""     <- EMPTY
+    openai/gpt-5-nano     200  13 in / 16 out   outputText ""     <- EMPTY
+    openai/gpt-5.4-mini   200  13 in /  5 out   outputText "ok"   <- ANSWERED
+    gpt-5-mini            400  invalid model — the gateway namespaces by vendor
+    openai/gpt-4.1-mini   400  invalid model
+    openai/o4-mini        400  invalid model
+    google/gemini-3.1-flash-lite  200  "ok"  (the control, still callable)
+
+**A 200 IS NOT AN ANSWER — the sequel to this file's oldest rule.** Three ids
+returned HTTP 200, a well-formed body and a usage block **with no content**,
+having spent the entire 16-token ceiling on reasoning tokens. A probe that
+reported only the status would have said "four callable", the obvious
+`gpt-5-mini` would have gone into code, and ONIQ would have shipped a story
+engine that returns empty strings — failing downstream as "bad JSON", which is
+the most expensive way to be wrong. Only the reply's own TEXT separates them,
+which is why `frontier-probe`'s gateway arm returns `outputText`.
+
+Stated as a limit rather than glossed: **the three empty ids are UNVERIFIED,
+not refuted.** A real budget may well make them answer; the probe's ceiling is
+fixed at 16. Do not promote one on the strength of its 200 — re-measure first.
+
+**THE GATEWAY ARM DOES NOT TOUCH THE USD LEDGER, deliberately.**
+`provider_spend_ledger` prices DOLLARS; a gateway call spends CREDITS, so
+admitting one there would record a dollar figure nobody is charged and consume
+the owner's $100 TEXT ceiling for spend that never touches it. The bound is
+structural instead — 8 ids per request, 16 output tokens each. And the arm runs
+BEFORE the `OPENAI_API_KEY` check, because the two arms hold different
+credentials and a missing OpenAI key would otherwise report "not configured"
+for a gateway that answers perfectly.
+
+#### The Story IR engine has a caller
+
+`storyModel.ts` — DNA retrieval, blending, the prompt, the parse, the repair
+and `validateStoryIr` — has been complete since the 2026-08-27 directive, fully
+unit-tested, and imported by **nothing**. `story-plot` now has a third rung,
+and four modules came off the orphan list with it: `storyIr`, `storyDna`,
+`storyDnaLibrary`, `localStoryModel`.
+
+**IT IS A RESCUE, NOT THE PLANNER, and that is what makes it safe to ship.**
+story-plot already had a ladder — batches, a Claude single-call rescue, a
+Gemini single-call rescue, then a 502. Replacing the planner would stake every
+film on a path nothing has ever run; adding a rung stakes nothing, because the
+only case it covers is the case that returns 502 today. A film that would have
+failed either gets a validated Story IR or fails exactly as before.
+
+**AND IT IS A GENUINELY DIFFERENT ATTEMPT**, which is the only thing that makes
+a third rung worth its latency. Rungs one and two are the same prompt on two
+engines. This one is a different PROMPT (built from Story DNA), a different
+SCHEMA (Story IR), a different VALIDATOR and a different PROVIDER. Retrying the
+same prompt a third time is how a ladder becomes a delay.
+
+**`planFromIr` DROPS RATHER THAN INVENTS.** Every field is read off the IR: a
+character with no name or no appearance is not cast, an empty motion is ABSENT
+rather than `""` (the movie fields are additive downstream, and `""` reads as a
+motion cue that says nothing), and a story short of the wanted shot count is
+REFUSED rather than padded. A plan field filled in by the converter would be a
+sentence no model wrote and no validator checked.
+
+`grade: "classic"` matches story-plot's OWN strictness rather than claiming
+more — that function reads the movie fields leniently and never enforces movie
+grammar, so asking the IR validator for movie grade would reject plans the two
+rungs above would have accepted.
+
+**`gatewayModel` IS A THIRD FIELD, NOT A REUSED ONE.** `CallClaudeOpts` already
+carries `model` (Anthropic) and `geminiModel` (Google) separately, and its own
+comment says why: these opts travel between engines, so one shared field
+eventually posts a Claude id to the wrong provider. The gateway gets its own.
+
+**THE RATCHET NAMED THE FIVE WITHIN A MINUTE OF THE WIRING**, which is the only
+way an entry is meant to leave that list. Orphans **53 -> 48**. M3's anchor was
+`storyIr.ts` and went NOTAPPLIED the moment it stopped being an orphan — the
+ELEVENTH time that check has earned itself, and the second time in one day.
+Anchor a mutation on the most stuck entry you have; it is repointed at
+`directorGraph.ts`.
+
+**AND `tsc` WENT RED FOR THE REASON THIS FILE ALREADY RECORDS.** The new test's
+literal `import("…/storyIrRescue.ts")` dragged `llm.ts` and its three `Deno.`
+references into the browser program — two errors, measured, then clean the
+moment the specifier became a VARIABLE. That is `geminiReplyModel.test.ts`'s
+pattern, needed for the same reason one day later.
+
+6 new mutations, all RED, none NOTAPPLIED (`scripts/story-ir-rescue-mutate.sh`):
+the rung unguarded, the id swapped for an empty sibling, the id travelling in
+the Anthropic field, the converter padding, an empty reply handed to the
+parser, the import removed. The ten module-door mutations still RED. tsc 0,
+lint:ci, Prettier, `deno check` of both functions, 398 files / 7,176 tests.
+
+**WHAT IS NOT FIXED, AND IT IS THE LARGER HALF.** Forty-eight modules remain
+orphaned, and the eight roots still without a caller are `oniqStory`,
+`directorDispatch` + `directorGraph`, `shotReview`, `filmCapacity`,
+`videoBenchmark` + `videoProvider`, `webRetrieval` and `gatewayVoice`. Each is
+blocked on a different thing rather than on effort:
+
+    oniqStory        the GPU worker's story_generate op — no baked checkpoint
+    directorGraph    the Director render loop, which is a pipeline not a module
+    shotReview       the same loop: it reviews shots nothing yet produces
+    filmCapacity     the same loop's preflight
+    videoBenchmark   deliberately never run — it costs money and says so
+    webRetrieval     ONIQ holds no retrieval credential; an owner decision
+    gatewayVoice     its own header calls `voice-generate` its second caller
+                     and `voice-generate` does not import it — story-voice
+                     keeps an inline copy held by a test instead. A genuine
+                     orphan whose header describes a caller that never landed.
+
+**STILL UNPROVEN, AND STATED AS UNPROVEN:** no film has been through the third
+rung. It only runs where the other two produced nothing, so it is invisible
+until they fail — and `GITHUB_DISPATCH_TOKEN` is still dead, so no film is
+rendering at all. The gate is a `servedBy: "story-ir"` in a real response, not
+a green suite.
