@@ -206,6 +206,44 @@ Deno.serve(async (req) => {
       });
     }
 
+    // READ-ONLY: the most recent renderer runs, so the bounded in-house motion
+    // test can be polled to terminal from here. It lists runs with the token
+    // this function already holds; it dispatches nothing, claims no runner and
+    // spends nothing. Same gate as workflow_head — authorizeScheduledCaller
+    // above is the only one, for the same reason recorded there.
+    if (new URL(req.url).searchParams.get("action") === "runs") {
+      const rs = await fetch(
+        `https://api.github.com/repos/${repo}/actions/workflows/story-worker.yml/runs?per_page=5`,
+        {
+          headers: {
+            Authorization: `Bearer ${ghToken}`,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+        },
+      );
+      if (!rs.ok) {
+        return json({ status: rs.status, detail: (await rs.text()).slice(0, 300) });
+      }
+      const body = (await rs.json()) as {
+        workflow_runs?: Array<Record<string, unknown>>;
+      };
+      // The five fields a poller needs, never the whole payload: a run object
+      // is ~100 keys and carries the repository block on every one of them.
+      return json({
+        status: rs.status,
+        runs: (body.workflow_runs ?? []).map((r) => ({
+          id: r.id,
+          status: r.status,
+          conclusion: r.conclusion,
+          created_at: r.created_at,
+          html_url: r.html_url,
+        })),
+      });
+    }
+
+
+
 
     // Queued AND not asked for in the last ten minutes. Without the second
     // half, a runner that cannot claim gets re-summoned every sixty seconds —
