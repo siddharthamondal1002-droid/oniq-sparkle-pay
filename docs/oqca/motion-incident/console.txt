@@ -1,0 +1,60 @@
+reset: docs/oqca/motion-incident removed
+6 measured reading(s); corpus 11 document(s)
+
+restored      false
+episodes      3
+stop          capability_blocked — 3 objectives in a row are waiting on a capability: model:insufficient_allowance (model call refused: max_tokens); tool:unauthorized (no tool capability is authorized in this build: CREATE_EXPERIMENT, REBUILD_ARTIFACT, RUN_BENCHMARK, RUN_MUTATION_TEST, UPDATE_CONFIGURATION)
+generated     21 objective(s)
+concerns      19 ranked
+  0.05040 tgt=0.30000 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:configuration_mismatch:configuration_mismatch
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=1.000] UNKNOWN
+  0.00252 tgt=0.01500 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:blocked_capability:blocked_capability
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=0.050] UNKNOWN
+  0.00252 tgt=0.01500 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:dead_branch:dead_branch
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=0.050] UNKNOWN
+  0.00252 tgt=0.01500 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:error_rate:error_rate
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=0.050] UNKNOWN
+  0.00252 tgt=0.01500 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:knowledge_gap:knowledge_gap
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=0.050] UNKNOWN
+  0.00252 tgt=0.01500 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:latency:latency
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=0.050] UNKNOWN
+  0.00252 tgt=0.01500 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:mutation_coverage:mutation_coverage
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=0.050] UNKNOWN
+  0.00252 tgt=0.01500 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:provider_failure:provider_failure
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=0.050] UNKNOWN
+  0.00252 tgt=0.01500 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:runtime_failure:runtime_failure
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=0.050] UNKNOWN
+  0.00252 tgt=0.01500 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:stale_knowledge:stale_knowledge
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=0.050] UNKNOWN
+  0.00252 tgt=0.01500 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:story_continuity:story_continuity
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=0.050] UNKNOWN
+  0.00252 tgt=0.01500 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:test_health:test_health
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=0.050] UNKNOWN
+  0.00252 tgt=0.01500 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:unreachable_path:unreachable_path
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=0.050] UNKNOWN
+  0.00252 tgt=0.01500 cap=1.00 cost=0.70 rev=1.00 risk=0.80 dep=1.00 exp=0.30  UNOBSERVED improve:unused_capability:unused_capability
+          learn[imp=0.300 unc=1.000 dep=1.000 gain=1.000 stale=1.000 rel=0.050] UNKNOWN
+  0.00243 tgt=0.00540 cap=0.50 cost=1.00 rev=1.00 risk=1.00 dep=1.00 exp=0.90  OBSERVED   improve:missing_validation:clip_quality_shipped
+          learn[imp=0.900 unc=0.300 dep=1.000 gain=0.400 stale=1.000 rel=0.050] UNCERTAIN
+  0.00192 tgt=0.00480 cap=0.50 cost=1.00 rev=1.00 risk=1.00 dep=1.00 exp=0.80  OBSERVED   improve:motion_failure:ltx_clip_inspection
+          learn[imp=0.800 unc=0.300 dep=1.000 gain=0.400 stale=1.000 rel=0.050] UNCERTAIN
+  0.00147 tgt=0.00420 cap=0.50 cost=1.00 rev=1.00 risk=1.00 dep=1.00 exp=0.70  OBSERVED   improve:missing_telemetry:gpu_video_jobs_verdict
+          learn[imp=0.700 unc=0.300 dep=1.000 gain=0.400 stale=1.000 rel=0.050] UNCERTAIN
+  0.00108 tgt=0.00360 cap=0.50 cost=1.00 rev=1.00 risk=1.00 dep=1.00 exp=0.60  OBSERVED   improve:missing_validation:static_threshold_calibration
+          learn[imp=0.600 unc=0.300 dep=1.000 gain=0.400 stale=1.000 rel=0.050] UNCERTAIN
+  0.00027 tgt=0.00180 cap=0.50 cost=1.00 rev=1.00 risk=1.00 dep=1.00 exp=0.30  OBSERVED   improve:generation_failure:gpu_video_jobs_volume
+          learn[imp=0.300 unc=0.300 dep=1.000 gain=0.400 stale=1.000 rel=0.050] UNCERTAIN
+observed      6/20 kinds
+settled       0
+learned       0
+persisted     0
+checkpoints   4/4
+  #0 learn:runner-availability blocked [NO_DIFFERENCE]
+      1 of 1 concepts still open (loop capability_unavailable); restored 0 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 1.000 (NO_DIFFERENCE)
+      6/8 of the self-evaluation questions are answerable from recorded evidence; 0 learned, 0 persisted, experiment NO_DIFFERENCE
+  #1 improve:configuration_mismatch:configuration_mismatch blocked [NO_DIFFERENCE]
+      1 of 1 concepts still open (loop capability_unavailable); restored 0 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 1.000 (NO_DIFFERENCE)
+      6/8 of the self-evaluation questions are answerable from recorded evidence; 0 learned, 0 persisted, experiment NO_DIFFERENCE
+  #2 learn:configuration_mismatch:configuration_mismatch blocked [NO_DIFFERENCE]
+      1 of 1 concepts still open (loop capability_unavailable); restored 0 durable record(s); knowledge verdict: RESEARCH; residual uncertainty 1.000 -> 1.000 (NO_DIFFERENCE)
+      6/8 of the self-evaluation questions are answerable from recorded evidence; 0 learned, 0 persisted, experiment NO_DIFFERENCE
