@@ -7338,3 +7338,113 @@ rung. It only runs where the other two produced nothing, so it is invisible
 until they fail — and `GITHUB_DISPATCH_TOKEN` is still dead, so no film is
 rendering at all. The gate is a `servedBy: "story-ir"` in a real response, not
 a green suite.
+
+### 2026-09-12 — the worker threw away the one thing that would have named the fault
+
+**A CORRECTION FIRST, because the entry above is now false.** It closes with
+"`GITHUB_DISPATCH_TOKEN` is still dead, so no film is rendering at all". The
+token was replaced: films dispatched and rendered on 2026-09-11 (runs 163, 164)
+and 2026-09-12 (runs 166, 167), and `story_jobs` carries `ready` rows at
+09-11 14:15 and 09-12 10:00. That claim was accurate when written and stopped
+being so within the day — the shape this file already names, a caveat that
+outlives its measurement.
+
+**AND THE QUEUE IS BEING DRIVEN ONTO ONIQ'S OWN GPU.** Two migrations the same
+morning: `20260912091917` added the `GPU` row to `provider_budget_config`
+(daily $1.00, request $0.10, job $1.00) — its header records that
+`admit_provider_spend` had been answering `no-budget-configured`, so every
+in-house clip refused before a GPU second was spent, and the capability CHECK
+had never carried `GPU` either, two blockers behind one symptom — and
+`20260912092527` made `story_jobs.motion_mode` a per-job switch rather than
+flipping the three global repository variables for every user's film.
+
+WHAT THE TWO IN-HOUSE FILMS DID, measured:
+
+    a2c0788b  09:46  ready   9 shots, bytes present — and NO in-house motion:
+                            all nine stills logged still-store-403, validated
+                            0/9. The edge R2 credential cannot write `oniq-gpu`
+                            (HEAD 403, PUT 403 AccessDenied) while the same
+                            token does 200/200/204 on `oniq-chat-media`. A
+                            token SCOPE problem, not a wrong secret.
+    a7b9c3b9  10:16  failed  still 1, three attempts:
+                              1/3  engine job FAILED: PermissionError
+                              2/3  engine job FAILED: CheckpointInconsistent
+                              3/3  engine job FAILED: CheckpointInconsistent
+
+**TWO DIFFERENT EXCEPTION CLASSES ON ONE STILL, AND NEITHER SAID ANYTHING.**
+`ltxcaps.CheckpointInconsistent` is raised with FIVE distinct messages — a
+missing directory, an unreadable `model_index.json`, a non-LTX pipeline,
+contradictory distillation evidence, missing components — and all five arrive
+as that one word. `PermissionError`'s message is `[Errno 13] Permission
+denied: <path>`, and the path is the single most useful byte. Both were
+dropped by `handler.py`'s bare `except Exception`, which returns
+`type(exc).__name__`. Not recoverable from the RunPod console either: the only
+`print(` in that file is the cleanup line.
+
+**ONIQ IS NOT THE TRUNCATOR**, checked before blaming it: `failureReason` in
+`oniqImage.ts` reads `state.error` then `output.{error,message,detail,traceback}`
+and allows 300 characters. It printed everything it was given.
+
+**THE LIST HAD DRIFTED, AND THAT IS THE REAL DEFECT.** The except-chain names
+six refusal classes. Six MORE are shipped and named nowhere —
+`CheckpointInconsistent`, `WeightsUnavailable`, `ModelUnavailable`,
+`HydrationRefused`, `ReferenceUnsupported`, `OutOfMemory` — so every one of
+them fell through. Two of those say in their own docstring that "`code` is the
+whole diagnosis", and the code was exactly what was being dropped.
+
+FIXED in `oniq-gpu-worker` (`ca5d18a`, branch `claude/check-56jtg5`), and the
+rule it protects is APPLIED rather than relaxed: "never echo arbitrary
+exception text" is about a DEPENDENCY's message, which nobody here wrote.
+`storage.StorageError` has returned its own message since the beginning and
+its docstring promises it "never carries key material". Every message of the
+six was read before widening — object keys, paths, byte counts, digests,
+revisions — and the two that embed a caught exception wrap `StorageError`.
+A foreign exception still reports its class name alone, asserted with a
+secret-shaped string.
+
+**RECOGNISED BY THE FILE THE CLASS IS DEFINED IN, NOT BY A LIST.** Every module
+the image ships sits beside `handler.py` under `/app` and nothing from PyPI
+does. A list is what failed; a test now walks the Dockerfile's own COPY lines
+and requires each of the 13 exception classes it finds to report a non-empty
+code and detail, so the seventh is covered the day it is written. `OSError` is
+the one foreign exception allowed more than its class, because `errno` and
+`filename` are structured OS fields rather than a dependency's prose.
+
+**PROVEN AGAINST THE REAL CODE PATH, NOT FIXTURES I TYPED.** `ltxcaps` was
+driven into each of its five refusals and each result passed through
+`handle()`:
+
+    dir missing             -> checkpoint-inconsistent: model dir '…/nope' is not a directory
+    no model_index.json     -> checkpoint-inconsistent: model_index.json missing or unreadable
+    wrong pipeline          -> checkpoint-inconsistent: … declares 'StableDiffusionPipeline', which is not an LTX pipeline
+    distillation disagrees  -> checkpoint-inconsistent: distillation evidence disagrees: {…}
+    components missing      -> checkpoint-inconsistent: checkpoint is missing ['text_encoder', 'vae']
+
+Five identical strings before; five distinct sentences after.
+
+**A DIAGNOSTIC MAY NOT FALL BACK TO THE THING IT WAS BUILT TO EXPLAIN** — the
+third time this exact shape has cost this project an investigation, after
+Firebase's `auth/internal-error` hiding `customData.serverResponse` and
+`vertexPost` reporting `http 404` instead of Google's sentence.
+
+**AND A SECOND DEFECT, FOUND ON THE WAY AND NOT FIXED.** `DETERMINISTIC_FAILURE`
+in `oniqImage.ts` matches only contract-validation phrases, so
+`CheckpointInconsistent` is classified retryable and ONIQ asked three times for
+a checkpoint that cannot be read. The comment directly above that list already
+makes the argument — "asking again spends three GPU jobs to be refused three
+times" — for contract errors, and it was never extended. One line
+(`/checkpoint-inconsistent/`) closes it once the worker's new codes are live,
+and it is an edge-function deploy rather than part of this change.
+
+**AND THE IN-HOUSE STILL PATH REACHES NO SPEND GATE.** `runBilledUnit` /
+`capability: "GPU"` live only in `inHouseMotion.ts`, which only `story-motion`
+imports; `story-still`, `oniqImage.ts` and `stillRoute.ts` name the ledger zero
+times. `provider_spend_ledger` holds 0 GPU rows ever and there is no
+`provider_spend_day` GPU row today, so this morning's GPU seconds for stills
+were spent outside the ceiling set at 09:19 the same morning. Recorded, not
+changed.
+
+**NOT DEPLOYED.** The fix is a commit on a branch; the worker runs from a
+published image (`image-publish` #30, 2026-09-01, from `eab3e701`), so it
+reaches a job only after a rebuild and a template retarget. Until then the next
+`CheckpointInconsistent` still says one word.
