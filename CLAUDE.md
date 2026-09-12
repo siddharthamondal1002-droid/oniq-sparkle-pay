@@ -7630,3 +7630,65 @@ Two facts also settled on the way and worth not re-deriving: the job was
 claimed and its render step lasted 2 seconds — do not read two runs as two
 films), and the Piper voice cache **missed** on this run and was written at the
 end, 504 MB, so "cached in-house voice" is the step's name and not its outcome.
+
+### 2026-09-12 — credits added, and run 170 reproduces run 166 stage for stage
+
+The owner topped the pool up and said to make a film on run 166's recipe.
+Measured, not assumed: `frontier-probe`'s gateway arm answered **200 with
+`outputText "ok"`** before anything was dispatched — a POST, which is the only
+thing that separates a restored pool from a 402.
+
+    job b8754257   dispatched 18:29:01Z   story worker run 170   success
+    9 shots, 60.1s, MOTION_CONTRACT 9 fallback (identical to 166)
+    video-gen/stories/b8754257-….mp4   23,827,975 bytes
+
+So the recipe is no longer one run's anecdote: two runs, twelve hours apart,
+disagree about **nothing except wall time**. Both columns are in
+`.claude/skills/oniq-video/references/classic-film-recipe.md`.
+
+**`motion_mode` NULL IS THE CLASSIC RECIPE, AND RUN 166'S OWN ROW DISAGREES
+WITH RUN 166.** `story-dispatch` maps the row onto the payload —
+`'in_house'` -> `story_movie "select"` + in-house motion, `'select'` ->
+`story_movie "select"`, anything else including NULL -> no `story_movie` ->
+`MOTION_STAGE=off`. Job `a2c0788b`'s row says `in_house` while its own env dump
+says `STORY_MOVIE (unset)`, because that mapping landed AFTER it dispatched.
+Copying the row would have sent this film down the GPU path that failed twice
+the same morning on `CheckpointInconsistent`. **Reproduce the RUN's measured
+env, never the row that happened to precede it.**
+
+**THE RENDER RATE IS THE RUNNER'S AND IT SWUNG 2x ON IDENTICAL WORK.** 711.0s
+against 447.9s for the same 1800 frames from the same prompt with no change in
+this repository between them — 0.155x realtime against 0.298x, and the grade
+135.5s against 84.4s. The rest of the gap is the Piper cache: 166 MISSED and
+wrote 504 MB after the render, 170 logged `Cache hit … not saving cache`. **So
+size a film against the SLOW figure — ~12 minutes of runner time per finished
+minute, never 7.5** — and the first film after a cache eviction pays that
+again.
+
+**A RUN'S DURATION IS QUEUE PLUS JOB, and reading it as work would have made
+this file correct itself wrongly.** The API says run 166 took 13 minutes and run
+167 took **14** — which reads as two full renders and contradicts the
+duplicate-dispatch note recorded above it. The job steps say otherwise: 167's
+job was created 10:00:13, started 10:00:15, and its `render one job` step ran
+10:01:06 -> 10:01:08, **2 seconds**, exactly as recorded. Thirteen of its
+fourteen minutes were spent QUEUED. The stage numbers in the recipe come from
+the worker's own stage log for that reason; `run_duration_ms` is not a budget.
+
+**AND `delivering` IS THE DOWNLOAD STATE, NOT A STALL.** The row moved
+`ready -> delivering` while this was being checked, which reads like a hang. The
+transition guard only admits `delivering` FROM `ready`, and `story-deliver` is
+what sets it. Read the allowed-transition table before diagnosing a status.
+
+**WHAT WAS NOT DONE, and the correction that stopped it.** A fourth watchdog
+signal for credit exhaustion and a 402/429 retry refactor were begun and the
+owner stopped them: _"What are you making? I just wanted run 166 … that to
+follow."_ Correct — the ask was to follow one measured run, and the cost figure
+they supplied had been supplied because I asked for it, not as a new brief.
+Both were dropped unbuilt; no code, no migration, no deploy, no publish, no
+Lovable message. Only the recipe document changed.
+
+**ONE DEFECT MEASURED ON THE WAY, RECORDED AND NOT FIXED.** `GatewayError`'s
+`credits` kind (402/429) has no arm in `story-still`'s `engineFailure` switch,
+so it falls into `default` with `retryable: true` — the worker then spends its
+whole backoff ladder against an empty pool, and 402 and 429 share one kind and
+one message. Three lines, and it is a different change.

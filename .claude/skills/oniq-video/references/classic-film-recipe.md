@@ -10,6 +10,12 @@ run **166**, 2026-09-12 09:47:08 → 10:00:12 UTC. Delivered
 as "INTERNAL MOTION TEST", and the name is the one misleading thing about it —
 see the warning at the bottom.
 
+**REPRODUCED 2026-09-12 18:29 UTC as run 170**, job `b8754257`, same prompt and
+same cast refs, on the credits the owner had just topped up. Identical motion
+contract (`9 fallback`), identical timeline (60.1s over 9 shots), 22.7 MB
+delivered. So this is no longer one run's anecdote: the two runs disagree about
+NOTHING except wall time, and that disagreement is recorded in the budget below.
+
 ## What it produces
 
 Nine AI stills, each held for a few seconds under a Ken Burns camera move over
@@ -35,6 +41,24 @@ at 09:48:09, not inferred:
 
     job row:  grade = movie   requested_seconds = 60   no_watermark = true
 
+**THE JOB ROW IS WHAT SETS `STORY_MOVIE`, THROUGH `story_jobs.motion_mode`.**
+`story-dispatch` maps the row onto the dispatch payload, so the path is chosen
+per film rather than by a repository variable:
+
+    motion_mode = 'in_house'  ->  story_movie "select" + in_house_motion true
+    motion_mode = 'select'    ->  story_movie "select"
+    motion_mode = anything else, NULL included  ->  no story_movie
+                                                ->  MOTION_STAGE=off
+
+So **NULL is the classic recipe**, and this is the one place copying run 166
+misleads: its row says `in_house` while its own env dump says
+`STORY_MOVIE (unset)`, because that mapping landed AFTER it dispatched.
+Copying that ROW today reproduces the row and not the run — it sends the film
+down the GPU path that failed twice on 2026-09-12
+(`CheckpointInconsistent`). Run 170 was dispatched with `motion_mode` NULL and
+matched run 166 stage for stage. **Reproduce the RUN's measured env, never the
+row that happened to precede it.**
+
 **`STORY_MOVIE` unset is not an oversight — it is the recipe.** Setting it is
 what turns the motion stage on and takes you off this path entirely. The three
 `on` switches beneath it look like they enable in-house motion and do nothing
@@ -44,22 +68,32 @@ while `STORY_MOVIE` is blank; do not read them as the state of the feature.
 
 Nine shots are derived from 60 seconds; you do not choose the count.
 
-    PREPARE            147.8s   plot, 9 voice clips, 9 stills, depth, vfx
-    PREFLIGHT            0.5s   timeline 60.0s vs 60s requested
-    RENDER             555.0s   1800 frames in 387.2s (0.155x realtime)
-                                + film-look grade 135.5s
-    OUTPUT_VALIDATE      0.08s
-    UPLOAD               3.8s
-    FINALIZE             3.7s
-    ------------------------------------------------------------------
-    total              711.0s   ~11.9 minutes of wall time per 60s of film
+    stage              run 166    run 170
+    PREPARE             147.8s     133.8s   plot, 9 voice clips, 9 stills,
+                                            depth, vfx
+    PREFLIGHT             0.5s       0.5s   timeline 60.0s vs 60s requested
+    RENDER              555.0s     307.4s   1800 frames at 0.155x vs 0.298x
+                                            realtime; grade 135.5s vs 84.4s
+    OUTPUT_VALIDATE       0.08s      0.07s
+    UPLOAD                3.8s       5.0s
+    FINALIZE              3.7s       1.1s
+    ---------------------------------------------------------------------
+    total               711.0s     447.9s   11.9 min vs 7.5 min per 60s film
 
 Timeline split: narration 23.6s + visual hold 36.4s = 60.0s. The narration is
 the clock; the hold is what the camera move fills.
 
-Plan for **roughly twelve minutes of runner time per finished minute of film**,
-and remember the whole job is one GitHub Actions job — a 300s film is not
-twelve minutes, it is nearer an hour, and the runner has a job timeout.
+**THE RENDER RATE IS THE RUNNER'S, NOT ONIQ'S — it swung 2x on identical
+work.** 0.155x realtime against 0.298x, and the grade 135.5s against 84.4s, for
+the same 1800 frames from the same prompt with no change in this repository
+between them. So size a film against the SLOW figure and read the fast one as
+luck: **~12 minutes of runner time per finished minute**, never 7.5. A 300s
+film is nearer an hour than half of one, and the whole job is ONE GitHub
+Actions job with a job timeout.
+
+The Piper voice cache is the rest of the gap: run 166 MISSED and wrote 504 MB
+after the render, run 170 logged `Cache hit … not saving cache` and paid none
+of it. The first film after a cache eviction pays that again.
 
 ## What it costs
 
