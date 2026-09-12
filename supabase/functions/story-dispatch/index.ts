@@ -184,7 +184,6 @@ Deno.serve(async (req) => {
     // authorizeScheduledCaller above is already the stronger gate — a second,
     // narrower one below it can only subtract callers it was never meant to.
     if (new URL(req.url).searchParams.get("action") === "workflow_head") {
-
       const wf = await fetch(
         `https://api.github.com/repos/${repo}/contents/.github/workflows/story-worker.yml?ref=main`,
         {
@@ -206,6 +205,88 @@ Deno.serve(async (req) => {
       });
     }
 
+    // READ-ONLY: the most recent renderer runs, so the bounded in-house motion
+    // test can be polled to terminal from here. It lists runs with the token
+    // this function already holds; it dispatches nothing, claims no runner and
+    // spends nothing. Same gate as workflow_head — authorizeScheduledCaller
+    // above is the only one, for the same reason recorded there.
+    if (new URL(req.url).searchParams.get("action") === "runs") {
+      const rs = await fetch(
+        `https://api.github.com/repos/${repo}/actions/workflows/story-worker.yml/runs?per_page=5`,
+        {
+          headers: {
+            Authorization: `Bearer ${ghToken}`,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+        },
+      );
+      if (!rs.ok) {
+        return json({ status: rs.status, detail: (await rs.text()).slice(0, 300) });
+      }
+      const body = (await rs.json()) as {
+        workflow_runs?: Array<Record<string, unknown>>;
+      };
+      // The five fields a poller needs, never the whole payload: a run object
+      // is ~100 keys and carries the repository block on every one of them.
+      return json({
+        status: rs.status,
+        runs: (body.workflow_runs ?? []).map((r) => ({
+          id: r.id,
+          status: r.status,
+          conclusion: r.conclusion,
+          created_at: r.created_at,
+          html_url: r.html_url,
+        })),
+      });
+    }
+
+    // READ-ONLY: the routing lines out of ONE run's log, so the bounded
+    // in-house motion test can be answered with the renderer's OWN words
+    // rather than inferred from an empty ledger.
+    //
+    // THE JOB LOG, NOT THE RUN LOG. The run-level endpoint hands back a ZIP,
+    // and grepping a compressed archive matches only the few filenames stored
+    // without deflate — measured: two hits, both file headers, on a run whose
+    // renderer printed hundreds of lines. The per-JOB endpoint returns plain
+    // text, so this lists the run's jobs and reads them.
+    //
+    // NEVER THE WHOLE LOG. A runner log is megabytes and carries every echoed
+    // environment line; shipping it back through a database HTTP queue would
+    // put unrelated output somewhere nobody is reading it.
+    if (new URL(req.url).searchParams.get("action") === "run_log") {
+      const runId = new URL(req.url).searchParams.get("run") ?? "";
+      if (!/^\d+$/.test(runId)) return json({ error: "run must be a numeric run id" }, 400);
+      const ghHeaders = {
+        Authorization: `Bearer ${ghToken}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      };
+      const jl = await fetch(
+        `https://api.github.com/repos/${repo}/actions/runs/${runId}/jobs?per_page=20`,
+        { headers: ghHeaders },
+      );
+      if (!jl.ok) return json({ status: jl.status, detail: (await jl.text()).slice(0, 300) });
+      const jobs =
+        ((await jl.json()) as { jobs?: Array<{ id?: number; name?: string }> }).jobs ?? [];
+      const wanted =
+        /(motion route|route\.engine|in-house|in_house|story-motion|story-clip|gpu job|shot \d+|voice engine|PREFLIGHT|still)/i;
+      const lines: string[] = [];
+      for (const j of jobs) {
+        if (typeof j.id !== "number") continue;
+        const lg = await fetch(`https://api.github.com/repos/${repo}/actions/jobs/${j.id}/logs`, {
+          headers: ghHeaders,
+        });
+        if (!lg.ok) continue;
+        const text = await lg.text();
+        for (const l of text.split(/\r?\n/)) {
+          if (wanted.test(l) && l.length < 400) lines.push(l);
+          if (lines.length >= 160) break;
+        }
+        if (lines.length >= 160) break;
+      }
+      return json({ status: 200, jobs: jobs.map((j) => j.name), matched: lines.length, lines });
+    }
 
     // Queued AND not asked for in the last ten minutes. Without the second
     // half, a runner that cannot claim gets re-summoned every sixty seconds —
@@ -275,13 +356,15 @@ Deno.serve(async (req) => {
             actor_refs:
               rows.find((r) => r.id === id)?.actor_refs === true ||
               rows.find((r) => r.id === id)?.grade === "movie",
-            ...(rows.find((r) => r.id === id)?.motion_mode === "select"
+            // Both modes need the clip stage ON — see the two-gates note at
+            // `const motionMode` below; 'in_house' only chooses the engine.
+            ...(rows.find((r) => r.id === id)?.motion_mode === "select" ||
+            rows.find((r) => r.id === id)?.motion_mode === "in_house"
               ? { story_movie: "select" }
               : {}),
             ...(rows.find((r) => r.id === id)?.motion_mode === "in_house"
               ? { in_house_motion: true }
               : {}),
-
           }),
         },
       });
@@ -309,7 +392,19 @@ Deno.serve(async (req) => {
     // nothing and the workflow's STORY_MOVIE stays off. The column is
     // service-role-writable only (story_jobs has no client INSERT/UPDATE
     // policy), so this can never become a user-reachable spend switch.
-    const motionMode = rows[0].motion_mode === "select" ? "select" : null;
+    //
+    // 'in_house' TRAVELS AS 'select' TOO, and that is the second gate this
+    // file's own test already warns about — measured AGAIN on run 34686743759
+    // (2026-09-12). That film dispatched with in_house_motion:true, the route
+    // resolved ("IN_HOUSE_MOTION: on"), and it still came back nine stills:
+    //   movie grade: MOTION_STAGE=off MOTION_PROVIDER=none MOTION_ENGINE=none
+    //                — stills and camera only (STORY_MOVIE unset)
+    // IN_HOUSE_MOTION chooses WHICH engine animates; STORY_MOVIE decides
+    // WHETHER the clip stage runs at all. Sending the first without the second
+    // is a correctly-routed film with no motion in it.
+    const motionMode =
+      rows[0].motion_mode === "select" || rows[0].motion_mode === "in_house" ? "select" : null;
+
     // PER-JOB IN-HOUSE MOTION (owner-authorized bounded internal test,
     // 2026-09-12). Same shape and same reasoning as the two flags above: only
     // the literal 'in_house' travels, and NULL — every production job — sends
@@ -361,7 +456,6 @@ Deno.serve(async (req) => {
           actor_refs: actorRefs,
           ...(motionMode ? { story_movie: motionMode } : {}),
           ...(inHouseMotion ? { in_house_motion: true } : {}),
-
         },
       }),
     });

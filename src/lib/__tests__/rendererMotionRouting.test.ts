@@ -133,19 +133,24 @@ describe("the runner passes the signals the renderer reads", () => {
     }
   });
 
-  it("sources them from repository variables, so turning the GPU on needs no deploy", () => {
+  it("falls back to repository variables, so turning the GPU on needs no deploy", () => {
     for (const name of SIGNALS) {
-      expect(STORY_WORKER).toMatch(new RegExp(`${name}: \\$\\{\\{ vars\\.${name} \\}\\}`));
+      const line = STORY_WORKER.split("\n").find((l) => l.trim().startsWith(`${name}:`)) ?? "";
+      expect(line).toContain(`vars.${name}`);
     }
   });
 
-  it("defaults to OFF — an unset variable must never enable in-house motion", () => {
-    // `vars.X` unset resolves to '', and the renderer compares === 'on'.
-    // No `|| 'on'` fallback anywhere near these, which would turn the GPU on
-    // for every user the moment this merged.
+  it("the only 'on' literal is the per-job override, and it is gated on the payload", () => {
+    // The bounded internal test (2026-09-12) may force in-house motion for ONE
+    // dispatched job. Everything else still resolves from the repository
+    // variables, and an unset payload + unset variable is '' — off. A bare
+    // `|| 'on'` here would turn the GPU on for every user's film.
     for (const name of SIGNALS) {
-      const line = STORY_WORKER.split("\n").find((l) => l.includes(`${name}:`)) ?? "";
-      expect(line).not.toContain("'on'");
+      const line = STORY_WORKER.split("\n").find((l) => l.trim().startsWith(`${name}:`)) ?? "";
+      for (const on of line.matchAll(/'on'/g)) {
+        expect(line.slice(0, on.index)).toContain("client_payload.in_house_motion &&");
+      }
+      expect(line).not.toMatch(/\|\|\s*'on'\s*\}\}/);
     }
   });
 });

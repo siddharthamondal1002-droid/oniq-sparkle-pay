@@ -36,9 +36,11 @@ describe("per-job motion mode (Veo select validation plumbing)", () => {
     expect(dispatch).toMatch(/select=id,requested_seconds,actor_refs,grade,motion_mode/);
   });
 
-  it("only the literal 'select' travels; anything else sends nothing", () => {
+  it("only 'select' and 'in_house' travel; anything else sends nothing", () => {
+    // 'in_house' rides as 'select' because the clip stage is a SEPARATE gate
+    // from the engine choice — measured twice now, see the block below.
     expect(dispatch).toMatch(
-      /const motionMode = rows\[0\]\.motion_mode === "select" \? "select" : null;/,
+      /rows\[0\]\.motion_mode === "select" \|\| rows\[0\]\.motion_mode === "in_house"\s*\?\s*"select"\s*:\s*null;/,
     );
     expect(dispatch).toMatch(/\.\.\.\(motionMode \? \{ story_movie: motionMode \} : \{\}\)/);
   });
@@ -110,17 +112,29 @@ describe("the clip stage has its own gate, independent of the engine choice", ()
   });
 
   it("an unset motion_mode sends no story_movie, so STORY_MOVIE resolves to ''", () => {
-    // The production default. NULL is not 'select', the spread contributes
-    // nothing, and the workflow's `|| ''` leaves the clip stage off.
+    // The production default. NULL is neither 'select' nor 'in_house', the
+    // spread contributes nothing, and the workflow's `|| ''` leaves the clip
+    // stage off.
     expect(dispatch).toMatch(
-      /const motionMode = rows\[0\]\.motion_mode === "select" \? "select" : null;/,
+      /rows\[0\]\.motion_mode === "select" \|\| rows\[0\]\.motion_mode === "in_house"\s*\?\s*"select"\s*:\s*null;/,
     );
     expect(dispatch).toMatch(/\.\.\.\(motionMode \? \{ story_movie: motionMode \} : \{\}\)/);
     expect(workflow).toMatch(/client_payload\.story_movie \|\| ''/);
   });
 
-  it("only 'select' makes generateClip reachable — the clip stage is what calls it", () => {
+  it("'in_house' turns the clip stage on as well as choosing the engine", () => {
+    // Run 34686743759 dispatched in_house_motion:true with no story_movie and
+    // printed "MOTION_STAGE=off ... (STORY_MOVIE unset)" — nine stills. Both
+    // halves must travel or the test film has no motion to measure.
+    expect(dispatch).toMatch(/motion_mode === "in_house"\s*\?\s*\{ in_house_motion: true \}/);
+    expect(dispatch).toMatch(
+      /rows\[0\]\.motion_mode === "select" \|\| rows\[0\]\.motion_mode === "in_house"/,
+    );
+  });
+
+  it("only an enabled clip stage makes generateClip reachable", () => {
     // clipStage !== 'off' is the gate; the motion plan built from it is what
+
     // decides per shot, and `attemptClip` is the only door to generateClip.
     expect(worker).toMatch(/if \(motionPlan\?\.attemptClip\)/);
     const call = worker.slice(worker.indexOf("if (motionPlan?.attemptClip)"));
