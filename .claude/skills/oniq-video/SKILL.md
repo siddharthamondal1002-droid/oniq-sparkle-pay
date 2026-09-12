@@ -1,15 +1,21 @@
 ---
 name: oniq-video
-description: How ONIQ makes video — the Remotion motion-graphics path (promos, the app trailer) and the Runway image-to-video path (Lores / ONIQ Originals episodes), plus the cost guards, admin gates and AI-labelling rules that apply to both. Use this skill whenever the work touches video generation, ONIQ Originals, the Lores hub, Runway, Remotion, the admin video tool, episode assembly, scene stills, motion prompts, or a promo/trailer — including when the user just says "make a video", "new episode", "render the promo", or asks why a queued render never finished. Also use it before adding any new AI-generated media to the app, because the Play labelling requirement is easy to miss and has already been missed once.
+description: How ONIQ makes video — the live user Story pipeline (story_jobs → story-worker, the classic stills+Ken Burns film), the Remotion motion-graphics path (promos, the app trailer) and the Runway image-to-video path (Lores / ONIQ Originals episodes), plus the cost guards, admin gates and AI-labelling rules that apply to all three. Use this skill whenever the work touches video generation, ONIQ Originals, the Lores hub, Runway, Remotion, the admin video tool, episode assembly, scene stills, motion prompts, or a promo/trailer — including when the user just says "make a video", "new episode", "render the promo", or asks why a queued render never finished. Also use it before adding any new AI-generated media to the app, because the Play labelling requirement is easy to miss and has already been missed once.
 ---
 
 # Making video in ONIQ
 
-There are **two separate pipelines** plus **one gap**. Reaching for the wrong
+There are **three separate pipelines** plus **one gap**. Reaching for the wrong
 one wastes an afternoon, so establish which job you are doing first.
+
+**If the job is "make a film", it is the FIRST row** — the live user pipeline,
+and `references/classic-film-recipe.md` carries the exact switch state, the
+measured per-minute budget and the one grep that proves which path actually
+ran. Owner directive 2026-09-12: use that recipe exactly.
 
 | Want                                 | Use                        | State                                            |
 | ------------------------------------ | -------------------------- | ------------------------------------------------ |
+| A film from a user's prompt          | **story_jobs → story-worker** | **THE LIVE PATH.** Works. Measured recipe and budget: `references/classic-film-recipe.md` |
 | Promo / trailer / motion graphics    | **Remotion**               | Works. Produced the shipped promo.               |
 | Full episode from stills + narration | **Remotion**               | Works. Produced Episodes 1 and 2.                |
 | Full episode from MOVING video       | **Veo stills→clips + Remotion** | Works. Produced Episode 3 — 60 clips, 6:54. `references/assembling-generated-clips.md` |

@@ -7542,3 +7542,75 @@ Restoring the apex avoids all three, and remains the cheaper fix.
 401 files / 7,201 tests, tsc 0, `lint:ci` clean. The six files Prettier still
 warns on were ALREADY unformatted at HEAD — checked with `git show`, not
 `git stash`, which misled this session once already.
+
+### Owner directive, 2026-09-12 — "Learn, record and use it exactly for making videos"
+
+The recipe is the one measured from job `a2c0788b` / story worker run **166**,
+and it is recorded in
+`.claude/skills/oniq-video/references/classic-film-recipe.md` — in the SKILL,
+not only here, because the point of the directive is that it gets used, and
+the skill is what loads when somebody says "make a video". `oniq-video`'s
+routing table gained a first row for the live user pipeline, which it had
+never carried at all: it described promos, episodes, Veo and Runway, and not
+the path that actually renders users' films.
+
+**THE RECIPE IN ONE LINE: nine gateway stills, held under Ken Burns moves over
+two parallax depth planes, with dust VFX, in-house Piper narration and a
+film-look grade. No generated video anywhere.** `STORY_MOVIE` unset is not an
+oversight, it IS the recipe — it puts `MOTION_STAGE=off` and every shot falls
+to still + camera. `STILL_PROVIDER` is not passed by the workflow at all, so
+`DEFAULT_STILL_PROVIDER = "gateway"` decides who draws.
+
+MEASURED BUDGET, from the run rather than from anyone's estimate: PREPARE
+147.8s, PREFLIGHT 0.5s, RENDER 555.0s (1800 frames at 0.155x realtime = 387.2s,
+plus a 135.5s grade), OUTPUT_VALIDATE 0.08s, UPLOAD 3.8s, FINALIZE 3.7s —
+**711.0s, ~11.9 minutes of runner time per 60 seconds of film**. Nine shots are
+derived from 60s; the count is not chosen. Narration 23.6s + visual hold 36.4s.
+
+**THE THREE `on` SWITCHES ARE THE TRAP, and they are why the film is misnamed.**
+`IN_HOUSE_MOTION: on`, `ONIQ_GPU_HEALTHY: on`, `ONIQ_WORKER_IMAGE: on` — all
+three read as "in-house motion is enabled", and all three are inert while
+`STORY_MOVIE` is blank. The film is called INTERNAL MOTION TEST and tested no
+motion: `gpu_video_jobs` has no row for it, `provider_spend_ledger` has never
+had a `GPU` row, and the contract says `9 fallback`. **A film that renders is
+not evidence the engine you meant to test ran** — check the MOTION_CONTRACT
+line, not the Watch button.
+
+**AND THE COST IS INVISIBLE TO EVERY GUARD ONIQ HAS.** The nine stills and the
+plot text go through the Lovable GATEWAY, which bills credits: no
+`provider_spend_ledger` row, no draw on the `$100` TEXT ceiling, no watchdog
+signal. Measured $0.00 in the ledger for a film that was not free. On this same
+day the pool drained with no warning — cloud voice exhausted 14:32, image
+credits 15:48, and the Lovable agent itself refused a message shortly after
+with `Your workspace is out of credits`. **That refusal is also the only way
+the balance could be read**: `credits--get_my_usage` runs inside an agent turn,
+and an agent turn costs credits, so the usage figure is behind a paywall that
+is itself empty. `get_workspace` promises a balance in its own description and
+returns none — confirmed twice.
+
+So the recipe is recorded and the pipeline is DOWN as it is recorded: every new
+film fails at still 1 until credits are added, and `STILL_PROVIDER=in_house` is
+not an escape because the GPU's LTX checkpoint is the thing throwing
+`CheckpointInconsistent`.
+
+**`still-store-403` ON EVERY SHOT IS EXPECTED ON THIS PATH.** The worker tries
+to put each gateway still into `oniq-gpu` so in-house motion could animate it
+by key; the R2 credential is not scoped to write that bucket. Nothing on this
+path needs the key, so the film is unaffected — it only matters the day motion
+is turned on. Recorded so it is not diagnosed as a fault a third time.
+
+**AND THE GUARD'S FIRST DRAFT READ LAYOUT INSTEAD OF CONTENT.**
+`classicFilmRecipe.test.ts` asserted a sentence markdown had wrapped across two
+lines, and went red against a document that says exactly the right thing —
+`marketingCopy.ts`'s 400-character window and the quantum doc-table lesson, for
+the third time. Every document assertion now collapses whitespace first, and
+**mutation M5 proves the fix in the direction that matters**: the recipe
+rewrapped at 45 columns must stay GREEN, and does. Four other mutations are RED
+(the still default flipped to `in_house`, the worker's grep line reworded, the
+fallback reason reworded, the skill's pointer removed), none NOTAPPLIED.
+
+Two facts also settled on the way and worth not re-deriving: the job was
+**dispatched twice** (runs 166 and 167 both fired at 09:47:07; 167 found it
+claimed and its render step lasted 2 seconds — do not read two runs as two
+films), and the Piper voice cache **missed** on this run and was written at the
+end, 504 MB, so "cached in-house voice" is the step's name and not its outcome.
