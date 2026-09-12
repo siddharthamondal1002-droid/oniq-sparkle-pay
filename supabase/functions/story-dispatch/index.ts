@@ -242,6 +242,45 @@ Deno.serve(async (req) => {
       });
     }
 
+    // READ-ONLY: the routing lines out of ONE run's log, so the bounded
+    // in-house motion test can be answered with the renderer's OWN words
+    // rather than inferred from an empty ledger. It downloads the run's log
+    // archive with the token this function already holds, keeps only the lines
+    // that name a motion route or engine, and returns at most 120 of them.
+    //
+    // NEVER THE WHOLE LOG. A runner log is megabytes and carries every echoed
+    // environment line; shipping it back through a database HTTP queue would
+    // put unrelated output somewhere nobody is reading it.
+    if (new URL(req.url).searchParams.get("action") === "run_log") {
+      const runId = new URL(req.url).searchParams.get("run") ?? "";
+      if (!/^\d+$/.test(runId)) return json({ error: "run must be a numeric run id" }, 400);
+      const lg = await fetch(
+        `https://api.github.com/repos/${repo}/actions/runs/${runId}/logs`,
+        {
+          headers: {
+            Authorization: `Bearer ${ghToken}`,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+        },
+      );
+      if (!lg.ok) return json({ status: lg.status, detail: (await lg.text()).slice(0, 300) });
+      // The archive is a zip; the plain-text runs through it are readable
+      // enough to grep without unzipping, which keeps this dependency-free.
+      const text = new TextDecoder("utf-8", { fatal: false }).decode(
+        new Uint8Array(await lg.arrayBuffer()),
+      );
+      const wanted =
+        /(motion route|route\.engine|in-house|in_house|story-motion|story-clip|gpu job|shot \d+|voice engine|PREFLIGHT|stills?-only)/i;
+      const lines = text
+        .split(/\r?\n/)
+        .filter((l) => wanted.test(l) && l.length < 400)
+        .slice(0, 120);
+      return json({ status: lg.status, matched: lines.length, lines });
+    }
+
+
+
 
 
 
