@@ -3366,6 +3366,32 @@ export type Database = {
           },
         ]
       }
+      message_push_state: {
+        Row: {
+          attempts: number
+          conversation_id: string
+          last_attempted_at: string
+        }
+        Insert: {
+          attempts?: number
+          conversation_id: string
+          last_attempted_at?: string
+        }
+        Update: {
+          attempts?: number
+          conversation_id?: string
+          last_attempted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_push_state_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: true
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_reactions: {
         Row: {
           created_at: string
@@ -7294,6 +7320,17 @@ export type Database = {
         Args: { _size: number; _user: string }
         Returns: Json
       }
+      message_push_pending: {
+        Args: { grace_seconds?: number; max_conversations?: number }
+        Returns: {
+          conversation_id: string
+          missed: number
+          newest_content: string
+          newest_type: string
+          sender_id: string
+        }[]
+      }
+      message_push_sweep: { Args: never; Returns: Json }
       minor_age_for_country: { Args: { _country: string }; Returns: number }
       move_to_dlq: {
         Args: {
@@ -7349,6 +7386,7 @@ export type Database = {
         Args: { _booking_id: string; _price: number }
         Returns: undefined
       }
+      ops_watch_pick_key: { Args: never; Returns: string }
       ops_watch_tick: { Args: never; Returns: Json }
       parental_consent_verified: { Args: { _uid: string }; Returns: boolean }
       personalisation_allowed: { Args: { _uid: string }; Returns: boolean }
