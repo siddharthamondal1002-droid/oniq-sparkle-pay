@@ -67,8 +67,17 @@ export type OpenAIAdapterConfig = {
   readonly timeoutMs?: number;
 };
 
+/**
+ * 200 CHARACTERS CUT THE ANSWER IN HALF. The first real run's 400 named the
+ * pattern but the slice landed mid-JSON on `"param"` — the field that says
+ * WHICH tool was rejected — so the message stopped one word before the part a
+ * reader needs. 600 is `vertexError.ts`'s MAX, chosen there for the same
+ * reason and worth matching rather than picking a second number.
+ */
+export const MAX_ERROR_DETAIL = 600;
+
 export function modelUnavailable(model: string, status: number, body: string): string {
-  return `frontier model ${model} unavailable: HTTP ${status} ${body.slice(0, 200)}`;
+  return `frontier model ${model} unavailable: HTTP ${status} ${body.slice(0, MAX_ERROR_DETAIL)}`;
 }
 
 /**

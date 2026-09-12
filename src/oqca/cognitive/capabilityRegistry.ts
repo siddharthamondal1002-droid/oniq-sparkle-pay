@@ -45,9 +45,36 @@ export type Registry = {
   readonly specs: readonly ToolSpec[];
 };
 
+/**
+ * THE CHARSET EVERY MAINSTREAM PROVIDER ACCEPTS, and it is narrower than a
+ * TypeScript identifier or a sensible-looking namespaced name.
+ *
+ * MEASURED 2026-09-12, the hard way: the first real benchmark run registered
+ * tools as `db.job_counts` and BOTH models rejected the request before reading
+ * a word of it —
+ *
+ *     HTTP 400 Invalid 'tools[0].name': string does not match pattern.
+ *     Expected a string that matches the pattern '^[a-zA-Z0-9_-]+$'.
+ *
+ * The dot is the whole bug. A namespacing convention that reads perfectly in
+ * this codebase is illegal on the wire, and nothing local could have caught it
+ * because no local test ever sends the tool list anywhere.
+ *
+ * So the check moved to CONSTRUCTION. A registry built with an unusable name
+ * now throws in the process that built it, naming the offender — rather than
+ * surfacing hundreds of milliseconds later as a provider 400 that reads like
+ * an outage. Underscores namespace fine: `db_job_counts`.
+ */
+export const TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
 export function registry(specs: readonly ToolSpec[]): Registry {
   const names = new Set<string>();
   for (const s of specs) {
+    if (!TOOL_NAME_PATTERN.test(s.name)) {
+      throw new Error(
+        `tool name ${JSON.stringify(s.name)} is not portable: it must match ${String(TOOL_NAME_PATTERN)}`,
+      );
+    }
     if (names.has(s.name)) throw new Error(`duplicate tool registered: ${s.name}`);
     names.add(s.name);
   }

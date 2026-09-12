@@ -43,7 +43,7 @@ const AT = "2026-09-12T05:15:00Z";
 
 /** Job rows by status. The only place a FAILED job's timestamp appears. */
 export const JOB_COUNTS: BenchTable = {
-  tool: "db.job_counts",
+  tool: "db_job_counts",
   locator:
     "production: select status, count(*), max(created_at) from story_jobs / gpu_video_jobs group by status",
   at: AT,
@@ -58,7 +58,7 @@ export const JOB_COUNTS: BenchTable = {
 
 /** Error surfaces. Two of the five have nothing to do with video. */
 export const ERROR_SURFACES: BenchTable = {
-  tool: "db.error_surfaces",
+  tool: "db_error_surfaces",
   locator:
     "production: select surface, count(*), max(created_at) from client_error_reports where created_at > now() - interval '14 days' group by surface",
   at: AT,
@@ -73,7 +73,7 @@ export const ERROR_SURFACES: BenchTable = {
 
 /** Job error texts. The voice failure is here and nowhere else. */
 export const JOB_ERRORS: BenchTable = {
-  tool: "db.job_errors",
+  tool: "db_job_errors",
   locator:
     "production: select error, count(*), max(created_at) from story_jobs where created_at > now() - interval '14 days' group by error",
   at: AT,

@@ -118,7 +118,7 @@ describe("world model keeps epistemic states apart", () => {
 
 describe("capability registry is the authority, not the model", () => {
   const reg = registry([
-    readTool("db.read", "3 rows"),
+    readTool("db_read", "3 rows"),
     readTool("deploy", "shipped", { authorized: false, sideEffect: "EXTERNAL" }),
     readTool("wipe", "gone", { sideEffect: "DESTRUCTIVE" }),
     readTool("push", "pushed", { sideEffect: "EXTERNAL" }),
@@ -143,7 +143,7 @@ describe("capability registry is the authority, not the model", () => {
   });
 
   it("refuses an argument the schema does not name", () => {
-    const d = decide(reg, "OBSERVE", "db.read", { sneaky: "1" });
+    const d = decide(reg, "OBSERVE", "db_read", { sneaky: "1" });
     expect(d.allow).toBe(false);
     if (!d.allow) expect(d.refusal).toBe("UNKNOWN_ARGUMENT");
   });
@@ -155,8 +155,48 @@ describe("capability registry is the authority, not the model", () => {
   });
 
   it("DRY_RUN still performs a pure read, or the plan is unknowable", async () => {
-    const inv = await invoke(reg, "DRY_RUN", "db.read", {});
+    const inv = await invoke(reg, "DRY_RUN", "db_read", {});
     expect(inv.outcome).toBe("EXECUTED");
+  });
+});
+
+describe("a tool name must be usable on the wire, checked where it is built", () => {
+  /**
+   * THE BUG THIS PINS COST A WHOLE BENCHMARK RUN. Tools were registered as
+   * `db.job_counts`; both frontier models rejected the request with HTTP 400
+   * before reading a word of the incident, because the Responses API requires
+   * `^[a-zA-Z0-9_-]+$`. Nothing local could catch it — no local test sends the
+   * tool list anywhere — so the check belongs at construction.
+   */
+  const ok = (name: string): ToolSpec => ({
+    name,
+    description: name,
+    schema: [],
+    authorized: true,
+    sideEffect: "NONE",
+    reversible: true,
+    costUsd: 0,
+    risk: 0,
+    timeoutMs: 1,
+    produces: "database_query",
+    run: async () => ({ ok: true, evidence: ev("database_query"), summary: "" }),
+  });
+
+  it("refuses a dotted name, and names the pattern", () => {
+    expect(() => registry([ok("db.job_counts")])).toThrow(/not portable/);
+  });
+
+  it("refuses a space and a slash too", () => {
+    expect(() => registry([ok("db job")])).toThrow(/not portable/);
+    expect(() => registry([ok("db/job")])).toThrow(/not portable/);
+  });
+
+  it("admits underscores and hyphens, which namespace perfectly well", () => {
+    expect(() => registry([ok("db_job_counts"), ok("repo-read")])).not.toThrow();
+  });
+
+  it("still refuses a duplicate", () => {
+    expect(() => registry([ok("a"), ok("a")])).toThrow(/duplicate/);
   });
 });
 
@@ -203,12 +243,12 @@ describe("openai adapter: shape only — no call has ever been made", () => {
 
   it("reads a documented function_call shape into a tool wish", () => {
     const r = readResponse("m", {
-      output: [{ type: "function_call", name: "db.read", arguments: '{"q":"1"}' }],
+      output: [{ type: "function_call", name: "db_read", arguments: '{"q":"1"}' }],
       usage: { input_tokens: 5, output_tokens: 6 },
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.proposal.wantsTool).toEqual({ name: "db.read", args: { q: "1" } });
+      expect(r.proposal.wantsTool).toEqual({ name: "db_read", args: { q: "1" } });
       expect(r.proposal.outputTokens).toBe(6);
     }
   });
@@ -307,7 +347,7 @@ describe("uncertainty comes from the hypotheses", () => {
 
 describe("the kernel loop", () => {
   const reg = registry([
-    readTool("db.read", "3 rows"),
+    readTool("db_read", "3 rows"),
     readTool("push", "pushed", { sideEffect: "EXTERNAL" }),
   ]);
 
@@ -315,7 +355,7 @@ describe("the kernel loop", () => {
     const model = mockModelAdapter([
       {
         text: "let me look",
-        wantsTool: { name: "db.read", args: { q: "1" } },
+        wantsTool: { name: "db_read", args: { q: "1" } },
         model: "m",
         inputTokens: 1,
         outputTokens: 1,
@@ -375,7 +415,7 @@ describe("the kernel loop", () => {
     const model = mockModelAdapter([
       {
         text: "",
-        wantsTool: { name: "db.read", args: { q: "1" } },
+        wantsTool: { name: "db_read", args: { q: "1" } },
         model: "m",
         inputTokens: 0,
         outputTokens: 0,

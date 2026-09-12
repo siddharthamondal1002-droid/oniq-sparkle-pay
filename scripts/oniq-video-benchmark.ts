@@ -66,22 +66,22 @@ function table(name: string, t: BenchTable, description: string): ToolSpec {
 
 const TOOLS: readonly ToolSpec[] = [
   table(
-    "db.job_counts",
+    "db_job_counts",
     JOB_COUNTS,
     "Counts of video/story jobs by status, with the newest timestamp for each.",
   ),
   table(
-    "db.error_surfaces",
+    "db_error_surfaces",
     ERROR_SURFACES,
     "Error report counts per surface over the last 14 days.",
   ),
   table(
-    "db.job_errors",
+    "db_job_errors",
     JOB_ERRORS,
     "The error text recorded on jobs over the last 14 days, with counts.",
   ),
   {
-    name: "db.error_detail",
+    name: "db_error_detail",
     description: "The full detail payload for one error surface. Argument: surface.",
     schema: ["surface"],
     authorized: true,
@@ -93,7 +93,7 @@ const TOOLS: readonly ToolSpec[] = [
     produces: "database_query",
     run: async (args) => {
       const surface = args.surface ?? "";
-      called.push(`db.error_detail:${surface}`);
+      called.push(`db_error_detail:${surface}`);
       const hit = ERROR_DETAIL[surface];
       if (!hit) return { ok: false, reason: `no surface named ${surface}` };
       return {
@@ -133,7 +133,7 @@ function chooseAdapter(): ModelAdapter {
   return mockModelAdapter([
     {
       text: "",
-      wantsTool: { name: "db.job_counts", args: {} },
+      wantsTool: { name: "db_job_counts", args: {} },
       model: "mock",
       inputTokens: 0,
       outputTokens: 0,
