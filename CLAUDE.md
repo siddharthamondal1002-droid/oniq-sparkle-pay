@@ -6954,3 +6954,91 @@ client's own push did NOT — so the first real save is the test, and it is
 invisible when it works. What a failure would look like: `message_push_state`
 rows with `attempts` climbing while nothing arrives, which is the shape to
 check first.
+
+### 2026-09-12 — "build #4": the door test for CODE. There was no #4, and this is why it is this one
+
+**FIRST, A CORRECTION, because the number implies a list that does not exist.**
+Checked against the session transcript rather than reconstructed from memory:
+the list offered was **two** items — the watchdog and the door test. #3 was the
+`send-push` structural risk named in the closing line of the #2 report, which
+the owner numbered. **So #4 is an engineering choice, recorded as one**, not an
+owner directive, and picking it off the same evidence is the whole justification:
+CLAUDE.md counts **ten** instances of built → unreachable → unnoticed → the
+owner reports it, and calls it "this repo's most-recorded failure" in those
+words. #2 covers SCREENS. Most of the ten were MODULES.
+
+`src/test/moduleGraph.ts` walks the import graph; `moduleDoors.test.ts` fails
+when a module loses its last caller. **79 frozen, and the list may only shrink.**
+
+**THE MEASUREMENT KILLED TWO DESIGNS BEFORE EITHER WAS WRITTEN**, which is #1's
+lesson applied on purpose rather than after the fact:
+
+    entrypoints = app only          201 orphans   a ban is impossible; ratchet
+    + scripts/ as a second class    148 orphans   a script IS a caller
+    + the mirror rule (per file)    123 orphans
+    - vendored shadcn, test infra    79 FROZEN
+
+**A SCRIPT IS A REAL CALLER, and collapsing that would have made the list lie.**
+The §21 benchmark harness is run by hand and is not dead; 53 modules are
+tooling-only. Reporting them as orphans teaches whoever reads the list to stop
+believing it, which is how a guard becomes decoration without anyone editing it.
+
+**AND THE MIRROR RULE IS DERIVED PER FILE, NOT A TREE EXCLUSION — that is the
+one that mattered.** `src/oqca/X` ships as `_shared/oqca/X`, and
+`scripts/oqca-mirror.mjs` COPIES rather than imports, so no edge exists to
+find. The obvious move is to exempt `src/oqca/`, and this file's own text would
+have supported it ("nothing imports `src/oqca`"). Measured instead: **26 of
+OQCA's 40 unreferenced modules have a shipped twin and 14 do not** — the 14
+being the v1.0/v1.1 research kernel. A blanket exclusion would have hidden
+exactly the ones the claim is about.
+
+**THE GUARD HAD A HOLE AND ITS OWN ASSERTION CAUGHT IT ON THE FIRST RUN.**
+`isAppEntrypoint` matched `f.startsWith("src/routes/")`, which also matches
+`src/routes/__tests__/…` — so **six test files were entrypoints**, and anything
+only they imported counted as shipped. `shipped` fell 610 → 604 when fixed.
+**The orphan list did not move**, and that is the honest half: the hole was real
+and happened to hide nothing YET. A test is never an entrypoint here because
+every one of the ten had passing tests — seeding the walk with them makes the
+file agree with itself and catch nothing, which is the single assertion the
+whole guard rests on.
+
+**`BY_DESIGN` IS A RULE AND `KNOWN_ORPHANS` IS A DEBT**, and merging them is the
+worse of the two mistakes. A vendored shadcn primitive nobody has used (41 of 47) is a LIBRARY; putting it on a list headed "should shrink" invites someone
+to delete a button ONIQ will want. Both prefixes are narrow and both are
+asserted to still suppress something, because this repo has the receipt for a
+guard whose stated discriminator did nothing.
+
+**THE STALE-ENTRY TEST IS WHAT MAKES IT A RATCHET.** Without it the list is a
+drawer: a module gets wired up, its line stays, and the next orphan hides
+behind a count that never moved. A frozen LIST rather than a count for the same
+reason — a count lets one orphan be swapped for another.
+
+**WHAT IT FOUND, and it is not small:** fifteen `_shared` modules no deployed
+edge function imports — `storyIr`, `storyDna`, `localStoryModel`, `motionGate`,
+`videoProvider`, `videoBenchmark`, `directorGraph` — the Story Intelligence and
+motion work this file already describes as "complete, calibrated, tested — and
+absent from the Dockerfile, imported by nothing". Plus `motionValidate`,
+`storyLifecycle`, `entitlements`, `retrievalPractice` in `src/lib`.
+
+**THE LIMIT, STATED BECAUSE IT IS LOAD-BEARING: this is FILE granularity, not
+EXPORT.** `extractCandidates` sat in a file `synthetic.ts` imports, so the file
+was reachable while the export was reached only by the synthetic path; the same
+is true of `toKnowledgeState`. **Two of the ten would still pass.** A file with
+one live export and nine dead ones is invisible here.
+
+**AND IT FIXES NOTHING — it stops the 80th.** The 79 are recorded, not repaired;
+wiring them up or deleting them is separate work, and each line is one commit's
+worth of decision.
+
+7 mutations, every one RED, none GREEN, none NOTAPPLIED — M1 restores the real
+2026-09-06 state (`voiceReplication` losing its only importer) rather than
+inventing a hole, and M2 makes tests entrypoints. **M7 reported NOTAPPLIED on
+its first run** — a quoting bug in my own heredoc, announced instead of printing
+a verdict, the ninth time that check has earned itself; the needle carries no
+quote characters now. The runner owns its own undo (copy aside, copy back),
+because `git checkout --` reverts to a COMMIT and on 2026-09-11 that deleted
+the uncommitted work it was meant to protect.
+
+396 files / **7,160 tests**; tsc, `lint:ci` and Prettier clean. No migration, no
+edge function, no Lovable message, no credits, no publish — it runs in CI on
+every change, which is the whole point of it.
