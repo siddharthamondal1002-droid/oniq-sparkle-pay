@@ -11,10 +11,22 @@
  * owner opening the app.
  *
  * THE RATCHET IS THE POINT, AND IT IS THE `eslint-suppressions.json` SHAPE.
- * 79 modules have no caller today; freezing them and failing on the 80th is
+ * 55 modules have no caller today; freezing them and failing on the 56th is
  * what makes this land in one commit instead of never. A FROZEN LIST rather
  * than a count, because a count lets one orphan be swapped for another — and
  * a stale entry FAILS, so the list can only shrink.
+ *
+ * AND THE STALE-ENTRY HALF EARNED ITSELF ON DAY TWO. The list shipped at 79
+ * and TWENTY-FOUR of those were false: `remotion/` was missing from the walk,
+ * so `remotion/scripts/story-worker.mjs` — the command GitHub Actions runs on
+ * every user's Story film, importing twenty-eight modules out of `src/` and
+ * `_shared/` by relative path — was invisible, and everything only it reached
+ * read as dead. `motionValidate.ts` and `motionGate.ts` were both on that
+ * list, which is exactly the "absent from the Dockerfile, imported by nothing"
+ * claim this file was built to check. The compositor imports both. A guard
+ * that can only ever say "orphan" is a guard that cannot be wrong out loud;
+ * the assertion that a listed module must STILL be an orphan is what caught
+ * all twenty-four in one run.
  *
  * `BY_DESIGN` IS A RULE AND THE FROZEN LIST IS A DEBT, and conflating them
  * would be the worse of the two mistakes. A vendored shadcn primitive nobody
@@ -55,10 +67,6 @@ const KNOWN_ORPHANS: readonly string[] = [
   "src/components/m3/LayoutGrid.tsx",
   "src/components/m3/Surface.tsx",
   "src/components/upi/UpiScannerOverlay.tsx",
-  "src/data/ep3Shots.ts",
-  "src/data/ep4Shots.ts",
-  "src/data/originalsScript.ts",
-  "src/data/storyActorAssets.ts",
   "src/data/storyCharacterRefs.ts",
   "src/data/storyStyleRefs.ts",
   "src/design/material.ts",
@@ -72,35 +80,16 @@ const KNOWN_ORPHANS: readonly string[] = [
   "src/lib/caseStudy.ts",
   "src/lib/creator/payoutClassify.ts",
   "src/lib/entitlements.ts",
-  "src/lib/expressionGrammar.ts",
-  "src/lib/filmChrome.ts",
   "src/lib/itemLint.ts",
   "src/lib/itemSimilarity.ts",
   "src/lib/keyVerification.ts",
-  "src/lib/livingMotion.ts",
-  "src/lib/motionRuntime.ts",
-  "src/lib/motionValidate.ts",
-  "src/lib/movieTimeline.ts",
-  "src/lib/parallaxPlanes.ts",
-  "src/lib/particleField.ts",
-  "src/lib/portraitPrecondition.ts",
-  "src/lib/portraitReframe.ts",
-  "src/lib/puppetPerformance.ts",
   "src/lib/retrievalPractice.ts",
-  "src/lib/sceneWeather.ts",
-  "src/lib/sheetPanel.ts",
-  "src/lib/shotDirector.ts",
-  "src/lib/shotGrammar.ts",
   "src/lib/shotPlan.ts",
-  "src/lib/soundStage.ts",
-  "src/lib/storyActorCasting.ts",
   "src/lib/storyActors.ts",
   "src/lib/storyCostModel.ts",
   "src/lib/storyLifecycle.ts",
-  "src/lib/storyPreflight.ts",
   "src/lib/storyRenderer.ts",
   "src/lib/useIsAdmin.ts",
-  "src/lib/visemes.ts",
   "src/oqca/backends/backend.ts",
   "src/oqca/backends/classicalSimulator.ts",
   "src/oqca/backends/qpu.ts",
@@ -120,7 +109,6 @@ const KNOWN_ORPHANS: readonly string[] = [
   "supabase/functions/_shared/filmCapacity.ts",
   "supabase/functions/_shared/gatewayVoice.ts",
   "supabase/functions/_shared/localStoryModel.ts",
-  "supabase/functions/_shared/motionGate.ts",
   "supabase/functions/_shared/oniqStory.ts",
   "supabase/functions/_shared/shotReview.ts",
   "supabase/functions/_shared/storyDna.ts",

@@ -67,8 +67,14 @@ echo "M3  a still-orphaned module is dropped from the frozen list"
 save "$GUARD"
 python3 - <<'PY'
 import pathlib
+# The anchor was `motionValidate.ts` until 2026-09-12, when the compositor tree
+# was added to the walk and that module turned out to have a caller all along.
+# A mutation anchored on a module that stops being an orphan goes NOTAPPLIED,
+# which is the script saying so rather than printing a verdict.
 p = pathlib.Path("src/lib/__tests__/moduleDoors.test.ts"); s = p.read_text()
-p.write_text(s.replace('  "src/lib/motionValidate.ts",\n', '', 1))
+old = '  "supabase/functions/_shared/storyIr.ts",\n'
+assert s.count(old) == 1
+p.write_text(s.replace(old, '', 1))
 PY
 changed "$GUARD" && verdict; restore "$GUARD"
 
@@ -129,6 +135,32 @@ PY
 changed "$GRAPH" && verdict; restore "$GRAPH"
 
 echo
+echo
+echo "M8  the compositor tree is dropped from the walk (the real 2026-09-12 hole)"
+save "$GRAPH"
+python3 - <<'PY'
+import pathlib
+p = pathlib.Path("src/test/moduleGraph.ts"); s = p.read_text()
+old = 'const TREES = ["src", "supabase/functions", "scripts", "remotion/src", "remotion/scripts"];'
+new = 'const TREES = ["src", "supabase/functions", "scripts"];'
+assert s.count(old) == 1
+p.write_text(s.replace(old, new, 1))
+PY
+changed "$GRAPH" && verdict; restore "$GRAPH"
+
+echo
+echo "M9  remotion is walked but .mjs is not — a tree admitted in name only"
+save "$GRAPH"
+python3 - <<'PY'
+import pathlib
+p = pathlib.Path("src/test/moduleGraph.ts"); s = p.read_text()
+old = 'const EXTENSIONS = [".ts", ".tsx", ".mjs"];'
+new = 'const EXTENSIONS = [".ts", ".tsx"];'
+assert s.count(old) == 1
+p.write_text(s.replace(old, new, 1))
+PY
+changed "$GRAPH" && verdict; restore "$GRAPH"
+
 restore_all
 echo "restored; confirming the tree is green again"
 if run; then echo "   green"; else echo "   STILL RED — the tree did not restore, diff it before trusting it"; fi

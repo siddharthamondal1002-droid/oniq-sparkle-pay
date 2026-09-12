@@ -46,9 +46,24 @@ import { join, posix, relative, resolve } from "node:path";
 
 const ROOT = resolve(__dirname, "../..");
 
-/** The trees CI typechecks and the platform deploys, plus the dev tools. */
-const TREES = ["src", "supabase/functions", "scripts"];
-const EXTENSIONS = [".ts", ".tsx"];
+/**
+ * The trees CI typechecks and the platform deploys, plus the dev tools, plus
+ * the COMPOSITOR.
+ *
+ * `remotion/` was missing from the first version of this file and that made
+ * seventeen entries of the frozen list false. `remotion/scripts/story-worker.mjs`
+ * is what GitHub Actions runs on every `repository_dispatch` for a user's
+ * Story film, and it imports twenty-eight modules straight out of `src/` and
+ * `_shared/` by relative path with the extension spelled out. So the busiest
+ * caller in the repository lived in a tree the walk never entered, and every
+ * module only IT reached read as dead.
+ *
+ * `.mjs` is in EXTENSIONS for the same reason: that worker, and every script
+ * beside it, is an ES module rather than TypeScript. A tree admitted without
+ * its own file extension is a tree admitted in name only.
+ */
+const TREES = ["src", "supabase/functions", "scripts", "remotion/src", "remotion/scripts"];
+const EXTENSIONS = [".ts", ".tsx", ".mjs"];
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -144,13 +159,37 @@ export function isAppEntrypoint(f: string): boolean {
     f === "src/server.ts" ||
     f === "src/start.ts" ||
     f.startsWith("src/routes/") ||
-    /^supabase\/functions\/[^/]+\/index\.ts$/.test(f)
+    /^supabase\/functions\/[^/]+\/index\.ts$/.test(f) ||
+    // The Story compositor. `story-worker.mjs` is the command in
+    // `.github/workflows/story-worker.yml`, dispatched per film; `story.ts` is
+    // the `entryPoint:` it hands to Remotion's bundler. Both run for a paying
+    // user, so they are SHIPPED and not tooling.
+    f === "remotion/scripts/story-worker.mjs" ||
+    f === "remotion/src/story.ts"
   );
 }
 
+/**
+ * The four other `entryPoint:` values passed to `bundle()` — the promo, the
+ * episodes, the rig proof and the shot renderer. A person renders these on
+ * purpose, which is the TOOLING rung, not SHIPPED. Read from the scripts
+ * rather than guessed: `grep -o "entryPoint: path.resolve(...)" remotion/scripts`.
+ */
+const REMOTION_TOOL_ENTRIES = [
+  "remotion/src/index.ts",
+  "remotion/src/episodes.ts",
+  "remotion/src/rigProof.ts",
+  "remotion/src/shots.ts",
+];
+
 /** A developer runs these by hand; a module they reach has a caller. */
 export function isToolEntrypoint(f: string): boolean {
-  return !isTestModule(f) && f.startsWith("scripts/");
+  if (isTestModule(f)) return false;
+  return (
+    f.startsWith("scripts/") ||
+    f.startsWith("remotion/scripts/") ||
+    REMOTION_TOOL_ENTRIES.includes(f)
+  );
 }
 
 /** `src/oqca/X` ships as `_shared/oqca/X`; the mirror copies, never imports. */
