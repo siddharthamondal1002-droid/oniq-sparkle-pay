@@ -6590,3 +6590,134 @@ episode is real work. It still learns nothing, because every objective it
 reaches is one no corpus ONIQ holds can close. **A third attempt is not a fourth
 outcome**, which the previous entry said in advance; making the loop learn is
 the corpus-and-selection question and remains unbuilt.
+
+## Owner directive, 2026-09-12 — "build #1": the watchdog, and volume is the wrong signal
+
+Offered a measured view of what stands between ONIQ and world-class, the owner
+chose the first item: **a watchdog that pushes.** The case for it was one
+table — `GITHUB_DISPATCH_TOKEN` died 05 Sep 14:24, `story-dispatch-heartbeat`
+kept firing EVERY MINUTE throughout, the failures were in
+`client_error_reports` the whole time, `send-push` was deployed and delivering
+to 48 devices, and the owner still found out by trying to make a film on
+11 Sep. Every piece existed. **The join did not.**
+
+**THE MEASUREMENT KILLED THE OBVIOUS DESIGN, and that is the entry.** Over 30
+days of `client_error_reports`:
+
+    surface           worst hour   30d total   hours with any
+    chat-viewport         19          116           31
+    send-push             16           56           22
+    share-video           11           45           17
+    story-dispatch         1           42           42    <- the total outage
+
+**The real outage never exceeded ONE report per hour.** Any volume threshold
+high enough to ignore `chat-viewport`'s 19/hour would have slept through six
+days of video being completely dead. That is the same inversion
+`baselineDiagnosis()` makes in the §22 benchmark when it ranks `send-push` as
+the loudest surface — the benchmark's own trap, met in production.
+
+**AND MY FIRST EXPLANATION OF THE 1/HOUR WAS WRONG.** It was written down as
+"the report stream only fires when a user is present". It is not:
+`story_dispatch_tick()` SELF-REPORTS and throttles itself to once an hour via
+`last_reported_at`. The measurement was right and the reason was invented —
+caught only by reading the deployed function instead of theorising about the
+numbers. That makes the right signal exact rather than tuned:
+`consecutive_failures`, which the dispatcher itself maintains.
+
+Persistence was measured too and REJECTED as a primary signal: the longest
+unbroken run of hours-with-a-report is 13 for story-dispatch against 9 for
+chat-viewport. A threshold in that gap is fitted to one incident, not derived.
+
+**SO NO SIGNAL COUNTS ERROR REPORTS**, and a test asserts that over the
+function body with SQL comments stripped. Three signals, each a server-side
+fact where "dead" is unambiguous, each constant derived from something already
+measured:
+
+    dispatch_down        consecutive_failures >= 3    3 min of the 1/min cron
+    render_stalled       queued past 3 hours          HALF story-sweep's
+                                                      QUEUED_ABANDONED_TTL_MS,
+                                                      itself 5.5x the measured
+                                                      worst 65.1-min real wait
+    spend_ceiling:<cap>  >= 80% of the daily ceiling  one signal PER capability
+
+**THE DEDUP IS A PARTIAL UNIQUE INDEX, NOT A CONVENTION.** One open row per
+signal. At `*/5` an undeduped fault writes 288 rows a day, and an alert that
+fires 288 times is an alert nobody reads — which is the same outcome as no
+alert, reached more expensively. A still-open severity-1 alert re-announces
+once a day, because silence on day two reads identically to "it was fixed".
+
+**DETECTION AND DELIVERY ARE SPLIT SO THE FIRST SURVIVES THE SECOND.** The row
+commits with `notified_at` NULL before anything is sent; a missing credential,
+a dead token or a Google outage costs an ANNOUNCEMENT and never an
+OBSERVATION, and the next tick finds it still pending. `ops-alert` marks
+notified only inside `if (sent > 0)` — a row marked after a failed send is an
+outage nobody ever hears about twice. Mutation W7 proves it.
+
+**`send-push` COULD NOT CARRY IT, and that is worth recording before someone
+tries.** It is conversation-scoped: it demands a sender's JWT, a
+`conversation_id` and membership of that conversation, and delivers to the
+OTHER members. An operational alert has neither a sender nor a conversation,
+and an invented one becomes load-bearing the first time somebody tidies it up.
+Hence one small function of its own, reusing `googleAccessToken` rather than
+minting a second token (`cloud-platform` covers FCM).
+
+**WHAT IS DELIBERATELY NOT COVERED: web push.** `device_tokens` holds two
+different things — FCM registration tokens for native installs and VAPID
+subscriptions (`keys.p256dh`/`keys.auth`) for browsers — and `ops-alert`
+handles only the first, filtered by `.neq("platform","web")`. Posting a VAPID
+endpoint to FCM fails the whole send. The owner's Android token was refreshed
+2026-09-12 02:46 and their web one is 17 days old, so the arm that matters is
+live. Adding web means reusing `_shared/webpush.ts` the way `send-push` does.
+
+PROVEN ON PRODUCTION, in aborting DO blocks so nothing committed — the pattern
+the health audit trigger established:
+
+    consecutive_failures := 7   -> opened 1, pending_notify 1, sev 1,
+                                   "the dispatcher has failed 7 times in a row"
+    back to 0                   -> resolved 1, open_now 0
+    a film queued 4 hours ago   -> render_stalled sev 1
+    TEXT settled := $95 of $100 -> spend_ceiling:TEXT sev 2
+    after rollback              -> 0 alerts, counter restored, TEXT back to its
+                                   real $0.002360, 0 queued http requests
+
+`pending_notify` is 0 after a fault that opened and cleared before any
+announcement — correct, since the owner was never told it broke.
+
+**THE CRON FIRED ON ITS OWN AT 06:15:00 AND SUCCEEDED**, 0 alerts, which is
+what a healthy production looks like. Detection is LIVE; delivery waits on one
+deploy.
+
+Smaller things worth their lines:
+
+- **`updated_at` IS USELESS FOR LATENCY HERE.** p95 `created_at -> updated_at`
+  on ready films reads 14 DAYS, because `story_jobs_guard_transition` stamps
+  `updated_at := now()` on every update. Sizing a threshold from it would have
+  baked a fortnight into a constant. Checked before writing, not after.
+- **A 499 on a SELECT is safe to retry**; the 2026-09-09 rule is about DDL.
+- The one guard that went red was MINE, not the code's: it asserted
+  `notified_at` appeared after the send branch, and the name legitimately
+  appears earlier in the select list and the pending filter. Scoped to the
+  WRITE. That is "a count over a whole file is not a guard", for the fifth time.
+- The mutation script's baseline line printed `GREEN <- ESCAPED` for a HEALTHY
+  baseline, because it reused `verdict()`. A label that reads as a failure on a
+  healthy tree is how a wrong verdict gets believed; it prints its own sentence
+  now.
+
+### The same day — a tool offered by name alone cannot be called
+
+The §21 video benchmark finally reached both frontier models and scored **zero
+causes found on both arms**, and the cause was ONIQ's seam, not either model.
+`ModelRequest.toolsOffered` was `readonly string[]`, so the OpenAI body went out
+as `{type:"function", name}` with NO description and NO parameters. Three of the
+four benchmark tools take no arguments and worked; `db_error_detail` needs one,
+the model was never shown the field, and both arms called it six times with
+`{}` — reading `no surface named ` every time and never seeing the evidence
+that names the dead credential.
+
+**FIFTY KERNEL TESTS WERE GREEN THROUGHOUT**, because not one looked at what a
+tool offer CONTAINS. Three now do, and reverting to name-only fails all three.
+This is the third time the benchmark measured my own wiring rather than a
+model: first the tool names carried dots (HTTP 400), then the error detail was
+sliced one word short of the field naming the rejected tool, now the arguments.
+**Each round the benchmark was honest and the harness was not** — which is the
+argument for keeping a benchmark whose failures are legible.
