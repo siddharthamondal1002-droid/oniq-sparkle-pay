@@ -317,6 +317,8 @@ Deno.serve(async (req) => {
           supabase_url: supabaseUrl,
           actor_refs: actorRefs,
           ...(motionMode ? { story_movie: motionMode } : {}),
+          ...(inHouseMotion ? { in_house_motion: true } : {}),
+
         },
       }),
     });
