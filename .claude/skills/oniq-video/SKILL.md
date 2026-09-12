@@ -257,12 +257,34 @@ longer than Veo's 8s ceiling freezes its last frame under a smoothstepped
 push). A refusal retries ONCE (sampling-flaky, measured on ep3), then the
 shot steps down to the classic Ken Burns/parallax path — a still shot in a
 movie film is a shot, not a hole. `STORY_MOVIE=off` on the worker renders
-movie jobs as classic without a deploy. Movie grade is ADMIN-ONLY and clamped
-to 120s in `claim_story_seconds` until purchased seconds learn grades — the
-movie price tiers stay INACTIVE; do not activate them before splitting the
-paid bucket by grade, or classic-priced seconds fund Veo renders. Classic
-jobs (`grade = 'classic'`, the default) are untouched: still Ken Burns +
-parallax over stills, no Veo call anywhere.
+movie jobs as classic without a deploy.
+
+**THE GRADE PARAGRAPH THAT STOOD HERE WAS OVERTAKEN, and it is corrected
+rather than deleted because the reason it existed is still live.** It said
+movie grade is ADMIN-ONLY and that "the movie price tiers stay INACTIVE; do
+not activate them before splitting the paid bucket by grade". Measured
+2026-09-12: `StoryStudio.tsx` sends `_grade: "movie"` UNCONDITIONALLY — the
+owner withdrew classic on 2026-08-15, so movie is not a choice and there is no
+admin gate on it — and all four `story_price_tiers` movie rows are
+`active = true` at ₹99/min, which is what a person buys. Classic is the
+inactive one. So both halves of that instruction describe a state ONIQ left
+three weeks ago; following it today would mean deactivating the only thing on
+sale.
+
+**AND THE CONCERN UNDERNEATH IT IS RESOLVED, measured from `pg_proc` rather
+than assumed.** The real risk was grade-blind seconds — a classic-priced second
+funding a Veo render. `claim_story_seconds` now admits ONE grade and refuses
+everything else, in its own line:
+
+    grade_clean := case when _grade = 'movie' then 'movie' else null end;
+    if grade_clean is null then raise exception 'no such grade'; end if;
+
+So classic cannot be claimed at all, every purchased second is a movie second
+at the movie price, and there is no bucket left to split. The 120s clamp is
+gone too — the function's definition contains no such number.
+
+Classic jobs (`grade = 'classic'`) are untouched as a RENDER path: still Ken
+Burns + parallax over stills, no Veo call anywhere. It is simply not sold.
 
 ## The remaining gap — the episode JOB QUEUE
 

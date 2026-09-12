@@ -41,7 +41,10 @@ const SQL = readFileSync(
 );
 /** The migration that actually sets today's movie prices. */
 const REPRICE = readFileSync(
-  join(process.cwd(), "supabase/migrations/20260816090000_seventy_five_a_minute.sql"),
+  // The LATEST reprice — ₹99/min, 2026-09-12. The ₹75 one it replaced
+  // (20260816090000_seventy_five_a_minute.sql) is still applied history; what
+  // the mirrors must agree with is the rate in force, which is this file.
+  join(process.cwd(), "supabase/migrations/20260912190000_ninety_nine_a_minute.sql"),
   "utf8",
 );
 
@@ -100,10 +103,10 @@ describe("the canonical price chart matches the TypeScript mirrors", () => {
     );
     // And the reprice is a RATE applied to the whole grade, not a list of
     // hand-set amounts — which is what keeps the no-tiers policy true.
-    expect(REPRICE).toContain("set price_paise = round(7500.0 * seconds / 60)");
+    expect(REPRICE).toContain("set price_paise = round(9900.0 * seconds / 60)");
     expect(REPRICE).toContain("where grade = 'movie'");
     for (const t of MOVIE_TIERS) {
-      expect(t.pricePaise).toBe(Math.round((7500 * t.seconds) / 60));
+      expect(t.pricePaise).toBe(Math.round((9900 * t.seconds) / 60));
     }
   });
 
@@ -167,18 +170,20 @@ describe("the per-minute rate", () => {
     // 3. Movie's PUBLISHED amounts — the mirror the app actually reads — sit
     //    on the current rate, which the seed no longer does.
     for (const t of MOVIE_TIERS) {
-      expect(t.pricePaise, `movie ${t.seconds}s is off the ₹75 line`).toBe(
+      expect(t.pricePaise, `movie ${t.seconds}s is off the ₹99 line`).toBe(
         Math.round((PER_MINUTE_PAISE.movie * t.seconds) / 60),
       );
     }
   });
 
   it("publishes at or above the floor the cost model derives", () => {
-    // Movie is ₹75 against a ₹72 floor — the owner's round number above what
-    // 26% net of GST requires. Classic is withdrawn and was never repriced,
-    // so it no longer sits on its own derived line and is not held to it.
+    // Movie is ₹99 against a ₹72 floor (owner directive, 2026-09-12; was ₹75).
+    // The floor is unchanged — it is what 26% net of GST requires — so ₹99
+    // clears it with room rather than sitting on it. Classic is withdrawn and
+    // was never repriced, so it no longer sits on its own derived line and is
+    // not held to it.
     expect(PER_MINUTE_PAISE.movie).toBeGreaterThanOrEqual(pricePaisePerMinute("movie"));
-    expect(PER_MINUTE_PAISE.movie).toBe(7500);
+    expect(PER_MINUTE_PAISE.movie).toBe(9900);
     expect(pricePaisePerMinute("movie")).toBe(7200);
     // The owner's measured generation cost is the input everything hangs off.
     expect(UNIT.genPaisePerMinute).toBe(3150);
@@ -210,8 +215,9 @@ describe("the per-minute rate", () => {
    */
   it("clears the mandate NET OF GST at every duration on sale", () => {
     // This is the assertion the ₹57 chart could not pass, and the reason the
-    // owner repriced. The shortest film is the worst case: at ₹75 it lands
-    // 28.3%, and every longer one lands higher as the flat ₹3 is spread.
+    // owner repriced. The shortest film is the worst case: at ₹99 it lands
+    // 41.4%, and every longer one lands higher as the flat ₹3 is spread.
+    // (It was 28.3% at ₹75, which is what this line said until 2026-09-12.)
     for (const seconds of [60, 120, 180, 300]) {
       const m = oniqMarginAt("movie", seconds, priceForSeconds("movie", seconds));
       expect(m, `movie ${seconds}s nets ${(m * 100).toFixed(1)}% after GST`).toBeGreaterThanOrEqual(
@@ -219,7 +225,7 @@ describe("the per-minute rate", () => {
       );
     }
     expect(priceForMarginNetOfGst("movie")).toBe(7200);
-    expect(PER_MINUTE_PAISE.movie, "prices moved without an owner decision").toBe(7500);
+    expect(PER_MINUTE_PAISE.movie, "prices moved without an owner decision").toBe(9900);
   });
 
   /**
@@ -235,15 +241,20 @@ describe("the per-minute rate", () => {
     expect(MIN_STORY_SECONDS).toBe(60);
     for (const t of PRICE_TIERS) expect(t.seconds).toBeGreaterThanOrEqual(60);
     for (const t of MOVIE_TIERS) expect(t.seconds).toBeGreaterThanOrEqual(60);
-    for (const grade of ["classic", "movie"] as const) {
-      // NET OF GST now, because that is what the mandate means since the
-      // 2026-08-16 reprice. Before tax, a 30s film at ₹75 clears 26%
-      // comfortably — so the before-tax version of this check would have
-      // started failing for a reason that has nothing to do with whether a
-      // sub-minute film is worth selling.
-      const would = oniqMarginAt(grade, 30, priceForSeconds(grade, 30));
-      expect(would, `${grade} 30s would now clear the floor — worth revisiting`).toBeLessThan(0.26);
-    }
+    // THE FLOOR STOPPED BEING THE REASON AT ₹99, and this test says so rather
+    // than being deleted. Until 2026-09-12 neither grade could clear 26% net
+    // of GST over 30 seconds, so "we sell nothing under a minute" and "nothing
+    // under a minute pays" were the same sentence. At ₹99/min a 30s movie
+    // clears comfortably, so the one-minute minimum is now a PRODUCT decision
+    // and nothing else — MIN_STORY_SECONDS above is the whole enforcement.
+    // Whether to sell a 30-second film is the owner's to decide; it is not
+    // opened here just because the arithmetic now allows it.
+    const classic30 = oniqMarginAt("classic", 30, priceForSeconds("classic", 30));
+    expect(classic30, "classic 30s clears the floor — worth revisiting").toBeLessThan(0.26);
+    const movie30 = oniqMarginAt("movie", 30, priceForSeconds("movie", 30));
+    expect(movie30, "a 30s movie no longer clears — the ₹99 note above is stale").toBeGreaterThan(
+      0.26,
+    );
     // The migration that removes them, and the floor that stops a caller
     // claiming one anyway past a checkout that no longer sells it.
     const drop = readFileSync(

@@ -36,12 +36,17 @@ export type StoryPriceTier = {
  */
 export const PER_MINUTE_PAISE: Readonly<Record<"classic" | "movie", number>> = {
   classic: 4900,
-  // ₹75 a minute (owner directive, 2026-08-16). Was ₹57, which solved for 26%
-  // BEFORE tax and left the business banking 11% once GST came out of a
-  // tax-inclusive price. The floor that restores the mandate net of GST is
-  // ₹72 — pricePaisePerMinute("movie") — and ₹75 is the owner's round number
-  // above it.
-  movie: 7500,
+  // ₹99 a minute (owner directive, 2026-09-12). Was ₹75, itself set on
+  // 2026-08-16 to clear the ₹72 floor `pricePaisePerMinute("movie")` solves
+  // for NET OF GST — the published price is GST-inclusive, so 18/118 of every
+  // rupee is tax passing through. ₹99 is the owner's number well above that
+  // floor, so it raises the realised margin rather than testing it.
+  //
+  // THIS IS THE ONE THAT BILLS. `video_sale_config` carries a second
+  // per-minute price (₹29 + ₹20 clean) for the PAYG video-time ledger, and it
+  // has sales_enabled = false — it has never charged anybody. A price change
+  // that went there would move a number nobody pays.
+  movie: 9900,
 };
 
 /** What `seconds` of film costs at the published rate, paise. */

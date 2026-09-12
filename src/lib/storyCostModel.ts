@@ -316,9 +316,9 @@ export const MOVIE_TIERS: readonly {
   pricePaise: number;
   currency: "INR";
 }[] = [
-  // Every row is the published rate x minutes — ₹75/min, nothing hand-set.
-  { seconds: 60, label: "1 minute — movie", pricePaise: 7500, currency: "INR" },
-  { seconds: 120, label: "2 minutes — movie", pricePaise: 15000, currency: "INR" },
-  { seconds: 180, label: "3 minutes — movie", pricePaise: 22500, currency: "INR" },
-  { seconds: 300, label: "5 minutes — movie", pricePaise: 37500, currency: "INR" },
+  // Every row is the published rate x minutes — ₹99/min, nothing hand-set.
+  { seconds: 60, label: "1 minute — movie", pricePaise: 9900, currency: "INR" },
+  { seconds: 120, label: "2 minutes — movie", pricePaise: 19800, currency: "INR" },
+  { seconds: 180, label: "3 minutes — movie", pricePaise: 29700, currency: "INR" },
+  { seconds: 300, label: "5 minutes — movie", pricePaise: 49500, currency: "INR" },
 ];

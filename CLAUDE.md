@@ -7692,3 +7692,101 @@ Lovable message. Only the recipe document changed.
 so it falls into `default` with `retryable: true` — the worker then spends its
 whole backoff ladder against an empty pool, and 402 and 429 share one kind and
 one message. Three lines, and it is a different change.
+
+### Owner directive, 2026-09-12 — "Set per min video pricing for users @ 99" / "Rs 99"
+
+**₹99 A MINUTE, AND THE FIRST THING TO GET RIGHT WAS WHICH PRICE THAT IS.**
+ONIQ carries TWO per-minute video prices and only one of them has ever charged
+anybody. Measured on production before anything was edited:
+
+    story_price_tiers   movie  active TRUE   ₹75/min   <- create_story_purchase
+                        classic active FALSE ₹49/min      reads this; /pay/story
+                                                          renders it live
+    story_purchase_config.enabled                TRUE
+    video_sale_config   sales_enabled FALSE  ₹29/min + ₹20 clean addon
+                                                       <- the PAYG video-time
+                                                          ledger. Never sold a
+                                                          minute.
+
+So the change is `story_price_tiers`, movie grade, ₹75 -> ₹99 —
+`20260912190000_ninety_nine_a_minute.sql`, applied from here and recorded in
+`schema_migrations`, with the TS display copy (`PER_MINUTE_PAISE.movie`,
+`MOVIE_TIERS`) moved to match:
+
+    movie  60s ₹99   120s ₹198   180s ₹297   300s ₹495      all active
+    classic untouched at ₹49/min, still inactive
+
+**AND MY OWN QUESTION WAS POSED ABOUT THE DORMANT ONE.** `videoPricing.ts` was
+read first, an `AskUserQuestion` was built around `video_sale_config`, and the
+owner answered it — "₹99 watermarked, ₹119 clean" and "Set the price and turn
+sales on". Measurement then showed that storefront is switched off and has
+never billed, so **both answers were given on a wrong premise and neither was
+applied there.** Nothing in `video_sale_config` was touched. The unambiguous
+half of the instruction — ₹99 per minute for video — is what shipped, on the
+table that bills. The clean-export price and whether to switch that second
+storefront on are real decisions and they are still open; they need to be put
+again about the system that actually charges.
+
+**READ THE SYSTEM BEFORE WRITING THE NUMBER.** A price is one `UPDATE` and the
+wrong table looks identical from the code: same shape, same units, same
+plausible reading of "per-minute video pricing". The only thing that separates
+them is `sales_enabled` and a join to what `create_story_purchase` reads — two
+queries, and they are the difference between a live reprice and a number nobody
+pays.
+
+**MARGIN, MEASURED FROM THE COST MODEL RATHER THAN ESTIMATED.** `oniqMarginAt`
+on the real tiers: **41.4% at one minute, 43.9% at five**, against
+`pricePaisePerMinute("movie")`'s ₹72/min floor — the price is GST-INCLUSIVE, so
+18/118 of every rupee is tax passing through, and the floor is what the
+derivation solves for net of it. ₹99 sits well above it, so this raises the
+realised margin rather than testing it; a cost rise that ate the gap still
+fails CI.
+
+**A GUARD CAN STOP GUARDING WITHOUT GOING RED, and the sub-minute test did.**
+It asserted that a 30-second film would NOT clear the floor — true at ₹75 and
+false at ₹99, so it was re-based rather than deleted: classic still fails the
+floor, movie now clears it, and the assertion messages say which way each is
+meant to point. **Sub-minute is not sold for a product reason now, not an
+arithmetic one**, and writing that down is the whole value of re-basing instead
+of relaxing.
+
+**AND THE `oniq-video` SKILL CARRIED AN INSTRUCTION THAT WOULD NOW BREAK
+SALES.** It said movie grade is "ADMIN-ONLY" and that "the movie price tiers
+stay INACTIVE; do not activate them before splitting the paid bucket by grade,
+or classic-priced seconds fund Veo renders". Measured today, all three clauses
+are overtaken: `StoryStudio.tsx` sends `_grade: "movie"` UNCONDITIONALLY with
+no admin gate (classic was withdrawn 2026-08-15 and the file says so at the
+call site), all four movie tiers are `active = true` and are the only thing on
+sale, and `claim_story_seconds` admits ONE grade —
+
+    grade_clean := case when _grade = 'movie' then 'movie' else null end;
+    if grade_clean is null then raise exception 'no such grade'; end if;
+
+— so classic cannot be claimed at all and there is no mixed bucket left to
+split. The 120s clamp named in the same sentence is gone too; the function's
+definition contains no such number.
+
+**CORRECTED IN THE SKILL, not merely noted here**, because a skill is loaded by
+whoever makes a video next and that one is operational: followed literally
+today it says to deactivate the only tiers anybody can buy. This repo has the
+receipt for what a caveat outliving its measurement costs — "merchant intents
+are unaffected" misdirected two days of UPI work — and the rule it produced is
+to correct the moment the measurement lands. Correcting a false statement of
+fact needs no permission; changing the policy it describes would.
+
+5 mutations, every one RED, none NOTAPPLIED
+(`scripts/pricing-99-mutate.sh`, own undo by file copy): the migration
+repriced back to ₹75 while the TS copy says ₹99; `PER_MINUTE_PAISE.movie`
+drifting alone; one tier hand-set off the rate (the ladder this repo refuses to
+have); the rate dropped under the ₹72 floor; and — the one a pure
+self-agreement guard would let through — **a consistent reprice of all three
+files to ₹89**, which still goes red because the chart is pinned to the owner's
+number by name. 402 files / 7,208 tests, tsc 0, `lint:ci` clean. Prettier's
+warning on `storyPricingSql.test.ts` is pre-existing: the HEAD version warns
+identically at its own path, one of 377 files in the repo-wide tail.
+
+**PRODUCTION ONLY — no deploy and no publish was needed.** `create_story_purchase`
+reads the table under the row that becomes the receipt, so the price changed on
+the next read; the TS copy is display and is what `/pay/story` renders. The
+write was verified in a SEPARATE statement from the one that made it, per this
+file's own rule.

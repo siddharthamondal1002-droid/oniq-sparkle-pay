@@ -70,17 +70,17 @@ describe("story pricing sits on the mandated margins", () => {
     // 11.2% against a 26% mandate, and it was pinned as a fact rather than
     // smoothed away so the gap could not go unnoticed. The owner closed it on
     // 2026-08-16 by repricing to ₹75; the assertion flips with the decision.
-    const oneMinute = oniqMarginAt("movie", 60, 7500);
-    const fiveMinute = oniqMarginAt("movie", 300, 37500);
+    const oneMinute = oniqMarginAt("movie", 60, 9900);
+    const fiveMinute = oniqMarginAt("movie", 300, 49500);
     expect(
       oneMinute,
       "the shortest film is the worst case and it must clear",
     ).toBeGreaterThanOrEqual(marginTargetFor());
-    expect(oneMinute).toBeGreaterThan(0.27);
-    expect(oneMinute).toBeLessThan(0.3);
+    expect(oneMinute).toBeGreaterThan(0.41);
+    expect(oneMinute).toBeLessThan(0.42);
     // Longer films keep more of the price: one flat per-film cost, more minutes.
     expect(fiveMinute).toBeGreaterThan(oneMinute);
-    expect(fiveMinute).toBeLessThan(0.33);
+    expect(fiveMinute).toBeLessThan(0.45);
   });
 
   it("prices the tax out of the price, not on top of it", () => {
@@ -103,7 +103,7 @@ describe("story pricing sits on the mandated margins", () => {
     const floor = pricePaisePerMinute("movie");
     expect(floor, "the derived floor moved").toBe(7200);
     expect(priceForMarginNetOfGst("movie")).toBe(floor);
-    expect(PER_MINUTE_PAISE.movie, "prices moved without an owner decision").toBe(7500);
+    expect(PER_MINUTE_PAISE.movie, "prices moved without an owner decision").toBe(9900);
     expect(
       PER_MINUTE_PAISE.movie,
       `published ₹${PER_MINUTE_PAISE.movie / 100} is under the ₹${floor / 100} floor`,
