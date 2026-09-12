@@ -219,6 +219,25 @@ async function catalogue(key: string): Promise<{ status: number; ids: string[]; 
   }
 }
 
+/**
+ * The `role` claim of a bearer token, or "" for anything that is not a JWT.
+ * Decoding is not verification and is not asked to be: Supabase has already
+ * rejected a forged token before this function runs, so the claim only has to
+ * tell a service-role caller apart from a user's session.
+ */
+function roleClaim(jwt: string): string {
+  const parts = jwt.split(".");
+  if (parts.length !== 3) return "";
+  try {
+    const body = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))) as {
+      role?: unknown;
+    };
+    return typeof body.role === "string" ? body.role : "";
+  } catch {
+    return "";
+  }
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -228,11 +247,34 @@ Deno.serve(async (req: Request): Promise<Response> => {
    * gate. The service role is admitted too, and only because it is the key
    * this function already holds: admitting it opens no door that caller did
    * not already own, and it is what lets one deploy message also verify.
+   *
+   * THE ROLE CLAIM, NOT A STRING EQUALITY — AND THE FIRST VERSION WAS THE
+   * SECOND, WHICH MADE THAT WHOLE PARAGRAPH FALSE IN PRACTICE. `token ===
+   * serviceRole` admits exactly one byte sequence: the platform's injected
+   * `SUPABASE_SERVICE_ROLE_KEY`. Measured 2026-09-12 through `pg_net`, this
+   * project holds TWO service keys in the vault and NEITHER equals it:
+   *
+   *     email_queue_service_role_key  (JWT-shaped)  -> 401 Unauthorized
+   *     story_dispatch_service_role_key (opaque)    -> 401 Unauthorized
+   *     no authorization header at all              -> 401 Unauthorized
+   *
+   * Three identical answers, so the branch was unreachable from anywhere in
+   * the database and indistinguishable from having no credential at all. That
+   * is the same defect `ops_watch_pick_key()` records one floor down — the
+   * watchdog would have detected for ever and announced never — and the fix is
+   * the same one `send-push` and `ops-alert` already use: read the `role`
+   * claim. The equality is KEPT as a second accepted path, because an edge
+   * function holding the platform variable is a legitimate caller whose token
+   * may not be a JWT at all.
+   *
+   * PICK A CREDENTIAL BY SHAPE, NOT BY NAME; ADMIT A CALLER BY CLAIM, NOT BY
+   * BYTES.
    */
   const auth = req.headers.get("authorization") ?? "";
   const token = auth.replace(/^Bearer\s+/i, "").trim();
   const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const isServiceRole = serviceRole.length > 0 && token === serviceRole;
+  const isServiceRole =
+    roleClaim(token) === "service_role" || (serviceRole.length > 0 && token === serviceRole);
 
   if (!isServiceRole) {
     if (!token) return json(401, { error: "Unauthorized" });

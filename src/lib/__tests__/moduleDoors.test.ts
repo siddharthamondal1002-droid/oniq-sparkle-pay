@@ -11,7 +11,7 @@
  * owner opening the app.
  *
  * THE RATCHET IS THE POINT, AND IT IS THE `eslint-suppressions.json` SHAPE.
- * 55 modules have no caller today; freezing them and failing on the 56th is
+ * 53 modules have no caller today; freezing them and failing on the 54th is
  * what makes this land in one commit instead of never. A FROZEN LIST rather
  * than a count, because a count lets one orphan be swapped for another — and
  * a stale entry FAILS, so the list can only shrink.
@@ -28,6 +28,13 @@
  * the assertion that a listed module must STILL be an orphan is what caught
  * all twenty-four in one run.
  *
+ * TWO MORE FELL THE SAME AFTERNOON, AND TO THE SAME SHAPE ONE LAYER DOWN. The
+ * MIRRORED rung knew ONE path convention, `src/oqca/X` -> `_shared/oqca/X`,
+ * and ONIQ has two: `src/health/consent.ts` and `retention.ts` say "MIRRORED
+ * byte for byte" in their own headers and their twins are imported by the
+ * deployed `health-api`. The rule is derived from CONTENT now, so a third
+ * mirror is recognised without an edit.
+ *
  * `BY_DESIGN` IS A RULE AND THE FROZEN LIST IS A DEBT, and conflating them
  * would be the worse of the two mistakes. A vendored shadcn primitive nobody
  * has used yet is a LIBRARY; putting it on a list headed "should shrink"
@@ -42,7 +49,7 @@ import {
   isAppEntrypoint,
   isTestModule,
   isToolEntrypoint,
-  mirrorTwin,
+  contentKeys,
   reachability,
 } from "../../test/moduleGraph.ts";
 
@@ -70,8 +77,6 @@ const KNOWN_ORPHANS: readonly string[] = [
   "src/data/storyCharacterRefs.ts",
   "src/data/storyStyleRefs.ts",
   "src/design/material.ts",
-  "src/health/consent.ts",
-  "src/health/retention.ts",
   "src/hooks/use-mobile.tsx",
   "src/lib/ai.functions.ts",
   "src/lib/assertionReason.ts",
@@ -209,21 +214,52 @@ describe("the three ways of having a caller are all load-bearing", () => {
   });
 
   /**
-   * `src/oqca/X` ships as `_shared/oqca/X`, copied rather than imported, so no
-   * edge exists to find. Derived per FILE from the twin: 26 of OQCA's 40
-   * unreferenced modules are mirror sources and 14 are genuinely callerless.
-   * A blanket `src/oqca/` exclusion would have hidden those 14 — which are
-   * precisely the v1.0/v1.1 research kernel CLAUDE.md says has no caller.
+   * A mirror copies rather than imports, so no edge exists to find. Derived
+   * per FILE from the twin's CONTENT: 26 of OQCA's 40 unreferenced modules are
+   * mirror sources and 14 are genuinely callerless. A blanket `src/oqca/`
+   * exclusion would have hidden those 14 — which are precisely the v1.0/v1.1
+   * research kernel CLAUDE.md says has no caller.
    */
   it("a mirror source is reachable and a mirror-less sibling is not", () => {
     const { mirrored } = reachability(importGraph());
     expect(mirrored.has("src/oqca/quantum/math/state.ts")).toBe(true);
-    expect(mirrorTwin("src/oqca/quantum/math/state.ts")).toBe(
-      "supabase/functions/_shared/oqca/quantum/math/state.ts",
-    );
     expect(mirrored.has("src/oqca/gates.ts")).toBe(false);
     expect(KNOWN_ORPHANS).toContain("src/oqca/gates.ts");
-    expect(mirrorTwin("src/lib/push.ts")).toBeNull();
+    expect(mirrored.has("src/lib/push.ts")).toBe(false);
+  });
+
+  /**
+   * BOTH MIRRORS, NOT ONE. The rule was a path convention until 2026-09-12 and
+   * it knew only `src/oqca/`; `src/health/consent.ts` and `retention.ts` say
+   * "MIRRORED byte for byte" in their own headers, their twins are imported by
+   * the deployed `health-api` and `health-ai`, and both sat on the frozen list
+   * regardless. Asserting one mirror would have passed the whole time.
+   */
+  it("the health mirror is recognised as well as the OQCA one", () => {
+    const { mirrored } = reachability(importGraph());
+    expect(mirrored.has("src/health/consent.ts")).toBe(true);
+    expect(mirrored.has("src/health/retention.ts")).toBe(true);
+    expect(KNOWN_ORPHANS).not.toContain("src/health/consent.ts");
+  });
+
+  /**
+   * THE RULE IS ONLY SAFE BECAUSE IDENTICAL BYTES ARE NOT A COINCIDENCE. Two
+   * unrelated modules that happened to match would let a shipped file vouch
+   * for a dead one. Measured: every duplicate-content group in the repo is a
+   * `src/X` <-> `_shared/X` pair, and this fails the day one is not.
+   */
+  it("every byte-identical pair is a mirror pair, so nothing vouches by accident", () => {
+    const graph = importGraph();
+    const groups = [...contentKeys(graph.files).values()].filter((g) => g.length > 1);
+    expect(groups.length).toBeGreaterThan(20);
+    for (const g of groups) {
+      const src = g.filter((f) => f.startsWith("src/"));
+      const shared = g.filter((f) => f.startsWith("supabase/functions/_shared/"));
+      expect(g.length, g.join(" ")).toBe(2);
+      expect(src.length, g.join(" ")).toBe(1);
+      expect(shared.length, g.join(" ")).toBe(1);
+      expect(shared[0].endsWith(src[0].slice("src/".length)), g.join(" ")).toBe(true);
+    }
   });
 });
 

@@ -95,15 +95,34 @@ save "$GRAPH"
 python3 - <<'PY'
 import pathlib
 p = pathlib.Path("src/test/moduleGraph.ts"); s = p.read_text()
-old = """  const mirrored = new Set(
-    graph.files.filter((f) => {
-      const twin = mirrorTwin(f);
-      return twin !== null && shipped.has(twin);
-    }),
-  );"""
-new = """  const mirrored = new Set(graph.files.filter((f) => f.startsWith("src/oqca/")));"""
-assert s.count(old) == 1
-p.write_text(s.replace(old, new, 1))
+i = s.index("  const byHash = contentKeys(graph.files);")
+j = s.index("  const orphans = graph.files.filter(", i)
+new = '  const mirrored = new Set(graph.files.filter((f) => f.startsWith("src/oqca/")));\n'
+p.write_text(s[:i] + new + s[j:])
+PY
+changed "$GRAPH" && verdict; restore "$GRAPH"
+
+echo
+echo "M10 the mirror rule goes back to ONE path convention (the health blind spot)"
+save "$GRAPH"
+python3 - <<'PY'
+import pathlib
+# `src/health/consent.ts` and `retention.ts` are mirror sources exactly as the
+# OQCA ones are; a rule that knows only `src/oqca/` calls them orphans. They
+# are no longer on the frozen list, so this must fail as a NEW orphan.
+p = pathlib.Path("src/test/moduleGraph.ts"); s = p.read_text()
+i = s.index("  const byHash = contentKeys(graph.files);")
+j = s.index("  const orphans = graph.files.filter(", i)
+new = (
+    "  const mirrored = new Set(\n"
+    "    graph.files.filter(\n"
+    "      (f) =>\n"
+    '        f.startsWith("src/oqca/") &&\n'
+    '        shipped.has("supabase/functions/_shared/oqca/" + f.slice("src/oqca/".length)),\n'
+    "    ),\n"
+    "  );\n"
+)
+p.write_text(s[:i] + new + s[j:])
 PY
 changed "$GRAPH" && verdict; restore "$GRAPH"
 

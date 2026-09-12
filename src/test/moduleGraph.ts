@@ -27,13 +27,15 @@
  *   TOOLING   reachable only from `scripts/` — a developer runs it on purpose.
  *             Not shipped, but not dead either, and saying "orphan" here would
  *             be false: the §21 benchmark harness is exactly this.
- *   MIRRORED  `src/oqca/X` whose twin `_shared/oqca/X` is SHIPPED. The mirror
- *             is the copy that deploys and `scripts/oqca-mirror.mjs` COPIES
- *             rather than imports, so no import edge exists to find. Derived
- *             per file from the twin rather than excluding the tree: 26 of
- *             OQCA's 40 unreferenced modules are mirror sources and 14 are
- *             genuinely callerless, which a blanket exclusion would have
- *             hidden.
+ *   MIRRORED  a module whose BYTE-IDENTICAL twin is SHIPPED. The mirror is the
+ *             copy that deploys and the mirror script COPIES rather than
+ *             imports, so no import edge exists to find. Derived from content
+ *             rather than from a path convention, because ONIQ has TWO mirrors
+ *             (`src/oqca/` and `src/health/`) and a rule that knew only the
+ *             first put `health/consent.ts` on the orphan list. Derived per
+ *             FILE rather than by excluding a tree: 26 of OQCA's 40
+ *             unreferenced modules are mirror sources and 14 are genuinely
+ *             callerless, which a blanket exclusion would have hidden.
  *
  * WHAT IT CANNOT SEE, stated because the limit is load-bearing: this works at
  * FILE granularity. `extractCandidates` lived in a file that `synthetic.ts`
@@ -41,6 +43,7 @@
  * synthetic path — and that is two of the ten. A file with one live export and
  * nine dead ones passes here.
  */
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, posix, relative, resolve } from "node:path";
 
@@ -192,11 +195,35 @@ export function isToolEntrypoint(f: string): boolean {
   );
 }
 
-/** `src/oqca/X` ships as `_shared/oqca/X`; the mirror copies, never imports. */
-export function mirrorTwin(f: string): string | null {
-  return f.startsWith("src/oqca/")
-    ? `supabase/functions/_shared/oqca/${f.slice("src/oqca/".length)}`
-    : null;
+/**
+ * MIRROR SOURCES: every module whose BYTE-IDENTICAL twin is shipped.
+ *
+ * A mirror copies rather than imports, so no edge exists to find and the
+ * source reads as dead. The first version derived the twin from ONE path
+ * convention — `src/oqca/X` -> `_shared/oqca/X` — and that was the same
+ * mistake as leaving `remotion/` out of the walk, one layer down: ONIQ has a
+ * SECOND mirror, `src/health/X` <-> `_shared/health/X`, whose own headers say
+ * "MIRRORED byte for byte" and whose twins `health-api` and `health-ai`
+ * import. `consent.ts` and `retention.ts` sat on the frozen list because the
+ * rule knew one convention and there were two.
+ *
+ * So the rule is derived from the CONTENT instead. Identical bytes is not a
+ * coincidence: measured across all 910 non-test modules there are 56
+ * duplicate-content pairs and every one is a `src/X` <-> `_shared/X` mirror,
+ * with no accidental collision anywhere. A third mirror added tomorrow is
+ * recognised without an edit, which a path list cannot promise.
+ */
+export function contentKeys(files: readonly string[]): Map<string, string[]> {
+  const byHash = new Map<string, string[]>();
+  for (const f of files) {
+    const h = createHash("sha1")
+      .update(readFileSync(resolve(ROOT, f)))
+      .digest("hex");
+    const at = byHash.get(h);
+    if (at) at.push(f);
+    else byHash.set(h, [f]);
+  }
+  return byHash;
 }
 
 function reach(roots: readonly string[], edges: Graph["edges"]): Set<string> {
@@ -222,10 +249,16 @@ export type Reachability = {
 export function reachability(graph = importGraph()): Reachability {
   const shipped = reach(graph.files.filter(isAppEntrypoint), graph.edges);
   const tooling = reach(graph.files.filter(isToolEntrypoint), graph.edges);
+  const byHash = contentKeys(graph.files);
   const mirrored = new Set(
     graph.files.filter((f) => {
-      const twin = mirrorTwin(f);
-      return twin !== null && shipped.has(twin);
+      if (shipped.has(f)) return false;
+      const twins = byHash.get(
+        createHash("sha1")
+          .update(readFileSync(resolve(ROOT, f)))
+          .digest("hex"),
+      );
+      return (twins ?? []).some((t) => t !== f && shipped.has(t));
     }),
   );
   const orphans = graph.files.filter(
