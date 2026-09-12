@@ -174,23 +174,17 @@ Deno.serve(async (req) => {
     // against a STALE workflow would run the old routing and waste the test.
     //
     // It reads one file with the token this function already holds, dispatches
-    // nothing, claims no runner and spends nothing. Not gated on admin,
-    // because the caller is the database: the same service-role claim
-    // send-push, ops-alert and frontier-probe already read.
+    // nothing, claims no runner and spends nothing.
+    //
+    // NO SECOND GATE, deliberately. The first draft added its own
+    // `role === "service_role"` check on top, and that refused the very caller
+    // this exists for: the scheduled credential is `story_dispatch_service_role_key`,
+    // which is OPAQUE and carries no JWT claims, so every call answered 401
+    // while the ordinary dispatch path using the same key worked perfectly.
+    // authorizeScheduledCaller above is already the stronger gate — a second,
+    // narrower one below it can only subtract callers it was never meant to.
     if (new URL(req.url).searchParams.get("action") === "workflow_head") {
-      const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-      const parts = bearer.split(".");
-      let role = "";
-      try {
-        if (parts.length === 3) {
-          role = String(
-            JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))).role ?? "",
-          );
-        }
-      } catch {
-        role = "";
-      }
-      if (role !== "service_role") return json({ error: "Unauthorized" }, 401);
+
       const wf = await fetch(
         `https://api.github.com/repos/${repo}/contents/.github/workflows/story-worker.yml?ref=main`,
         {
