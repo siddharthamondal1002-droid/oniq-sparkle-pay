@@ -133,8 +133,9 @@ describe("the clip stage has its own gate, independent of the engine choice", ()
     );
   });
 
-
+  it("only an enabled clip stage makes generateClip reachable", () => {
     // clipStage !== 'off' is the gate; the motion plan built from it is what
+
     // decides per shot, and `attemptClip` is the only door to generateClip.
     expect(worker).toMatch(/if \(motionPlan\?\.attemptClip\)/);
     const call = worker.slice(worker.indexOf("if (motionPlan?.attemptClip)"));
