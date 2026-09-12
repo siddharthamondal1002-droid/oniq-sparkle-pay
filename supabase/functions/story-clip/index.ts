@@ -120,8 +120,38 @@ Deno.serve(async (req) => {
     const verified = await verifyJobToken(jobToken, secret);
     if (!verified.ok) return json({ error: `token ${verified.reason}` }, 401);
 
+    // IN-HOUSE JOBS MAY NOT REACH VEO. Owner directive for the bounded
+    // internal motion test, 2026-09-12: "never silently substitute Veo".
+    //
+    // WHY HERE AND NOT IN THE WORKER. Which engine animates is decided by
+    // three environment gates the workflow fills from GitHub repository
+    // variables, and a workflow file only takes effect once it is on the
+    // default branch. If the film is dispatched before that sync lands, the
+    // OLD workflow runs, routeMotion reads IN_HOUSE_MOTION=off and every shot
+    // goes to Veo on the metered Google key — the exact substitution the
+    // directive forbids, discovered from a bill rather than a log.
+    //
+    // An edge function deploys immediately and is therefore the one layer that
+    // cannot be out of sync with this decision. A refusal costs the film its
+    // clips (each shot carries as a still, which is what it would have been
+    // anyway) and costs no money; the alternative costs money and proves
+    // nothing about ONIQ's own GPU.
+    //
+    // The job id comes from the TOKEN, never the body, so a job cannot opt
+    // itself out of its own refusal.
+    if (await isInHouseOnly(verified.jobId)) {
+      return json(
+        {
+          error:
+            "this job is in-house-motion only; Veo is refused (owner directive 2026-09-12)",
+        },
+        403,
+      );
+    }
+
     const key = Deno.env.get("GOOGLE_AI_API_KEY");
     if (!key) return json({ configured: false }, 200);
+
 
     const body = await req.json().catch(() => ({}));
     const action = body?.action;
