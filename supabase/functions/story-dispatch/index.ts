@@ -164,6 +164,49 @@ Deno.serve(async (req) => {
     }
     const ghToken = gh!.value;
 
+    // READ-ONLY: is the DEFAULT BRANCH's workflow the one that honours a
+    // per-job routing override?
+    //
+    // A workflow file only takes effect on repository_dispatch once it is on
+    // the default branch, and this container cannot see GitHub (the connector
+    // credential answers 401 Bad credentials, and `origin` here is Lovable's
+    // own mirror, not GitHub). Dispatching the bounded in-house motion test
+    // against a STALE workflow would run the old routing and waste the test.
+    //
+    // It reads one file with the token this function already holds, dispatches
+    // nothing, claims no runner and spends nothing.
+    //
+    // NO SECOND GATE, deliberately. The first draft added its own
+    // `role === "service_role"` check on top, and that refused the very caller
+    // this exists for: the scheduled credential is `story_dispatch_service_role_key`,
+    // which is OPAQUE and carries no JWT claims, so every call answered 401
+    // while the ordinary dispatch path using the same key worked perfectly.
+    // authorizeScheduledCaller above is already the stronger gate — a second,
+    // narrower one below it can only subtract callers it was never meant to.
+    if (new URL(req.url).searchParams.get("action") === "workflow_head") {
+
+      const wf = await fetch(
+        `https://api.github.com/repos/${repo}/contents/.github/workflows/story-worker.yml?ref=main`,
+        {
+          headers: {
+            Authorization: `Bearer ${ghToken}`,
+            Accept: "application/vnd.github.raw+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+        },
+      );
+      const text = wf.ok ? await wf.text() : (await wf.text()).slice(0, 300);
+      return json({
+        status: wf.status,
+        // The MARKER, never the file. The workflow is long and carries no
+        // secret, but shipping it back would make every future reader of this
+        // reply scroll a config file to learn one boolean.
+        honoursPerJobOverride: wf.ok && text.includes("client_payload.in_house_motion"),
+        detail: wf.ok ? undefined : text,
+      });
+    }
+
+
     // Queued AND not asked for in the last ten minutes. Without the second
     // half, a runner that cannot claim gets re-summoned every sixty seconds —
     // the first live Story burned eight runner minutes that way. Ten minutes is
@@ -235,6 +278,10 @@ Deno.serve(async (req) => {
             ...(rows.find((r) => r.id === id)?.motion_mode === "select"
               ? { story_movie: "select" }
               : {}),
+            ...(rows.find((r) => r.id === id)?.motion_mode === "in_house"
+              ? { in_house_motion: true }
+              : {}),
+
           }),
         },
       });
@@ -263,6 +310,17 @@ Deno.serve(async (req) => {
     // service-role-writable only (story_jobs has no client INSERT/UPDATE
     // policy), so this can never become a user-reachable spend switch.
     const motionMode = rows[0].motion_mode === "select" ? "select" : null;
+    // PER-JOB IN-HOUSE MOTION (owner-authorized bounded internal test,
+    // 2026-09-12). Same shape and same reasoning as the two flags above: only
+    // the literal 'in_house' travels, and NULL — every production job — sends
+    // nothing, so the workflow keeps reading the repository variables it reads
+    // today and the paid tier's routing is byte-identical.
+    //
+    // This is the only way to scope the test. routeMotion's three gates come
+    // from GLOBAL repository variables; flipping those would change the engine
+    // for every film every user renders.
+    const inHouseMotion = rows[0].motion_mode === "in_house";
+
     const token = await mintJobToken(jobId, jobSecret!);
 
     // Stamped BEFORE the GitHub call, not after. If the dispatch throws or the
@@ -302,6 +360,8 @@ Deno.serve(async (req) => {
           supabase_url: supabaseUrl,
           actor_refs: actorRefs,
           ...(motionMode ? { story_movie: motionMode } : {}),
+          ...(inHouseMotion ? { in_house_motion: true } : {}),
+
         },
       }),
     });

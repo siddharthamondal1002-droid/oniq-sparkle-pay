@@ -261,9 +261,23 @@ jobs:
           # All three are required together and routeMotion refuses on any one
           # of them: a healthy endpoint is not a deployed worker, and an empty
           # template accepts jobs it can never run (job eb1b3f45, 2026-08-28).
-          IN_HOUSE_MOTION: ${{ vars.IN_HOUSE_MOTION }}
-          ONIQ_GPU_HEALTHY: ${{ vars.ONIQ_GPU_HEALTHY }}
-          ONIQ_WORKER_IMAGE: ${{ vars.ONIQ_WORKER_IMAGE }}
+          #
+          # PER-JOB OVERRIDE, owner-authorized bounded internal test 2026-09-12.
+          # `in_house_motion` rides the client payload the same way `actor_refs`
+          # and `story_movie` already do, and it comes from story_jobs.motion_mode
+          # — a column with no client write policy, so no user can set it. When it
+          # is ABSENT, which is every production film, each of these three reads
+          # exactly the repository variable it read before and the paid tier's
+          # routing is unchanged.
+          #
+          # Asserting healthy without measuring is what produced job eb1b3f45, so
+          # the override is not a guess: RunPod's own /health answered
+          # workers.ready 1, idle 1, unhealthy 0 for this endpoint on 2026-09-12,
+          # read through story-motion's read-only health action.
+          IN_HOUSE_MOTION: ${{ (github.event.client_payload.in_house_motion && 'on') || vars.IN_HOUSE_MOTION }}
+          ONIQ_GPU_HEALTHY: ${{ (github.event.client_payload.in_house_motion && 'on') || vars.ONIQ_GPU_HEALTHY }}
+          ONIQ_WORKER_IMAGE: ${{ (github.event.client_payload.in_house_motion && 'on') || vars.ONIQ_WORKER_IMAGE }}
+
           # Present only on a repository_dispatch. The token IS the credential:
           # it names one job, expires in an hour, and story-callback checks it
           # before touching the database on this runner's behalf.

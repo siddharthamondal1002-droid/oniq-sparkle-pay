@@ -110,7 +110,35 @@ function rateLimit(id: string, limit: number, windowMs = 60000): boolean {
   return true;
 }
 
+/**
+ * Is this film flagged in-house-motion only?
+ *
+ * FAILS CLOSED IS THE WRONG DIRECTION HERE, deliberately. If the lookup itself
+ * fails we answer `false` and let Veo run: refusing every film in the project
+ * because one REST read timed out would turn a test safeguard into an outage
+ * for everyone else. The blast radius of a wrong `false` is one internal test
+ * that spends a little Veo money and gets re-run; the blast radius of a wrong
+ * `true` is every paid film losing its clips.
+ */
+async function isInHouseOnly(jobId: string): Promise<boolean> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) return false;
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/story_jobs?id=eq.${encodeURIComponent(jobId)}&select=motion_mode`,
+      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+    );
+    if (!res.ok) return false;
+    const rows = (await res.json()) as Array<{ motion_mode?: string | null }>;
+    return rows[0]?.motion_mode === "in_house";
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
+
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const jobToken = req.headers.get("x-story-job-token");
@@ -120,8 +148,38 @@ Deno.serve(async (req) => {
     const verified = await verifyJobToken(jobToken, secret);
     if (!verified.ok) return json({ error: `token ${verified.reason}` }, 401);
 
+    // IN-HOUSE JOBS MAY NOT REACH VEO. Owner directive for the bounded
+    // internal motion test, 2026-09-12: "never silently substitute Veo".
+    //
+    // WHY HERE AND NOT IN THE WORKER. Which engine animates is decided by
+    // three environment gates the workflow fills from GitHub repository
+    // variables, and a workflow file only takes effect once it is on the
+    // default branch. If the film is dispatched before that sync lands, the
+    // OLD workflow runs, routeMotion reads IN_HOUSE_MOTION=off and every shot
+    // goes to Veo on the metered Google key — the exact substitution the
+    // directive forbids, discovered from a bill rather than a log.
+    //
+    // An edge function deploys immediately and is therefore the one layer that
+    // cannot be out of sync with this decision. A refusal costs the film its
+    // clips (each shot carries as a still, which is what it would have been
+    // anyway) and costs no money; the alternative costs money and proves
+    // nothing about ONIQ's own GPU.
+    //
+    // The job id comes from the TOKEN, never the body, so a job cannot opt
+    // itself out of its own refusal.
+    if (await isInHouseOnly(verified.jobId)) {
+      return json(
+        {
+          error:
+            "this job is in-house-motion only; Veo is refused (owner directive 2026-09-12)",
+        },
+        403,
+      );
+    }
+
     const key = Deno.env.get("GOOGLE_AI_API_KEY");
     if (!key) return json({ configured: false }, 200);
+
 
     const body = await req.json().catch(() => ({}));
     const action = body?.action;
