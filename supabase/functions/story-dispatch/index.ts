@@ -235,6 +235,10 @@ Deno.serve(async (req) => {
             ...(rows.find((r) => r.id === id)?.motion_mode === "select"
               ? { story_movie: "select" }
               : {}),
+            ...(rows.find((r) => r.id === id)?.motion_mode === "in_house"
+              ? { in_house_motion: true }
+              : {}),
+
           }),
         },
       });
