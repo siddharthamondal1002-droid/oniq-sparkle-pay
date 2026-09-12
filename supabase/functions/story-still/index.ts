@@ -111,7 +111,15 @@ import {
   MIN_REFERENCE_STRENGTH,
   characterRefKey,
 } from "../_shared/characterRef.ts";
-import { stillIdFor } from "../_shared/inHouseMotion.ts";
+import { stillIdFor, stillSettlementFor, stillSpendRequestFor } from "../_shared/inHouseMotion.ts";
+import {
+  admitProviderSpend,
+  refusalMessage,
+  releaseProviderSpend,
+  serviceRoleRpc,
+  settleProviderSpend,
+} from "../_shared/financialLedger.ts";
+
 import {
   GatewayError,
   MAX_GATEWAY_ASK_CHARS,
@@ -194,7 +202,6 @@ async function isInHouseMotionJob(jobId: string): Promise<boolean> {
     return false;
   }
 }
-
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -358,7 +365,10 @@ Deno.serve(async (req) => {
       rawVersion === undefined || rawVersion === null ? CANONICAL_VERSION : rawVersion;
     if (characterRefId) {
       if (!Number.isInteger(characterRefVersion) || characterRefVersion < 1) {
-        return json({ error: "characterRefVersion must be a positive integer", retryable: false }, 400);
+        return json(
+          { error: "characterRefVersion must be a positive integer", retryable: false },
+          400,
+        );
       }
       referenceKey = characterRefKey(characterRefId, characterRefVersion);
       if (!referenceKey) referenceUnresolved = "not-a-published-canonical-character";
@@ -443,12 +453,7 @@ Deno.serve(async (req) => {
     let seed: number | undefined;
     if (body?.seed !== undefined && body?.seed !== null) {
       const raw = body.seed;
-      if (
-        typeof raw !== "number" ||
-        !Number.isInteger(raw) ||
-        raw < 0 ||
-        raw > MAX_SEED
-      ) {
+      if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 0 || raw > MAX_SEED) {
         return json({ error: "seed must be an integer in range", retryable: false }, 400);
       }
       seed = raw;
@@ -648,13 +653,38 @@ Deno.serve(async (req) => {
         referenceUnresolved,
         referenceVersion: referenceKey ? characterRefVersion : null,
       };
+      // THE GPU SPEND GATE. In-house stills used to run outside the ledger
+      // entirely — see inHouseMotion's still section for the measurement. A
+      // ledger this function cannot reach REFUSES, exactly as story-motion
+      // does: a spend guard that opens when it cannot reach its own ledger is
+      // not a guard.
+      const rpc = serviceRoleRpc();
+      if (!rpc) return json({ error: "Spend ledger unavailable", retryable: true }, 503);
+      const spend = stillSpendRequestFor(stillId, auth.jobId ?? "", {
+        sceneId,
+        shotId,
+        conditioned: Boolean(referenceKey),
+      });
+
       try {
         if (action === "start") {
-          const { jobId: engineJobId, key } = await submitStill(
-            prompt,
-            engineEnv,
-            engineDeps,
-            {
+          // RESERVE BEFORE DISPATCH. A refused admission returns before
+          // submitStill is ever called, so a film that cannot be paid for
+          // never wakes the card.
+          const admission = await admitProviderSpend(rpc, spend);
+          if (!admission.ok) {
+            return json(
+              {
+                error: refusalMessage(admission.reason),
+                blocked: admission.reason,
+                retryable: false,
+              },
+              402,
+            );
+          }
+          let submitted: { jobId: string; key: string };
+          try {
+            submitted = await submitStill(prompt, engineEnv, engineDeps, {
               id: stillId,
               seed,
               negativePrompt,
@@ -664,24 +694,63 @@ Deno.serve(async (req) => {
                     referenceStrength: referenceStrength ?? DEFAULT_REFERENCE_STRENGTH,
                   }
                 : {}),
-            },
-          );
-          return json({ configured: true, ...engineShape, engineJobId, key, ...provenance });
+            });
+          } catch (err) {
+            // THE ONE CASE THAT RELEASES. The submit itself threw, so no
+            // engine job id came back and no card was ever held. Every other
+            // exit settles.
+            await releaseProviderSpend(rpc, spend.requestId);
+            throw err;
+          }
+          return json({
+            configured: true,
+            ...engineShape,
+            engineJobId: submitted.jobId,
+            key: submitted.key,
+            ...provenance,
+          });
         }
         // POLL. The engine's job id is the ONLY thing the caller carries back,
         // and it names a job, not a bucket path — the key is re-derived here
         // from the token's job id, so a caller still cannot name another
         // film's still.
-        const engineJobId =
-          typeof body?.engineJobId === "string" ? body.engineJobId.trim() : "";
+        const engineJobId = typeof body?.engineJobId === "string" ? body.engineJobId.trim() : "";
         if (!engineJobId) {
           return json(
             { error: "poll needs the engineJobId that start returned", retryable: false },
             400,
           );
         }
-        const got = await pollStill(engineJobId, stillId, engineEnv, engineDeps);
+        let got;
+        try {
+          got = await pollStill(engineJobId, stillId, engineEnv, engineDeps);
+        } catch (err) {
+          // A TERMINAL FAILURE IS STILL SPEND. The worker may have pulled 40
+          // GiB and held the card for minutes before refusing, so this settles
+          // FAILED rather than releasing. No actual is reported, so the
+          // ledger's estimate stands — over-counting, the safe direction.
+          await settleProviderSpend(
+            rpc,
+            spend.requestId,
+            stillSettlementFor("FAILED", null, {
+              engineJobId,
+              reason: String((err as Error)?.message ?? err).slice(0, 300),
+            }),
+          );
+          throw err;
+        }
+        // NOT DONE IS NOT AN OUTCOME. The reservation stays open across polls;
+        // settling here would close a row the next tick would have to reopen.
         if (!got.done) return json({ configured: true, ...engineShape, done: false });
+        await settleProviderSpend(
+          rpc,
+          spend.requestId,
+          stillSettlementFor("ACCEPTED", got.gpuSeconds, {
+            engineJobId,
+            outputKey: got.key,
+            bytes: got.bytes,
+          }),
+        );
         // THE FRAME ONLY. Provenance is decided at SUBMIT time and is
         // deliberately not repeated here: a poll carries no characterRefId —
         // resolving one on every poll would be a lookup per tick — so
@@ -732,6 +801,28 @@ Deno.serve(async (req) => {
     }
 
     if (!inHouseEnv) return json({ configured: false, reason: "in-house-not-configured" }, 200);
+    // THE SAME GATE ON THE BOUNDED PATH. One call instead of two, but the same
+    // card for the same minutes — metering only the resume path would leave a
+    // whole route spending outside the ledger, which is the gap this closes.
+    // Absent a shot identity (a signed-in user drawing one frame) the request
+    // id is this draw's own, so the row is still real and still bounded.
+    const boundedRpc = serviceRoleRpc();
+    if (!boundedRpc) return json({ error: "Spend ledger unavailable", retryable: true }, 503);
+    const boundedSpend = stillSpendRequestFor(stillId ?? crypto.randomUUID(), auth.jobId ?? "", {
+      path: "bounded",
+      conditioned: Boolean(referenceKey),
+    });
+    const boundedAdmission = await admitProviderSpend(boundedRpc, boundedSpend);
+    if (!boundedAdmission.ok) {
+      return json(
+        {
+          error: refusalMessage(boundedAdmission.reason),
+          blocked: boundedAdmission.reason,
+          retryable: false,
+        },
+        402,
+      );
+    }
     try {
       const still = await generateStill(
         // The ask, VERBATIM. The aspect sentence this used to append is gone
@@ -757,6 +848,14 @@ Deno.serve(async (req) => {
             : {}),
         },
       );
+      await settleProviderSpend(
+        boundedRpc,
+        boundedSpend.requestId,
+        stillSettlementFor("ACCEPTED", still.gpuSeconds, {
+          outputKey: still.key,
+          bytes: still.bytes,
+        }),
+      );
       // `key` travels back so the runner can log WHERE the frame went, and so
       // a film that later fails to animate can be diagnosed from its own log
       // rather than by guessing at a uuid nobody kept.
@@ -777,6 +876,16 @@ Deno.serve(async (req) => {
         referenceVersion: referenceKey ? characterRefVersion : null,
       });
     } catch (err) {
+      // SETTLED, NEVER RELEASED. generateStill submits before it waits, so by
+      // the time anything throws here — including its own deadline — a job may
+      // well be running and billing. Releasing would report that as free.
+      await settleProviderSpend(
+        boundedRpc,
+        boundedSpend.requestId,
+        stillSettlementFor("FAILED", null, {
+          reason: String((err as Error)?.message ?? err).slice(0, 300),
+        }),
+      );
       // Named plainly, and NEVER converted into a cloud call. There is no
       // provider behind this except ONIQ's own engine, and a failure here
       // stays a failure.
@@ -861,7 +970,10 @@ function engineFailure(err: unknown) {
         // The key is there but the gateway will not take it. Reported as
         // unconfigured rather than as a draw failure, because retrying it
         // spends nothing and fixes nothing — someone has to look at the key.
-        return json({ configured: false, provider: null, reason: "gateway-credential-rejected" }, 200);
+        return json(
+          { configured: false, provider: null, reason: "gateway-credential-rejected" },
+          200,
+        );
       case "refused":
         // THE CONTENT, and only the content. 422 with promptRefused is what
         // the worker's ask ladder reads as "step down and try a safer

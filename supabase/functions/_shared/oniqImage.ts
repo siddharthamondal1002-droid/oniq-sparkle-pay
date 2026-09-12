@@ -86,7 +86,8 @@ export const MAX_NEGATIVE_PROMPT_CHARS = 400;
 export const MAX_SEED = 2 ** 53 - 1;
 
 export type StillVerdict =
-  { ok: true; bytes: number } | { ok: false; reason: string; retryable?: boolean };
+  | { ok: true; bytes: number }
+  | { ok: false; reason: string; retryable?: boolean };
 
 /**
  * Engine refusal codes that are infrastructure, not a verdict on the ask.
@@ -111,6 +112,26 @@ export const TRANSIENT_ENGINE_CODES = new Set([
   "RequestTimeTooSkewed",
   "ThrottlingException",
 ]);
+
+/**
+ * Worker-authored refusal codes that are FINAL, named so the intent is
+ * checkable rather than merely implied by the allowlist above.
+ *
+ * These are not load-bearing for behaviour — an unrecognised code is already
+ * non-retryable, which is the whole point of an allowlist. They exist so a
+ * test can prove the two most expensive ones stay out of TRANSIENT_ENGINE_CODES
+ * if somebody widens that set later.
+ *
+ * `checkpoint-inconsistent` is the code oniq-gpu-worker's handler now preserves
+ * for the five ltxcaps refusals (missing directory, unreadable
+ * model_index.json, wrong pipeline class, conflicting distillation evidence,
+ * missing components). WHICH of the five occurred is the worker's detail to
+ * report; this side does not guess, and does not need to — every one of them
+ * is a property of the baked image, so it answers identically on attempt two
+ * and attempt ten. `permission-denied` is the same: an errno 13 on a model
+ * path is the image's filesystem, not a hiccup.
+ */
+export const FINAL_ENGINE_CODES = new Set(["checkpoint-inconsistent", "permission-denied"]);
 
 /**
  * The worker's success evidence, checked before an artifact is trusted.
@@ -216,6 +237,29 @@ const DETERMINISTIC_FAILURE = [
   /unsupported op/i,
   /unknown op/i,
   /missing required/i,
+  // THE CHECKPOINT REFUSALS, in both spellings, because both are live.
+  //
+  // MEASURED, film a7b9c3b9 / GitHub run 34688028222: frame 1 answered
+  // `PermissionError`, then `CheckpointInconsistent` TWICE. Neither matched a
+  // pattern above, so `failureIsTransient` returned true and the runner asked
+  // again — three GPU submissions to be told the same thing three times, which
+  // is exactly the waste the list above exists to stop.
+  //
+  // BOTH SPELLINGS ON PURPOSE. The worker that produced that run raised a bare
+  // Python exception NAME through the FAILED path (`CheckpointInconsistent`);
+  // the newer handler preserves a structured worker-authored code
+  // (`checkpoint-inconsistent`) instead. A deployed endpoint may be either, and
+  // a classifier that only knows the new spelling silently reverts to retrying
+  // the moment it meets an older image.
+  //
+  // AND THE CAUSE IS NOT INFERRED FROM THE NAME. Nothing here claims the
+  // checkpoint is corrupt. What is claimed is narrower and is the only thing
+  // retry policy needs: whatever ltxcaps refused, it refused a property of the
+  // BAKED IMAGE, and the same image answers the same way on the next attempt.
+  /checkpoint[-_ ]?inconsistent/i,
+  // errno 13 on a model path is the container's filesystem, not a hiccup.
+  /\bPermissionError\b/,
+  /\[Errno 13\]/,
 ];
 
 /** Would this failure reason plausibly change on another attempt? */
@@ -357,7 +401,25 @@ export async function submitStill(
 }
 
 export type StillPoll =
-  { done: false } | { done: true; mime: string; data: string; bytes: number; key: string };
+  | { done: false }
+  | {
+      done: true;
+      mime: string;
+      data: string;
+      bytes: number;
+      key: string;
+      /**
+       * What the GPU was actually held for, in seconds, or null when the
+       * worker reported no usable time.
+       *
+       * This travels so the SPEND LEDGER can settle a still against measured
+       * time rather than against its reservation estimate. Null is not zero:
+       * the ledger reads an absent actual as "the provider did not report a
+       * cost" and lets the estimate stand, which over-counts. A fabricated 0
+       * would under-count, and a GPU that ran is never free.
+       */
+      gpuSeconds: number | null;
+    };
 
 /** The status check, against a key this module derived and the caller never saw. */
 async function pollStillByKey(
@@ -411,13 +473,35 @@ export async function pollStill(
   return pollStillByKey(jobId, stillKeyFor(stillId), env, deps);
 }
 
+/**
+ * The worker's own reported wall time for this still, in seconds, or null.
+ *
+ * Both halves are counted. A cold worker spends most of its time in
+ * `model_load_ms` and the card is billed for every second of it, so settling
+ * on inference alone would under-count precisely the runs that cost the most.
+ */
+export function gpuSecondsOf(output: unknown): number | null {
+  if (!output || typeof output !== "object") return null;
+  const o = output as Record<string, unknown>;
+  const load = typeof o.model_load_ms === "number" ? o.model_load_ms : 0;
+  const infer = typeof o.inference_ms === "number" ? o.inference_ms : 0;
+  const total = load + infer;
+  return total > 0 ? total / 1000 : null;
+}
+
 /** Verify the engine's verdict, then fetch the artifact and prove the bytes. */
 async function collectStill(
   output: unknown,
   key: string,
   env: EngineEnv,
   deps: EngineDeps,
-): Promise<{ mime: string; data: string; bytes: number; key: string }> {
+): Promise<{
+  mime: string;
+  data: string;
+  bytes: number;
+  key: string;
+  gpuSeconds: number | null;
+}> {
   const verdict = verifyStillOutput(output);
   if (verdict.ok !== true) throw new EngineError(verdict.reason, verdict.retryable === true);
 
@@ -440,7 +524,13 @@ async function collectStill(
 
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);
-  return { mime: STILL_MIME, data: btoa(binary), bytes: bytes.byteLength, key };
+  return {
+    mime: STILL_MIME,
+    data: btoa(binary),
+    bytes: bytes.byteLength,
+    key,
+    gpuSeconds: gpuSecondsOf(output),
+  };
 }
 
 /**
@@ -456,7 +546,13 @@ export async function generateStill(
   env: EngineEnv,
   deps: EngineDeps,
   opts: StillOpts = {},
-): Promise<{ mime: string; data: string; bytes: number; key: string }> {
+): Promise<{
+  mime: string;
+  data: string;
+  bytes: number;
+  key: string;
+  gpuSeconds: number | null;
+}> {
   const deadlineMs = opts.deadlineMs ?? 120_000;
   const pollMs = opts.pollMs ?? 2_000;
   const started = deps.now();
@@ -470,6 +566,14 @@ export async function generateStill(
     }
     await deps.sleep(pollMs);
     const got = await pollStillByKey(jobId, key, env, deps);
-    if (got.done) return { mime: got.mime, data: got.data, bytes: got.bytes, key: got.key };
+    if (got.done) {
+      return {
+        mime: got.mime,
+        data: got.data,
+        bytes: got.bytes,
+        key: got.key,
+        gpuSeconds: got.gpuSeconds,
+      };
+    }
   }
 }
