@@ -219,6 +219,115 @@ async function catalogue(key: string): Promise<{ status: number; ids: string[]; 
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * THE GATEWAY ARM — "OpenAI through Lovable", which is a DIFFERENT BILL.
+ *
+ * `ai.gateway.lovable.dev/v1/chat/completions` is an OpenAI-SHAPED endpoint on
+ * `LOVABLE_API_KEY`, and its ids are namespaced by vendor: ONIQ already calls
+ * `google/gemini-3.1-flash-lite` there. So an `openai/...` id on that host is
+ * OpenAI reached through Lovable CREDITS rather than through a second metered
+ * provider bill — and whether the gateway serves any such id is exactly the
+ * kind of claim this repo refuses to take from a catalogue.
+ *
+ * IT DOES NOT GO THROUGH THE USD LEDGER, and that is deliberate rather than an
+ * omission. `provider_spend_ledger` prices DOLLARS; a gateway call spends
+ * CREDITS, so admitting one there would record a dollar figure nobody is
+ * charged and quietly consume the owner's $100 TEXT ceiling for spend that
+ * never touches it. The bound here is structural instead: at most
+ * MAX_GATEWAY_MODELS ids per request, PROBE_MAX_OUTPUT_TOKENS each.
+ *
+ * AND IT RUNS BEFORE THE `OPENAI_API_KEY` CHECK. The two arms hold different
+ * credentials; letting a missing OpenAI key early-return would report "not
+ * configured" for a gateway that answers perfectly.
+ * ------------------------------------------------------------------------ */
+
+/** The OpenAI-compatible chat endpoint on the Lovable gateway. */
+const GATEWAY_TEXT_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+/** More ids per tap than the metered arm, because credits are not the $100 ceiling. */
+const MAX_GATEWAY_MODELS = 8;
+
+type GatewayOutcome = {
+  readonly model: string;
+  readonly status: number;
+  readonly ok: boolean;
+  /** The gateway's own words. Never a restatement of the status. */
+  readonly detail: string;
+  readonly outputText: string | null;
+  readonly promptTokens: number | null;
+  readonly completionTokens: number | null;
+};
+
+async function callGatewayModel(key: string, model: string): Promise<GatewayOutcome> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(GATEWAY_TEXT_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: PROBE_INPUT }],
+        max_completion_tokens: PROBE_MAX_OUTPUT_TOKENS,
+      }),
+      signal: controller.signal,
+    });
+    const raw = await res.text();
+    if (!res.ok) {
+      return {
+        model,
+        status: res.status,
+        ok: false,
+        detail: detailFrom(res.status, raw),
+        outputText: null,
+        promptTokens: null,
+        completionTokens: null,
+      };
+    }
+    const body = JSON.parse(raw) as {
+      choices?: { message?: { content?: unknown } }[];
+      usage?: { prompt_tokens?: unknown; completion_tokens?: unknown };
+    };
+    const content = body.choices?.[0]?.message?.content;
+    const usage = body.usage ?? {};
+    return {
+      model,
+      status: res.status,
+      ok: true,
+      detail: "accepted",
+      outputText: typeof content === "string" ? content.slice(0, 200) : null,
+      promptTokens: typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : null,
+      completionTokens:
+        typeof usage.completion_tokens === "number" ? usage.completion_tokens : null,
+    };
+  } catch (e) {
+    return {
+      model,
+      status: 0,
+      ok: false,
+      detail: e instanceof Error ? e.message : String(e),
+      outputText: null,
+      promptTokens: null,
+      completionTokens: null,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Says which of the three states the gateway arm is in, never the status alone. */
+function gatewayVerdictFor(
+  asked: readonly string[],
+  accepted: readonly string[],
+  configured: boolean,
+): string {
+  if (!configured) return "LOVABLE_API_KEY is not set on this project; the gateway was not called";
+  if (asked.length === 0) return "no gateway id was POSTed, so nothing is verified as callable";
+  return accepted.length > 0
+    ? `GATEWAY CALLABLE: ${accepted.join(", ")}`
+    : "every gateway id POSTed was refused — read gateway[].detail for the gateway's own words";
+}
+
 /**
  * The `role` claim of a bearer token, or "" for anything that is not a JWT.
  * Decoding is not verification and is not asked to be: Supabase has already
@@ -287,24 +396,42 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (isAdmin !== true) return json(403, { error: "Admins only" });
   }
 
-  const key = Deno.env.get("OPENAI_API_KEY") ?? "";
-  if (!key) {
-    return json(200, {
-      configured: false,
-      note: "OPENAI_API_KEY is not set on this project; nothing was called and nothing was spent",
-    });
-  }
-
   let requested: string[] = [];
+  let gatewayRequested: string[] = [];
   try {
-    const body = (await req.json()) as { models?: unknown };
+    const body = (await req.json()) as { models?: unknown; gateway?: unknown };
     if (Array.isArray(body.models)) {
       requested = (body.models as readonly unknown[])
         .filter((m): m is string => typeof m === "string")
         .slice(0, MAX_MODELS_PER_CALL);
     }
+    if (Array.isArray(body.gateway)) {
+      gatewayRequested = (body.gateway as readonly unknown[])
+        .filter((m): m is string => typeof m === "string")
+        .slice(0, MAX_GATEWAY_MODELS);
+    }
   } catch {
     requested = [];
+    gatewayRequested = [];
+  }
+
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY") ?? "";
+  const gateway: GatewayOutcome[] = [];
+  for (const m of gatewayRequested) {
+    if (!lovableKey) break;
+    gateway.push(await callGatewayModel(lovableKey, m));
+  }
+  const gatewayAccepted = gateway.filter((g) => g.ok).map((g) => g.model);
+
+  const key = Deno.env.get("OPENAI_API_KEY") ?? "";
+  if (!key) {
+    return json(200, {
+      configured: false,
+      note: "OPENAI_API_KEY is not set on this project; nothing was called on the metered arm",
+      lovableConfigured: lovableKey.length > 0,
+      gateway,
+      gatewayVerdict: gatewayVerdictFor(gatewayRequested, gatewayAccepted, lovableKey.length > 0),
+    });
   }
 
   const list = await catalogue(key);
@@ -322,6 +449,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       matching: list.ids.filter((id) => /^(gpt|o\d|chatgpt)/i.test(id)),
     },
     calls,
+    lovableConfigured: lovableKey.length > 0,
+    gateway,
+    gatewayVerdict: gatewayVerdictFor(gatewayRequested, gatewayAccepted, lovableKey.length > 0),
     /** THE VERDICT READS THE POST, NEVER THE LIST. */
     verdict:
       requested.length === 0
