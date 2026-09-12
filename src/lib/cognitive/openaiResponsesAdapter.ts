@@ -1,13 +1,37 @@
 /**
  * THE OPENAI RESPONSES ADAPTER — written, and NEVER EXERCISED. §6.
  *
- * STATUS: IMPLEMENTED / UNPROVEN. Measured 2026-09-12: api.openai.com answers
- * HTTP 000 from this container because the agent proxy refuses the CONNECT
- * (403), while api.anthropic.com answers 401 and Google 403 on the same
- * runner — so the wall is ours, not OpenAI's. No request below has ever been
- * sent, no real reply has ever been parsed, and the model id has NOT been
- * verified by POST. This repo's oldest rule is that a catalogue is not a POST;
- * with respect to the wire, this file is a catalogue.
+ * STATUS: the MODEL ID is PROVEN; this adapter's CODE PATH is not.
+ *
+ * THE ID IS VERIFIED BY POST — 2026-09-12, the rule this repo has held since
+ * the Google mapping. `OPENAI_API_KEY` was added to the Supabase secret store
+ * and both candidate ids answered a real POST to /v1/responses:
+ *
+ *     GET  /v1/models                      200   130 ids, gpt-6-astra listed
+ *     POST /v1/responses  gpt-6-astra      200   completed, "ok", 13 in / 5 out
+ *     POST /v1/responses  gpt-5.6-luna     200   completed, "ok", 13 in / 5 out
+ *
+ * That is a POST and not a catalogue entry, which is the distinction that
+ * matters: llm.ts carries the measured table where a listed model advertising
+ * the right method 404'd on every real call for months.
+ *
+ * WHAT IS STILL UNPROVEN, stated as unproven: no request has ever been sent by
+ * THIS FILE. The verification above ran as a short script in the Lovable
+ * sandbox, so `openaiResponsesAdapter` and `readResponse` have still only been
+ * exercised against shapes written here. The first real call through this code
+ * is the measurement.
+ *
+ * AND THE TWO ENVIRONMENTS ARE DIFFERENT MACHINES, which is worth stating
+ * because the report conflated them. api.openai.com answers HTTP 000 from the
+ * DEV CONTAINER (proxy CONNECT 403, with api.anthropic.com 401 and Google 403
+ * as controls on the same runner); the Lovable sandbox reaches it fine. Both
+ * measurements are true of where they were taken, and neither overturns the
+ * other — so tests here still run on Mock and Replay, by necessity.
+ *
+ * PRICE IS NOT KNOWN. `usage` comes back (13 in / 5 out above), so metering
+ * works the moment rates exist — but no per-token rate for these ids has been
+ * measured, and ONIQ's spend ledger refuses an unpriced model BY NAME. Wiring
+ * this into a paying path needs rates first.
  *
  * WHY THIS FILE IS NOT IN `src/oqca/`. It was, and `security.test.ts` went red
  * on four assertions at once — fetch, an https URL, a credential name and an
@@ -32,7 +56,7 @@ import {
 
 export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 
-/** The id asked for when the caller names none. UNVERIFIED — see the header. */
+/** The id asked for when the caller names none. VERIFIED by POST 2026-09-12. */
 export const DEFAULT_FRONTIER_MODEL = "gpt-6-astra";
 
 export type OpenAIAdapterConfig = {
