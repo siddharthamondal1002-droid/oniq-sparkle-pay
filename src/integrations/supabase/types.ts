@@ -3713,6 +3713,66 @@ export type Database = {
         }
         Relationships: []
       }
+      ops_alerts: {
+        Row: {
+          detail: Json
+          first_seen_at: string
+          id: number
+          last_seen_at: string
+          notified_at: string | null
+          resolved_at: string | null
+          resolved_notified_at: string | null
+          severity: number
+          signal: string
+          summary: string
+        }
+        Insert: {
+          detail?: Json
+          first_seen_at?: string
+          id?: number
+          last_seen_at?: string
+          notified_at?: string | null
+          resolved_at?: string | null
+          resolved_notified_at?: string | null
+          severity: number
+          signal: string
+          summary: string
+        }
+        Update: {
+          detail?: Json
+          first_seen_at?: string
+          id?: number
+          last_seen_at?: string
+          notified_at?: string | null
+          resolved_at?: string | null
+          resolved_notified_at?: string | null
+          severity?: number
+          signal?: string
+          summary?: string
+        }
+        Relationships: []
+      }
+      ops_watch_health: {
+        Row: {
+          id: boolean
+          last_notify_request_id: number | null
+          last_open: number
+          last_run_at: string | null
+        }
+        Insert: {
+          id?: boolean
+          last_notify_request_id?: number | null
+          last_open?: number
+          last_run_at?: string | null
+        }
+        Update: {
+          id?: boolean
+          last_notify_request_id?: number | null
+          last_open?: number
+          last_run_at?: string | null
+        }
+        Relationships: []
+      }
       oqca_state: {
         Row: {
           doc: string
@@ -7289,6 +7349,7 @@ export type Database = {
         Args: { _booking_id: string; _price: number }
         Returns: undefined
       }
+      ops_watch_tick: { Args: never; Returns: Json }
       parental_consent_verified: { Args: { _uid: string }; Returns: boolean }
       personalisation_allowed: { Args: { _uid: string }; Returns: boolean }
       place_order: {
