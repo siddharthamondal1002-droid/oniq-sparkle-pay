@@ -96,7 +96,6 @@ describe("Build Character → stops at Character", () => {
     }
   });
 
-
   it("a refused frame is shown, never retried", () => {
     // One invoke call site, and no retry vocabulary in executable text.
     expect(BUILDER.match(/invoke\("story-still"/g)).toHaveLength(1);
