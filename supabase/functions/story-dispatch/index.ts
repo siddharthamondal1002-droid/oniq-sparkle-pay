@@ -398,7 +398,19 @@ Deno.serve(async (req) => {
     // nothing and the workflow's STORY_MOVIE stays off. The column is
     // service-role-writable only (story_jobs has no client INSERT/UPDATE
     // policy), so this can never become a user-reachable spend switch.
-    const motionMode = rows[0].motion_mode === "select" ? "select" : null;
+    //
+    // 'in_house' TRAVELS AS 'select' TOO, and that is the second gate this
+    // file's own test already warns about — measured AGAIN on run 34686743759
+    // (2026-09-12). That film dispatched with in_house_motion:true, the route
+    // resolved ("IN_HOUSE_MOTION: on"), and it still came back nine stills:
+    //   movie grade: MOTION_STAGE=off MOTION_PROVIDER=none MOTION_ENGINE=none
+    //                — stills and camera only (STORY_MOVIE unset)
+    // IN_HOUSE_MOTION chooses WHICH engine animates; STORY_MOVIE decides
+    // WHETHER the clip stage runs at all. Sending the first without the second
+    // is a correctly-routed film with no motion in it.
+    const motionMode =
+      rows[0].motion_mode === "select" || rows[0].motion_mode === "in_house" ? "select" : null;
+
     // PER-JOB IN-HOUSE MOTION (owner-authorized bounded internal test,
     // 2026-09-12). Same shape and same reasoning as the two flags above: only
     // the literal 'in_house' travels, and NULL — every production job — sends
