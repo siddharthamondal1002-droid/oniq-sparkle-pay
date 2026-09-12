@@ -110,7 +110,35 @@ function rateLimit(id: string, limit: number, windowMs = 60000): boolean {
   return true;
 }
 
+/**
+ * Is this film flagged in-house-motion only?
+ *
+ * FAILS CLOSED IS THE WRONG DIRECTION HERE, deliberately. If the lookup itself
+ * fails we answer `false` and let Veo run: refusing every film in the project
+ * because one REST read timed out would turn a test safeguard into an outage
+ * for everyone else. The blast radius of a wrong `false` is one internal test
+ * that spends a little Veo money and gets re-run; the blast radius of a wrong
+ * `true` is every paid film losing its clips.
+ */
+async function isInHouseOnly(jobId: string): Promise<boolean> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) return false;
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/story_jobs?id=eq.${encodeURIComponent(jobId)}&select=motion_mode`,
+      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+    );
+    if (!res.ok) return false;
+    const rows = (await res.json()) as Array<{ motion_mode?: string | null }>;
+    return rows[0]?.motion_mode === "in_house";
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
+
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const jobToken = req.headers.get("x-story-job-token");
