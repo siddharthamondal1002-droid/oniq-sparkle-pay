@@ -7588,6 +7588,22 @@ and an agent turn costs credits, so the usage figure is behind a paywall that
 is itself empty. `get_workspace` promises a balance in its own description and
 returns none — confirmed twice.
 
+**AND THE NUMBER CAME BACK FROM THE OWNER: 3.26 credits at $0.30 = $0.98 a
+film**, about $0.0163 per second of finished video. Recorded AS GIVEN, the way
+the Google model prices and the Firebase SMS pricing are — this container
+cannot read a credit balance, so it is the owner's arithmetic and not a
+measurement taken here. The recipe's cost block carries it.
+
+That answers what a film costs and changes nothing about the visibility: there
+is still no `provider_spend_ledger` row, no draw on the `$100` TEXT ceiling and
+no watchdog signal for a gateway call, so the figure has to be asked for every
+time it is wanted. **Do NOT convert it against the Veo line.**
+`story-worker.mjs` prices Veo Fast 720p at Rs 9.56 per second of generated
+video from the August billing export; this repo stores no exchange rate on
+purpose (owner directive 2026-08-24 — the ledger is USD and FX never reaches a
+decision), so the two are quoted with their own sources and the ratio is left
+to whoever holds a rate and a date.
+
 So the recipe is recorded and the pipeline is DOWN as it is recorded: every new
 film fails at still 1 until credits are added, and `STILL_PROVIDER=in_house` is
 not an escape because the GPU's LTX checkpoint is the thing throwing

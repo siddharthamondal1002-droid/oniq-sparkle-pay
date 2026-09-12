@@ -59,6 +59,42 @@ p.write_text(s)
 PYX
 verdict .claude/skills/oniq-video/SKILL.md "the recipe is unreachable from the skill"; restore
 
+echo "== M6: the dollar figure is edited and the credits are not =="
+python3 - <<'PYA'
+import pathlib
+p=pathlib.Path('.claude/skills/oniq-video/references/classic-film-recipe.md'); s=p.read_text()
+s=s.replace('so **$0.98','so **$1.98')
+p.write_text(s)
+PYA
+verdict .claude/skills/oniq-video/references/classic-film-recipe.md "credits x rate no longer equals the stated cost"; restore
+
+echo "== M7: the per-second figure drifts from the film cost =="
+python3 - <<'PYA'
+import pathlib
+p=pathlib.Path('.claude/skills/oniq-video/references/classic-film-recipe.md'); s=p.read_text()
+s=s.replace('$0.0163 per second of finished video','$0.0011 per second of finished video')
+p.write_text(s)
+PYA
+verdict .claude/skills/oniq-video/references/classic-film-recipe.md "per-second no longer equals cost / length"; restore
+
+echo "== M8: the table restates a credit count the prose does not =="
+python3 - <<'PYA'
+import pathlib
+p=pathlib.Path('.claude/skills/oniq-video/references/classic-film-recipe.md'); s=p.read_text()
+s=s.replace('Lovable credits   3.26','Lovable credits   9.10')
+p.write_text(s)
+PYA
+verdict .claude/skills/oniq-video/references/classic-film-recipe.md "the table and the prose disagree"; restore
+
+echo "== M9: the worker's recorded Veo price moves and the recipe keeps the old one =="
+python3 - <<'PYA'
+import pathlib
+p=pathlib.Path('remotion/scripts/story-worker.mjs'); s=p.read_text()
+s=s.replace('Rs 9.56 per second of generated video','Rs 4.21 per second of generated video')
+p.write_text(s)
+PYA
+verdict remotion/scripts/story-worker.mjs "the recipe quotes a price its source no longer records"; restore
+
 echo "== M5 (INVERSE): the recipe is reflowed — must stay GREEN =="
 python3 - <<'PYX'
 import pathlib, re

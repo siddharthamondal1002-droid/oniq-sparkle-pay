@@ -63,20 +63,40 @@ twelve minutes, it is nearer an hour, and the runner has a job timeout.
 
 ## What it costs
 
-    Lovable credits   9 gateway stills + 1 plot text call.  THE REAL COST.
+**3.26 Lovable credits for one 60-second film**, at $0.30 a credit — so **$0.98
+a film, about $0.0163 per second of finished video**. Given by the owner
+2026-09-12 and recorded AS GIVEN, the way the Google model prices are: nothing
+in this container can read a credit balance, so the figure is not independently
+measured here.
+
+    Lovable credits   3.26  ->  $0.98     9 gateway stills + 1 plot text call
     USD ledger        $0.00 — measured, zero rows in the render window
     GPU               $0.00 — the GPU is not on this path at all
     Veo / Runway      $0.00 — never called
     GitHub Actions    ~14 billable minutes for the render job
     user video-time   0 seconds charged
 
-**The credits are invisible to every guard ONIQ has.** Gateway calls bill
-credits, not dollars, so they write no `provider_spend_ledger` row, never touch
-the `$100` TEXT ceiling, and raise no watchdog alert. On 2026-09-12 the pool
-drained through the afternoon with no warning: cloud voice exhausted at 14:32,
-image credits at 15:48, and the Lovable agent itself refused a message shortly
-after. A film costs an unknown number of credits and you find out by a job
-failing.
+**KNOWING THE NUMBER DOES NOT MAKE IT VISIBLE.** Gateway calls bill credits,
+not dollars, so they write no `provider_spend_ledger` row, never touch the
+`$100` TEXT ceiling, and raise no watchdog alert. The $0.98 above is the
+owner's arithmetic, not a reading ONIQ can take: a run's cost is knowable only
+by asking them. On 2026-09-12 the pool drained through the afternoon with no
+warning — cloud voice exhausted at 14:32, image credits at 15:48, and the
+Lovable agent itself refused a message shortly after.
+
+**AND THE BALANCE IS BEHIND A PAYWALL THAT IS ITSELF EMPTY.**
+`credits--get_my_usage` runs inside an agent turn, and an agent turn costs
+credits; `get_workspace` promises a balance in its own description and returns
+none — confirmed twice. So "how many films can ONIQ still make" cannot be
+answered from here at all, only "what one costs".
+
+**NO COMPARISON IS DRAWN WITH THE MOTION PATH, DELIBERATELY.**
+`story-worker.mjs` records Veo Fast 720p with Audio from the August billing
+export at **Rs 9.56 per second of generated video**, and this recipe is
+**$0.0163 per second of finished film**. Those are different currencies, and
+this repo stores no exchange rate on purpose — the ledger is USD and FX never
+reaches a decision (owner directive 2026-08-24). Quote each with its own source
+and leave the ratio to whoever holds a rate and a date.
 
 ## Verifying a run did what you think
 
