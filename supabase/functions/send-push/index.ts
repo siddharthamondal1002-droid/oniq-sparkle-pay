@@ -2,12 +2,7 @@
 // Never logs tokens. Cleans up UNREGISTERED/404 tokens.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SignJWT, importPKCS8 } from "https://esm.sh/jose@5.9.6";
-import {
-  parseVapidJwk,
-  sendWebPush,
-  vapidPublicKey,
-  type VapidJwk,
-} from "../_shared/webpush.ts";
+import { parseVapidJwk, sendWebPush, vapidPublicKey, type VapidJwk } from "../_shared/webpush.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,6 +44,27 @@ async function getAccessToken(): Promise<string> {
   const j = (await res.json()) as { access_token: string; expires_in: number };
   cachedToken = { token: j.access_token, expiresAt: Date.now() + (j.expires_in - 60) * 1000 };
   return j.access_token;
+}
+
+/**
+ * The role claim, read without verifying — the value only ever ADMITS the
+ * service role, and Supabase has already authenticated the bearer before this
+ * function runs. Used so the message-push backstop can call in without a user
+ * session: a sweep has no signed-in sender, only a committed row.
+ *
+ * MEASURED 2026-09-12 and worth knowing before copying this: the key
+ * `story_dispatch_tick` prefers in the vault is NOT a JWT, so a caller handing
+ * that one over reads as anonymous here. `ops_watch_pick_key()` picks a
+ * JWT-shaped service key by shape for exactly this reason.
+ */
+function _roleOf(jwt: string): string {
+  const parts = jwt.split(".");
+  if (parts.length !== 3) return "";
+  try {
+    return String(JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))).role ?? "");
+  } catch {
+    return "";
+  }
 }
 
 // --- rate limit (per-isolate; resets on cold start) ---
@@ -122,19 +138,29 @@ Deno.serve(async (req) => {
   const userClient = createClient(SUPABASE_URL, ANON, {
     global: { headers: { Authorization: authHeader }, fetch: wrapFetch(ANON, authHeader) },
   });
-  const { data: userRes, error: userErr } = await userClient.auth.getUser();
-  if (userErr || !userRes.user) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "content-type": "application/json" },
-    });
+  // TWO CALLERS NOW. A person's session, exactly as before — or the server's
+  // own backstop sweep, which has no session because there is no client left to
+  // have one. That is the whole point of it: the case this covers is the sender
+  // whose tab closed before the push went out.
+  const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  const fromServer = _roleOf(bearer) === "service_role";
+
+  let senderId = "";
+  if (!fromServer) {
+    const { data: userRes, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userRes.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "content-type": "application/json" },
+      });
+    }
+    senderId = userRes.user.id;
+    if (!_rateLimit(senderId, 60))
+      return new Response(JSON.stringify({ error: "slow down bestie 😅" }), {
+        status: 429,
+        headers: { ...corsHeaders, "content-type": "application/json" },
+      });
   }
-  const senderId = userRes.user.id;
-  if (!_rateLimit(senderId, 60))
-    return new Response(JSON.stringify({ error: "slow down bestie 😅" }), {
-      status: 429,
-      headers: { ...corsHeaders, "content-type": "application/json" },
-    });
 
   let body: {
     conversation_id?: string;
@@ -142,6 +168,8 @@ Deno.serve(async (req) => {
     preview?: string;
     call_type?: string;
     call_id?: string;
+    /** Server callers only — a sweep has a committed row, not a session. */
+    sender_id?: string;
   };
   try {
     body = await req.json();
@@ -152,6 +180,21 @@ Deno.serve(async (req) => {
     });
   }
   const { conversation_id, kind, preview, call_type, call_id } = body;
+
+  // THE SERVER NAMES ITS SENDER, and it must be a real one. Without this the
+  // recipient set would be "every member" — including the person who wrote the
+  // message, who would be notified about their own text.
+  if (fromServer) {
+    const claimed = body.sender_id;
+    if (typeof claimed !== "string" || !/^[0-9a-f-]{36}$/i.test(claimed)) {
+      return new Response(JSON.stringify({ error: "sender_id required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "content-type": "application/json" },
+      });
+    }
+    senderId = claimed;
+  }
+
   if (!conversation_id || !kind) {
     return new Response(JSON.stringify({ error: "missing fields" }), {
       status: 400,
@@ -190,13 +233,21 @@ Deno.serve(async (req) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // Verify sender is a member of the conversation
-  const { data: senderMember } = await admin
-    .from("conversation_members")
-    .select("user_id")
-    .eq("conversation_id", conversation_id)
-    .eq("user_id", senderId)
-    .maybeSingle();
+  // Verify sender is a member of the conversation.
+  //
+  // SKIPPED FOR THE SERVER, because the check has already happened and more
+  // strictly: the backstop only ever names the `sender_id` of a row that is
+  // COMMITTED in `messages`, and RLS admitted that insert. Re-deriving
+  // membership here would refuse a sender who has since left the conversation
+  // — whose message is still in it, and whose recipients still deserve it.
+  const { data: senderMember } = fromServer
+    ? { data: { user_id: senderId } }
+    : await admin
+        .from("conversation_members")
+        .select("user_id")
+        .eq("conversation_id", conversation_id)
+        .eq("user_id", senderId)
+        .maybeSingle();
   if (!senderMember) {
     return new Response(JSON.stringify({ error: "forbidden" }), {
       status: 403,
@@ -505,7 +556,9 @@ Deno.serve(async (req) => {
       // cannot be undone from here.
       const livePublicKey = vapidPublicKey(jwk);
       const stale = webSubs.filter((s) => s.appServerKey && s.appServerKey !== livePublicKey);
-      const deliverable = webSubs.filter((s) => !s.appServerKey || s.appServerKey === livePublicKey);
+      const deliverable = webSubs.filter(
+        (s) => !s.appServerKey || s.appServerKey === livePublicKey,
+      );
       if (stale.length > 0) {
         console.error(
           `send-push: ${stale.length} web subscriber(s) recorded a different VAPID key — skipped, the app repairs them on next start`,
@@ -553,7 +606,6 @@ Deno.serve(async (req) => {
             // capability URL and belongs in logs no more than a token does.
             console.error("web push failed", r.status, r.error);
           }
-
         }),
       );
     }
@@ -605,8 +657,6 @@ Deno.serve(async (req) => {
     );
   }
 
-
-
   return new Response(
     JSON.stringify({
       sent: sent + webSent,
@@ -622,7 +672,6 @@ Deno.serve(async (req) => {
         rotatedKey: rotatedKeyEndpoints.length,
         /** Rows the push service rejected for a key mismatch, now marked. */
         vapidMismatch: mismatchSubs.length,
-
       },
     }),
     { headers: { ...corsHeaders, "content-type": "application/json" } },
