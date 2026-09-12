@@ -24,12 +24,35 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/llm.ts";
+import { serviceRoleRpc, withProviderSpendGuard } from "../_shared/financialLedger.ts";
 
 const OPENAI_MODELS_URL = "https://api.openai.com/v1/models";
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 
 /** At most three ids per tap. A probe that can loop is a probe that can bill. */
 const MAX_MODELS_PER_CALL = 3;
+/**
+ * THE FLAT RESERVATION PER PROBE CALL, AND WHY A FLAT ONE IS RIGHT HERE.
+ *
+ * `searchSpendCoverage` caught this function as a billable caller with no
+ * reservation and said, correctly, "guard it, do not list it". The obvious
+ * objection is circular: the ledger refuses an unpriced model, and the whole
+ * point of a probe is to reach a model whose price nobody knows yet.
+ *
+ * The repo already answers that. `music-generate`, `image-generate` and
+ * `voice-generate` reserve a FLAT owner-given figure per generation rather
+ * than a per-token rate, and settle against it. A probe is the same shape and
+ * a far easier case, because its worst case is knowable from the request
+ * itself: PROBE_MAX_OUTPUT_TOKENS output tokens on a ~20-token prompt. A cent
+ * is orders of magnitude above any plausible cost for that on any model in the
+ * catalogue, so it is a true ceiling rather than a guess dressed as one.
+ *
+ * So the probe is ACCOUNTED without needing a rate table, and it is refusable
+ * by the same daily ceiling as everything else. What it is NOT is a licence to
+ * price the general engine this way: a real cognitive run makes twenty calls
+ * of unbounded length, and that still needs measured rates.
+ */
+const PROBE_RESERVATION_USD = 0.01;
 /** The POST asks for almost nothing: this is an existence check, not a task. */
 const PROBE_MAX_OUTPUT_TOKENS = 16;
 const PROBE_INPUT = "Reply with the single word: ok";
@@ -70,6 +93,41 @@ function detailFrom(status: number, body: string): string {
 }
 
 async function callModel(key: string, model: string): Promise<CallOutcome> {
+  /**
+   * THE LEDGER IS THE GATE, AND A NULL RPC REFUSES RATHER THAN SKIPS — the
+   * same rule `engine.ts` follows. A caller that cannot reach the ledger gets
+   * a probe that cannot spend, never one that spends uncounted.
+   */
+  const rpc = serviceRoleRpc();
+  const guarded = await withProviderSpendGuard(
+    rpc,
+    {
+      requestId: `frontier-probe:${model}:${Date.now()}`,
+      capability: "TEXT",
+      provider: "openai",
+      model,
+      unit: "tokens",
+      units: PROBE_MAX_OUTPUT_TOKENS,
+      estimatedUsd: PROBE_RESERVATION_USD,
+      detail: { purpose: "model-id verification by POST" },
+    },
+    async () => ({ value: await callModelUnguarded(key, model) }),
+  );
+  if (!guarded.admitted) {
+    return {
+      model,
+      status: 0,
+      ok: false,
+      detail: `the spend ledger refused this probe: ${guarded.reason}`,
+      outputText: null,
+      inputTokens: null,
+      outputTokens: null,
+    };
+  }
+  return guarded.value;
+}
+
+async function callModelUnguarded(key: string, model: string): Promise<CallOutcome> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {

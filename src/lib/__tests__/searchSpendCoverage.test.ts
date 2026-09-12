@@ -107,7 +107,25 @@ const GUARDED_TOKEN_ONLY = ["watch-ask"];
  * for any of these units, so the ledger charges the reservation and keeps
  * measured tokens (where the response carries any) for provenance only.
  */
-const GUARDED_DIRECT_LEDGER = ["music-generate", "image-generate", "voice-generate"];
+/**
+ * `frontier-probe` joined 2026-09-12 and is a different SHAPE from the other
+ * three, which is why it is worth a line rather than just an entry.
+ *
+ * The three generators reserve a flat owner-given figure per generation
+ * because the provider reports no cost for a song, an image or a clip. The
+ * probe reserves a flat figure for the opposite reason: it exists to POST a
+ * model id NOBODY HAS PRICED YET — this repo's oldest rule is that only a POST
+ * says what a key may call — and a per-token reservation would make the check
+ * impossible to perform on exactly the models it is for. Its worst case is
+ * knowable from the request (a ~20-token prompt, 16 output tokens, at most 3
+ * ids), so a cent is a true ceiling rather than a guess.
+ */
+const GUARDED_DIRECT_LEDGER = [
+  "frontier-probe",
+  "music-generate",
+  "image-generate",
+  "voice-generate",
+];
 
 describe("every SEARCH in the repository is reserved for", () => {
   const fns = edgeFunctions();
