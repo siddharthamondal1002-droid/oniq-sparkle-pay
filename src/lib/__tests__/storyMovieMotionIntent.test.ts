@@ -66,9 +66,17 @@ describe("A — a normal Story Movie claim stamps motion intent", () => {
   });
 
   it("dispatch forwards it and the workflow reads it from the payload alone", () => {
+    // WIDENED ONCE, DELIBERATELY (2026-09-12, the bounded in-house test).
+    // 'in_house' joined 'select' as a value the column may hold, and it names
+    // the ENGINE, never whether the clip stage runs — so it must collapse to
+    // the same 'select' on the wire. What this pins is that collapse: exactly
+    // two accepted values, both yielding "select", everything else null. A
+    // third value reaching STORY_MOVIE unmapped would turn the workflow's
+    // motion stage on for a film nobody claimed motion for.
     expect(dispatch).toMatch(
-      /const motionMode = rows\[0\]\.motion_mode === "select" \? "select" : null;/,
+      /const motionMode =\s*\n?\s*rows\[0\]\.motion_mode === "select" \|\| rows\[0\]\.motion_mode === "in_house"\s*\n?\s*\? "select"\s*\n?\s*: null;/,
     );
+
     expect(workflow).toMatch(
       /STORY_MOVIE: \$\{\{ github\.event\.client_payload\.story_movie \|\| '' \}\}/,
     );

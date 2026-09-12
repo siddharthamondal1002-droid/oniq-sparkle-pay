@@ -694,7 +694,8 @@ export type BilledDeps<T> = {
 };
 
 export type BilledOutcome<T> =
-  { ok: true; result: T } | { ok: false; stage: "admission" | "generation"; reason: string };
+  | { ok: true; result: T }
+  | { ok: false; stage: "admission" | "generation"; reason: string };
 
 export async function runBilledUnit<T extends { gpuJobId: string; key: string; output: unknown }>(
   ref: { key: string; sceneId: string; shotId: string; index: number },
@@ -727,4 +728,102 @@ export async function runBilledUnit<T extends { gpuJobId: string; key: string; o
     });
     return { ok: false, stage: "generation", reason };
   }
+}
+
+// ------------------------------------------------- the still, in the ledger
+/**
+ * THE IN-HOUSE STILL'S GPU SPEND, in the same ledger, with the same shape.
+ *
+ * THE GAP THIS CLOSES, measured rather than reasoned. Every in-house MOTION
+ * clip passes through runBilledUnit above, so it reserves before dispatch and
+ * settles after. The in-house STILL did not: story-still called submitStill
+ * directly, and a frame that woke a cold A5000 for minutes left no row
+ * anywhere. Film a7b9c3b9 is the proof — nine shots, three GPU submissions on
+ * frame 1 alone, and zero rows in provider_spend_ledger. An absent row is not
+ * a zero charge; RunPod bills the card whether or not this project wrote
+ * anything down, so the ledger was simply blind to the still stage.
+ *
+ * WHY NOT runBilledUnit. That function is reserve → generate → settle inside
+ * ONE call, which the still path deliberately is not: submit and poll are
+ * separate edge invocations because a cold worker outlasts any wall clock an
+ * edge function has. So the ORDER is the same and the transport is not, and
+ * these two pure halves are what story-still composes:
+ *
+ *     start  admit(stillSpendRequestFor(...))   refused ⇒ nothing is submitted
+ *            submitStill(...)                   threw   ⇒ RELEASE, nothing ran
+ *     poll   done                               ⇒ settle ACCEPTED, measured
+ *            terminal failure                   ⇒ settle FAILED, estimate stands
+ *            not done                           ⇒ nothing; the row stays open
+ *
+ * RELEASE IS FOR EXACTLY ONE CASE and it is narrow on purpose: the submit
+ * itself threw, so no engine job exists and no card was ever held. Once a job
+ * id has come back, every exit SETTLES — including the failure that costs the
+ * most, a worker that loads 40 GiB of image and then refuses. Treating that as
+ * a release would report the expensive failures as free.
+ *
+ * IDEMPOTENCE COMES FROM THE KEY. The requestId is derived from the still's
+ * own id, so a re-submitted shot re-admits the SAME reservation row instead of
+ * opening a second one — the property that makes the attempt ladder bounded
+ * rather than merely counted.
+ */
+export const IN_HOUSE_STILL_MODEL = "LTX_VIDEO_2B_STILL";
+
+/**
+ * What one still RESERVES, in GPU-seconds.
+ *
+ * A reservation is a worst case, not a price. The measured warm draw in
+ * oniqImage's own contract is ~13 s of model load plus ~2.5 s of inference;
+ * a COLD worker pulls the image and the text encoder first and is billed for
+ * all of it, which is minutes. 120 s is chosen to cover a cold draw and still
+ * sit an order of magnitude under the $0.10 per-request cap, so a legitimate
+ * cold start is admitted and a runaway is not. Settlement replaces it with the
+ * worker's own reported time whenever the worker reports one.
+ */
+export const IN_HOUSE_STILL_RESERVE_GPU_SECONDS = 120;
+
+/** The reservation estimate, from the same measured $/GPU-second basis. */
+export function estimateStillUsd(gpuSeconds: number = IN_HOUSE_STILL_RESERVE_GPU_SECONDS): number {
+  const usdPerGpuSecond = IN_HOUSE_CLIP_COST.usdPerClip / IN_HOUSE_CLIP_COST.gpuSecondsPerClip;
+  return Math.round(gpuSeconds * usdPerGpuSecond * 1e6) / 1e6;
+}
+
+/** The ledger request for one still. The still's id IS the idempotence key. */
+export function stillSpendRequestFor(
+  stillId: string,
+  jobId: string,
+  detail: Record<string, unknown> = {},
+) {
+  return {
+    requestId: `still:${stillId}`,
+    capability: "GPU" as const,
+    provider: IN_HOUSE_PROVIDER,
+    model: IN_HOUSE_STILL_MODEL,
+    unit: "images" as const,
+    units: 1,
+    estimatedUsd: estimateStillUsd(),
+    jobId,
+    detail: { stillId, stage: "still", ...detail },
+  };
+}
+
+/**
+ * How a still's reservation is closed.
+ *
+ * `actualUsd` is present ONLY when the worker reported usable time. Absent, it
+ * is left absent — the ledger then keeps the estimate standing, which
+ * over-counts. Writing 0 there would be a fabricated settlement: it would say
+ * the GPU ran for free, and nothing measured says that.
+ */
+export function stillSettlementFor(
+  outcome: "ACCEPTED" | "FAILED",
+  gpuSeconds: number | null | undefined,
+  detail: Record<string, unknown> = {},
+) {
+  const actualUsd = actualUsdFor(gpuSeconds);
+  return {
+    outcome,
+    ...(actualUsd === undefined ? {} : { actualUsd }),
+    unitsActual: outcome === "ACCEPTED" ? 1 : 0,
+    detail,
+  };
 }

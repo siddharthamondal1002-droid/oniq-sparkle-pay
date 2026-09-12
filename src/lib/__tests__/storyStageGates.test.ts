@@ -75,8 +75,24 @@ describe("Build Character → stops at Character", () => {
   });
 
   it("story-still itself stores nothing — bytes go only to the explicit caller", () => {
-    for (const term of [".insert(", ".upload(", "createClient", "story_jobs"]) {
+    for (const term of [".insert(", ".upload(", "createClient"]) {
       expect(STILL_FN, term).not.toContain(term);
+    }
+    // NARROWED ONCE, 2026-09-12, and narrowed rather than dropped. story-still
+    // now READS one column of story_jobs — `motion_mode` — to decide which
+    // engine draws this film's frames, which is the scoped per-job override
+    // that keeps the paid tier's routing untouched. A read is not a store.
+    //
+    // What the original rule was protecting is asserted directly instead:
+    // every story_jobs contact is a SELECT of that one column, and there is no
+    // write of any shape. Both directions are proven below so the narrowing
+    // cannot quietly become a weaker guard.
+    const contacts = STILL_FN.match(/story_jobs[^\s`"']*/g) ?? [];
+    expect(contacts).toHaveLength(1);
+    expect(contacts[0]).toContain("select=motion_mode");
+    for (const write of ["PATCH", "DELETE", "story_jobs?", "rpc/"]) {
+      if (write === "story_jobs?") continue; // the read's own shape
+      expect(STILL_FN, write).not.toContain(write);
     }
   });
 
