@@ -42,7 +42,7 @@ describe("a cause counts only when the CONCLUSION names it", () => {
       [],
       opts,
     );
-    expect(s.causesFound.sort()).toEqual(["dispatch_credential", "voice_unavailable"]);
+    expect([...s.causesFound].sort()).toEqual(["dispatch_credential", "voice_unavailable"]);
     expect(s.falsePositives).toEqual([]);
   });
 
@@ -80,7 +80,8 @@ describe("the fixture keeps its traps", () => {
   it("the loudest error surface is NOT one of the causes", () => {
     const loudest = [...ERROR_SURFACES.rows].sort((a, b) => Number(b.value) - Number(a.value))[0];
     expect(loudest.key).toBe("send-push");
-    expect(GROUND_TRUTH.causes.some((c) => c.id === "send_push")).toBe(false);
+    const causeIds: readonly string[] = GROUND_TRUTH.causes.map((c) => c.id);
+    expect(causeIds).not.toContain("send_push");
   });
 
   it("there are two independent causes, so one answer cannot be complete", () => {
