@@ -364,12 +364,16 @@ Deno.serve(async (req) => {
             actor_refs:
               rows.find((r) => r.id === id)?.actor_refs === true ||
               rows.find((r) => r.id === id)?.grade === "movie",
-            ...(rows.find((r) => r.id === id)?.motion_mode === "select"
+            // Both modes need the clip stage ON — see the two-gates note at
+            // `const motionMode` below; 'in_house' only chooses the engine.
+            ...(rows.find((r) => r.id === id)?.motion_mode === "select" ||
+                rows.find((r) => r.id === id)?.motion_mode === "in_house"
               ? { story_movie: "select" }
               : {}),
             ...(rows.find((r) => r.id === id)?.motion_mode === "in_house"
               ? { in_house_motion: true }
               : {}),
+
 
           }),
         },
