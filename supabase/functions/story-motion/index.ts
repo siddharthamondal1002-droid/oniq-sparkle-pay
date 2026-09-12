@@ -61,6 +61,72 @@ function json(payload: unknown, status = 200) {
   });
 }
 
+/**
+ * THE ROLE CLAIM, NOT A BYTE EQUALITY — the shape `send-push`, `ops-alert` and
+ * `frontier-probe` already use. frontier-probe compared the bearer to
+ * SUPABASE_SERVICE_ROLE_KEY with `===` and no key this project holds equalled
+ * it, so its service branch was unreachable from anywhere and every arm
+ * answered 401 identically.
+ */
+function _roleOf(jwt: string): string {
+  const parts = jwt.split(".");
+  if (parts.length !== 3) return "";
+  try {
+    return String(JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))).role ?? "");
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * READ-ONLY GPU HEALTH, service role only.
+ *
+ * WHY THIS EXISTS. `ONIQ_GPU_HEALTHY` and `ONIQ_WORKER_IMAGE` are OPERATOR
+ * ASSERTIONS typed into GitHub repository variables — `routeMotion` trusts
+ * them and cannot check them. Job eb1b3f45 (2026-08-28) is what that costs:
+ * an endpoint whose template carried no model-bearing image accepted a job it
+ * could never run and sat until the 1800s watchdog killed it. Asserting
+ * healthy without measuring is the thing that produced that job.
+ *
+ * RunPod's `/health` is a GET. It submits nothing, claims no worker and bills
+ * nothing, so this can be called before deciding whether a test film is worth
+ * dispatching. It returns RunPod's own body verbatim — never the key, never
+ * the endpoint id.
+ *
+ * IT IS NOT THE JOB-TOKEN PATH AND MUST NOT WEAKEN IT. This branch returns
+ * before the token gate is reached, and the token gate below is untouched: a
+ * caller without the service role still cannot reach one line of it.
+ */
+async function runpodHealth(): Promise<Response> {
+  const apiKey = Deno.env.get("RUNPOD_API_KEY");
+  const endpointId = Deno.env.get("RUNPOD_ENDPOINT_ID");
+  const publicBase = Deno.env.get("R2_PUBLIC_BASE_URL");
+  if (!apiKey || !endpointId || !publicBase) {
+    return json({
+      configured: false,
+      missing: {
+        RUNPOD_API_KEY: !apiKey,
+        RUNPOD_ENDPOINT_ID: !endpointId,
+        R2_PUBLIC_BASE_URL: !publicBase,
+      },
+    });
+  }
+  const res = await fetch(`https://api.runpod.ai/v2/${endpointId}/health`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  const raw = await res.text();
+  let body: unknown = null;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    // A non-JSON body is the interesting case (a Cloudflare page, an HTML
+    // 404), so it travels as text rather than becoming a null nobody can read.
+    body = raw.slice(0, 500);
+  }
+  return json({ configured: true, status: res.status, health: body });
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
