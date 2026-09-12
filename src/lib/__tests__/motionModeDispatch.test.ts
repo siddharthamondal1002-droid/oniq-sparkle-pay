@@ -36,12 +36,15 @@ describe("per-job motion mode (Veo select validation plumbing)", () => {
     expect(dispatch).toMatch(/select=id,requested_seconds,actor_refs,grade,motion_mode/);
   });
 
-  it("only the literal 'select' travels; anything else sends nothing", () => {
+  it("only 'select' and 'in_house' travel; anything else sends nothing", () => {
+    // 'in_house' rides as 'select' because the clip stage is a SEPARATE gate
+    // from the engine choice — measured twice now, see the block below.
     expect(dispatch).toMatch(
-      /const motionMode = rows\[0\]\.motion_mode === "select" \? "select" : null;/,
+      /rows\[0\]\.motion_mode === "select" \|\| rows\[0\]\.motion_mode === "in_house"\s*\?\s*"select"\s*:\s*null;/,
     );
     expect(dispatch).toMatch(/\.\.\.\(motionMode \? \{ story_movie: motionMode \} : \{\}\)/);
   });
+
 
   it("actor_refs graduation is untouched by the new field", () => {
     expect(dispatch).toMatch(
