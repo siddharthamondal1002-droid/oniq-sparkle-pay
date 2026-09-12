@@ -107,7 +107,10 @@ measured here.
     USD ledger        $0.00 — measured, zero rows in the render window
     GPU               $0.00 — the GPU is not on this path at all
     Veo / Runway      $0.00 — never called
-    GitHub Actions    ~14 billable minutes for the render job
+    GitHub Actions    $0.00 — the repository is PUBLIC, so Actions minutes
+                      are free. The usage API reports billable 0 ms on runs
+                      166, 167 and 170; an earlier "~14 billable minutes"
+                      here was inferred from wall time and is corrected.
     user video-time   0 seconds charged
 
 **KNOWING THE NUMBER DOES NOT MAKE IT VISIBLE.** Gateway calls bill credits,
