@@ -186,8 +186,30 @@ revoke all on function public.message_push_sweep() from public, anon, authentica
 -- deployed `send-push` still lacks the service-role branch would post a
 -- service-role JWT at a function that answers 401 — and the sweep stamps at
 -- DISPATCH, so every one of those messages would be marked attempted and never
--- sent. The order is: apply this file, deploy send-push, verify the server path
--- answers 200, then schedule. Recorded here because the wrong order is silent.
+-- sent. The order is: apply this file, deploy send-push, verify the server
+-- path, then schedule. Recorded here because the wrong order is silent.
+--
+-- DONE 2026-09-12: send-push deployed, verified, then scheduled as jobid 492.
+--
+-- AND "VERIFY THE SERVER PATH ANSWERS 200" WAS THE WRONG GATE TO WRITE DOWN.
+-- A 200 here means a push delivered to a real person about a real message, so
+-- it cannot be obtained without spending somebody's notification on a test.
+-- What IS free is the refusal the new branch alone can produce:
+--
+--   service role, no sender_id          -> 400 sender_id required
+--   service role, sender_id, no convo   -> 400 missing fields   (an ADVANCE:
+--                                          the uuid check passed)
+--   no auth                             -> 401 Unauthorized
+--   a function that does not exist      -> 404 NOT_FOUND
+--
+-- `sender_id required` exists in no earlier deployed build and sits behind
+-- `fromServer`; the old build answered 401 to that same call, because a
+-- service-role JWT falls into getUser(). So the 400 IS the proof, and the
+-- second arm proves the branch validates rather than refusing everything.
+-- The SELECT half was then rehearsed against a real conversation inside an
+-- aborting DO block — a pg_net request queued in a transaction that rolls back
+-- is never sent — which showed swept 1, the body carrying conversation_id and
+-- sender_id, and last_attempted_at stamped BEFORE the post.
 --
 --   select cron.schedule('message-push-backstop', '* * * * *',
 --                        'select public.message_push_sweep();');

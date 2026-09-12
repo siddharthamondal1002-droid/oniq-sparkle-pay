@@ -6857,3 +6857,100 @@ Numbers: 394 files / **7,140** tests; tsc, `lint:ci` and Prettier clean; 7
 mutations RED, none GREEN, none NOTAPPLIED. No migration, no edge function, no
 Lovable message, no credits, no publish — the guard runs in CI on every change,
 which is the whole point of it.
+
+### Owner directive, 2026-09-12 — "build #3": the server-side push trigger, LIVE
+
+A message that COMMITS now gets announced whatever the sender's client did.
+`message_push_sweep()` runs every minute (`cron.job` 492, first run 07:04:00Z,
+succeeded), `send-push` carries a service-role branch, and the whole chain was
+verified on production before the cron was scheduled. This closes the
+structural risk 2026-09-07 recorded and left open in those words.
+
+**IT IS A BACKSTOP, NOT A TRIGGER, AND `skipPush` IS WHY.** Sending five photos
+inserts five rows and deliberately pushes ONCE, as "📎 5 items"; a trigger on
+`messages` would turn one buzz into five — a regression dressed as a fix.
+Coverage is per CONVERSATION, so the batch's single push covers all five rows
+for free and **not one line of the chat route moves** — it has 9 `sendPush`
+call sites and every edit there is a chance to break the path that works.
+
+**THE GATE I WROTE FOR MYSELF WAS UNOBTAINABLE, AND THE FREE ONE IS STRONGER.**
+The migration's own ordering note said "deploy send-push, verify the server path
+answers 200, then schedule". A 200 there means a real push delivered to a real
+person about a real message — it cannot be had without spending somebody's
+notification on a test. What IS free is the refusal only the new branch can
+produce, and it is a four-way control rather than a two-way:
+
+    service role, no sender_id        -> 400 sender_id required
+    service role, sender_id, no convo -> 400 missing fields    <- an ADVANCE
+    no auth                           -> 401 Unauthorized
+    a function that does not exist    -> 404 NOT_FOUND
+
+`sender_id required` exists in **no earlier deployed build** and sits behind
+`fromServer`; the OLD build answered 401 to that identical call, because a
+service-role JWT falls into `getUser()`. So the 400 is decisive, and arm 2 is
+what makes it more than a presence check — the uuid test PASSED and the branch
+moved on, so the validation admits a real sender rather than refusing
+everything. Neither arm sends anything: both return before any token lookup.
+**The note in the migration is corrected rather than left standing**, because a
+gate nobody can pass is a gate the next person quietly skips.
+
+**AN ABORTING `DO` BLOCK DOES NOT SEND A `pg_net` REQUEST, and that makes a full
+rehearsal free.** The queue insert is an ordinary row, so it rolls back with
+everything else — this file's own "a request queued inside a transaction is
+invisible to the worker until COMMIT", used in the other direction. So the
+SELECT half was exercised against a REAL conversation with one synthetic
+message, and then discarded:
+
+    pending   1 row, right conversation, right sender, missed 1, type text
+    sweep     {"swept": 1, "capped": false}
+    queued    {"kind":"message","preview":…,"sender_id":…,"conversation_id":…}
+    state     last_attempted_at stamped BEFORE the post, attempts 1
+    after     0 rehearsal rows, newest message unchanged, attempts back to 0,
+              queue empty, 0 new http responses — nothing sent, nothing kept
+
+That body is exactly arm 2's shape plus the two fields arm 2 omitted, which is
+what joins the two halves into one proof. Only my own synthetic content was
+ever printed: the rehearsal reports shape — conversation, sender, count, type,
+length — and never a real message's text.
+
+**THE FIRST REHEARSAL FOUND NOTHING, AND READING THE FUNCTION IS WHAT EXPLAINED
+IT.** With `last_attempted_at` backdated ten days, `message_push_pending` still
+returned zero. The reason is a second condition — `m.created_at > now() -
+interval '24 hours'` — a deliberate staleness ceiling, so nobody is ever buzzed
+about a message from last week. Every real message in production is older than
+that, so **no existing row can exercise the predicate at all**; a synthetic one
+is the only way. That is the watchdog's lesson from this morning in a second
+place: the numbers were right and the explanation had to be read, not inferred.
+
+**THE KEY WAS CHECKED, NOT ASSUMED — the watchdog's bug was hours old.**
+`ops-alert` would have detected for ever and announced never because
+`ops_watch_tick` copied a key preference whose vault entry is not a JWT. So
+`message_push_sweep`'s source was read from `pg_proc` before anything was
+scheduled: it calls `public.ops_watch_pick_key()`, the shape-chosen one, which
+is the same function the four-arm probe used. That is what makes the probe
+evidence about the sweep's OWN credential rather than about some key.
+
+**A 499 ON A STATEMENT WITH SIDE EFFECTS IS NOT A 499 ON A SELECT.** This file
+says "a 499 on a SELECT is safe to retry", and the cancelled statement here WAS
+a select — one that queued four HTTP requests. So the rule needed the extra
+step: read `net._http_response` first, confirm nothing landed, then retry. It
+had been cancelled before COMMIT, so the retry was clean; had it landed, a
+retry would have doubled four live requests. **Retry-safety is about what the
+statement DOES, not about its keyword.** And when a service key is in the
+headers, read the queue's `body` and never its `headers`.
+
+**THE MIGRATION WAS NOT IN `schema_migrations` AND THE WATCHDOG'S WAS.**
+Recorded now under `20260912070000`, the same one-line-pointer convention. It
+was checked for idempotency BEFORE that rather than after — `create table if
+not exists`, `insert … on conflict do nothing`, `create or replace function` —
+which matters for the seed specifically: `do nothing` means a replay leaves
+every existing `last_attempted_at` alone, where `do update` would have reset 58
+conversations' coverage and silently skipped whatever arrived in between.
+
+**STILL UNPROVEN, AND STATED AS UNPROVEN: no real push has gone through the
+backstop.** The staleness ceiling means the sweep will keep returning
+`swept 0` until somebody sends a message, and it only ever fires when the
+client's own push did NOT — so the first real save is the test, and it is
+invisible when it works. What a failure would look like: `message_push_state`
+rows with `attempts` climbing while nothing arrives, which is the shape to
+check first.
