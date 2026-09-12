@@ -7042,3 +7042,142 @@ the uncommitted work it was meant to protect.
 396 files / **7,160 tests**; tsc, `lint:ci` and Prettier clean. No migration, no
 edge function, no Lovable message, no credits, no publish — it runs in CI on
 every change, which is the whole point of it.
+
+### 2026-09-12 — "fix it with the help of open ai api": 26 of the 79 orphans were false, and the OpenAI probe had never been deployed
+
+The owner quoted #4's own finding back — fifteen `_shared` modules with no
+deployed importer, plus `motionValidate`, `storyLifecycle`, `entitlements`,
+`retrievalPractice` — and said to fix it. **The first thing to fix was the
+list.** Twenty-six of the seventy-nine were wrong, and two of the modules the
+owner named by name are among them.
+
+**`remotion/` WAS NOT IN THE WALK, AND IT HOLDS THE BUSIEST CALLER IN THE
+REPOSITORY.** `.github/workflows/story-worker.yml` runs
+`node scripts/story-worker.mjs` with `working-directory: remotion` on every
+`repository_dispatch` for a user's film, and that file imports **twenty-eight**
+modules straight out of `src/` and `supabase/functions/_shared/` by relative
+path with the extension spelled out. `TREES` was `["src", "supabase/functions",
+"scripts"]` and `EXTENSIONS` was `[".ts", ".tsx"]`, so the tree was invisible
+twice over — **a tree admitted without its own file extension is a tree
+admitted in name only** — and everything only it reached read as dead:
+
+    src/data/storyActorAssets   src/lib/expressionGrammar   src/lib/filmChrome
+    src/lib/livingMotion        src/lib/motionRuntime       src/lib/motionValidate
+    src/lib/movieTimeline       src/lib/parallaxPlanes      src/lib/particleField
+    src/lib/portraitPrecondition src/lib/portraitReframe    src/lib/puppetPerformance
+    src/lib/sceneWeather        src/lib/sheetPanel          src/lib/shotDirector
+    src/lib/shotGrammar         src/lib/soundStage          src/lib/storyActorCasting
+    src/lib/storyPreflight      src/lib/visemes             src/data/ep3Shots
+    src/data/ep4Shots           src/data/originalsScript
+    supabase/functions/_shared/motionGate
+
+**`motionValidate.ts` AND `motionGate.ts` ARE ON THAT LIST, WHICH IS THE WHOLE
+POINT.** They are the two modules this file describes as "complete, calibrated,
+tested — and absent from the Dockerfile, imported by nothing" — the sentence
+#4 was built to check. The compositor imports both. The old claim was about the
+GPU worker's Dockerfile, which is a different runtime in a different repository
+(all Python, measured: zero TypeScript, and a test there asserting `"StoryIr"
+not in source` on purpose); it was read as "nothing imports them", and that
+part was never true.
+
+**THE STALE-ENTRY ASSERTION CAUGHT ALL TWENTY-FOUR IN ONE RUN, ON THE LIST'S
+SECOND DAY.** Nothing else could have: every one of those modules has passing
+tests, and the new-orphan half of the guard was perfectly happy. **A guard that
+can only ever say "orphan" is a guard that cannot be wrong out loud.** The
+ratchet is not a tidiness feature; it is the half that audits the guard itself.
+
+**AND THE MIRROR RULE KNEW ONE CONVENTION WHERE ONIQ HAS TWO.** `MIRRORED` was
+`src/oqca/X -> _shared/oqca/X`, a hard-coded path. `src/health/consent.ts` and
+`retention.ts` say "MIRRORED byte for byte" in their own headers and their
+twins are imported by the deployed `health-api` and `health-ai` — so both sat
+on the frozen list. The rule is derived from CONTENT now: measured across all
+910 non-test modules there are **56 duplicate-content groups and every one is a
+`src/X` <-> `_shared/X` pair**, no accidental collision anywhere, and a test
+fails the day one is not. A third mirror is recognised without an edit.
+
+Orphans **79 -> 53**. Ten mutations, all RED, none NOTAPPLIED — M8 drops the
+compositor tree, M9 walks it without `.mjs`, M10 restores the single-convention
+mirror. M3's anchor was `motionValidate.ts` and went NOTAPPLIED the moment it
+stopped being an orphan; **the tenth time that check has earned itself**, and
+it is repointed at `storyIr.ts`.
+
+#### The fourteen that are real, and they are eight roots
+
+    root, nothing imports it     oniqStory  storyModel  directorDispatch
+                                 shotReview  filmCapacity  videoBenchmark
+                                 webRetrieval  gatewayVoice
+    reached only from a root     storyIr  storyDna  storyDnaLibrary
+                                 localStoryModel  directorGraph  videoProvider
+
+So cutting eight roots drops all fourteen, and wiring the right root lights a
+whole subtree. `story-plot` — the function that actually makes a film's plan —
+calls `callGemini`/`callText` directly and knows nothing about any of it. The
+2026-08-27 Director architecture was built complete and never replaced it.
+
+**AND `localStoryModel.ts` IS ORPHANED BECAUSE ITS MODEL DOES NOT EXIST**, by
+design and in writing: "no open-weight checkpoint is baked into ONIQ's worker
+image today… Directive section 28: implement everything that does not depend on
+the missing model, then name exactly what is missing — **never substitute a
+provider to make the path look finished**." `storyModel.ts` is provider-neutral
+BY CONSTRUCTION — it takes an `invoke` transport and has no default, no
+registry and no base URL — so a provider reaches it at the CALL SITE and never
+inside it. That is what makes "use the OpenAI API" a clean change rather than a
+rewrite, and it is the only shape that keeps the 2026-08-27 directive true.
+
+#### `frontier-probe` had never been deployed, and its service-role gate could not be reached
+
+**A POST ANSWERED `404 NOT_FOUND`, IDENTICAL TO A FUNCTION NAME THAT DOES NOT
+EXIST** — measured with a three-way control through `pg_net`. It is the only
+surface in ONIQ that holds `OPENAI_API_KEY`, so until this morning nothing
+about that provider could be established from anywhere. (The §21 benchmark's
+"both frontier arms reached FINAL_ANSWER" ran in the LOVABLE SANDBOX, through
+`scripts/oniq-video-benchmark.ts`, which is a different path entirely.)
+
+**#4 CANNOT SEE THIS AND SHOULD NOT BE EXPECTED TO.** Every edge `index.ts` is
+an app entrypoint by definition, so SHIPPED there means "the platform WOULD run
+it", never "it is deployed". No import edge can tell those apart. **Only a
+probe can** — and the free one is the 404-versus-401 control this file already
+prescribes.
+
+**THEN THE DEPLOYED FUNCTION REFUSED EVERY CREDENTIAL THE DATABASE HOLDS.** Its
+gate was `token === serviceRole`, a byte equality against the platform's
+injected variable:
+
+    email_queue_service_role_key (JWT)       -> 401 Unauthorized
+    story_dispatch_service_role_key (opaque) -> 401 Unauthorized
+    no authorization header at all           -> 401 Unauthorized
+
+Three identical answers, so the branch its own header calls "what lets one
+deploy message also verify" was unreachable from anywhere in the project and
+read exactly like holding no credential. That is the watchdog bug from twelve
+hours earlier in a second place — `ops_watch_pick_key()` exists because
+`ops-alert` would otherwise have detected for ever and announced never — and
+the fix is the one `send-push` and `ops-alert` already use: read the `role`
+claim. The equality is KEPT as a second path, because an edge function holding
+the platform variable is a legitimate caller whose token need not be a JWT.
+
+**PICK A CREDENTIAL BY SHAPE; ADMIT A CALLER BY CLAIM, NOT BY BYTES.**
+
+**AND A DEAD HEREDOC CAN STILL HAVE RUN HALF ITS PAYLOAD.** A `python3 - <<'PY'`
+block nested inside a python triple-quoted string inside an outer heredoc
+terminated the outer one early; the first python died on a SyntaxError, the
+shell then ran the FRAGMENTS as commands, and one of them applied a mutation —
+`.mjs` silently removed from `EXTENSIONS` — leaving the tree mutated while
+`bash -n` reported clean syntax. The mutation script's own baseline check
+caught it (`BASELINE IS RED — stop`), and `git status` named the file. This is
+the 2026-09-11 "killing a mutation run leaves the tree mutated" lesson arriving
+by a new road: **after any command that errors mid-heredoc, diff the tree
+before trusting it.** Write the payload to a file first when it contains a
+heredoc of its own.
+
+`src/lib/__tests__/frontierProbeGate.test.ts` pins the claim read, the
+three-part token check, `typeof role === "string"` (never `String()`), and that
+an unauthenticated caller is refused before the key is read — comments stripped,
+because the comment beside the gate quotes both the string it replaced and the
+claim that replaced it. **The fourteenth prose match in this repo.**
+
+**WHAT IS STILL UNMEASURED, stated as unmeasured:** whether `OPENAI_API_KEY` is
+set on this project at all, what the catalogue holds, and which id will answer
+a POST. `configured: false` versus a catalogue is what the next probe returns,
+and **a catalogue is still not a POST** — no OpenAI model id may be written
+into ONIQ code until one has answered `calls[].ok`.
