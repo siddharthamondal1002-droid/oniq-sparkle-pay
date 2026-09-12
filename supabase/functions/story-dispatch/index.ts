@@ -267,6 +267,17 @@ Deno.serve(async (req) => {
     // service-role-writable only (story_jobs has no client INSERT/UPDATE
     // policy), so this can never become a user-reachable spend switch.
     const motionMode = rows[0].motion_mode === "select" ? "select" : null;
+    // PER-JOB IN-HOUSE MOTION (owner-authorized bounded internal test,
+    // 2026-09-12). Same shape and same reasoning as the two flags above: only
+    // the literal 'in_house' travels, and NULL — every production job — sends
+    // nothing, so the workflow keeps reading the repository variables it reads
+    // today and the paid tier's routing is byte-identical.
+    //
+    // This is the only way to scope the test. routeMotion's three gates come
+    // from GLOBAL repository variables; flipping those would change the engine
+    // for every film every user renders.
+    const inHouseMotion = rows[0].motion_mode === "in_house";
+
     const token = await mintJobToken(jobId, jobSecret!);
 
     // Stamped BEFORE the GitHub call, not after. If the dispatch throws or the
