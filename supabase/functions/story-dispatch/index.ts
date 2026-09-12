@@ -244,9 +244,13 @@ Deno.serve(async (req) => {
 
     // READ-ONLY: the routing lines out of ONE run's log, so the bounded
     // in-house motion test can be answered with the renderer's OWN words
-    // rather than inferred from an empty ledger. It downloads the run's log
-    // archive with the token this function already holds, keeps only the lines
-    // that name a motion route or engine, and returns at most 120 of them.
+    // rather than inferred from an empty ledger.
+    //
+    // THE JOB LOG, NOT THE RUN LOG. The run-level endpoint hands back a ZIP,
+    // and grepping a compressed archive matches only the few filenames stored
+    // without deflate — measured: two hits, both file headers, on a run whose
+    // renderer printed hundreds of lines. The per-JOB endpoint returns plain
+    // text, so this lists the run's jobs and reads them.
     //
     // NEVER THE WHOLE LOG. A runner log is megabytes and carries every echoed
     // environment line; shipping it back through a database HTTP queue would
@@ -254,29 +258,37 @@ Deno.serve(async (req) => {
     if (new URL(req.url).searchParams.get("action") === "run_log") {
       const runId = new URL(req.url).searchParams.get("run") ?? "";
       if (!/^\d+$/.test(runId)) return json({ error: "run must be a numeric run id" }, 400);
-      const lg = await fetch(
-        `https://api.github.com/repos/${repo}/actions/runs/${runId}/logs`,
-        {
-          headers: {
-            Authorization: `Bearer ${ghToken}`,
-            Accept: "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-          },
-        },
+      const ghHeaders = {
+        Authorization: `Bearer ${ghToken}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      };
+      const jl = await fetch(
+        `https://api.github.com/repos/${repo}/actions/runs/${runId}/jobs?per_page=20`,
+        { headers: ghHeaders },
       );
-      if (!lg.ok) return json({ status: lg.status, detail: (await lg.text()).slice(0, 300) });
-      // The archive is a zip; the plain-text runs through it are readable
-      // enough to grep without unzipping, which keeps this dependency-free.
-      const text = new TextDecoder("utf-8", { fatal: false }).decode(
-        new Uint8Array(await lg.arrayBuffer()),
-      );
+      if (!jl.ok) return json({ status: jl.status, detail: (await jl.text()).slice(0, 300) });
+      const jobs = ((await jl.json()) as { jobs?: Array<{ id?: number; name?: string }> }).jobs ??
+        [];
       const wanted =
-        /(motion route|route\.engine|in-house|in_house|story-motion|story-clip|gpu job|shot \d+|voice engine|PREFLIGHT|stills?-only)/i;
-      const lines = text
-        .split(/\r?\n/)
-        .filter((l) => wanted.test(l) && l.length < 400)
-        .slice(0, 120);
-      return json({ status: lg.status, matched: lines.length, lines });
+        /(motion route|route\.engine|in-house|in_house|story-motion|story-clip|gpu job|shot \d+|voice engine|PREFLIGHT|still)/i;
+      const lines: string[] = [];
+      for (const j of jobs) {
+        if (typeof j.id !== "number") continue;
+        const lg = await fetch(
+          `https://api.github.com/repos/${repo}/actions/jobs/${j.id}/logs`,
+          { headers: ghHeaders },
+        );
+        if (!lg.ok) continue;
+        const text = await lg.text();
+        for (const l of text.split(/\r?\n/)) {
+          if (wanted.test(l) && l.length < 400) lines.push(l);
+          if (lines.length >= 160) break;
+        }
+        if (lines.length >= 160) break;
+      }
+      return json({ status: 200, jobs: jobs.map((j) => j.name), matched: lines.length, lines });
+
     }
 
 
