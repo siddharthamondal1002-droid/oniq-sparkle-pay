@@ -7181,3 +7181,37 @@ set on this project at all, what the catalogue holds, and which id will answer
 a POST. `configured: false` versus a catalogue is what the next probe returns,
 and **a catalogue is still not a POST** — no OpenAI model id may be written
 into ONIQ code until one has answered `calls[].ok`.
+
+#### MEASURED THE SAME HOUR: OpenAI is reachable from ONIQ, and three ids answered a POST
+
+With the claim gate deployed, the same `pg_net` call that had answered 401 three
+ways answered **200**:
+
+    frontier-probe, models: []      configured TRUE
+                                    catalogue 200, 130 ids listed
+    frontier-probe, three ids POSTed
+      gpt-5.4-mini   200 ok  "ok"  13 in / 5 out
+      gpt-5.6-luna   200 ok  "ok"  13 in / 5 out
+      gpt-6-astra    200 ok  "ok"  13 in / 5 out
+      verdict: CALLABLE: gpt-5.4-mini, gpt-5.6-luna, gpt-6-astra
+
+    provider_spend_ledger, provider 'openai'
+      3 rows SETTLED, $0.01 reserved each, actual_usd 0.000000
+
+**THAT IS A POST, NOT A CATALOGUE**, which is what this file's oldest rule
+demands before an id is written into code. `actual_usd` is 0 because
+`MODEL_RATES` carries no OpenAI rate, so the probe charges its flat $0.01
+ceiling and settles against it — the `music-generate`/`image-generate` shape,
+and a true ceiling rather than a guess for a 16-token request. **A real caller
+still needs measured rates**: twenty calls of unbounded length cannot be priced
+this way.
+
+Total spend for the whole measurement: **$0.03 of the owner's $100 daily TEXT
+ceiling**, and 0.9 Lovable credits across two deploy messages.
+
+**WHICH MODEL ONIQ SHOULD USE IS NOT SETTLED BY THIS AND IS NOT AN ENGINEERING
+CALL.** Three are callable; picking a tier is a price decision, the owner's
+under this file's first rule. The ONIQ-native answer is the `health_config`
+shape: the id lives in a config row, ships EMPTY, and an empty id refuses — so
+the path is deployed, dark and one audited `UPDATE` from live, with no constant
+an agent chose baked into it.
