@@ -63,6 +63,7 @@ import { orchestratePlan } from "../_shared/planOrchestrator.ts";
 import { verifyJobToken } from "../_shared/jobToken.ts";
 
 import { MOVIE_RULES, MAX_DIALOGUE_WORDS } from "../_shared/movieGrammar.ts";
+import { storyIrRescue } from "../_shared/storyIrRescue.ts";
 import { paletteFor } from "../_shared/cinemaLexicon.ts";
 import { styleBlockFor } from "../_shared/directorStyles.ts";
 import { castBlock } from "../_shared/storyCast.ts";
@@ -799,6 +800,44 @@ Deno.serve(async (req) => {
         else tried.push({ engine: "gemini", reason: (r.reason + cutNote(g.data)).slice(0, 160) });
       } else {
         tried.push({ engine: "gemini", reason: String(g.reason ?? "failed").slice(0, 160) });
+      }
+    }
+
+    /**
+     * RUNG THREE — the Story IR engine, on OpenAI through the Lovable gateway.
+     *
+     * Owner directive 2026-09-12 ("use openai through lovable"). This is the
+     * first caller `storyModel.ts` has ever had: built complete under the
+     * 2026-08-27 local-story-intelligence directive, unit-tested, and imported
+     * by nothing until the module door test named it.
+     *
+     * IT IS LAST BECAUSE IT IS DIFFERENT, NOT BECAUSE IT IS WORSE. Rungs one
+     * and two are the same prompt on two engines; this is a different prompt
+     * (built from Story DNA), a different schema (Story IR), a different
+     * validator and a different provider. It only ever runs where the answer
+     * today is a 502, so a film that would have failed either gets a validated
+     * story or fails exactly as it did before.
+     *
+     * `grade: "classic"` matches story-plot's OWN strictness rather than
+     * claiming more: this function reads the movie fields leniently and never
+     * enforces movie grammar, so asking the IR validator for movie grade here
+     * would reject plans the two rungs above would have accepted.
+     */
+    if (!plan && shots <= SINGLE_CALL_MAX_SHOTS) {
+      const r = await storyIrRescue({
+        idea: prompt,
+        shots,
+        // Stable per request, so a retry of the same film draws the same DNA —
+        // which is what `briefFor`'s seed is for.
+        seed: `${shots}:${prompt.slice(0, 64)}`,
+        grade: "classic",
+        characters: reuse.map((c) => ({ name: c.name, description: c.lock })),
+      });
+      if ("plan" in r) {
+        plan = r.plan;
+        servedBy = "story-ir";
+      } else {
+        tried.push({ engine: "story-ir", reason: r.reason.slice(0, 160) });
       }
     }
 

@@ -263,6 +263,15 @@ export type CallClaudeOpts = {
   // sonnet baseline pass model:"claude-sonnet-4-6" explicitly (translate,
   // health-scan). The Gemini fallback path ignores this flag.
   model?: string;
+  // Optional LOVABLE GATEWAY model id, used only by callGatewayText. A THIRD
+  // field for a third namespace, for exactly the reason the comment below
+  // gives: these opts travel between engines, and one shared `model` would
+  // eventually post a Claude id to the gateway. The gateway namespaces its ids
+  // by vendor (`google/…`, and per POST verification `openai/…`), so this is
+  // also where "OpenAI through Lovable" is named — credits the owner already
+  // buys rather than a second metered provider bill. Absent, the TIER decides,
+  // which is what every existing caller relies on.
+  gatewayModel?: string;
   // Optional GOOGLE model id, used only by callGemini. Deliberately separate
   // from `model`: callGeminiFallback forwards an Anthropic caller's whole opts
   // object to callGemini, so honouring `model` there would post a Claude id to
@@ -1168,7 +1177,10 @@ export async function callGatewayText(
     return { ok: false, reason: "not configured" };
   }
 
-  const model = opts.tier === "heavy" ? GATEWAY_TEXT_HEAVY_MODEL : GATEWAY_TEXT_MODEL;
+  // An explicit id at the CALL SITE beats a tier, which is the rule
+  // `geminiModelPinned` enforces one engine over: a default is not a decision.
+  const model =
+    opts.gatewayModel ?? (opts.tier === "heavy" ? GATEWAY_TEXT_HEAVY_MODEL : GATEWAY_TEXT_MODEL);
   const { tools, droppedServerTools } = translateToolsToOpenAI(opts.tools);
   if (droppedServerTools > 0) {
     // Belt and braces: callText already refuses to send these callers here.

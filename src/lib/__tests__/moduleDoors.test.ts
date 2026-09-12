@@ -11,7 +11,7 @@
  * owner opening the app.
  *
  * THE RATCHET IS THE POINT, AND IT IS THE `eslint-suppressions.json` SHAPE.
- * 53 modules have no caller today; freezing them and failing on the 54th is
+ * 48 modules have no caller today; freezing them and failing on the 49th is
  * what makes this land in one commit instead of never. A FROZEN LIST rather
  * than a count, because a count lets one orphan be swapped for another — and
  * a stale entry FAILS, so the list can only shrink.
@@ -34,6 +34,12 @@
  * byte for byte" in their own headers and their twins are imported by the
  * deployed `health-api`. The rule is derived from CONTENT now, so a third
  * mirror is recognised without an edit.
+ *
+ * AND FIVE CAME OFF THE LIST THE SAME DAY BY BEING WIRED, which is the only
+ * way an entry is ever meant to leave it: `storyModel` and the four modules
+ * under it got their first caller when `story-plot` grew a Story IR rung. The
+ * ratchet named them within a minute of the wiring — a list that had to be
+ * curated by hand would have carried them for months.
  *
  * `BY_DESIGN` IS A RULE AND THE FROZEN LIST IS A DEBT, and conflating them
  * would be the worse of the two mistakes. A vendored shadcn primitive nobody
@@ -113,13 +119,8 @@ const KNOWN_ORPHANS: readonly string[] = [
   "supabase/functions/_shared/directorGraph.ts",
   "supabase/functions/_shared/filmCapacity.ts",
   "supabase/functions/_shared/gatewayVoice.ts",
-  "supabase/functions/_shared/localStoryModel.ts",
   "supabase/functions/_shared/oniqStory.ts",
   "supabase/functions/_shared/shotReview.ts",
-  "supabase/functions/_shared/storyDna.ts",
-  "supabase/functions/_shared/storyDnaLibrary.ts",
-  "supabase/functions/_shared/storyIr.ts",
-  "supabase/functions/_shared/storyModel.ts",
   "supabase/functions/_shared/videoBenchmark.ts",
   "supabase/functions/_shared/videoProvider.ts",
   "supabase/functions/_shared/webRetrieval.ts",

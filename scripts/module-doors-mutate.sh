@@ -67,12 +67,17 @@ echo "M3  a still-orphaned module is dropped from the frozen list"
 save "$GUARD"
 python3 - <<'PY'
 import pathlib
+# The anchor was `storyIr.ts` for an afternoon and `motionValidate.ts` before
+# that. BOTH stopped being orphans — one by the compositor tree joining the
+# walk, one by being WIRED — and each time the script said NOTAPPLIED rather
+# than printing a verdict. Anchor a mutation on the most stuck entry you have.
+# The original note follows.
 # The anchor was `motionValidate.ts` until 2026-09-12, when the compositor tree
 # was added to the walk and that module turned out to have a caller all along.
 # A mutation anchored on a module that stops being an orphan goes NOTAPPLIED,
 # which is the script saying so rather than printing a verdict.
 p = pathlib.Path("src/lib/__tests__/moduleDoors.test.ts"); s = p.read_text()
-old = '  "supabase/functions/_shared/storyIr.ts",\n'
+old = '  "supabase/functions/_shared/directorGraph.ts",\n'
 assert s.count(old) == 1
 p.write_text(s.replace(old, '', 1))
 PY
