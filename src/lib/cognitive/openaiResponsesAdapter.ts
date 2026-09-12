@@ -1,0 +1,157 @@
+/**
+ * THE OPENAI RESPONSES ADAPTER — written, and NEVER EXERCISED. §6.
+ *
+ * STATUS: IMPLEMENTED / UNPROVEN. Measured 2026-09-12: api.openai.com answers
+ * HTTP 000 from this container because the agent proxy refuses the CONNECT
+ * (403), while api.anthropic.com answers 401 and Google 403 on the same
+ * runner — so the wall is ours, not OpenAI's. No request below has ever been
+ * sent, no real reply has ever been parsed, and the model id has NOT been
+ * verified by POST. This repo's oldest rule is that a catalogue is not a POST;
+ * with respect to the wire, this file is a catalogue.
+ *
+ * WHY THIS FILE IS NOT IN `src/oqca/`. It was, and `security.test.ts` went red
+ * on four assertions at once — fetch, an https URL, a credential name and an
+ * auth header. The guard was RIGHT: the kernel tree's whole guarantee is that
+ * it provably cannot reach anything, and that guarantee is enforced by PATH.
+ * So the seam (`modelAdapter.ts`) stays inside the kernel and every
+ * implementation that touches a socket or a key lives out here, the same split
+ * `_shared/oqcaRuntime/` already uses on the server side. The boundary is
+ * asserted in `kernelSlice.test.ts` so it cannot drift back.
+ *
+ * THE MODEL ID IS CONFIGURATION, NEVER A CONSTANT. It appears here only as
+ * the fallback of a caller-supplied value, and an unavailable model fails
+ * LOUDLY — `modelUnavailable` names the id it tried, because a refusal that
+ * hides which model was asked for is how a wrong id survives for months.
+ */
+import {
+  type ModelAdapter,
+  type ModelRequest,
+  type ModelResult,
+  type ToolWish,
+} from "../../oqca/cognitive/modelAdapter.ts";
+
+export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+
+/** The id asked for when the caller names none. UNVERIFIED — see the header. */
+export const DEFAULT_FRONTIER_MODEL = "gpt-6-astra";
+
+export type OpenAIAdapterConfig = {
+  readonly apiKey: string;
+  readonly model?: string;
+  /** Injected, so this module never reaches the network on its own. */
+  readonly fetchImpl: typeof fetch;
+  readonly timeoutMs?: number;
+};
+
+export function modelUnavailable(model: string, status: number, body: string): string {
+  return `frontier model ${model} unavailable: HTTP ${status} ${body.slice(0, 200)}`;
+}
+
+/**
+ * The request body, exported so a test can assert its SHAPE without a
+ * credential or a socket. That shape is the only thing about this adapter
+ * currently checkable, and the tests say so at the assertion.
+ */
+export function responsesBody(model: string, req: ModelRequest): Record<string, unknown> {
+  const tools = req.toolsOffered ?? [];
+  return {
+    model,
+    instructions: req.instructions,
+    input: req.input,
+    reasoning: { effort: req.effort ?? "medium" },
+    ...(tools.length > 0 ? { tools: tools.map((name) => ({ type: "function", name })) } : {}),
+  };
+}
+
+function argsFrom(raw: unknown): Record<string, string> {
+  if (typeof raw !== "string") return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).map(([k, v]) => [k, String(v)]),
+    );
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Read a Responses-API reply. UNPROVEN against a real body — the shape is
+ * from public documentation, not from bytes this repo has seen — so it
+ * REFUSES on an unfamiliar shape rather than returning an empty proposal a
+ * caller would read as "the model had nothing to say".
+ */
+export function readResponse(model: string, parsed: unknown): ModelResult {
+  const root = (parsed ?? {}) as {
+    output_text?: unknown;
+    output?: unknown;
+    usage?: unknown;
+  };
+  const usage = (root.usage ?? {}) as { input_tokens?: unknown; output_tokens?: unknown };
+  let text: string | null = typeof root.output_text === "string" ? root.output_text : null;
+  let tool: ToolWish | null = null;
+
+  if (Array.isArray(root.output)) {
+    for (const item of root.output as readonly unknown[]) {
+      const o = (item ?? {}) as {
+        type?: unknown;
+        name?: unknown;
+        arguments?: unknown;
+        content?: unknown;
+      };
+      if (o.type === "function_call" && typeof o.name === "string") {
+        tool = { name: o.name, args: argsFrom(o.arguments) };
+      }
+      if (text === null && Array.isArray(o.content)) {
+        for (const c of o.content as readonly unknown[]) {
+          const cc = (c ?? {}) as { text?: unknown };
+          if (typeof cc.text === "string") text = cc.text;
+        }
+      }
+    }
+  }
+
+  if (text === null && tool === null) {
+    return { ok: false, reason: `unfamiliar response shape from ${model}` };
+  }
+  return {
+    ok: true,
+    proposal: {
+      text: text ?? "",
+      wantsTool: tool,
+      model,
+      inputTokens: typeof usage.input_tokens === "number" ? usage.input_tokens : 0,
+      outputTokens: typeof usage.output_tokens === "number" ? usage.output_tokens : 0,
+    },
+  };
+}
+
+export function openaiResponsesAdapter(cfg: OpenAIAdapterConfig): ModelAdapter {
+  const model = cfg.model ?? DEFAULT_FRONTIER_MODEL;
+  return {
+    id: `openai:${model}`,
+    reason: async (req: ModelRequest): Promise<ModelResult> => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), cfg.timeoutMs ?? 60_000);
+      try {
+        const res = await cfg.fetchImpl(OPENAI_RESPONSES_URL, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${cfg.apiKey}`,
+          },
+          body: JSON.stringify(responsesBody(model, req)),
+          signal: controller.signal,
+        });
+        const text = await res.text();
+        if (!res.ok) return { ok: false, reason: modelUnavailable(model, res.status, text) };
+        return readResponse(model, JSON.parse(text) as unknown);
+      } catch (err) {
+        return { ok: false, reason: `frontier model ${model} call failed: ${String(err)}` };
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  };
+}
