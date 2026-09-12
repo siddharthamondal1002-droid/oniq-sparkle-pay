@@ -49,9 +49,10 @@
  *   frame-ancestors 'none' on production: ONIQ is never framed.
  */
 import { EMBED_FRAME_HOSTS } from "@/data/watchEmbeds";
+import { APP_HOSTS } from "@/config/appOrigin";
 
 /** Hosts that get the policy ENFORCED. Everything else gets report-only. */
-export const PRODUCTION_HOSTS: readonly string[] = ["oniqhub.com", "www.oniqhub.com"];
+export const PRODUCTION_HOSTS: readonly string[] = APP_HOSTS;
 
 /** Where a preview may be framed: the Lovable editor and its older domain. */
 export const PREVIEW_FRAME_ANCESTORS: readonly string[] = [

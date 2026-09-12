@@ -1,12 +1,15 @@
 import { useEffect } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { Capacitor } from "@capacitor/core";
+import { isAppHost } from "@/config/appOrigin";
 
 /**
  * Android App Links → in-app navigation.
  * Warm start: appUrlOpen fires while the shell is alive.
  * Cold start: getLaunchUrl carries the link that launched the app.
- * Only oniqhub.com https links are routed; anything else is ignored.
+ * Only ONIQ https links are routed; anything else is ignored. Both the www
+ * host and the apex are accepted — links already shared name the apex, and
+ * refusing them would break every one of them permanently.
  */
 export function DeepLinkWatcher() {
   const router = useRouter();
@@ -19,7 +22,7 @@ export function DeepLinkWatcher() {
       if (!raw) return;
       try {
         const u = new URL(raw);
-        if (u.hostname !== "oniqhub.com") return;
+        if (!isAppHost(u.hostname)) return;
         router.history.push(u.pathname + u.search + u.hash);
       } catch {
         /* ignore malformed */

@@ -5,6 +5,7 @@ import { REGION_PROVIDER_TARGET } from "../regionService";
 
 // shareInvite transitively imports the supabase client via regionService.
 import { vi } from "vitest";
+import { APP_ORIGIN } from "@/config/appOrigin";
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: vi.fn() } }));
 
 describe("buildInviteMessage", () => {
@@ -47,6 +48,6 @@ describe("invitePayload", () => {
     const p = invitePayload("Singur", 3);
     expect(p.title).toBe(INVITE_SUBJECT);
     expect(p.text).toContain("Singur");
-    expect(p.url).toBe("https://oniqhub.com");
+    expect(p.url).toBe(APP_ORIGIN);
   });
 });

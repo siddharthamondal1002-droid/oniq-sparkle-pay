@@ -31,6 +31,7 @@ import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputRep
 import { lastShareDiagnostics, shareVideoFile } from "@/lib/share";
 import { reportClientError } from "@/lib/errorReport";
 import { listSavedVideos, onSavedVideosChanged, type SavedVideo } from "@/lib/savedVideos";
+import { APP_ORIGIN } from "@/config/appOrigin";
 import {
   PROGRESS,
   SETTLED,
@@ -155,7 +156,7 @@ export function YourVideos() {
         {
           title: "My ONIQ Story",
           text: "Made with AI on ONIQ 🎬 oniqhub.com",
-          url: "https://oniqhub.com",
+          url: APP_ORIGIN,
         },
         setSharePct,
       );
@@ -216,7 +217,7 @@ export function YourVideos() {
         {
           title: "My ONIQ Story",
           text: "Made with AI on ONIQ 🎬 oniqhub.com",
-          url: "https://oniqhub.com",
+          url: APP_ORIGIN,
         },
         setSharePct,
       );
@@ -495,7 +496,7 @@ export function YourVideos() {
                     type="button"
                     onClick={() =>
                       window.open(
-                        `https://oniqhub.com/pay/story?wm=${r.id}&from=app`,
+                        `${APP_ORIGIN}/pay/story?wm=${r.id}&from=app`,
                         "_blank",
                         "noopener",
                       )

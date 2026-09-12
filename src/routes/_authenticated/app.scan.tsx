@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { upiLink, isValidVpa } from "@/lib/miniapps";
 import { decodeQrFromImageFile, decodeQrFromVideo, cameraSupported } from "@/lib/qr/decodeQr";
 import { parseProfileQr, profileQrUrl, resolveScannedCode } from "@/lib/qr/oniqProfileQr";
+import { APP_ORIGIN } from "@/config/appOrigin";
 
 export const Route = createFileRoute("/_authenticated/app/scan")({
   component: ScanScreen,
@@ -263,7 +264,7 @@ function ScanTab() {
                 <button
                   onClick={async () => {
                     try {
-                      await navigator.clipboard.writeText("https://oniqhub.com");
+                      await navigator.clipboard.writeText(APP_ORIGIN);
                       toast.success("link copied ✨");
                     } catch {
                       toast.error("couldn't copy — it's oniqhub.com");

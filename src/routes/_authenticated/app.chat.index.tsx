@@ -26,6 +26,7 @@ import { getNativeContacts, isNativeContactsAvailable, normalizePhone } from "@/
 import { sanitizeLikeQuery } from "@/lib/searchFilter";
 import { prettyFail } from "@/lib/errorReport";
 import { doodleByKey } from "@/data/doodleLibrary";
+import { APP_ORIGIN } from "@/config/appOrigin";
 import {
   OniqAIOrb,
   OniqCanvas,
@@ -1580,7 +1581,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   });
 
   const inviteMessage = "pull up to ONIQ — one app, every world 🌍";
-  const inviteUrl = "https://oniqhub.com";
+  const inviteUrl = APP_ORIGIN;
 
   const invite = async () => {
     try {

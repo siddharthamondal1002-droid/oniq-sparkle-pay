@@ -15,6 +15,7 @@ import {
 import { sendOtp, verifyOtpCode, type OtpProviders } from "@/lib/otpFlow";
 import { NOTICE_VERSION } from "@/lib/consent/notice";
 import { DOB_REASON } from "@/lib/dobNotice";
+import { APP_ORIGIN } from "@/config/appOrigin";
 
 // Firebase renders its invisible reCAPTCHA into this node, and that reCAPTCHA
 // is the only thing between the send endpoint and someone else's SMS bill. It
@@ -422,8 +423,8 @@ function AuthPage() {
         const state = crypto.getRandomValues(new Uint8Array(16))
           .reduce((s, b) => s + b.toString(16).padStart(2, "0"), "");
         try { sessionStorage.setItem("oniq_oauth_state", state); } catch { /* ignore */ }
-        const brokerOrigin = "https://oniqhub.com";
-        const redirectUri = "https://oniqhub.com/auth-native-callback";
+        const brokerOrigin = APP_ORIGIN;
+        const redirectUri = `${APP_ORIGIN}/auth-native-callback`;
         const params = new URLSearchParams({
           provider: "google",
           redirect_uri: redirectUri,

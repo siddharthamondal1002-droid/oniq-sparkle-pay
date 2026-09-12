@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { captureVideoFrame, uploadClipThumb } from "@/lib/clipThumbs";
+import { APP_ORIGIN } from "@/config/appOrigin";
 import {
   X, Pencil, Image as ImageIcon, Eye, Share2, Trash2, Loader2, Check, ChevronLeft,
 } from "lucide-react";
@@ -109,7 +110,7 @@ export function ReelOwnerSheet({
 
   async function share() {
     const text = clip.caption ? `${clip.caption} — on ONIQ 🎬` : "check my reel on ONIQ 🎬";
-    const url = "https://oniqhub.com";
+    const url = APP_ORIGIN;
     try {
       if (navigator.share) await navigator.share({ title: "ONIQ Reel", text, url });
       else {

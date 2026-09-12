@@ -24,6 +24,7 @@
 // to ONIQ's own structural facts only.
 
 import type { Country } from "@/data/appRegistry";
+import { APP_ORIGIN } from "@/config/appOrigin";
 
 export type SystemType =
   // CBSE, CISCE, Indian state boards
@@ -106,7 +107,7 @@ export function canRenderSystemSourceContent(sys: EduSystem): boolean {
 function ownFactsLicence(scope: string): EduLicence {
   return {
     name: "ONIQ original content",
-    url: "https://oniqhub.com/terms",
+    url: `${APP_ORIGIN}/terms`,
     attributionRequired: false,
     commercialOk: true,
     scope,

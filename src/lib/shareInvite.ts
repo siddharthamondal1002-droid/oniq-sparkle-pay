@@ -3,6 +3,7 @@
 // nativeShare touches browser APIs.
 
 import { REGION_PROVIDER_TARGET } from "./regionService";
+import { APP_ORIGIN } from "@/config/appOrigin";
 
 export function buildInviteMessage(regionLabel: string, providerCount?: number): string {
   const region = regionLabel.trim() || "our area";
@@ -18,7 +19,7 @@ export function buildInviteMessage(regionLabel: string, providerCount?: number):
     `If you (or someone you love) earns with their hands or their heart, this is a free stage for it. ` +
     `Booking is 100% free — ONIQ charges nothing.\n\n` +
     `Join from the ONIQ app → earn → become a partner 💼\n` +
-    `https://oniqhub.com`
+    `${APP_ORIGIN}`
   );
 }
 
@@ -44,7 +45,7 @@ export function invitePayload(regionLabel: string, providerCount?: number): { ti
   return {
     title: INVITE_SUBJECT,
     text: buildInviteMessage(regionLabel, providerCount),
-    url: "https://oniqhub.com",
+    url: APP_ORIGIN,
   };
 }
 
@@ -55,5 +56,5 @@ export async function nativeShare(
   // Delegate to the app-wide share helper (Capacitor Share plugin → Web
   // Share → caller fallback), so invites use the same sheet as everything.
   const { systemShare } = await import("@/lib/share");
-  return systemShare({ title, text: message, url: "https://oniqhub.com" });
+  return systemShare({ title, text: message, url: APP_ORIGIN });
 }

@@ -11,6 +11,7 @@
 import { describe, expect, it } from "vitest";
 import { STORY_CHARACTER_REFS } from "@/data/storyCharacterRefs";
 import { STORY_STYLE_REFS } from "@/data/storyStyleRefs";
+import { APP_ORIGIN } from "@/config/appOrigin";
 import {
   ACTOR_ASSETS,
   ONIQ_ASSET_ORIGIN,
@@ -74,9 +75,14 @@ describe("kind + eligibility mirror the registry (sheet gating)", () => {
 
 describe("assetUrl builds a fetchable ONIQ origin URL", () => {
   it("prefixes the ONIQ asset origin the probe proved fetchable", () => {
-    expect(ONIQ_ASSET_ORIGIN).toBe("https://oniqhub.com");
+    // THE MIRROR PIN. _shared/storyActorAssets.ts must stay import-free (its
+    // own header: one copy serves Deno edge, the Node worker and Vite), so the
+    // origin is a literal there and CANNOT import APP_ORIGIN. This equality is
+    // the only thing stopping the two from drifting — and a drift here is a
+    // character silently losing its reference portrait, not a failing build.
+    expect(ONIQ_ASSET_ORIGIN).toBe(APP_ORIGIN);
     const a: ActorAsset = ACTOR_ASSETS[0];
-    expect(assetUrl(a)).toBe(`https://oniqhub.com${a.assetPath}`);
-    expect(assetUrl(a)).toMatch(/^https:\/\/oniqhub\.com\/__l5e\/assets-v1\//);
+    expect(assetUrl(a)).toBe(`${APP_ORIGIN}${a.assetPath}`);
+    expect(assetUrl(a)).toMatch(/^https:\/\/[a-z.]+\/__l5e\/assets-v1\//);
   });
 });

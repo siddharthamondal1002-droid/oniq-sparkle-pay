@@ -5,12 +5,13 @@
 import { describe, expect, it } from "vitest";
 import { ACTOR_ASSETS } from "@/data/storyActorAssets";
 import { castShot, matchActor } from "@/lib/storyActorCasting";
+import { APP_ORIGIN } from "@/config/appOrigin";
 
 describe("matchActor — conservative, deterministic, owner-map only", () => {
   it("matches a registered actor from its description and returns a fetch URL", () => {
     const m = matchActor("an Oaxacan weaver working a backstrap loom");
     expect(m).not.toBeNull();
-    expect(m!.referenceUrl).toMatch(/^https:\/\/oniqhub\.com\/__l5e\/assets-v1\//);
+    expect(m!.referenceUrl.startsWith(`${APP_ORIGIN}/__l5e/assets-v1/`)).toBe(true);
     expect(ACTOR_ASSETS.some((a) => a.characterRefId === m!.actor.characterRefId)).toBe(true);
   });
 

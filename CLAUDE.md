@@ -7448,3 +7448,97 @@ changed.
 published image (`image-publish` #30, 2026-09-01, from `eab3e701`), so it
 reaches a job only after a rebuild and a template retarget. Until then the next
 `CheckpointInconsistent` still says one word.
+
+### Owner directive, 2026-09-12 — "Use www.oniqhub.com"
+
+The apex stopped serving that afternoon and the app would not open. Measured
+from inside production Postgres with `pg_net`, because `oniqhub.com` is
+proxy-blocked from this container:
+
+    oniqhub.com/  ·  /app  ·  /assets/index-*.js  ·  /favicon.ico
+      -> 404, 28,088 B, `<title>Not Found</title>`, server: cloudflare,
+         and NO `x-deployment-id` header at all
+    www.oniqhub.com/ (same paths)
+      -> 200, ONIQ's real HTML, `x-deployment-id: psr2.…`, enforcing CSP
+
+**THE ABSENT `x-deployment-id` IS THE WHOLE DIAGNOSIS.** Cloudflare answered
+the apex itself and never reached the Lovable origin; www reached it and came
+back with ONIQ's own enforcing CSP, which only a bound custom domain gets. So
+the apex's binding is gone and www's survives. `capacitor.config.json` sets
+`server.url`, the Capacitor shell loads exactly that, and the WebView was
+fetching the 404 — that is "app is not opening", end to end.
+
+**A REPUBLISH DOES NOT RE-BIND IT, and that is tested rather than assumed.**
+`deploy_project` -> `de3bf141`; www then served that exact deployment id and the
+apex still 404'd. So the outage was never a stale or failed publish. The zone is
+on Cloudflare (`kurt.ns.cloudflare.com`, `val.ns.cloudflare.com`), both names are
+proxied records whose origins are set per-hostname, and there is no Cloudflare
+credential anywhere in the repo — the `CF_*`/`CLOUDFLARE_*` strings a grep finds
+are a bundled library's runtime-detection constants, not secrets. Re-binding the
+apex is a console action, so the owner was asked and answered "Use www".
+
+**THE HOST IS NOW A DECISION, NOT A LITERAL.** `src/config/appOrigin.ts` is the
+one place it is made. The ~100 apex references are not one kind of thing, and
+the file sorts them into three groups on purpose:
+
+    BUILDS an outbound URL    -> APP_ORIGIN. A link ONIQ hands out must name a
+                                 host that serves. (share, invite, clipboard,
+                                 /r/ /m/ /u/, the UPI webUrl, the terms link)
+    VALIDATES an inbound URL  -> isAppHost(). Accepts BOTH hosts, because QR
+                                 codes already printed, deep links already
+                                 shared and broker returns already in flight
+                                 name the apex. Refusing them would break them
+                                 permanently, not just while the apex is dark.
+    NAMES A CANONICAL PAGE    -> LEFT ALONE. og:url, rel=canonical, sitemap.xml
+                                 still say the apex. Which host is canonical is
+                                 an SEO decision with its own consequences, it
+                                 is not what "the app will not open" needed, and
+                                 flipping it twice is worse than once.
+
+**THE MIRROR STAYS A LITERAL BECAUSE ITS OWN HEADER SAYS IT MUST.**
+`_shared/storyActorAssets.ts` records that being import-free is what lets one
+copy serve Deno edge, the Node worker and Vite, and that "adding an import here
+would break at least one of them". So it keeps its own string and
+`storyActorAssets.test.ts` pins it equal to `APP_ORIGIN` — a drift there is a
+character silently losing its reference portrait, not a failing build.
+
+**`url.origin` WAS CARRYING A PORT CHECK FOR FREE.** The QR parser compared
+`url.origin !== PROFILE_QR_ORIGIN`; replacing that with host membership admits
+`https://www.oniqhub.com:8443/q/<token>`, so `url.port !== ""` is now explicit.
+And the mutation that removes it ESCAPES on its own — the prefix check runs
+first and a port breaks the `https://<host>/q/` prefix, so the parsed check is
+unreachable for that input. Defence in depth caught the mutation, exactly the
+E5 shape recorded above, so M4 removes BOTH layers. **A mutation that does not
+open the hole it names is not a verdict.**
+
+**THE GUARD TARGETS WHAT NO TYPECHECKER READS.** `capacitor.config.json` is
+JSON and `AndroidManifest.xml` is XML; both are baked into the APK at build
+time, so a mistake in either surfaces on a handset after a Play release — the
+most expensive place in this project to find anything.
+`src/lib/__tests__/appOrigin.test.ts` asserts `server.url === APP_ORIGIN` and
+that every path prefix is registered for EVERY ONIQ host (one host registered
+and not the other is a deep link that opens a browser instead of the app,
+silently, only on the host you did not test). 5 mutations, all RED, none
+NOTAPPLIED — `scripts/app-origin-mutate.sh`, undo by file copy, never
+`git checkout --`.
+
+**WHAT THIS DOES NOT DO, stated first rather than last: it does not fix the
+installed app.** `server.url` is compiled into the APK, so every phone already
+carrying ONIQ keeps loading the apex until a new Android build ships. Three
+consequences that are the owner's, not code:
+
+    1. The origin change SIGNS EVERYONE OUT. The Supabase session lives in
+       localStorage, which is keyed by origin, so a shell moving to www cannot
+       see the session stored under the apex.
+    2. `www.oniqhub.com` is NOT in Firebase authorizedDomains — re-measured with
+       the public web key: [localhost, oniq-309bd.firebaseapp.com,
+       oniq-309bd.web.app, oniqhub.com]. Phone sign-in's reCAPTCHA refuses an
+       unlisted domain, so it must be added or phone sign-in is dead on www.
+    3. Google sign-in redirects to `<APP_ORIGIN>/auth-native-callback`, so that
+       URL has to be an allowed redirect on the Lovable/Supabase auth side.
+
+Restoring the apex avoids all three, and remains the cheaper fix.
+
+401 files / 7,201 tests, tsc 0, `lint:ci` clean. The six files Prettier still
+warns on were ALREADY unformatted at HEAD — checked with `git show`, not
+`git stash`, which misled this session once already.

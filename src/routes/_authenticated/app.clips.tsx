@@ -33,6 +33,7 @@ import { ReelVideo } from "@/components/reels/ReelVideo";
 import { AttachmentSheet, useAttachmentContext } from "@/components/attach/AttachmentSheet";
 import { watchVideoView } from "@/lib/views";
 import { OniqChip } from "@/components/oniq";
+import { APP_ORIGIN } from "@/config/appOrigin";
 
 export const Route = createFileRoute("/_authenticated/app/clips")({
   component: ClipsScreen,
@@ -365,7 +366,7 @@ function ClipCard({
     const payload: SharePayload = {
       title: "ONIQ Clip 🎬",
       text: clip.caption ?? undefined,
-      url: `https://oniqhub.com/r/${clip.id}`,
+      url: `${APP_ORIGIN}/r/${clip.id}`,
     };
     setShareSheet(payload);
   }

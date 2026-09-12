@@ -3,7 +3,7 @@
   "appName": "ONIQ",
   "webDir": "dist",
   "server": {
-    "url": "https://oniqhub.com",
+    "url": "https://www.oniqhub.com",
     "androidScheme": "https",
     "cleartext": false
   }

@@ -24,6 +24,7 @@ import { ReelOwnerSheet } from "@/components/reels/ReelOwnerSheet";
 import { toast } from "sonner";
 import { useMediaCoordinator } from "@/lib/MediaProvider";
 import { OniqCanvas, OniqEmpty } from "@/components/oniq";
+import { APP_ORIGIN } from "@/config/appOrigin";
 
 export const Route = createFileRoute("/_authenticated/app/chat/reels")({
   component: ReelsTab,
@@ -294,7 +295,7 @@ function ReelCard({
     const payload: SharePayload = {
       title: "ONIQ Reel 🎬",
       text: clip.caption ?? undefined,
-      url: `https://oniqhub.com/r/${clip.id}`,
+      url: `${APP_ORIGIN}/r/${clip.id}`,
     };
     setShareSheet(payload);
   }

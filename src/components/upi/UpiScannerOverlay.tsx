@@ -3,6 +3,7 @@ import { Camera, X, ImagePlus, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { parseUpiUri } from "@/routes/_authenticated/app.scan";
 import { decodeQrFromImageFile, decodeQrFromVideo, cameraSupported } from "@/lib/qr/decodeQr";
+import { APP_ORIGIN } from "@/config/appOrigin";
 
 type Prefill = { pa: string; pn?: string; am?: string; tn?: string };
 
@@ -160,7 +161,7 @@ export function UpiScannerOverlay({
                 <button
                   onClick={async () => {
                     try {
-                      await navigator.clipboard.writeText("https://oniqhub.com");
+                      await navigator.clipboard.writeText(APP_ORIGIN);
                       toast.success("link copied ✨");
                     } catch {
                       toast.error("couldn't copy — it's oniqhub.com");

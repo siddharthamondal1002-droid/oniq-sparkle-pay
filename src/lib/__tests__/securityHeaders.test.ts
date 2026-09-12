@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { EMBED_FRAME_HOSTS, EMBED_HOSTS } from "@/data/watchEmbeds";
 import { THIRD_PARTY_REQUESTS } from "@/config/playCompliance";
+import { APP_HOSTS } from "@/config/appOrigin";
 import {
   CSP_DIRECTIVES,
   PERMISSIONS_POLICY,
@@ -99,7 +100,12 @@ describe("the policy names what the app actually loads", () => {
 
 describe("enforced on production, report-only on previews", () => {
   it("knows the production hosts and nothing else", () => {
-    expect(PRODUCTION_HOSTS).toEqual(["oniqhub.com", "www.oniqhub.com"]);
+    // ONE list, not a copy: same reference as the host config, so the two
+    // cannot drift. Compared sorted because which host is PRIMARY is a
+    // separate decision (appOrigin.APP_HOST) from which are ours.
+    expect(PRODUCTION_HOSTS).toBe(APP_HOSTS);
+    expect([...PRODUCTION_HOSTS].sort()).toEqual(["oniqhub.com", "www.oniqhub.com"]);
+    expect(isProductionHost("WWW.ONIQHUB.COM")).toBe(true);
     expect(isProductionHost("ONIQHUB.COM")).toBe(true);
     expect(isProductionHost("id-preview--686baacf.lovable.app")).toBe(false);
     expect(isProductionHost("localhost")).toBe(false);

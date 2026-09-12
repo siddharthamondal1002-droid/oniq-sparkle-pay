@@ -11,6 +11,8 @@
 // HARD CONTENT RULE: no dating / hookup / romantic-discovery apps, ever.
 // The registry test suite enforces this against a blocklist.
 
+import { APP_ORIGIN } from "@/config/appOrigin";
+
 export type Country = "IN" | "US" | "GB" | "AE" | "CA" | "AU" | "SG";
 
 export type CategoryId =
@@ -563,7 +565,7 @@ export const APP_REGISTRY: AppEntry[] = [
     tagline: "GPay · PhonePe · Paytm",
     category: "payments",
     countries: ["IN"],
-    webUrl: "https://oniqhub.com/app/upi",
+    webUrl: `${APP_ORIGIN}/app/upi`,
     launchType: "webOnly",
     verified: true,
     status: "active",

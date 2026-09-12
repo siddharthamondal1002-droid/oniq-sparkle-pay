@@ -53,8 +53,10 @@
 //   2. The path then says which kind of link it is. /u/ is permanent, /q/ is
 //      revocable, and that difference is worth being able to see.
 
+import { APP_HOSTS, APP_ORIGIN, isAppHost } from "@/config/appOrigin";
+
 /** ONIQ's own origin. A QR pointing anywhere else is not ours. */
-export const PROFILE_QR_ORIGIN = "https://oniqhub.com";
+export const PROFILE_QR_ORIGIN = APP_ORIGIN;
 
 /**
  * The path segment. Short, because QR density is a function of length, and
@@ -94,7 +96,11 @@ export function parseProfileQr(raw: string): ProfileQr | null {
   // Cheap reject before constructing a URL: anything not starting with our
   // exact origin cannot be ours, and this also short-circuits every UPI
   // string without ever looking at it.
-  if (!s.toLowerCase().startsWith(`${PROFILE_QR_ORIGIN}${PROFILE_QR_PATH}`.toLowerCase())) {
+  if (
+    !APP_HOSTS.some((h) =>
+      s.toLowerCase().startsWith(`https://${h}${PROFILE_QR_PATH}`.toLowerCase()),
+    )
+  ) {
     return null;
   }
 
@@ -108,7 +114,11 @@ export function parseProfileQr(raw: string): ProfileQr | null {
   // Re-check origin against the PARSED url, not the raw string. A crafted
   // input like "https://oniqhub.com/u/x@evil.test/" passes a prefix check and
   // has a different host once parsed — this is the check that catches it.
-  if (url.origin !== PROFILE_QR_ORIGIN) return null;
+  // Host membership replaces origin equality now that two hosts are ours.
+  // url.origin carried the PORT for free, so that check is restored
+  // explicitly: without it "https://www.oniqhub.com:8443/q/<t>" would pass.
+  if (!isAppHost(url.hostname)) return null;
+  if (url.port !== "") return null;
   if (url.protocol !== "https:") return null;
 
   // Exactly /q/<token>. No extra segments, so a longer path cannot smuggle
