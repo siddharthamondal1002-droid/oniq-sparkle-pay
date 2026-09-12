@@ -171,6 +171,31 @@ function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
   return true;
 }
 
+/**
+ * Is this film flagged in-house-motion only? Read from the job row the
+ * caller's own verified token names — never from the request body.
+ *
+ * FAILS OPEN on any lookup problem (see the call site for why that is the
+ * safe direction here).
+ */
+async function isInHouseMotionJob(jobId: string): Promise<boolean> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) return false;
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/story_jobs?id=eq.${encodeURIComponent(jobId)}&select=motion_mode`,
+      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+    );
+    if (!res.ok) return false;
+    const rows = (await res.json()) as Array<{ motion_mode?: string | null }>;
+    return rows[0]?.motion_mode === "in_house";
+  } catch {
+    return false;
+  }
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -195,7 +220,31 @@ Deno.serve(async (req) => {
     const inHouseEnv =
       apiKey && endpointId && publicBase ? { apiKey, endpointId, publicBase } : null;
     const gatewayKey = Deno.env.get("LOVABLE_API_KEY") ?? "";
-    const provider = readStillProvider(Deno.env.get("STILL_PROVIDER"));
+    const envProvider = readStillProvider(Deno.env.get("STILL_PROVIDER"));
+    // PER-JOB OVERRIDE, for the bounded internal in-house motion test only
+    // (owner directive 2026-09-12, "scope routing/frame changes to this test").
+    //
+    // WHY IT IS NEEDED, MEASURED RATHER THAN ASSUMED. In-house motion reads its
+    // input frame as a bucket KEY in `oniq-gpu` (stillRoute.referenceRouteFor:
+    // "key"), and a GATEWAY still has to be PUT there from this runtime. The
+    // edge R2 credential cannot write that bucket: r2-probe, 2026-09-12, HEAD
+    // 403 and PUT 403 AccessDenied on `oniq-gpu` while the same token HEADs
+    // 200, PUTs 200 and DELETEs 204 on `oniq-chat-media` — a token SCOPE
+    // problem, not a wrong secret. So every gateway still on an in-house film
+    // lands nowhere and the motion stage has nothing to animate: job
+    // a2c0788b's nine shots all logged `still-store-403` and validated 0/9.
+    // The in-house engine has no such problem — the WORKER writes the object
+    // with the endpoint's own credentials and hands back the key.
+    //
+    // STILL_PROVIDER IS UNTOUCHED, deliberately: every other film keeps the
+    // 2026-09-01 gateway directive. This reads one column of the job the
+    // caller's own token already names, so it cannot redirect anyone else.
+    //
+    // FAIL-OPEN, same direction as story-clip's isInHouseOnly: a failed lookup
+    // keeps the env provider. A wrong `false` costs one internal test a re-run;
+    // a wrong `true` would send a paid film to the GPU pool.
+    const provider =
+      auth.jobId && (await isInHouseMotionJob(auth.jobId)) ? "in_house" : envProvider;
     const route = routeStill({
       provider,
       gatewayConfigured: Boolean(gatewayKey),
