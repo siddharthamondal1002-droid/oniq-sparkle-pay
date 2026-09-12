@@ -6801,3 +6801,59 @@ an error detail sliced one word short of the field naming the rejected tool,
 and tools offered without their arguments. Each time the benchmark was honest
 and the harness was not. That is the argument for keeping a benchmark whose
 failures are legible rather than one that always scores.
+
+### Owner directive, 2026-09-12 — "#2, the door test"
+
+Every authenticated screen must have a way IN, and `src/lib/__tests__/routeDoors.test.ts`
+now fails if one does not. 58 app routes, 184 doors, **2 deliberate exceptions**.
+
+**A DOOR IS A FORWARD AFFORDANCE, AND THAT ONE DISTINCTION IS THE WHOLE
+GUARD.** `/app/creations` was never unreferenced when it shipped unreachable —
+its only inbound links were two `back="/app/creations"` props on a NOT-FOUND
+page, which is a way out of being lost rather than a way in. Any guard counting
+mentions would have called that screen reachable, which is precisely the
+mistake that shipped. So `to=`, a registry `to:` and `navigate({to})` count;
+`back=`, `redirect({to})` and a route's link to itself do not.
+
+**AND IT EVALUATES THE APP'S EXPRESSIONS RATHER THAN SEARCHING FOR PATHS**,
+because CLAUDE.md's own rule — "grep for what LINKS to the screen it lives on"
+— was RUN for the health picker and came back empty: the tab is built from
+`` `${HEALTH_ROUTE}/records` ``, invisible to a literal search. `routeConstants()`
+reads the declared path constants from source (measured: exactly one exists,
+and it is that one) so a second is resolved the day it appears instead of
+producing a false orphan.
+
+THE TWO EXCEPTIONS, each with a reason and ratcheted by `MAX_DOORLESS = 2`:
+`/app/diag` (the [HW] checks as a screen, answerable only on a real handset —
+putting a developer tool in navigation ships it to 126 people) and
+`/app/jobs-apps` (a RETIRED route kept as a redirect because it has shipped in
+the Android build and may be linked from the Play listing; its own header says
+so). The list may only shrink, the `eslint-suppressions.json` shape.
+
+**SEVEN MUTATIONS, ALL RED — AND H1 REPRODUCES REAL HISTORY RATHER THAN
+INVENTING A HOLE.** It restores the exact September state of `/app/creations`:
+forward links removed, the two `back=` returns left in place. The guard goes
+red. That is the difference between a test that passes today and one that
+catches the bug it was built for.
+
+**TWO OF THEM ESCAPED FIRST, AND BOTH ESCAPES WERE WORTH MORE THAN THE PASSES.**
+
+- **A GUARD THAT LOOKED LIKE THE DISCRIMINATING STEP WAS VACUOUS.** The `to=`
+  pattern carried a `(?<!back=)` lookbehind, which reads as the thing keeping
+  returns out — and `back="/x"` contains no `to=` substring at all, so it never
+  fired and deleting it opened nothing. The extractor was right; its stated
+  reason was not. Removed, and the real rule (only forward prop NAMES are
+  matched) is written down instead. **An unreachable guard makes a mutation run
+  lie**, for the second time in this repo.
+- **A VERDICT WAS PRINTED FOR A MUTATION THAT NEVER APPLIED.** The script had
+  no NOTAPPLIED check and reported GREEN/ESCAPED for a python substitution that
+  silently matched nothing. Added — and it immediately caught TWO more stale
+  anchors, including one where my own edit had attached the wrong label padding
+  so `verdict` was called with no file to compare. `changed()` with zero
+  arguments now says "script bug" rather than reading as a stale anchor. That
+  is the eighth time this repo has needed that check.
+
+Numbers: 394 files / **7,140** tests; tsc, `lint:ci` and Prettier clean; 7
+mutations RED, none GREEN, none NOTAPPLIED. No migration, no edge function, no
+Lovable message, no credits, no publish — the guard runs in CI on every change,
+which is the whole point of it.
