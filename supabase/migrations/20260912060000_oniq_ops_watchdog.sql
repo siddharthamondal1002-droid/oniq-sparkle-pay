@@ -84,6 +84,46 @@ create policy ops_watch_health_admin_select on public.ops_watch_health
   for select to authenticated using (public.is_admin(auth.uid()));
 
 -- ---------------------------------------------------------------------------
+-- 3a. THE KEY IS CHOSEN BY SHAPE, NOT BY NAME — and this is the defect the
+--     end-to-end test caught, which reading could not have.
+--
+--     `story_dispatch_tick()` prefers `story_dispatch_service_role_key`, and on
+--     this project that secret is NOT a JWT. `ops-alert` admits the cron by
+--     reading the `role` claim, so that pairing answers 401. Measured
+--     2026-09-12, both arms:
+--
+--       opaque key -> 401 {"error":"Unauthorized"}
+--       JWT key    -> 200 {"caller":"cron","sent":0,"reason":"nothing pending"}
+--
+--     Copying the existing tick's key preference would therefore have produced
+--     a watchdog that DETECTS FOR EVER AND ANNOUNCES NEVER — the exact failure
+--     this whole file exists to prevent, inside the thing built to prevent it.
+--     It was found by calling the endpoint, not by reading either side.
+--
+--     THE STATED LIMIT: this depends on a JWT-shaped service key existing in
+--     the vault. If none does the tick raises a warning and `notified_at` stays
+--     NULL, so the failure is visible and no alert is lost — but nothing is
+--     delivered. Making `ops-alert` also accept the project's opaque service
+--     key is the belt-and-braces fix and is deliberately NOT built here: the
+--     path works today, and speculative hardening of a solved problem is how
+--     unreachable code gets written.
+-- ---------------------------------------------------------------------------
+create or replace function public.ops_watch_pick_key()
+returns text
+language sql
+security definer
+set search_path to 'public'
+as $function$
+  select decrypted_secret from vault.decrypted_secrets
+   where name in ('story_dispatch_service_role_key','email_queue_service_role_key')
+     and starts_with(decrypted_secret, 'eyJ')
+   order by case name when 'email_queue_service_role_key' then 0 else 1 end
+   limit 1;
+$function$;
+
+revoke all on function public.ops_watch_pick_key() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- 3. THE DETECTOR. Reads only; it may open, refresh and resolve alerts and it
 --    may queue one notification. It never touches a story job, a wallet, a
 --    config row or anything a person can see. $0 — no model call anywhere.
@@ -240,12 +280,8 @@ begin
   -- the post fails, the next tick tries again. The vault lookup is the same one
   -- story_dispatch_tick() uses — this function holds no credential of its own.
   if pending > 0 then
-    select decrypted_secret into v_key from vault.decrypted_secrets
-      where name = 'story_dispatch_service_role_key' limit 1;
-    if v_key is null then
-      select decrypted_secret into v_key from vault.decrypted_secrets
-        where name = 'email_queue_service_role_key' limit 1;
-    end if;
+    -- BY SHAPE, NOT BY NAME. See ops_watch_pick_key() above.
+    v_key := public.ops_watch_pick_key();
     select decrypted_secret into v_url from vault.decrypted_secrets
       where name = 'project_url' limit 1;
     v_url := coalesce(v_url, 'https://bqwttemnnoexadpwifcj.supabase.co');
@@ -258,7 +294,7 @@ begin
         body    := '{}'::jsonb
       ) into v_req;
     else
-      raise warning 'ops_watch_tick: no service-role key in vault; % alert(s) undelivered', pending;
+      raise warning 'ops_watch_tick: no verifiable service key in vault; % alert(s) undelivered', pending;
     end if;
   end if;
 

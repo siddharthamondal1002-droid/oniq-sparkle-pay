@@ -100,6 +100,30 @@ describe("the watchdog detects from server-side facts, never from error volume",
   });
 });
 
+describe("the cron must hand ops-alert a key it can actually verify", () => {
+  /**
+   * THE DEFECT THE END-TO-END TEST CAUGHT, and reading could not have.
+   * `story_dispatch_tick` prefers `story_dispatch_service_role_key`, which on
+   * this project is NOT a JWT; `ops-alert` admits the cron by reading the role
+   * claim, so that pairing answers 401. Copying the existing preference would
+   * have produced a watchdog that detects for ever and announces never.
+   * Measured: opaque -> 401, JWT -> 200 {"caller":"cron"}.
+   */
+  it("selects the key by shape, not by name", () => {
+    const sql = stripSql(read(MIGRATION));
+    const fn = sql.slice(sql.indexOf("create or replace function public.ops_watch_pick_key"));
+    expect(fn).toMatch(/starts_with\(decrypted_secret, 'eyJ'\)/);
+  });
+
+  it("routes the tick's notification through that chooser", () => {
+    const sql = stripSql(read(MIGRATION));
+    const tick = sql.slice(sql.indexOf("create or replace function public.ops_watch_tick"));
+    expect(tick).toMatch(/v_key\s*:=\s*public\.ops_watch_pick_key\(\)/);
+    // and NOT by re-deriving a name preference beside the chooser
+    expect(tick).not.toMatch(/story_dispatch_service_role_key/);
+  });
+});
+
 describe("delivery may fail without losing the observation", () => {
   const src = stripComments(read(ALERT_FN));
 

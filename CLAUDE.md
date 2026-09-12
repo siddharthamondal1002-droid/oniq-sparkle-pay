@@ -6721,3 +6721,83 @@ model: first the tool names carried dots (HTTP 400), then the error detail was
 sliced one word short of the field naming the rejected tool, now the arguments.
 **Each round the benchmark was honest and the harness was not** — which is the
 argument for keeping a benchmark whose failures are legible.
+
+#### LIVE AND PROVEN END TO END, 2026-09-12 — and the last test found the worst bug
+
+`ops-alert` deployed (self-checks 2 and 3, identical to the counts measured
+here, which is what makes them evidence). Verified by the three-way control:
+
+    POST /functions/v1/ops-alert                   401 {"error":"Unauthorized"}
+    POST /functions/v1/definitely-not-a-function…  404 NOT_FOUND
+
+**THEN THE CALL THAT MATTERED FAILED.** Invoked as the cron does — through
+`pg_net` with the vault's service key, exactly as `ops_watch_tick` would — it
+answered **401**. Two arms separate it, and neither could have been read off
+the source:
+
+    story_dispatch_service_role_key  NOT a JWT  -> 401 Unauthorized
+    email_queue_service_role_key     a JWT      -> 200 {"caller":"cron",
+                                                        "sent":0,
+                                                        "reason":"nothing pending"}
+
+`ops-alert` admits the cron by reading the `role` claim, and
+`ops_watch_tick` had copied `story_dispatch_tick`'s key preference — the
+opaque one. **So the watchdog would have DETECTED FOR EVER AND ANNOUNCED
+NEVER**, with the tick reporting healthy ticks the whole time and
+`notified_at` silently staying NULL. That is the exact failure this file was
+written to prevent, occurring inside the thing built to prevent it, and only
+calling the endpoint could find it: both halves were individually correct.
+
+**PICK A CREDENTIAL BY SHAPE, NOT BY NAME**, when the receiver verifies its
+shape. `ops_watch_pick_key()` takes the JWT-shaped service key; two mutations
+are red (the tick reverting to the name preference, the chooser dropping the
+shape check). The stated limit, not built: `ops-alert` could also accept the
+project's opaque service key, and deliberately does not — the path works
+today, and speculatively hardening a solved problem is how unreachable code
+gets written. If no JWT-shaped key exists the tick raises a warning and
+`notified_at` stays NULL, so the failure is visible and no alert is lost.
+
+THE FULL LOOP, ON PRODUCTION, TO A REAL DEVICE:
+
+    announce  sent 1  tokens 1  announced 1  cleared 0  failures []
+              -> notified_at          06:28:30
+    recover   sent 1  tokens 1  announced 0  cleared 1  failures []
+              -> resolved_notified_at 06:28:47
+    open now  0
+
+One deliberate `watchdog_selftest` alert, labelled as a test on the phone
+itself, announced and then resolved, so BOTH directions of the pipe are
+exercised. **The gate for this feature was never a green build; it was a
+notification arriving, and one did.**
+
+#### The §21 benchmark finally scored, and two of its own metrics were lying
+
+With tools offered WITH their arguments, both frontier arms reached
+`FINAL_ANSWER` and found BOTH causes — and both ignored the loud-but-healthy
+surface that `baselineDiagnosis()` ranks first:
+
+    gpt-6-astra   4 model calls  3 tool calls  dispatch_credential + voice_unavailable
+    gpt-5.6-luna  6 model calls  5 tool calls  dispatch_credential + voice_unavailable
+
+**`irrelevantToolCalls` HAD NEVER BEEN ABLE TO FIRE**, and its guard was green.
+The pattern matched `db.error_detail:` with a DOT long after the rename to
+underscores — and the TEST FIXTURE used the dotted names too. Test and
+implementation drifted together, agreed with each other, and both disagreed
+with the names the registry actually builds. luna genuinely called
+`db_error_detail:share-video` and scored 0. **A test that shares its subject's
+mistake cannot see it** — which is a different failure from the prose match,
+and worse, because the guard looks present.
+
+**AND "FALSE POSITIVE" WAS MEASURING SOMETHING ELSE.** astra wrote that the
+story-still 502s "establish frame-generation failures, BUT NOT THEIR UNDERLYING
+CAUSE" — an explicit refusal to attribute — and the keyword match scored it
+identically to an assertion, penalising the more careful answer. Separating
+those is a judgement, not a regex, so the field is reported as what it measures
+(`distractors named`) and the limit is pinned by a test asserting the two score
+the same.
+
+**THREE ROUNDS, THREE HARNESS BUGS, ZERO MODEL BUGS**: dotted tool names (400),
+an error detail sliced one word short of the field naming the rejected tool,
+and tools offered without their arguments. Each time the benchmark was honest
+and the harness was not. That is the argument for keeping a benchmark whose
+failures are legible rather than one that always scores.
