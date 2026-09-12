@@ -174,7 +174,17 @@ export function score(
   for (const c of GROUND_TRUTH.causes) {
     (c.markers.some((m) => m.test(conclusionText)) ? found : missed).push(c.id);
   }
-  const falsePositives = GROUND_TRUTH.distractors
+  /**
+   * NAMED, NOT BLAMED — and the field says so because it cannot tell the
+   * difference. This is a keyword match over the whole conclusion, so a model
+   * that writes "five story-still 502s establish frame-generation failures,
+   * BUT NOT THEIR UNDERLYING CAUSE" scores identically to one that asserts
+   * story-still as a root cause. The first is the more careful answer and was
+   * penalised for it. Distinguishing an attribution from a refusal to attribute
+   * is a judgement, not a regex; inventing a heuristic here would be a measure
+   * calibrated against nothing. So the number is reported as what it measures.
+   */
+  const distractorsNamed = GROUND_TRUTH.distractors
     .filter((d) => d.markers.some((m) => m.test(conclusionText)))
     .map((d) => d.id);
 
@@ -182,15 +192,22 @@ export function score(
    * An "irrelevant" call is one that asked for a distractor's DETAIL — a
    * deliberate act, unlike listing the surfaces, which is how anyone would
    * start and which returns the distractors whether they are wanted or not.
+   *
+   * THIS PATTERN WAS DEAD FOR EVERY RUN THAT EVER SCORED. It matched
+   * `db.error_detail:` with a DOT, and the tools were renamed to underscores
+   * when OpenAI rejected dots in tool names — so it reported 0 whatever was
+   * called. The run that caught it had genuinely asked for a distractor's
+   * detail (`db_error_detail:share-video`) and still scored 0. A metric that
+   * cannot fire is not a metric, and this one read as a clean result.
    */
   const irrelevant = toolsCalled.filter((t) =>
-    /^db\.error_detail:(send-push|chat-viewport|share-video|call-connect-timeout)$/.test(t),
+    /^db_error_detail:(send-push|chat-viewport|share-video|call-connect-timeout)$/.test(t),
   ).length;
 
   return {
     causesFound: found,
     causesMissed: missed,
-    falsePositives,
+    falsePositives: distractorsNamed,
     toolCalls: toolsCalled.length,
     irrelevantToolCalls: irrelevant,
     elapsedMs: opts.elapsedMs,

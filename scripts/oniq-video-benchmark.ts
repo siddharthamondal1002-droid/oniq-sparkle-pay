@@ -178,7 +178,9 @@ async function main() {
   console.log(`irrelevant      ${s.irrelevantToolCalls}`);
   console.log(`causes FOUND    ${s.causesFound.join(", ") || "none"}`);
   console.log(`causes MISSED   ${s.causesMissed.join(", ") || "none"}`);
-  console.log(`false positives ${s.falsePositives.join(", ") || "none"}`);
+  console.log(
+    `distractors named ${s.falsePositives.join(", ") || "none"}  (NAMED, not necessarily blamed)`,
+  );
   console.log(`tokens          ${s.inputTokens} in / ${s.outputTokens} out`);
   console.log(`elapsed         ${s.elapsedMs} ms`);
   console.log("");
