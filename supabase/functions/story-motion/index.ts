@@ -130,10 +130,20 @@ async function runpodHealth(): Promise<Response> {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
+    // Health FIRST, and only for the service role. It reads nothing of the
+    // request but the header and the action, so no body a caller controls can
+    // steer it, and it returns before the job-token gate below is reached.
+    const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    if (bearer && _roleOf(bearer) === "service_role") {
+      const action = new URL(req.url).searchParams.get("action");
+      if (action === "health") return await runpodHealth();
+    }
+
     // A RUNNER IS NOT A USER. Only the per-job capability token opens this:
     // no user-JWT branch exists, because a signed-in browser has no business
     // animating a film's shot — that surface is gpu-video's clip tool.
     const jobToken = req.headers.get("x-story-job-token");
+
     if (!jobToken) return json({ error: "Unauthorized" }, 401);
     const secret = Deno.env.get("STORY_JOB_SECRET");
     if (!secret) return json({ error: "Auth unavailable" }, 500);
