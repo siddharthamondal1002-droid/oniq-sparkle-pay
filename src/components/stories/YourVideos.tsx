@@ -28,7 +28,19 @@ import {
   Trash2,
 } from "lucide-react";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
-import { lastShareDiagnostics, shareVideoFile } from "@/lib/share";
+import { lastShareDiagnostics, prepareVideoShare, shareReadyFile } from "@/lib/share";
+
+/** What a finished share can say, from either step. */
+type ShareOutcome = "shared" | "cancelled" | "download-started" | "failed" | "unsupported";
+
+/** A fetched film waiting for its own tap, with the copy for however it ends. */
+type ReadyShare = { file: File; surface: string; whenFailed: string; whenUnsupported: string };
+
+const SHARE_PAYLOAD = {
+  title: "My ONIQ Story",
+  text: "Made with AI on ONIQ 🎬 oniqhub.com",
+  url: "https://oniqhub.com",
+};
 import { reportClientError } from "@/lib/errorReport";
 import { listSavedVideos, onSavedVideosChanged, type SavedVideo } from "@/lib/savedVideos";
 import {
@@ -68,6 +80,9 @@ export function YourVideos() {
   const [sharing, setSharing] = useState(false);
   const [sharePct, setSharePct] = useState<number | null>(null);
   const [shareHint, setShareHint] = useState<string | null>(null);
+  // A file already fetched and waiting for its own tap. Holding it here is
+  // what lets `navigator.share` run with nothing awaited in front of it.
+  const [ready, setReady] = useState<ReadyShare | null>(null);
   // Films already on this phone. Kept in local state because the server has
   // nothing left to list once a film is saved — saving purges it there.
   const [onDevice, setOnDevice] = useState<SavedVideo[]>([]);
