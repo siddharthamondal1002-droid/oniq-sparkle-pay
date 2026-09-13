@@ -353,6 +353,16 @@ Deno.serve(async (req) => {
   let sent = 0;
   let failed = 0;
   const staleTokens: string[] = [];
+  /** Reason code -> count. Codes only; never a token, endpoint or person. */
+  const reasons: Record<string, number> = {};
+  const bumpReason = (code: string) => {
+    reasons[code] = (reasons[code] ?? 0) + 1;
+  };
+  // A token was minted but there were FCM rows to spend it on and it never
+  // arrived — the one state that IS a credential fault, and it was previously
+  // indistinguishable from "no rows to send to".
+  if (fcmTokens.length > 0 && !accessToken) bumpReason("no_access_token");
+
 
   await Promise.all(
     (accessToken ? fcmTokens : []).map(async (token) => {
