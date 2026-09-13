@@ -213,30 +213,40 @@ export function YourVideos() {
    * whole thing, because that sheet takes a URI and has no activation rule.
    * On the web it leaves a prepared file and the caller shows "Send now" —
    * the second tap is what keeps the activation the sheet requires.
+   *
+   * The prepared file is stamped with the SOURCE it came from, and a stale
+   * fetch is discarded rather than armed: whoever took the last ticket wins.
    */
   const prepare = useCallback(
     async (
+      source: ShareSource,
       surface: string,
       url: string,
       fileName: string,
       whenFailed: string,
       whenUnsupported: string,
     ) => {
+      const ticket = ++prepareSeq.current;
       setSharing(true);
       setShareHint(null);
       setError(null);
       setReady(null);
       try {
         const r = await prepareVideoShare(url, fileName, SHARE_PAYLOAD, setSharePct);
+        // A newer tap started while this one was fetching. Arming this file
+        // now would hand the person the film they moved away from.
+        if (ticket !== prepareSeq.current) return;
         if (r.kind === "ready") {
-          setReady({ file: r.file, surface, whenFailed, whenUnsupported });
+          setReady({ file: r.file, source, surface, whenFailed, whenUnsupported });
           setShareHint("Your film is ready — tap Send now to choose an app.");
           return;
         }
         reportShare(surface, r.outcome, whenFailed, whenUnsupported);
       } finally {
-        setSharing(false);
-        setSharePct(null);
+        if (ticket === prepareSeq.current) {
+          setSharing(false);
+          setSharePct(null);
+        }
       }
     },
     [reportShare],
@@ -246,20 +256,31 @@ export function YourVideos() {
    * STEP TWO. NOT async, and nothing is awaited before `shareReadyFile` — an
    * `await` added in front of this call silently restores the very refusal the
    * split exists to prevent.
+   *
+   * The caller says which film it believes it is sending, and a mismatch is
+   * refused rather than sent: the button is the only thing that could be
+   * wrong, and sending the wrong person's film is not a recoverable error.
    */
-  const sendNow = useCallback(() => {
-    const r = ready;
-    if (!r) return;
-    setShareHint(null);
-    void shareReadyFile(r.file, SHARE_PAYLOAD).then((outcome) => {
-      setReady(null);
-      reportShare(r.surface, outcome, r.whenFailed, r.whenUnsupported);
-    });
-  }, [ready, reportShare]);
+  const sendNow = useCallback(
+    (source: ShareSource) => {
+      const r = ready;
+      if (!r || !sameSource(r.source, source)) return;
+      if (sending.current) return;
+      sending.current = true;
+      setShareHint(null);
+      void shareReadyFile(r.file, SHARE_PAYLOAD).then((outcome) => {
+        sending.current = false;
+        setReady((cur) => (cur && sameSource(cur.source, source) ? null : cur));
+        reportShare(r.surface, outcome, r.whenFailed, r.whenUnsupported);
+      });
+    },
+    [ready, reportShare],
+  );
 
   const sendSaved = useCallback(
     (v: SavedVideo) =>
       prepare(
+        { kind: "saved", id: v.id },
         "share-saved-video",
         v.uri,
         v.fileName,
@@ -268,6 +289,21 @@ export function YourVideos() {
       ),
     [prepare],
   );
+
+  /**
+   * A prepared file outlives nothing. If the film it belongs to is closed,
+   * deleted, or no longer on the phone, the file is dropped — an armed "Send
+   * now" pointing at something that is gone is the shape of the bug this
+   * binding exists to prevent.
+   */
+  useEffect(() => {
+    setReady((cur) => {
+      if (!cur) return cur;
+      if (cur.source.kind === "film") return cur.source.id === openId ? cur : null;
+      return onDevice.some((v) => v.id === cur.source.id) ? cur : null;
+    });
+  }, [openId, onDevice]);
+
 
   // Poll only while something is actually moving. A settled list is a static
   // list, and polling it forever is load with no answer attached.
