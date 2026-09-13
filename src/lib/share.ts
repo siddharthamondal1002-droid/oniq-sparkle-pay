@@ -273,7 +273,6 @@ export async function shareVideoFile(
   }
 }
 
-
 const enc = encodeURIComponent;
 
 /** Deep links for the inline fallback (web / installs older than v1.3).

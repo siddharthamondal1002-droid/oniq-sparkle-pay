@@ -352,7 +352,6 @@ Deno.serve(async (req) => {
     );
   }
 
-
   const { data: senderProfile } = await admin
     .from("profiles")
     .select("display_name, username")
@@ -469,7 +468,6 @@ Deno.serve(async (req) => {
     bumpReason("no_access_token", fcmTokens.length);
     failed += fcmTokens.length;
   }
-
 
   await Promise.all(
     (accessToken ? fcmTokens : []).map(async (token) => {

@@ -137,7 +137,10 @@ describe("the download that is not spent", () => {
   it("a browser that cannot share files is refused BEFORE the film is fetched", async () => {
     // The old order downloaded megabytes and only then asked the question it
     // could have asked for nothing.
-    stubBrowser(async () => undefined, () => false);
+    stubBrowser(
+      async () => undefined,
+      () => false,
+    );
 
     expect(await shareVideoFile("https://x/f.mp4", "f.mp4", PAYLOAD)).toBe("unsupported");
     expect(fetched).toBe(0);

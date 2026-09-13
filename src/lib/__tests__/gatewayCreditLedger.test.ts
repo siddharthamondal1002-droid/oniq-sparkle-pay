@@ -95,7 +95,9 @@ describe("what the seam records", () => {
     expect(r.reason).toBe("ledger-unavailable");
     // A missing ledger must not throw: a still that cannot be booked is still
     // a still the person asked for.
-    await expect(settleGatewaySpend(null, "req-1", { outcome: "ACCEPTED" })).resolves.toBeUndefined();
+    await expect(
+      settleGatewaySpend(null, "req-1", { outcome: "ACCEPTED" }),
+    ).resolves.toBeUndefined();
   });
 });
 

@@ -26,11 +26,7 @@
 export type GatewayCapability = "TEXT" | "IMAGE" | "TTS" | "MUSIC" | "VIDEO" | "SEARCH" | "OTHER";
 export type GatewayUnit = "tokens" | "images" | "characters" | "video_seconds" | "provider_unit";
 export type GatewayOutcome = "ACCEPTED" | "REJECTED" | "FAILED" | "FILTERED" | "NOT_CALLED";
-export type GatewaySettlementState =
-  | "PENDING_RECONCILIATION"
-  | "SETTLED"
-  | "NOT_CALLED"
-  | "FAILED";
+export type GatewaySettlementState = "PENDING_RECONCILIATION" | "SETTLED" | "NOT_CALLED" | "FAILED";
 
 /** Every gateway call is this provider. Kept as a constant so the ledger can
  *  be grouped by it without a spelling drifting between call sites. */

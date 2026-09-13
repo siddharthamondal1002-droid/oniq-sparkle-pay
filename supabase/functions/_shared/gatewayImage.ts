@@ -34,7 +34,6 @@ import { withGatewayCostCapture, type GatewayRpc } from "./gatewayLedger.ts";
 /** Where the gateway serves images. */
 export const GATEWAY_IMAGE_URL = "https://ai.gateway.lovable.dev/v1/images/generations";
 
-
 /**
  * The model. Mirrored in modelRegistry.ts as IMAGE_STILL_GATEWAY — the
  * registry is the place that carries lifecycle and capability, this constant
@@ -166,7 +165,6 @@ export type GatewaySpendBinding = {
   userId?: string | null;
 };
 
-
 /** The shape a reference must have before it may be inlined. */
 export const REFERENCE_DATA_URL = /^data:image\/(png|jpe?g|webp);base64,/i;
 
@@ -232,7 +230,6 @@ async function drawStillOnGateway(
   deps: GatewayDeps,
   opts: GatewayOpts = {},
 ): Promise<GatewayStill> {
-
   const ref = (opts.referenceDataUrl ?? "").trim();
   if (ref && !REFERENCE_DATA_URL.test(ref)) {
     // Not a caller error by the time it reaches here — this side built it —

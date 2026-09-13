@@ -17,7 +17,6 @@ export type GatewaySpendBinding = {
   userId?: string | null;
 };
 
-
 // Shared Anthropic (Claude) client for ONIQ edge functions.
 // Reuses the same secret + model that the ting function already relies on.
 // Never throws; always returns a discriminated union.
@@ -1298,7 +1297,6 @@ export async function callGatewayText(
     clearTimeout(t);
   }
 }
-
 
 /** Anthropic tool_choice -> OpenAI tool_choice. */
 function translateToolChoiceToOpenAI(choice: unknown): unknown {

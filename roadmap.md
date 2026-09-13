@@ -35,7 +35,6 @@
       ZERO temp blocks. No index or memory change is warranted — do not add one on the strength of
       the cumulative figure.
 
-
 - [ ] Item 1 BLOCKED, and the blocker is the installer, not the advisories. Every fix is in-range
       (no semver-major): @xmldom/xmldom 0.9.12, brace-expansion 5.0.9, browserslist 4.28.9,
       baseline-browser-mapping 2.11.23, dompurify 3.4.15, fast-uri 4.1.4, hono 4.13.7, js-yaml 4.3.2,
@@ -87,4 +86,3 @@
 
 - Lovable agent credits consumed by this work: `cost_credits` 13.9 (read from the message objects,
   not estimated). No Google, OpenAI, GPU or R2 spend: nothing was deployed, published or rendered.
-
