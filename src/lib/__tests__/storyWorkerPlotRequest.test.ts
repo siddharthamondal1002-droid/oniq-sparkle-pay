@@ -18,10 +18,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const SOURCE = readFileSync(
-  join(process.cwd(), "remotion/scripts/story-worker.mjs"),
-  "utf8",
-);
+const SOURCE = readFileSync(join(process.cwd(), "remotion/scripts/story-worker.mjs"), "utf8");
 
 /** The `{ … }` handed to edge('story-plot', …), lifted out by brace balance. */
 function plotRequestLiteral(): string {
@@ -82,11 +79,10 @@ describe("the worker's story-plot request", () => {
   });
 
   it("still carries language, narrations and reuse", () => {
-    const req = buildRequest(
-      { ...movieJob, language: "hi", castJson: [{ id: "a" }] },
-      2,
-      ["one", "two"],
-    );
+    const req = buildRequest({ ...movieJob, language: "hi", castJson: [{ id: "a" }] }, 2, [
+      "one",
+      "two",
+    ]);
     expect(req.lang).toBe("hi");
     expect(req.narrations).toEqual(["one", "two"]);
     expect(req.reuse).toEqual([{ id: "a" }]);
