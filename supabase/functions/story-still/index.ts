@@ -608,7 +608,20 @@ Deno.serve(async (req) => {
             prompt,
             { key: gatewayKey },
             { fetchImpl: fetch },
-            { negativePrompt, referenceDataUrl },
+            {
+              negativePrompt,
+              referenceDataUrl,
+              // CREDIT ACCOUNTING. A gateway draw spends Lovable credits, not
+              // dollars, so it is recorded here and never through the USD
+              // guard below. The id is new PER DRAW — a redrawn frame is a
+              // second charge and must be a second row, not a duplicate of the
+              // first. The job is the one the signed token named.
+              spend: {
+                rpc: serviceRoleRpc(),
+                requestId: `story-still:${crypto.randomUUID()}`,
+                jobId: auth.jobId ?? null,
+              },
+            },
           );
           const kept = await keepStill(stillId, drawn.data);
           return json({
