@@ -378,7 +378,12 @@ export function YourVideos() {
     }
   }, [openId, filmUrl, refresh, rows]);
 
+  // "Send now" belongs to ONE film. Not to the surface, and not to whatever
+  // was prepared last.
+  const filmReady = !!openId && !!ready && sameSource(ready.source, { kind: "film", id: openId });
+
   return (
+
     <div className="pb-4">
       {/* Same labelling rule as every other generative surface: the label AND
           an in-app way to report the output. Declared as `stories_ai_output`
