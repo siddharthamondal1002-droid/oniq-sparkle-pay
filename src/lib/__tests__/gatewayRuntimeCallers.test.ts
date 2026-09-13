@@ -25,8 +25,19 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   drawStillViaGateway,
   GatewayError,
-  type GatewayRpc,
 } from "../../../supabase/functions/_shared/gatewayImage";
+import type { GatewayRpc } from "../../../supabase/functions/_shared/gatewayLedger";
+
+/**
+ * SPECIFIERS THROUGH VARIABLES, deliberately. A literal `import("…")` — even a
+ * dynamic one — puts the target in the TypeScript program, and these three
+ * modules name `Deno`, which the browser program has no types for. Measured:
+ * five `Cannot find name 'Deno'` errors the moment the literal is inlined.
+ */
+const LEDGER_MOD = "../../../supabase/functions/_shared/financialLedger.ts";
+const RESCUE_MOD = "../../../supabase/functions/_shared/storyIrRescue.ts";
+const VOICE_MOD = "../../../supabase/functions/story-voice/index.ts";
+
 
 type RpcCall = { fn: string; args: Record<string, unknown> };
 
