@@ -63,6 +63,7 @@ import { orchestratePlan } from "../_shared/planOrchestrator.ts";
 import { verifyJobToken } from "../_shared/jobToken.ts";
 
 import { MOVIE_RULES, MAX_DIALOGUE_WORDS } from "../_shared/movieGrammar.ts";
+import { serviceRoleRpc } from "../_shared/financialLedger.ts";
 import { storyIrRescue } from "../_shared/storyIrRescue.ts";
 import { paletteFor } from "../_shared/cinemaLexicon.ts";
 import { styleBlockFor } from "../_shared/directorStyles.ts";
@@ -832,6 +833,17 @@ Deno.serve(async (req) => {
         seed: `${shots}:${prompt.slice(0, 64)}`,
         grade: "classic",
         characters: reuse.map((c) => ({ name: c.name, description: c.lock })),
+        // CREDIT ACCOUNTING. This rung is the one path in story-plot that
+        // spends Lovable credits — rungs one and two are direct-provider calls
+        // metered elsewhere. The ids are the server's own: the job the signed
+        // token names, or the person the auth service identified. A ledger this
+        // function cannot reach does NOT withhold the film; the miss is
+        // announced by gatewayLedger and the row is simply absent.
+        spend: {
+          rpc: serviceRoleRpc(),
+          jobId: caller.jobId,
+          userId: caller.userId,
+        },
       });
       if ("plan" in r) {
         plan = r.plan;
