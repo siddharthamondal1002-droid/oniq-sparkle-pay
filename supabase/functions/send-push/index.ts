@@ -428,6 +428,7 @@ Deno.serve(async (req) => {
           // a genuinely dead token will fail again next send.
           let stale = r.status === 404;
           const errText = await r.text().catch(() => "");
+          let reasonCode = `http_${r.status}`;
           if (!stale && (r.status === 400 || r.status === 403)) {
             try {
               const j = JSON.parse(errText) as {
@@ -443,6 +444,7 @@ Deno.serve(async (req) => {
               const fcmErr = details.find((d) =>
                 d["@type"]?.endsWith("google.firebase.fcm.v1.FcmError"),
               );
+              if (fcmErr?.errorCode) reasonCode = fcmErr.errorCode;
               if (fcmErr?.errorCode === "UNREGISTERED") {
                 stale = true;
               } else if (fcmErr?.errorCode === "INVALID_ARGUMENT") {
@@ -453,8 +455,14 @@ Deno.serve(async (req) => {
               }
             } catch {
               // unparseable — never delete on a guess
+              reasonCode = `http_${r.status}_unparseable`;
             }
           }
+          // SANITIZED COUNTS, not messages. A reason code is an FCM enum or a
+          // status number; it can hold no token, no endpoint and no person.
+          // Counting them is what turns "sent 0" into something actionable
+          // without putting an address anywhere it can be read.
+          bumpReason(reasonCode);
           if (stale) {
             staleTokens.push(token);
           } else {
@@ -462,9 +470,11 @@ Deno.serve(async (req) => {
             console.error("fcm send failed", r.status, errText.slice(0, 300));
           }
         }
-      } catch {
+      } catch (e) {
         failed++;
+        bumpReason(e instanceof Error && e.name ? `throw_${e.name}` : "throw");
       }
+
     }),
   );
 
