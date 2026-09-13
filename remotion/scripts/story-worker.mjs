@@ -1990,7 +1990,10 @@ if (offline) {
         planRes = await edge('story-plot', {
           prompt: job.prompt,
           shots,
-          ...(job.grade === 'movie' ? { screenSeconds: storySeconds } : {}),
+          // The film's paid length, so the planner writes to the screen time
+          // the person bought. `storySeconds` was never declared anywhere in
+          // this file — it threw ReferenceError on every movie-grade job.
+          ...(job.grade === 'movie' ? { screenSeconds: job.requestedSeconds } : {}),
           // Narration and dialogue in the film's language; image prompts stay
           // English inside story-plot. English sends nothing, as before.
           ...(job.language && job.language !== 'en' ? { lang: job.language } : {}),
