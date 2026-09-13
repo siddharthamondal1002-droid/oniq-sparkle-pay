@@ -421,9 +421,19 @@ export function YourVideos() {
                   >
                     <Play className="h-3.5 w-3.5" /> {playing?.id === v.id ? "Stop" : "Replay"}
                   </button>
+                  {/* Same two steps as the film above: this tap fetches, and
+                      the button then becomes "Send now" so the sheet opens
+                      out of a tap with nothing awaited in front of it. */}
                   <button
                     type="button"
-                    onClick={() => void sendSaved(v)}
+                    data-testid={
+                      ready?.surface === "share-saved-video"
+                        ? "saved-share-send-now"
+                        : "saved-share-prepare"
+                    }
+                    onClick={
+                      ready?.surface === "share-saved-video" ? sendNow : () => void sendSaved(v)
+                    }
                     disabled={sharing}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-primary/50 bg-primary/10 px-3 py-2 text-[11px] font-semibold text-primary disabled:opacity-50"
                   >
@@ -432,7 +442,7 @@ export function YourVideos() {
                     ) : (
                       <Share2 className="h-3.5 w-3.5" />
                     )}
-                    Send
+                    {ready?.surface === "share-saved-video" ? "Send now" : "Send"}
                   </button>
                   <button
                     type="button"
