@@ -16,7 +16,7 @@
  * `delivered` is the successful ending — and offering a play button for nothing
  * is worse than an empty list.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Clapperboard,
