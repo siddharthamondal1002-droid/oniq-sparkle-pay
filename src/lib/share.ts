@@ -230,10 +230,14 @@ export async function shareVideoFile(
     // hypothesis becomes a fact that later readers stop checking.
     //
     // THE FETCH ORDER IS NOT FIXED, and cannot be from inside this function: a
-    // File is required before `share` may be called, the bytes take an await
-    // to obtain, and any await ends the activation window. The remedy is a
-    // SECOND explicit tap on an already-prepared file — a UI change, at the
-    // call site, not here.
+    // File is required before `share` may be called, and the bytes take an
+    // await to obtain. An await does not UNCONDITIONALLY end the activation —
+    // transient activation expires on a timer, so a fast fetch can finish
+    // inside the window and a slow one cannot. That is exactly why the failure
+    // is intermittent and why "the await killed it" is a hypothesis rather
+    // than a rule. The remedy is a SECOND explicit tap on an already-prepared
+    // file — a UI change, at the call site, not here.
+
     //
     // The film is in hand either way, so the button is not a dead end: the
     // bytes are offered as a download. A genuine cancel is caught above and
