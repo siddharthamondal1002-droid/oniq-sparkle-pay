@@ -194,8 +194,14 @@ export async function drawStillViaGateway(
   deps: GatewayDeps,
   opts: GatewayOpts = {},
 ): Promise<GatewayStill> {
+  // PREFLIGHT BEFORE THE CAPTURE, deliberately. A malformed or oversized
+  // reference is refused by THIS side and never reaches the gateway, so
+  // capturing it first would write a row for an attempt that was never made —
+  // and that row would then settle FAILED, over-counting a request the
+  // provider never saw. Local refusals leave no row at all.
+  assertReferenceUsable(opts.referenceDataUrl);
   const spend = opts.spend;
-  if (!spend) return drawStillOnGateway(prompt, env, deps, opts);
+  if (!spend) return (await drawStillOnGateway(prompt, env, deps, opts)).still;
   return withGatewayCostCapture(
     spend.rpc,
     {
@@ -212,25 +218,20 @@ export async function drawStillViaGateway(
       // ONE image is the unit, and the gateway discloses no price for it —
       // so `chargedCredits` stays absent and the row settles
       // PENDING_RECONCILIATION rather than claiming the draw was free.
-      const value = await drawStillOnGateway(prompt, env, deps, opts);
-      return { value, outcome: "ACCEPTED" as const, unitsObserved: 1 };
+      const drawn = await drawStillOnGateway(prompt, env, deps, opts);
+      return {
+        value: drawn.still,
+        outcome: "ACCEPTED" as const,
+        unitsObserved: 1,
+        providerReceiptId: drawn.receiptId,
+      };
     },
   );
 }
 
-/**
- * The draw itself. A throw from here — including the two pre-flight refusals
- * above it — settles FAILED rather than NOT_CALLED, which OVER-records: a
- * refused reference never reached the gateway. That is the safe direction,
- * and it is stated rather than silently relied on.
- */
-async function drawStillOnGateway(
-  prompt: string,
-  env: GatewayEnv,
-  deps: GatewayDeps,
-  opts: GatewayOpts = {},
-): Promise<GatewayStill> {
-  const ref = (opts.referenceDataUrl ?? "").trim();
+/** The two local refusals, hoisted so they can run before any row is written. */
+export function assertReferenceUsable(referenceDataUrl?: string): void {
+  const ref = (referenceDataUrl ?? "").trim();
   if (ref && !REFERENCE_DATA_URL.test(ref)) {
     // Not a caller error by the time it reaches here — this side built it —
     // so it is a bug, and it fails loudly rather than drawing unconditioned.
@@ -239,6 +240,21 @@ async function drawStillOnGateway(
   if (ref.length > MAX_REFERENCE_BYTES) {
     throw new GatewayError("upstream", "reference is too large to inline");
   }
+}
+
+/**
+ * The draw itself. A throw from here settles FAILED rather than NOT_CALLED:
+ * once the fetch has been made, the request may have been served and charged
+ * whatever this side managed to read back.
+ */
+async function drawStillOnGateway(
+  prompt: string,
+  env: GatewayEnv,
+  deps: GatewayDeps,
+  opts: GatewayOpts = {},
+): Promise<{ still: GatewayStill; receiptId: string | null }> {
+  const ref = (opts.referenceDataUrl ?? "").trim();
+
 
   const ask = composeAsk(prompt, opts.negativePrompt);
   // Multimodal content only when a reference rode along; otherwise the exact
