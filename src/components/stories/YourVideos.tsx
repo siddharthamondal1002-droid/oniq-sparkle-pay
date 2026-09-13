@@ -33,8 +33,28 @@ import { lastShareDiagnostics, prepareVideoShare, shareReadyFile } from "@/lib/s
 /** What a finished share can say, from either step. */
 type ShareOutcome = "shared" | "cancelled" | "download-started" | "failed" | "unsupported";
 
+/**
+ * WHICH film a prepared share belongs to.
+ *
+ * THE SURFACE IS NOT ENOUGH, and that was a real bug: with only a surface
+ * name, preparing one saved film turned EVERY saved row's button into "Send
+ * now", and tapping any of them sent the first film. A prepared file is bound
+ * to one kind AND one id, and only that row may send it.
+ */
+type ShareSource = { kind: "film" | "saved"; id: string };
+
+const sameSource = (a: ShareSource | undefined, b: ShareSource): boolean =>
+  a?.kind === b.kind && a.id === b.id;
+
 /** A fetched film waiting for its own tap, with the copy for however it ends. */
-type ReadyShare = { file: File; surface: string; whenFailed: string; whenUnsupported: string };
+type ReadyShare = {
+  file: File;
+  source: ShareSource;
+  surface: string;
+  whenFailed: string;
+  whenUnsupported: string;
+};
+
 
 const SHARE_PAYLOAD = {
   title: "My ONIQ Story",
