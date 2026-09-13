@@ -1,6 +1,22 @@
 import { geminiOutputTokens } from "./searchBudget.ts";
 import { TEXT_DIRECT_HEAVY, TEXT_DIRECT_STANDARD } from "./modelRegistry.ts";
 import { readGrounding, requireGroundingEvidence, translateSearchTools } from "./geminiSearch.ts";
+import {
+  captureGatewaySpend,
+  settleGatewaySpend,
+  tokensFromUsage,
+  type GatewayRpc,
+} from "./gatewayLedger.ts";
+
+/** What a caller must know to book its own gateway text call. See gatewayLedger.ts. */
+export type GatewaySpendBinding = {
+  rpc: GatewayRpc | null;
+  requestId: string;
+  jobId?: string | null;
+  attempt?: number | null;
+  userId?: string | null;
+};
+
 
 // Shared Anthropic (Claude) client for ONIQ edge functions.
 // Reuses the same secret + model that the ting function already relies on.
