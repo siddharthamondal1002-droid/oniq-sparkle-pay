@@ -75,4 +75,31 @@ describe("startVisiblePolling", () => {
     expect(tick).toHaveBeenCalledTimes(2);
     stop();
   });
+
+  it("stops itself when a tick reports the watched thing has settled", async () => {
+    const tick = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const stop = startVisiblePolling(tick, 6000);
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(tick).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(tick).toHaveBeenCalledTimes(2);
+    stop();
+  });
+
+  it("keeps polling after a failed tick", async () => {
+    const tick = vi.fn().mockRejectedValueOnce(new Error("network")).mockResolvedValue(undefined);
+    const stop = startVisiblePolling(tick, 6000);
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(tick).toHaveBeenCalledTimes(3);
+    stop();
+  });
+
+  it("can defer the first read to one interval away", async () => {
+    const tick = vi.fn();
+    const stop = startVisiblePolling(tick, 6000, false);
+    expect(tick).toHaveBeenCalledTimes(0);
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(tick).toHaveBeenCalledTimes(1);
+    stop();
+  });
 });

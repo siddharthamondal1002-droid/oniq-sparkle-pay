@@ -270,7 +270,9 @@ export function YourVideos() {
   const inFlight = useMemo(() => (rows ?? []).some((r) => !SETTLED.has(r.status)), [rows]);
   useEffect(() => {
     if (!inFlight) return;
-    return startVisiblePolling(refresh, POLL_MS);
+    // The list was just read to learn something is in flight; the first poll
+    // belongs one interval away, not immediately.
+    return startVisiblePolling(refresh, POLL_MS, false);
   }, [inFlight, refresh]);
 
   const watch = useCallback(async (jobId: string) => {
