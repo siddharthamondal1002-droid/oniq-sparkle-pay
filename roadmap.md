@@ -295,3 +295,26 @@ intermittent, and why the two-step split is the remedy rather than a proof of ca
     npm run build      pass
 
 Nothing deployed, published, generated or spent. Web-only — no migration and no edge function.
+
+## 2026-09-13 — shareBinding invalidate() closed the pending-prepare hole (review of 4706049)
+
+The one reproducible defect left in the two-step share: `invalidate()` checked only
+`snapshot.ready`, which is null while the download is in flight, so switching away from or
+deleting a film DURING its first prepare did nothing — and the stale completion then armed
+the old file. The existing tests covered a second prepare superseding the first, not
+selection/deletion during the first.
+
+Fix (owner's narrow patch, applied verbatim): the binding tracks `pendingSource`; `invalidate()`
+now consults `pendingSource ?? ready?.source`, and a dead source bumps the ticket so the
+in-flight prepare resolves as `{outcome: null}` and arms nothing. Two new runtime tests
+("discards a pending film/saved when its source disappears") fail without the fix, pass with it.
+
+    focused   7 files / 64 tests (shareBinding, shareBindingWiring, shareTwoStep,
+              shareActivationFallback, gatewayRealCallers, gatewayRuntimeCallers,
+              gatewayCreditLedger)
+    tsc --noEmit 0 errors; lint:ci (changed files) pass; prettier pass
+    full suite 408 files / 7,271 passed, 1 failed = arapStep11dDiagnosis timing flake
+              under load — passes alone (6/6), unchanged from prior runs
+    npm run build pass
+
+No deployment, publish, paid generation or GPU spend. Awaits owner review.
