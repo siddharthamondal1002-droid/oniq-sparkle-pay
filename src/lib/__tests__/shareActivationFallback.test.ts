@@ -1,5 +1,5 @@
-// @vitest-environment jsdom
 /**
+
 
  * The two recorded `share-video` failures, reproduced and fixed.
  *
