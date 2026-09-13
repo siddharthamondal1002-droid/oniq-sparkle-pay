@@ -153,14 +153,35 @@ Deno.serve(async (req) => {
           },
         }),
       });
+    } catch (e) {
+      // The request left this machine and no reply came back, so what it cost
+      // is UNKNOWN rather than nothing. No raw message ever enters the ledger —
+      // the phase is one of a closed list and the status is a number.
+      await settle({
+        outcome: "FAILED",
+        settlementState: "PENDING_RECONCILIATION",
+        detail: { phase: e instanceof DOMException && e.name === "AbortError" ? "timeout" : "transport" },
+      });
+      throw e;
     } finally {
       clearTimeout(timer);
     }
 
-    if (res.status === 401 || res.status === 403) return json({ configured: false }, 200);
+    if (res.status === 401 || res.status === 403) {
+      await settle({ outcome: "REJECTED", settlementState: "PENDING_RECONCILIATION", detail: { phase: "gateway-refused", status: res.status } });
+      return json({ configured: false }, 200);
+    }
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       console.error("story-voice upstream", res.status, detail.slice(0, 300));
+      // A REFUSED request still REACHED the gateway, and the absence of a
+      // charge receipt is not proof of a zero charge — so it settles REJECTED
+      // and pending, never NOT_CALLED. Only a local preflight never called.
+      await settle({
+        outcome: res.status === 402 || res.status === 429 ? "REJECTED" : "FAILED",
+        settlementState: "PENDING_RECONCILIATION",
+        detail: { phase: "gateway-refused", status: res.status },
+      });
       // The upstream status rides in the body: the worker retries a THROTTLE
       // (429/5xx passes with time) but not a refusal, and a bare "could not
       // read" left it unable to tell the two apart — three narrations died
