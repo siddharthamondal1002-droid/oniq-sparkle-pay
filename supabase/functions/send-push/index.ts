@@ -642,6 +642,10 @@ Deno.serve(async (req) => {
       // Not fatal: android recipients were already served above.
       console.error(`send-push: web push unconfigured, ${webSubs.length} subscriber(s) skipped`);
       webFailed = webSubs.length;
+      // The web transport has its own ways to deliver nothing, and none of
+      // them reached the reason table before: a web-only conversation's
+      // `sent: 0` carried an empty `reasons` and read as unexplained.
+      bumpReason("web_unconfigured", webSubs.length);
     } else {
       const isCall = kind === "call";
       const isCancel = kind === "call_cancel";
