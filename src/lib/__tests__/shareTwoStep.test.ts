@@ -24,19 +24,37 @@ import { prepareVideoShare, shareReadyFile, lastShareDiagnostics } from "@/lib/s
 
 const PAYLOAD = { title: "t", text: "x", url: "https://example.test" };
 
+/** Counting the CLICK, not a return value: the fallback could report a
+ *  download without ever handing the bytes over, which is the failure the
+ *  two-step split exists to stop claiming. */
+let clicked = 0;
+
 beforeEach(() => {
+  clicked = 0;
   shareMock.mockReset();
   canShareMock.mockReset().mockReturnValue(true);
-  Object.assign(navigator, { share: shareMock, canShare: canShareMock });
+  // This repo's vitest environment is "node" (vitest.config.ts), so navigator,
+  // document and URL are stubbed outright rather than spied on.
+  vi.stubGlobal("navigator", {
+    share: shareMock,
+    canShare: canShareMock,
+    userAgent: "test",
+  } as unknown as Navigator);
   vi.stubGlobal(
     "fetch",
     vi.fn(async () => new Response(new Blob([new Uint8Array(8)], { type: "video/mp4" }))),
   );
-  vi.stubGlobal("URL", { ...URL, createObjectURL: () => "blob:x", revokeObjectURL: () => {} });
+  const anchor = { href: "", download: "", rel: "", click: () => void clicked++, remove() {} };
+  vi.stubGlobal("document", {
+    createElement: (tag: string) => (tag === "a" ? anchor : {}),
+    body: { appendChild: () => undefined },
+  });
+  vi.stubGlobal("URL", { createObjectURL: () => "blob:x", revokeObjectURL: () => undefined });
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("step one prepares without sharing", () => {
