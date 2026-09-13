@@ -69,21 +69,35 @@ export function sendPush(payload: {
           failed?: number;
           error?: string;
           unaddressed?: number;
+          noRecipients?: boolean;
+          reasons?: Record<string, number>;
         } | null;
         if (d?.error) {
           reportClientError("send-push", `refused: ${d.error}`, { kind: payload.kind });
+        } else if (d?.noRecipients) {
+          // NOT A FAULT. A conversation with no other members has nobody to
+          // notify, and filing it as "accepted but sent 0" buries the real
+          // reports under noise that has no fix. Until 2026-09-13 this branch
+          // was byte-identical to a pre-discriminator row, which is how three
+          // states came to read as two.
+          return;
         } else if ((d?.sent ?? 0) === 0) {
           // The honest-but-useless 200. Nothing failed; nothing arrived either.
           reportClientError("send-push", "accepted but sent 0", {
             kind: payload.kind,
             sent: d?.sent ?? null,
             failed: d?.failed ?? null,
-            // The discriminator. A NUMBER means that many recipients had no
-            // push address at all, so nothing was ever dispatched and the
-            // fault is registration. NULL means send-push did address
+            // The discriminator. A POSITIVE NUMBER means that many recipients
+            // had no push address at all, so nothing was ever dispatched and
+            // the fault is registration. NULL means send-push did address
             // somebody and still delivered nothing, which is a transport
             // fault — a different problem with a different owner.
             unaddressed: d?.unaddressed ?? null,
+            // Sanitized provider reason codes and their counts. Codes only —
+            // an FCM enum or a status number, never an address. This is what
+            // separates "Google refused each token" from "the credential
+            // minted nothing" without another round of guessing.
+            reasons: d?.reasons ?? null,
           });
         }
       })

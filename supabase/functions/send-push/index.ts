@@ -262,9 +262,20 @@ Deno.serve(async (req) => {
     .neq("user_id", senderId);
   const recipientIds = (others ?? []).map((m: { user_id: string }) => m.user_id);
   if (recipientIds.length === 0) {
-    return new Response(JSON.stringify({ sent: 0, failed: 0 }), {
-      headers: { ...corsHeaders, "content-type": "application/json" },
-    });
+    // THE THIRD WAY TO ANSWER sent:0, and until now it was the one nobody
+    // could name. `unaddressed` was added in August to separate "nobody had a
+    // push address" from "we reached FCM and it delivered nothing" — but this
+    // branch returned a BARE {sent:0,failed:0}, so a conversation with no
+    // other members was byte-identical to a report written before the
+    // discriminator existed. Three distinct states, two of them reading the
+    // same. `unaddressed: 0` with `noRecipients` says which one this is, and
+    // says it in a field rather than in a log nobody joins to the row.
+    return new Response(
+      JSON.stringify({ sent: 0, failed: 0, unaddressed: 0, noRecipients: true }),
+      {
+        headers: { ...corsHeaders, "content-type": "application/json" },
+      },
+    );
   }
 
   const { data: tokens } = await admin
@@ -344,6 +355,15 @@ Deno.serve(async (req) => {
   let sent = 0;
   let failed = 0;
   const staleTokens: string[] = [];
+  /** Reason code -> count. Codes only; never a token, endpoint or person. */
+  const reasons: Record<string, number> = {};
+  const bumpReason = (code: string) => {
+    reasons[code] = (reasons[code] ?? 0) + 1;
+  };
+  // A token was minted but there were FCM rows to spend it on and it never
+  // arrived — the one state that IS a credential fault, and it was previously
+  // indistinguishable from "no rows to send to".
+  if (fcmTokens.length > 0 && !accessToken) bumpReason("no_access_token");
 
   await Promise.all(
     (accessToken ? fcmTokens : []).map(async (token) => {
@@ -419,6 +439,7 @@ Deno.serve(async (req) => {
           // a genuinely dead token will fail again next send.
           let stale = r.status === 404;
           const errText = await r.text().catch(() => "");
+          let reasonCode = `http_${r.status}`;
           if (!stale && (r.status === 400 || r.status === 403)) {
             try {
               const j = JSON.parse(errText) as {
@@ -434,6 +455,7 @@ Deno.serve(async (req) => {
               const fcmErr = details.find((d) =>
                 d["@type"]?.endsWith("google.firebase.fcm.v1.FcmError"),
               );
+              if (fcmErr?.errorCode) reasonCode = fcmErr.errorCode;
               if (fcmErr?.errorCode === "UNREGISTERED") {
                 stale = true;
               } else if (fcmErr?.errorCode === "INVALID_ARGUMENT") {
@@ -444,8 +466,14 @@ Deno.serve(async (req) => {
               }
             } catch {
               // unparseable — never delete on a guess
+              reasonCode = `http_${r.status}_unparseable`;
             }
           }
+          // SANITIZED COUNTS, not messages. A reason code is an FCM enum or a
+          // status number; it can hold no token, no endpoint and no person.
+          // Counting them is what turns "sent 0" into something actionable
+          // without putting an address anywhere it can be read.
+          bumpReason(reasonCode);
           if (stale) {
             staleTokens.push(token);
           } else {
@@ -453,8 +481,9 @@ Deno.serve(async (req) => {
             console.error("fcm send failed", r.status, errText.slice(0, 300));
           }
         }
-      } catch {
+      } catch (e) {
         failed++;
+        bumpReason(e instanceof Error && e.name ? `throw_${e.name}` : "throw");
       }
     }),
   );
@@ -659,9 +688,20 @@ Deno.serve(async (req) => {
 
   return new Response(
     JSON.stringify({
+      // `sent` IS PROVIDER ACCEPTANCE, NOT HANDSET DELIVERY, and the name has
+      // been read as the second thing for months. FCM returning 200 means
+      // Google took custody of the message; whether it ever lit up a phone
+      // depends on the handset being reachable, the app not being force-stopped
+      // and the OS not dropping it — none of which this function can observe.
+      // The field keeps its name so existing readers do not break, and the
+      // truth travels beside it in fields that cannot be misread.
       sent: sent + webSent,
+      acceptedByProvider: sent + webSent,
+      deliveredToHandset: null,
       failed: failed + webFailed,
       cleaned: toDelete.length,
+      /** Sanitized reason code -> count. Codes only, never an address. */
+      reasons,
       fcm: { sent, failed, addressed: fcmTokens.length },
       web: {
         sent: webSent,
