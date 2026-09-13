@@ -2,23 +2,37 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { startVisiblePolling } from "../visiblePolling";
 
-function setVisibility(state: DocumentVisibilityState) {
-  Object.defineProperty(document, "visibilityState", {
-    configurable: true,
-    value: state,
-  });
-  document.dispatchEvent(new Event("visibilitychange"));
+type FakeDocument = EventTarget & {
+  visibilityState: DocumentVisibilityState;
+  addEventListener: EventTarget["addEventListener"];
+  removeEventListener: EventTarget["removeEventListener"];
+  dispatchEvent: EventTarget["dispatchEvent"];
+};
+
+function makeFakeDocument(): FakeDocument {
+  const target = new EventTarget() as FakeDocument;
+  target.visibilityState = "visible";
+  return target;
 }
 
 describe("startVisiblePolling", () => {
+  let fakeDocument: FakeDocument;
+
   beforeEach(() => {
     vi.useFakeTimers();
-    setVisibility("visible");
+    fakeDocument = makeFakeDocument();
+    vi.stubGlobal("document", fakeDocument);
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
+
+  function setVisibility(state: DocumentVisibilityState) {
+    fakeDocument.visibilityState = state;
+    fakeDocument.dispatchEvent(new Event("visibilitychange"));
+  }
 
   it("runs immediately and on each interval while visible", async () => {
     const tick = vi.fn();
