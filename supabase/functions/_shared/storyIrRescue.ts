@@ -54,6 +54,7 @@
  */
 
 import { callGatewayText } from "./llm.ts";
+import type { GatewayRpc } from "./gatewayLedger.ts";
 import type { LocalInvoke } from "./localStoryModel.ts";
 import { generateStory, StoryInvalid, type StoryRequest } from "./storyModel.ts";
 import { LocalModelUnavailable } from "./localStoryModel.ts";
