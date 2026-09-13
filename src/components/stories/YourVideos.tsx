@@ -193,8 +193,8 @@ export function YourVideos() {
    * On the web it leaves a prepared file and the caller shows "Send now" —
    * the second tap is what keeps the activation the sheet requires.
    *
-   * The prepared file is stamped with the SOURCE it came from, and a stale
-   * fetch is discarded rather than armed: whoever took the last ticket wins.
+   * Which film the file belongs to, and whether a slow fetch may still arm it,
+   * are the binding's decisions — this only says what to show afterwards.
    */
   const prepare = useCallback(
     async (
@@ -205,55 +205,40 @@ export function YourVideos() {
       whenFailed: string,
       whenUnsupported: string,
     ) => {
-      const ticket = ++prepareSeq.current;
-      setSharing(true);
       setShareHint(null);
       setError(null);
-      setReady(null);
-      try {
-        const r = await prepareVideoShare(url, fileName, SHARE_PAYLOAD, setSharePct);
-        // A newer tap started while this one was fetching. Arming this file
-        // now would hand the person the film they moved away from.
-        if (ticket !== prepareSeq.current) return;
-        if (r.kind === "ready") {
-          setReady({ file: r.file, source, surface, whenFailed, whenUnsupported });
-          setShareHint("Your film is ready — tap Send now to choose an app.");
-          return;
-        }
-        reportShare(surface, r.outcome, whenFailed, whenUnsupported);
-      } finally {
-        if (ticket === prepareSeq.current) {
-          setSharing(false);
-          setSharePct(null);
-        }
+      const r = await binding.prepare({
+        source,
+        surface,
+        url,
+        fileName,
+        whenFailed,
+        whenUnsupported,
+      });
+      if ("armed" in r) {
+        setShareHint("Your film is ready — tap Send now to choose an app.");
+        return;
       }
+      // `null` means a newer tap superseded this one — it has its own outcome.
+      if (r.outcome) reportShare(surface, r.outcome, whenFailed, whenUnsupported);
     },
-    [reportShare],
+    [binding, reportShare],
   );
 
   /**
-   * STEP TWO. NOT async, and nothing is awaited before `shareReadyFile` — an
-   * `await` added in front of this call silently restores the very refusal the
-   * split exists to prevent.
-   *
-   * The caller says which film it believes it is sending, and a mismatch is
-   * refused rather than sent: the button is the only thing that could be
-   * wrong, and sending the wrong person's film is not a recoverable error.
+   * STEP TWO. NOT async, and nothing is awaited before the send — an `await`
+   * added in front of this call silently restores the very refusal the split
+   * exists to prevent. The caller names which film it believes it is sending,
+   * and the binding refuses a mismatch or a second concurrent tap.
    */
   const sendNow = useCallback(
     (source: ShareSource) => {
-      const r = ready;
-      if (!r || !sameSource(r.source, source)) return;
-      if (sending.current) return;
-      sending.current = true;
       setShareHint(null);
-      void shareReadyFile(r.file, SHARE_PAYLOAD).then((outcome) => {
-        sending.current = false;
-        setReady((cur) => (cur && sameSource(cur.source, source) ? null : cur));
-        reportShare(r.surface, outcome, r.whenFailed, r.whenUnsupported);
-      });
+      binding.sendNow(source, (r, outcome) =>
+        reportShare(r.surface, outcome, r.whenFailed, r.whenUnsupported),
+      );
     },
-    [ready, reportShare],
+    [binding, reportShare],
   );
 
   const sendSaved = useCallback(
@@ -276,12 +261,12 @@ export function YourVideos() {
    * binding exists to prevent.
    */
   useEffect(() => {
-    setReady((cur) => {
-      if (!cur) return cur;
-      if (cur.source.kind === "film") return cur.source.id === openId ? cur : null;
-      return onDevice.some((v) => v.id === cur.source.id) ? cur : null;
-    });
-  }, [openId, onDevice]);
+    binding.invalidate(
+      openId,
+      onDevice.map((v) => v.id),
+    );
+  }, [binding, openId, onDevice]);
+
 
 
   // Poll only while something is actually moving. A settled list is a static
