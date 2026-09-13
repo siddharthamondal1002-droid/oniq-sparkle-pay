@@ -140,6 +140,22 @@ describe("one send at a time", () => {
 });
 
 describe("an armed file does not outlive its film", () => {
+  it.each(["film", "saved"] as const)(
+    "discards a pending %s when its source disappears",
+    async (kind) => {
+      const { io, pending, sent } = deferredIo();
+      const b = createShareBinding(io);
+      const p = b.prepare(args(kind, "A"));
+      b.invalidate("B", ["B"]);
+      pending[0].resolve(fileFor("A.mp4"));
+      expect(await p).toEqual({ outcome: null });
+      expect(b.getSnapshot().ready).toBeNull();
+      expect(b.getSnapshot().sharing).toBe(false);
+      expect(b.sendNow({ kind, id: "A" }, () => {})).toBe(false);
+      expect(sent).toEqual([]);
+    },
+  );
+
   it("drops when the open film is closed or swapped", async () => {
     const { io, pending } = deferredIo();
     const b = createShareBinding(io);

@@ -70,6 +70,7 @@ export function createShareBinding(
   // Whoever took the LAST ticket wins. A fetch takes seconds, so a person can
   // start one film and tap another before the first lands.
   let seq = 0;
+  let pendingSource: ShareSource | null = null;
   // One send at a time: the send call is deliberately synchronous, so two fast
   // taps would otherwise both reach the sheet with the same file.
   let sending = false;
@@ -93,6 +94,7 @@ export function createShareBinding(
      */
     async prepare(args: PrepareArgs): Promise<{ armed: true } | { outcome: ShareOutcome | null }> {
       const ticket = ++seq;
+      pendingSource = args.source;
       set({ sharing: true, ready: null, pct: null });
       try {
         const r = await io.prepare(args.url, args.fileName, SHARE_PAYLOAD, (pct) => {
@@ -113,7 +115,10 @@ export function createShareBinding(
         }
         return { outcome: r.outcome };
       } finally {
-        if (ticket === seq) set({ sharing: false, pct: null });
+        if (ticket === seq) {
+          pendingSource = null;
+          set({ sharing: false, pct: null });
+        }
       }
     },
 
@@ -136,13 +141,15 @@ export function createShareBinding(
 
     /** Drop an armed file whose film is closed, deleted, or off the phone. */
     invalidate(openFilmId: string | null, savedIds: readonly string[]) {
-      const cur = snapshot.ready;
-      if (!cur) return;
+      const source = pendingSource ?? snapshot.ready?.source;
+      if (!source) return;
       const alive =
-        cur.source.kind === "film"
-          ? cur.source.id === openFilmId
-          : savedIds.includes(cur.source.id);
-      if (!alive) set({ ready: null });
+        source.kind === "film" ? source.id === openFilmId : savedIds.includes(source.id);
+      if (!alive) {
+        ++seq;
+        pendingSource = null;
+        set({ ready: null, sharing: false, pct: null });
+      }
     },
   };
 }
