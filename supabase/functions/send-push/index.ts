@@ -545,7 +545,7 @@ Deno.serve(async (req) => {
           // a genuinely dead token will fail again next send.
           let stale = r.status === 404;
           const errText = await r.text().catch(() => "");
-          let reasonCode = `http_${r.status}`;
+          let reasonCode = httpCode(r.status);
           if (!stale && (r.status === 400 || r.status === 403)) {
             try {
               const j = JSON.parse(errText) as {
@@ -572,13 +572,14 @@ Deno.serve(async (req) => {
               }
             } catch {
               // unparseable — never delete on a guess
-              reasonCode = `http_${r.status}_unparseable`;
+              reasonCode = "http_unparseable";
             }
           }
-          // SANITIZED COUNTS, not messages. A reason code is an FCM enum or a
-          // status number; it can hold no token, no endpoint and no person.
-          // Counting them is what turns "sent 0" into something actionable
-          // without putting an address anywhere it can be read.
+          // SANITIZED COUNTS, not messages — and bounded by an ALLOWLIST, not
+          // by a hope that the provider's strings stay short. `errorCode` is a
+          // value Google controls; `bumpReason` folds anything it does not
+          // recognise into `other`, so the count survives and the string never
+          // reaches the row.
           bumpReason(reasonCode);
           if (stale) {
             staleTokens.push(token);
@@ -589,7 +590,10 @@ Deno.serve(async (req) => {
         }
       } catch (e) {
         failed++;
-        bumpReason(e instanceof Error && e.name ? `throw_${e.name}` : "throw");
+        // The error NAME is a string this side does not own either. Only the
+        // one distinction worth its own code survives: a timeout is a
+        // different fault from a throw.
+        bumpReason((e as Error)?.name === "AbortError" ? "timeout" : "throw");
       }
     }),
   );
