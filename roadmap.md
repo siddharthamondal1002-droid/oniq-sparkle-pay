@@ -35,18 +35,47 @@
       ZERO temp blocks. No index or memory change is warranted — do not add one on the strength of
       the cumulative figure.
 
-- [ ] Item 1 BLOCKED, and the blocker is the installer, not the advisories. Every fix is in-range
-      (no semver-major): @xmldom/xmldom 0.9.12, brace-expansion 5.0.9, browserslist 4.28.9,
-      baseline-browser-mapping 2.11.23, dompurify 3.4.15, fast-uri 4.1.4, hono 4.13.7, js-yaml 4.3.2,
-      nanoid 3.3.19, postcss 8.5.28, qs 6.16.0, vitest ^4.1.11. Three measured obstacles: 1. `npm install --package-lock-only` CRASHES on this tree —
-      `TypeError: Cannot read properties of null (reading 'edgesOut')` in arborist's peer-set
-      walk for `vitest`. It crashed identically BEFORE any edit (the first `npm audit fix`), so
-      it is pre-existing and not caused by the overrides. 2. The platform installs with BUN, which "does not support nested overrides" — so the scoped
-      `{"@lovable.dev/mcp-js": {"esbuild": ...}}` form cannot be used here. 3. The installer enforces a MINIMUM RELEASE AGE of 86400s; `baseline-browser-mapping@2.11.23`
-      was refused for being under 24h old.
-      The edit was reverted so package.json and package-lock.json stay consistent — a package.json the
-      lockfile does not match breaks `npm ci`, which is a worse outcome than the advisories.
-      NOT residual-by-choice: @capacitor/cli / xcode / uuid, whose only fix npm marks semver-major.
+- [x] Item 1 RESOLVED. The blocker was the installer, not the advisories, and the route around it is
+      npm 11 with a lock-only, date-bounded update — no `package.json` edit and no overrides:
+      `npx npm@11.9.0 update dompurify hono fast-uri js-yaml postcss qs nanoid browserslist
+    brace-expansion @xmldom/xmldom vitest --package-lock-only --ignore-scripts --no-audit
+    --no-fund --before=2026-09-12T00:00:00Z --registry=https://registry.npmjs.org`.
+      The container's own npm (10.9.4) still crashes with
+      `TypeError: Cannot read properties of null (reading 'edgesOut')` in arborist's peer-set walk —
+      that crash is an npm-10 fault, pre-existing, and npm 11 does not reproduce it.
+      `--before` is what keeps `baseline-browser-mapping` at 2.11.22 instead of the under-24h 2.11.23
+      the release-age guard refuses, so the guard is preserved rather than bypassed.
+      Locked now: @xmldom/xmldom 0.9.12, brace-expansion 5.0.9, browserslist 4.28.9,
+      baseline-browser-mapping 2.11.22, dompurify 3.4.15, fast-uri 4.1.4, hono 4.13.7, js-yaml 4.3.2,
+      nanoid 3.3.19, postcss 8.5.28, qs 6.16.0, vitest 4.1.11.
+      `npm audit --registry=https://registry.npmjs.org`: **0 high, 3 moderate, 1 low, 4 total** (was 17).
+      Residual by choice, NOT erased with a downgrade: @capacitor/cli -> xcode -> uuid 7.0.3
+      (GHSA-w5hq-g745-h8pq; npm's only fix is an out-of-range @capacitor/cli 8.4.3) and
+      @lovable.dev/mcp-js -> esbuild 0.27.7 (GHSA-g7r4-m6w7-qqqr, Windows dev-server file read).
+      `bun.lock` was badly stale against it (vitest 4.1.10, dompurify 3.4.12, postcss 8.5.15,
+      baseline-browser-mapping 2.10.21). Migrated the TESTED npm graph rather than running a blanket
+      bun update: a temp directory holding only `package.json`, the updated `package-lock.json` and
+      the unchanged `bunfig.toml` (no `bun.lock`), then `bun install --lockfile-only
+    --ignore-scripts` (bun 1.3.3), and the generated `bun.lock` copied back. Frozen lock-only
+      re-run is idempotent. Package-version set diff against the npm lock is only the `h3-v2` alias
+      and two optional WASM packages, exactly as measured externally.
+      Gates in this environment, all green: clean `npm ci` in a scratch directory (765 packages),
+      `check:deps` 104/104, `npx vitest run` **403 files / 7228 tests passed** (no EPERM here — the
+      6 sandbox-blocked tests reported externally do run), `tsc --noEmit` 0, `lint:ci`,
+      `format:check:changed`, and a full `npm run build`.
+- [x] Security finding AGE_SELF_ATTESTATION fixed (migration
+      `profiles_private_dob_immutable_by_client`). `profiles_private` had table-wide INSERT/UPDATE
+      for `authenticated` — a later migration had widened the original 20260729162218 design, which
+      granted `(upi_vpa, updated_at)` only — so a client could PATCH its own `date_of_birth` and skip
+      the whole age flow: `is_adult_18()` and every minor gate read that column. Column grants are
+      restored to `(user_id, upi_vpa, updated_at)` for INSERT and UPDATE; `service_role` unchanged.
+      Verified live with `has_column_privilege`: `date_of_birth`, `is_minor` and `parent_*` are now
+      false for INSERT and UPDATE, `upi_vpa` still true. Age can therefore only be set through
+      `set_signup_profile()` (SECURITY DEFINER, so grants do not apply to it), which keeps the
+      3-edits-per-7-days limit, the `child_mode_locked` refusal, `dob_change_events` and the audit
+      rows; `trg_prevent_is_minor_self_change` remains as the second guard. The UPI-ID upsert
+      (`{ user_id, upi_vpa }`) is unaffected.
+
 - [ ] Item 3 BLOCKED at the credential, with the target now named precisely: the writer is
       `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` and the bucket is the hard-coded `STILL_BUCKET`
       = `oniq-gpu` (`_shared/stillStore.ts:65`). `r2-probe` is the existing narrow write/read/delete
