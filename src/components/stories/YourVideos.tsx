@@ -237,8 +237,10 @@ export function YourVideos() {
         setShareHint(
           "Sharing isn't available in this browser — open ONIQ on your phone to send it.",
         );
-      } else if (outcome === "downloaded") {
-        setShareHint("Your browser wouldn't open the share sheet, so the film was saved instead.");
+      } else if (outcome === "download-started") {
+        // A download was REQUESTED. Whether the browser wrote it is not
+        // observable from here, so the copy points at where to look.
+        setShareHint("Your browser wouldn't open the share sheet — check your downloads.");
       }
       // "shared" and "cancelled" both end quietly; the user saw the sheet.
     } finally {
