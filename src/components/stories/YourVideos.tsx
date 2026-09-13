@@ -103,6 +103,15 @@ export function YourVideos() {
   // A file already fetched and waiting for its own tap. Holding it here is
   // what lets `navigator.share` run with nothing awaited in front of it.
   const [ready, setReady] = useState<ReadyShare | null>(null);
+  // WHICH preparation is the current one. A fetch takes seconds, so a person
+  // can start one film and tap another before it lands; without this the older
+  // fetch would resolve last and arm the WRONG file. Every prepare takes a
+  // ticket and only the newest ticket may set `ready`.
+  const prepareSeq = useRef(0);
+  // One send at a time. `sendNow` is deliberately not async, so two fast taps
+  // would otherwise both reach the sheet with the same file.
+  const sending = useRef(false);
+
   // Films already on this phone. Kept in local state because the server has
   // nothing left to list once a film is saved — saving purges it there.
   const [onDevice, setOnDevice] = useState<SavedVideo[]>([]);
