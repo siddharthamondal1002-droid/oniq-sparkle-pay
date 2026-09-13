@@ -238,7 +238,7 @@ describe("the story-IR rescue books every model call separately", () => {
 
 describe("story-voice books the narration it asked for", () => {
   async function voiceHandler(): Promise<(req: Request) => Promise<Response>> {
-    await import(/* @vite-ignore */ "../../../supabase/functions/story-voice/index.ts");
+    await import(/* @vite-ignore */ VOICE_MOD);
     expect(handlers).toHaveLength(1);
     return handlers[0];
   }
