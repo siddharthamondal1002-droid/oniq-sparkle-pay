@@ -794,7 +794,17 @@ Deno.serve(async (req) => {
           prompt,
           { key: gatewayKey },
           { fetchImpl: fetch },
-          { negativePrompt, referenceDataUrl },
+          {
+            negativePrompt,
+            referenceDataUrl,
+            // The bounded path spends the same credits as start/poll does, so
+            // it books the same way. New id per draw; see the note above.
+            spend: {
+              rpc: serviceRoleRpc(),
+              requestId: `story-still:${crypto.randomUUID()}`,
+              jobId: auth.jobId ?? null,
+            },
+          },
         );
         const kept = await keepStill(stillId, drawn.data);
         return json({
