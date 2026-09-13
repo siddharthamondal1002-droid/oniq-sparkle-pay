@@ -2805,7 +2805,12 @@ if (offline) {
       // A synth failure drops the bed, never the film.
       let ambience = null;
       if (cinematic) {
-        const kind = ambienceFor(`${shot.still} ${shot.narration}`);
+        const authoredAir = ambienceFor(`${shot.still} ${shot.narration}`);
+        // Rain ambience follows the VISIBLE weather decision exactly. If this
+        // shot visibly rains, the bed rains even when narration is calm; if it
+        // is visibly dry, a rain word in narration cannot wet the soundtrack.
+        const kind =
+          sceneWeather === 'rain' ? 'rain' : authoredAir === 'rain' ? null : authoredAir;
         if (kind) {
           try {
             const amb = path.join(assetRoot, `${stem}.amb.wav`);
@@ -3049,6 +3054,11 @@ if (offline) {
       // is the composition's data, so an unmeasured character silently
       // keeps the painted base head.
       let expression = null;
+      if (cinematic) {
+        expression = emotionFor(
+          `${shot.still} ${shot.narration} ${shot.dialogue?.line ?? ''}`,
+        );
+      }
       // RUNG 6 — the two-shot, movie grade only. When the shot's words put
       // a SECOND rigged cast member in the frame and the framing is full
       // or wider, the conversation shares one frame instead of cutting
@@ -3061,9 +3071,6 @@ if (offline) {
         // roads that run and suns that climb.
         const castNames = (plan.cast ?? []).map((m) => String(m.name ?? ''));
         const walk = walkFor(`${shot.still} ${shot.narration}`, castNames);
-        expression = emotionFor(
-          `${shot.still} ${shot.narration} ${shot.dialogue?.line ?? ''}`,
-        );
         // Rung 6: a second rigged face in this shot's own words, at a
         // framing wide enough to hold two figures. The mention scan mirrors
         // rigFor's matching exactly — same normalisation, same substring
