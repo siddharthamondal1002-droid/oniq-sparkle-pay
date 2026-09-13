@@ -16,7 +16,7 @@
  * `delivered` is the successful ending — and offering a play button for nothing
  * is worse than an empty list.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   AlertTriangle,
   Clapperboard,
@@ -28,39 +28,17 @@ import {
   Trash2,
 } from "lucide-react";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
-import { lastShareDiagnostics, prepareVideoShare, shareReadyFile } from "@/lib/share";
+import { lastShareDiagnostics } from "@/lib/share";
+// The prepared file, which film it belongs to, and every rule about when it
+// may be sent live in one module — see its header for why none of this is
+// inline here any more.
+import {
+  createShareBinding,
+  sameSource,
+  type ShareOutcome,
+  type ShareSource,
+} from "./shareBinding";
 
-/** What a finished share can say, from either step. */
-type ShareOutcome = "shared" | "cancelled" | "download-started" | "failed" | "unsupported";
-
-/**
- * WHICH film a prepared share belongs to.
- *
- * THE SURFACE IS NOT ENOUGH, and that was a real bug: with only a surface
- * name, preparing one saved film turned EVERY saved row's button into "Send
- * now", and tapping any of them sent the first film. A prepared file is bound
- * to one kind AND one id, and only that row may send it.
- */
-type ShareSource = { kind: "film" | "saved"; id: string };
-
-const sameSource = (a: ShareSource | undefined, b: ShareSource): boolean =>
-  a?.kind === b.kind && a.id === b.id;
-
-/** A fetched film waiting for its own tap, with the copy for however it ends. */
-type ReadyShare = {
-  file: File;
-  source: ShareSource;
-  surface: string;
-  whenFailed: string;
-  whenUnsupported: string;
-};
-
-
-const SHARE_PAYLOAD = {
-  title: "My ONIQ Story",
-  text: "Made with AI on ONIQ 🎬 oniqhub.com",
-  url: "https://oniqhub.com",
-};
 import { reportClientError } from "@/lib/errorReport";
 import { listSavedVideos, onSavedVideosChanged, type SavedVideo } from "@/lib/savedVideos";
 import {
