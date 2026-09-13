@@ -381,6 +381,9 @@ export function YourVideos() {
   // "Send now" belongs to ONE film. Not to the surface, and not to whatever
   // was prepared last.
   const filmReady = !!openId && !!ready && sameSource(ready.source, { kind: "film", id: openId });
+  // Which SAVED row, if any, is armed. One row, never the whole list.
+  const readySavedId = ready?.source.kind === "saved" ? ready.source.id : null;
+
 
   return (
 
