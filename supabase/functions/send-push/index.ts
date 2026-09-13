@@ -748,6 +748,7 @@ Deno.serve(async (req) => {
             mismatchSubs.push(sub);
             bumpReason("web_vapid_mismatch");
           } else {
+            bumpReason("web_failed");
             // Status and the service's complaint only — the endpoint is a
             // capability URL and belongs in logs no more than a token does.
             console.error("web push failed", r.status, r.error);
