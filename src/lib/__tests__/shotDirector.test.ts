@@ -162,13 +162,13 @@ describe("story worker carries the director pass", () => {
     expect(src).not.toMatch(/selectSceneWeather\(shot\.still\)/);
   });
 
-  it("keeps the audio and emotion choosers on the UNDECORATED still", () => {
+  it("keeps emotion on the UNDECORATED still, and rain ambience on visible weather", () => {
     // The director varies the image, not the sound stage or the acting: the
-    // ambience bed and the expression register are earned by the plan's own
-    // words. Pin their inputs so a refactor cannot silently hand them the
-    // decorated text (where a lighting note could masquerade as scene words).
-    expect(src).toMatch(/ambienceFor\(`\$\{shot\.still\} \$\{shot\.narration\}`\)/);
-    expect(src).not.toMatch(/ambienceFor\([^)]*directedStill/);
+    // expression register is earned by the plan's own words. The ambience bed
+    // still starts from those words, but rain follows the visible-weather choice
+    // so sound and particles cannot disagree.
+    expect(src).toMatch(/const authoredAir = ambienceFor\(`\$\{shot\.still\} \$\{shot\.narration\}`\)/);
+    expect(src).toMatch(/sceneWeather === 'rain' \? 'rain' : authoredAir === 'rain' \? null : authoredAir/);
     expect(src).toMatch(/emotionFor\(\s*`\$\{shot\.still\} \$\{shot\.narration\}/);
     expect(src).not.toMatch(/emotionFor\([^)]*directedStill/);
   });

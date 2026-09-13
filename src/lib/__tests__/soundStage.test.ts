@@ -160,6 +160,10 @@ describe("the recipes and the mix", () => {
       "the ballots are no longer collected per shot",
     ).toBe(true);
     expect(
+      /let expression = null;\s*if \(cinematic\)\s*\{\s*expression = emotionFor\(/.test(WORKER_SRC),
+      "score ballots should come from cinematic shot text, not only rigged shots",
+    ).toBe(true);
+    expect(
       WORKER_SRC.includes("...(score ? { score } : {})"),
       "renderPlan no longer receives the score",
     ).toBe(true);
