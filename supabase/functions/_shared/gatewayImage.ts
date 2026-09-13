@@ -29,6 +29,8 @@
 // stillRoute.ts, which is the whole of that decision and is pure so it can be
 // tested rather than reasoned about.
 
+import { withGatewayCostCapture, type GatewayRpc } from "./gatewayLedger.ts";
+
 /** Where the gateway serves images. */
 export const GATEWAY_IMAGE_URL = "https://ai.gateway.lovable.dev/v1/images/generations";
 
@@ -143,6 +145,24 @@ export type GatewayOpts = {
    */
   referenceDataUrl?: string;
   timeoutMs?: number;
+  /**
+   * CREDIT ACCOUNTING, opt-in. Absent ⇒ nothing is recorded and the call is
+   * byte-for-byte what it was before — a still drawn by a caller that has no
+   * database reach must not fail for want of a ledger. Present ⇒ the attempt
+   * is captured before the request and settled after it, in CREDITS, in
+   * `gateway_spend_ledger`. Never in dollars: see gatewayLedger.ts.
+   */
+  spend?: GatewaySpendBinding;
+};
+
+/** What a caller must know to book its own gateway draw. */
+export type GatewaySpendBinding = {
+  rpc: GatewayRpc | null;
+  /** Stable per ATTEMPT — a retried frame is a new id, not the same one. */
+  requestId: string;
+  jobId?: string | null;
+  attempt?: number | null;
+  userId?: string | null;
 };
 
 /** The shape a reference must have before it may be inlined. */
@@ -169,6 +189,42 @@ export function composeAsk(prompt: string, negativePrompt?: string): string {
  * it without polling.
  */
 export async function drawStillViaGateway(
+  prompt: string,
+  env: GatewayEnv,
+  deps: GatewayDeps,
+  opts: GatewayOpts = {},
+): Promise<GatewayStill> {
+  const spend = opts.spend;
+  if (!spend) return drawStillOnGateway(prompt, env, deps, opts);
+  return withGatewayCostCapture(
+    spend.rpc,
+    {
+      requestId: spend.requestId,
+      capability: "IMAGE",
+      model: GATEWAY_IMAGE_MODEL,
+      unit: "images",
+      jobId: spend.jobId ?? null,
+      attempt: spend.attempt ?? null,
+      userId: spend.userId ?? null,
+      detail: { conditioned: Boolean((opts.referenceDataUrl ?? "").trim()) },
+    },
+    async () => {
+      // ONE image is the unit, and the gateway discloses no price for it —
+      // so `chargedCredits` stays absent and the row settles
+      // PENDING_RECONCILIATION rather than claiming the draw was free.
+      const value = await drawStillOnGateway(prompt, env, deps, opts);
+      return { value, outcome: "ACCEPTED" as const, unitsObserved: 1 };
+    },
+  );
+}
+
+/**
+ * The draw itself. A throw from here — including the two pre-flight refusals
+ * above it — settles FAILED rather than NOT_CALLED, which OVER-records: a
+ * refused reference never reached the gateway. That is the safe direction,
+ * and it is stated rather than silently relied on.
+ */
+async function drawStillOnGateway(
   prompt: string,
   env: GatewayEnv,
   deps: GatewayDeps,

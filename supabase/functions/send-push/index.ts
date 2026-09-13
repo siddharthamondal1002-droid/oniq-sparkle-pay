@@ -255,11 +255,23 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: others } = await admin
+  // A FAILED LOOKUP IS NOT AN EMPTY ROOM. `.select()` resolves with
+  // `data: null` on an error, so the old code read a database fault as "this
+  // conversation has no other members" and answered 200 with `noRecipients`.
+  // That is the worst possible shape: the fault is invisible, the message is
+  // never announced, and the witness records nothing because nothing failed.
+  const { data: others, error: othersErr } = await admin
     .from("conversation_members")
     .select("user_id")
     .eq("conversation_id", conversation_id)
     .neq("user_id", senderId);
+  if (othersErr) {
+    console.error("send-push: member lookup failed —", othersErr.message);
+    return new Response(JSON.stringify({ error: "recipient lookup failed", sent: 0, failed: 0 }), {
+      status: 500,
+      headers: { ...corsHeaders, "content-type": "application/json" },
+    });
+  }
   const recipientIds = (others ?? []).map((m: { user_id: string }) => m.user_id);
   if (recipientIds.length === 0) {
     // THE THIRD WAY TO ANSWER sent:0, and until now it was the one nobody
@@ -270,6 +282,9 @@ Deno.serve(async (req) => {
     // discriminator existed. Three distinct states, two of them reading the
     // same. `unaddressed: 0` with `noRecipients` says which one this is, and
     // says it in a field rather than in a log nobody joins to the row.
+    //
+    // It can only be reached now when the lookup SUCCEEDED and returned
+    // nothing, which is what makes it a true statement about the room.
     return new Response(
       JSON.stringify({ sent: 0, failed: 0, unaddressed: 0, noRecipients: true }),
       {
@@ -278,10 +293,20 @@ Deno.serve(async (req) => {
     );
   }
 
-  const { data: tokens } = await admin
+  const { data: tokens, error: tokensErr } = await admin
     .from("device_tokens")
     .select("token, platform, keys")
     .in("user_id", recipientIds);
+  if (tokensErr) {
+    // Same class as above: a failed address lookup previously became
+    // `unaddressed: N`, i.e. "these people never registered" — an accusation
+    // about the recipients for a fault on our own side.
+    console.error("send-push: token lookup failed —", tokensErr.message);
+    return new Response(JSON.stringify({ error: "address lookup failed", sent: 0, failed: 0 }), {
+      status: 500,
+      headers: { ...corsHeaders, "content-type": "application/json" },
+    });
+  }
 
   // TWO TRANSPORTS, ONE TABLE. An android row's `token` is an FCM
   // registration token; a web row's is the subscription endpoint URL, with
@@ -311,9 +336,20 @@ Deno.serve(async (req) => {
     console.warn(
       `send-push: no push address for any of ${recipientIds.length} recipient(s) — kind=${kind}`,
     );
-    return new Response(JSON.stringify({ sent: 0, failed: 0, unaddressed: recipientIds.length }), {
-      headers: { ...corsHeaders, "content-type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        sent: 0,
+        failed: 0,
+        unaddressed: recipientIds.length,
+        // The reason table is reported on EVERY zero, not only on the FCM
+        // path. An empty `reasons` beside a positive `unaddressed` used to be
+        // read as "no reason given"; it now carries the reason it has.
+        reasons: { no_device_token: recipientIds.length },
+      }),
+      {
+        headers: { ...corsHeaders, "content-type": "application/json" },
+      },
+    );
   }
 
   const { data: senderProfile } = await admin
@@ -332,6 +368,59 @@ Deno.serve(async (req) => {
       ? `Incoming ${call_type ?? "voice"} call — open ONIQ to answer`
       : (preview ?? "New message");
 
+  /**
+   * THE CLOSED SET OF REASON CODES.
+   *
+   * An allowlist rather than a sanitiser, because the values being counted
+   * come from a third party: an FCM `errorCode` and a JavaScript `error.name`
+   * are both strings that party controls, and "we only pass through short
+   * ones" is not a property anybody can check. Anything not named here is
+   * counted as `other` — the count is preserved, the string is not.
+   *
+   * A code here can hold no token, no endpoint, no person and no provider
+   * prose, which is the whole reason the table is codes and not messages.
+   */
+  const REASON_CODES = new Set([
+    // FCM v1 error enums.
+    "UNREGISTERED",
+    "INVALID_ARGUMENT",
+    "SENDER_ID_MISMATCH",
+    "QUOTA_EXCEEDED",
+    "UNAVAILABLE",
+    "INTERNAL",
+    "THIRD_PARTY_AUTH_ERROR",
+    // Transport-level outcomes we name ourselves.
+    "http_400",
+    "http_401",
+    "http_403",
+    "http_404",
+    "http_429",
+    "http_500",
+    "http_503",
+    "http_other",
+    "http_unparseable",
+    "no_access_token",
+    "no_device_token",
+    "timeout",
+    "throw",
+    // Web push.
+    "web_unconfigured",
+    "web_rotated_key",
+    "web_vapid_mismatch",
+    "web_gone",
+    "web_failed",
+    "other",
+  ]);
+  /** Reason code -> count. Codes only; never a token, endpoint or person. */
+  const reasons: Record<string, number> = {};
+  const bumpReason = (code: string, by = 1) => {
+    const key = REASON_CODES.has(code) ? code : "other";
+    reasons[key] = (reasons[key] ?? 0) + by;
+  };
+  /** `http_418` is not in the set; `http_429` is. Fold the rest into one code. */
+  const httpCode = (status: number) =>
+    REASON_CODES.has(`http_${status}`) ? `http_${status}` : "http_other";
+
   // Only pay for a Google OAuth token when there is an FCM row to use it on.
   // A web-only conversation must not fail because the Firebase service
   // account is absent, and vice versa — one transport being unconfigured is
@@ -343,10 +432,26 @@ Deno.serve(async (req) => {
     } catch (e) {
       console.error("oauth error", (e as Error).message);
       if (webSubs.length === 0) {
-        return new Response(JSON.stringify({ error: "auth failed" }), {
-          status: 500,
-          headers: { ...corsHeaders, "content-type": "application/json" },
-        });
+        // COUNTED, EVEN THOUGH THIS IS A 500. The early return used to leave
+        // the body with no `reasons` at all, so the one failure mode that is
+        // unambiguously a credential fault arrived at the witness as a bare
+        // "invoke failed" — the exact shape that cost four rounds of guessing
+        // in September. One row per address that could not be served.
+        bumpReason("no_access_token", fcmTokens.length);
+        return new Response(
+          JSON.stringify({
+            error: "auth failed",
+            sent: 0,
+            acceptedByProvider: 0,
+            deliveredToHandset: null,
+            failed: fcmTokens.length,
+            reasons,
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "content-type": "application/json" },
+          },
+        );
       }
     }
   }
@@ -355,15 +460,14 @@ Deno.serve(async (req) => {
   let sent = 0;
   let failed = 0;
   const staleTokens: string[] = [];
-  /** Reason code -> count. Codes only; never a token, endpoint or person. */
-  const reasons: Record<string, number> = {};
-  const bumpReason = (code: string) => {
-    reasons[code] = (reasons[code] ?? 0) + 1;
-  };
   // A token was minted but there were FCM rows to spend it on and it never
   // arrived — the one state that IS a credential fault, and it was previously
-  // indistinguishable from "no rows to send to".
-  if (fcmTokens.length > 0 && !accessToken) bumpReason("no_access_token");
+  // indistinguishable from "no rows to send to". Counted PER ADDRESS, because
+  // a single bump made a ten-recipient outage look like one.
+  if (fcmTokens.length > 0 && !accessToken) {
+    bumpReason("no_access_token", fcmTokens.length);
+    failed += fcmTokens.length;
+  }
 
   await Promise.all(
     (accessToken ? fcmTokens : []).map(async (token) => {
@@ -439,7 +543,7 @@ Deno.serve(async (req) => {
           // a genuinely dead token will fail again next send.
           let stale = r.status === 404;
           const errText = await r.text().catch(() => "");
-          let reasonCode = `http_${r.status}`;
+          let reasonCode = httpCode(r.status);
           if (!stale && (r.status === 400 || r.status === 403)) {
             try {
               const j = JSON.parse(errText) as {
@@ -466,13 +570,14 @@ Deno.serve(async (req) => {
               }
             } catch {
               // unparseable — never delete on a guess
-              reasonCode = `http_${r.status}_unparseable`;
+              reasonCode = "http_unparseable";
             }
           }
-          // SANITIZED COUNTS, not messages. A reason code is an FCM enum or a
-          // status number; it can hold no token, no endpoint and no person.
-          // Counting them is what turns "sent 0" into something actionable
-          // without putting an address anywhere it can be read.
+          // SANITIZED COUNTS, not messages — and bounded by an ALLOWLIST, not
+          // by a hope that the provider's strings stay short. `errorCode` is a
+          // value Google controls; `bumpReason` folds anything it does not
+          // recognise into `other`, so the count survives and the string never
+          // reaches the row.
           bumpReason(reasonCode);
           if (stale) {
             staleTokens.push(token);
@@ -483,7 +588,10 @@ Deno.serve(async (req) => {
         }
       } catch (e) {
         failed++;
-        bumpReason(e instanceof Error && e.name ? `throw_${e.name}` : "throw");
+        // The error NAME is a string this side does not own either. Only the
+        // one distinction worth its own code survives: a timeout is a
+        // different fault from a throw.
+        bumpReason((e as Error)?.name === "AbortError" ? "timeout" : "throw");
       }
     }),
   );
@@ -532,6 +640,10 @@ Deno.serve(async (req) => {
       // Not fatal: android recipients were already served above.
       console.error(`send-push: web push unconfigured, ${webSubs.length} subscriber(s) skipped`);
       webFailed = webSubs.length;
+      // The web transport has its own ways to deliver nothing, and none of
+      // them reached the reason table before: a web-only conversation's
+      // `sent: 0` carried an empty `reasons` and read as unexplained.
+      bumpReason("web_unconfigured", webSubs.length);
     } else {
       const isCall = kind === "call";
       const isCancel = kind === "call_cancel";
@@ -593,6 +705,7 @@ Deno.serve(async (req) => {
           `send-push: ${stale.length} web subscriber(s) recorded a different VAPID key — skipped, the app repairs them on next start`,
         );
         for (const s of stale) rotatedKeyEndpoints.push(s.endpoint);
+        bumpReason("web_rotated_key", stale.length);
       }
       webAttempted = deliverable.length;
 
@@ -613,6 +726,7 @@ Deno.serve(async (req) => {
           webFailed++;
           if (r.gone) {
             deadEndpoints.push(sub.endpoint);
+            bumpReason("web_gone");
           } else if (r.vapidMismatch) {
             // THE SERVICE SAID IT, WE DID NOT INFER IT.
             //
@@ -630,7 +744,9 @@ Deno.serve(async (req) => {
             // itself with — subscribeWebPush finds the mismatch on next start
             // and does the unsubscribe → delete → re-subscribe properly.
             mismatchSubs.push(sub);
+            bumpReason("web_vapid_mismatch");
           } else {
+            bumpReason("web_failed");
             // Status and the service's complaint only — the endpoint is a
             // capability URL and belongs in logs no more than a token does.
             console.error("web push failed", r.status, r.error);
