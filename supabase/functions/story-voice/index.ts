@@ -165,7 +165,9 @@ Deno.serve(async (req) => {
       // the phase is one of a closed list and the status is a number.
       await settle({
         outcome: "FAILED",
-        detail: { phase: e instanceof DOMException && e.name === "AbortError" ? "timeout" : "transport" },
+        detail: {
+          phase: e instanceof DOMException && e.name === "AbortError" ? "timeout" : "transport",
+        },
       });
       throw e;
     } finally {
@@ -248,7 +250,6 @@ Deno.serve(async (req) => {
       providerReceiptId: receiptId,
       detail: { phase: audio ? "complete" : "empty-reply" },
     });
-
 
     if (audio) {
       // Feed the ledger the dispatcher gates on (public.api_budget).

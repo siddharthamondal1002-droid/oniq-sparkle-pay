@@ -280,7 +280,6 @@ export function receiptOf(e: unknown): string | null {
   return typeof r === "string" && r.trim() ? r.trim().slice(0, 200) : null;
 }
 
-
 function mergeAccountingDetail(
   detail: Record<string, unknown> | null,
   captured: CaptureResult,

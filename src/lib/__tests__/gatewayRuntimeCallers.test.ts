@@ -38,7 +38,6 @@ const LEDGER_MOD = "../../../supabase/functions/_shared/financialLedger.ts";
 const RESCUE_MOD = "../../../supabase/functions/_shared/storyIrRescue.ts";
 const VOICE_MOD = "../../../supabase/functions/story-voice/index.ts";
 
-
 type RpcCall = { fn: string; args: Record<string, unknown> };
 
 const ENV: Record<string, string> = {
@@ -107,11 +106,12 @@ async function serviceRpc(): Promise<GatewayRpc | null> {
 
 describe("the image engine books what it draws", () => {
   it("captures before the draw and settles the accepted frame with its receipt", async () => {
-    globalThis.fetch = router(() =>
-      new Response(JSON.stringify({ data: [{ b64_json: "iVBORw0KGgoAAA" }] }), {
-        status: 200,
-        headers: { "content-type": "application/json", "x-request-id": "gw-image-1" },
-      }),
+    globalThis.fetch = router(
+      () =>
+        new Response(JSON.stringify({ data: [{ b64_json: "iVBORw0KGgoAAA" }] }), {
+          status: 200,
+          headers: { "content-type": "application/json", "x-request-id": "gw-image-1" },
+        }),
     ) as typeof fetch;
 
     const still = await drawStillViaGateway(
@@ -145,17 +145,23 @@ describe("the image engine books what it draws", () => {
   });
 
   it("settles a refused draw as FAILED and KEEPS the receipt the gateway named", async () => {
-    globalThis.fetch = router(() =>
-      new Response("rate limited", {
-        status: 429,
-        headers: { "x-request-id": "gw-image-429" },
-      }),
+    globalThis.fetch = router(
+      () =>
+        new Response("rate limited", {
+          status: 429,
+          headers: { "x-request-id": "gw-image-429" },
+        }),
     ) as typeof fetch;
 
     await expect(
-      drawStillViaGateway("a lantern", { key: "k" }, { fetchImpl: globalThis.fetch }, {
-        spend: { rpc: await serviceRpc(), requestId: "story-still:bbb", attempt: 1 },
-      }),
+      drawStillViaGateway(
+        "a lantern",
+        { key: "k" },
+        { fetchImpl: globalThis.fetch },
+        {
+          spend: { rpc: await serviceRpc(), requestId: "story-still:bbb", attempt: 1 },
+        },
+      ),
     ).rejects.toBeInstanceOf(GatewayError);
 
     const set = calls("settle_gateway_spend");
@@ -172,10 +178,15 @@ describe("the image engine books what it draws", () => {
     }) as typeof fetch;
 
     await expect(
-      drawStillViaGateway("a lantern", { key: "k" }, { fetchImpl: globalThis.fetch }, {
-        referenceDataUrl: "https://example.test/not-inlined.png",
-        spend: { rpc: await serviceRpc(), requestId: "story-still:ccc" },
-      }),
+      drawStillViaGateway(
+        "a lantern",
+        { key: "k" },
+        { fetchImpl: globalThis.fetch },
+        {
+          referenceDataUrl: "https://example.test/not-inlined.png",
+          spend: { rpc: await serviceRpc(), requestId: "story-still:ccc" },
+        },
+      ),
     ).rejects.toBeInstanceOf(GatewayError);
     expect(rpcCalls).toHaveLength(0);
   });
@@ -251,15 +262,19 @@ describe("story-voice books the narration it asked for", () => {
     });
 
   it("captures in characters and settles the audio it received", async () => {
-    globalThis.fetch = router(() =>
-      new Response(
-        JSON.stringify({
-          candidates: [
-            { content: { parts: [{ inlineData: { mimeType: "audio/L16", data: "AAAA" } }] } },
-          ],
-        }),
-        { status: 200, headers: { "content-type": "application/json", "x-request-id": "gw-tts-1" } },
-      ),
+    globalThis.fetch = router(
+      () =>
+        new Response(
+          JSON.stringify({
+            candidates: [
+              { content: { parts: [{ inlineData: { mimeType: "audio/L16", data: "AAAA" } }] } },
+            ],
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json", "x-request-id": "gw-tts-1" },
+          },
+        ),
     ) as typeof fetch;
 
     const res = await (await voiceHandler())(request("hello there"));
@@ -276,8 +291,8 @@ describe("story-voice books the narration it asked for", () => {
   });
 
   it("keeps the receipt when the gateway refuses", async () => {
-    globalThis.fetch = router(() =>
-      new Response("throttled", { status: 429, headers: { "x-request-id": "gw-tts-429" } }),
+    globalThis.fetch = router(
+      () => new Response("throttled", { status: 429, headers: { "x-request-id": "gw-tts-429" } }),
     ) as typeof fetch;
 
     const res = await (await voiceHandler())(request());
