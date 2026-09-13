@@ -16,7 +16,7 @@
  * `delivered` is the successful ending — and offering a play button for nothing
  * is worse than an empty list.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   AlertTriangle,
   Clapperboard,
@@ -28,19 +28,17 @@ import {
   Trash2,
 } from "lucide-react";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
-import { lastShareDiagnostics, prepareVideoShare, shareReadyFile } from "@/lib/share";
+import { lastShareDiagnostics } from "@/lib/share";
+// The prepared file, which film it belongs to, and every rule about when it
+// may be sent live in one module — see its header for why none of this is
+// inline here any more.
+import {
+  createShareBinding,
+  sameSource,
+  type ShareOutcome,
+  type ShareSource,
+} from "./shareBinding";
 
-/** What a finished share can say, from either step. */
-type ShareOutcome = "shared" | "cancelled" | "download-started" | "failed" | "unsupported";
-
-/** A fetched film waiting for its own tap, with the copy for however it ends. */
-type ReadyShare = { file: File; surface: string; whenFailed: string; whenUnsupported: string };
-
-const SHARE_PAYLOAD = {
-  title: "My ONIQ Story",
-  text: "Made with AI on ONIQ 🎬 oniqhub.com",
-  url: "https://oniqhub.com",
-};
 import { reportClientError } from "@/lib/errorReport";
 import { listSavedVideos, onSavedVideosChanged, type SavedVideo } from "@/lib/savedVideos";
 import {
@@ -77,12 +75,19 @@ export function YourVideos() {
   const [filmUrl, setFilmUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sharing, setSharing] = useState(false);
-  const [sharePct, setSharePct] = useState<number | null>(null);
   const [shareHint, setShareHint] = useState<string | null>(null);
-  // A file already fetched and waiting for its own tap. Holding it here is
-  // what lets `navigator.share` run with nothing awaited in front of it.
-  const [ready, setReady] = useState<ReadyShare | null>(null);
+  // The prepared file and everything that decides whether it may be sent.
+  // Created once per mount: a new binding per render would drop the armed file
+  // on every unrelated state change on this screen.
+  const bindingRef = useRef<ReturnType<typeof createShareBinding> | null>(null);
+  bindingRef.current ??= createShareBinding();
+  const binding = bindingRef.current;
+  const {
+    ready,
+    sharing,
+    pct: sharePct,
+  } = useSyncExternalStore(binding.subscribe, binding.getSnapshot, binding.getSnapshot);
+
   // Films already on this phone. Kept in local state because the server has
   // nothing left to list once a film is saved — saving purges it there.
   const [onDevice, setOnDevice] = useState<SavedVideo[]>([]);
@@ -184,53 +189,59 @@ export function YourVideos() {
    * whole thing, because that sheet takes a URI and has no activation rule.
    * On the web it leaves a prepared file and the caller shows "Send now" —
    * the second tap is what keeps the activation the sheet requires.
+   *
+   * Which film the file belongs to, and whether a slow fetch may still arm it,
+   * are the binding's decisions — this only says what to show afterwards.
    */
   const prepare = useCallback(
     async (
+      source: ShareSource,
       surface: string,
       url: string,
       fileName: string,
       whenFailed: string,
       whenUnsupported: string,
     ) => {
-      setSharing(true);
       setShareHint(null);
       setError(null);
-      setReady(null);
-      try {
-        const r = await prepareVideoShare(url, fileName, SHARE_PAYLOAD, setSharePct);
-        if (r.kind === "ready") {
-          setReady({ file: r.file, surface, whenFailed, whenUnsupported });
-          setShareHint("Your film is ready — tap Send now to choose an app.");
-          return;
-        }
-        reportShare(surface, r.outcome, whenFailed, whenUnsupported);
-      } finally {
-        setSharing(false);
-        setSharePct(null);
+      const r = await binding.prepare({
+        source,
+        surface,
+        url,
+        fileName,
+        whenFailed,
+        whenUnsupported,
+      });
+      if ("armed" in r) {
+        setShareHint("Your film is ready — tap Send now to choose an app.");
+        return;
       }
+      // `null` means a newer tap superseded this one — it has its own outcome.
+      if (r.outcome) reportShare(surface, r.outcome, whenFailed, whenUnsupported);
     },
-    [reportShare],
+    [binding, reportShare],
   );
 
   /**
-   * STEP TWO. NOT async, and nothing is awaited before `shareReadyFile` — an
-   * `await` added in front of this call silently restores the very refusal the
-   * split exists to prevent.
+   * STEP TWO. NOT async, and nothing is awaited before the send — an `await`
+   * added in front of this call silently restores the very refusal the split
+   * exists to prevent. The caller names which film it believes it is sending,
+   * and the binding refuses a mismatch or a second concurrent tap.
    */
-  const sendNow = useCallback(() => {
-    const r = ready;
-    if (!r) return;
-    setShareHint(null);
-    void shareReadyFile(r.file, SHARE_PAYLOAD).then((outcome) => {
-      setReady(null);
-      reportShare(r.surface, outcome, r.whenFailed, r.whenUnsupported);
-    });
-  }, [ready, reportShare]);
+  const sendNow = useCallback(
+    (source: ShareSource) => {
+      setShareHint(null);
+      binding.sendNow(source, (r, outcome) =>
+        reportShare(r.surface, outcome, r.whenFailed, r.whenUnsupported),
+      );
+    },
+    [binding, reportShare],
+  );
 
   const sendSaved = useCallback(
     (v: SavedVideo) =>
       prepare(
+        { kind: "saved", id: v.id },
         "share-saved-video",
         v.uri,
         v.fileName,
@@ -239,6 +250,19 @@ export function YourVideos() {
       ),
     [prepare],
   );
+
+  /**
+   * A prepared file outlives nothing. If the film it belongs to is closed,
+   * deleted, or no longer on the phone, the file is dropped — an armed "Send
+   * now" pointing at something that is gone is the shape of the bug this
+   * binding exists to prevent.
+   */
+  useEffect(() => {
+    binding.invalidate(
+      openId,
+      onDevice.map((v) => v.id),
+    );
+  }, [binding, openId, onDevice]);
 
   // Poll only while something is actually moving. A settled list is a static
   // list, and polling it forever is load with no answer attached.
@@ -277,8 +301,10 @@ export function YourVideos() {
     // work" is unfixable as a report; "native-threw: download failed, http
     // 400" is a one-line fix. That happens inside `reportShare`.
     return prepare(
+      { kind: "film", id: openId },
       "share-video",
       filmUrl,
+
       `oniq-story-${openId.slice(0, 8)}.mp4`,
       "Could not share that film. It is still here — try again.",
       "Sharing isn't available in this browser — open ONIQ on your phone to send it.",
@@ -310,6 +336,12 @@ export function YourVideos() {
       setBusy(false);
     }
   }, [openId, filmUrl, refresh, rows]);
+
+  // "Send now" belongs to ONE film. Not to the surface, and not to whatever
+  // was prepared last.
+  const filmReady = !!openId && !!ready && sameSource(ready.source, { kind: "film", id: openId });
+  // Which SAVED row, if any, is armed. One row, never the whole list.
+  const readySavedId = ready?.source.kind === "saved" ? ready.source.id : null;
 
   return (
     <div className="pb-4">
@@ -346,8 +378,10 @@ export function YourVideos() {
               today, tomorrow and from any device the account signs in on. */}
           <button
             type="button"
-            data-testid={ready ? "story-share-send-now" : "story-share-prepare"}
-            onClick={ready ? sendNow : () => void share()}
+            data-testid={filmReady ? "story-share-send-now" : "story-share-prepare"}
+            onClick={
+              filmReady && openId ? () => sendNow({ kind: "film", id: openId }) : () => void share()
+            }
             disabled={busy || sharing}
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
           >
@@ -360,7 +394,7 @@ export function YourVideos() {
               ? sharePct !== null
                 ? `Preparing… ${sharePct}%`
                 : "Preparing…"
-              : ready
+              : filmReady
                 ? "Send now"
                 : "Share — WhatsApp, Facebook & more"}
           </button>
@@ -433,12 +467,12 @@ export function YourVideos() {
                   <button
                     type="button"
                     data-testid={
-                      ready?.surface === "share-saved-video"
-                        ? "saved-share-send-now"
-                        : "saved-share-prepare"
+                      readySavedId === v.id ? "saved-share-send-now" : "saved-share-prepare"
                     }
                     onClick={
-                      ready?.surface === "share-saved-video" ? sendNow : () => void sendSaved(v)
+                      readySavedId === v.id
+                        ? () => sendNow({ kind: "saved", id: v.id })
+                        : () => void sendSaved(v)
                     }
                     disabled={sharing}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-primary/50 bg-primary/10 px-3 py-2 text-[11px] font-semibold text-primary disabled:opacity-50"
@@ -448,8 +482,9 @@ export function YourVideos() {
                     ) : (
                       <Share2 className="h-3.5 w-3.5" />
                     )}
-                    {ready?.surface === "share-saved-video" ? "Send now" : "Send"}
+                    {readySavedId === v.id ? "Send now" : "Send"}
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setConfirmDelete(confirmDelete === v.id ? null : v.id)}
