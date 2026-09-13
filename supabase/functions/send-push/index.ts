@@ -688,9 +688,20 @@ Deno.serve(async (req) => {
 
   return new Response(
     JSON.stringify({
+      // `sent` IS PROVIDER ACCEPTANCE, NOT HANDSET DELIVERY, and the name has
+      // been read as the second thing for months. FCM returning 200 means
+      // Google took custody of the message; whether it ever lit up a phone
+      // depends on the handset being reachable, the app not being force-stopped
+      // and the OS not dropping it — none of which this function can observe.
+      // The field keeps its name so existing readers do not break, and the
+      // truth travels beside it in fields that cannot be misread.
       sent: sent + webSent,
+      acceptedByProvider: sent + webSent,
+      deliveredToHandset: null,
       failed: failed + webFailed,
       cleaned: toDelete.length,
+      /** Sanitized reason code -> count. Codes only, never an address. */
+      reasons,
       fcm: { sent, failed, addressed: fcmTokens.length },
       web: {
         sent: webSent,
@@ -705,4 +716,5 @@ Deno.serve(async (req) => {
     }),
     { headers: { ...corsHeaders, "content-type": "application/json" } },
   );
+
 });
