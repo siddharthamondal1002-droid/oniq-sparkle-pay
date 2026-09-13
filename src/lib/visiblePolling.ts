@@ -1,60 +1,47 @@
-/**
- * Read-only UI polling: pause offscreen, refresh on return, never overlap.
- *
- * A tick that resolves `false` means the thing being watched has settled, so
- * the timer stops itself rather than waiting for a React state round trip.
- * A rejected tick is swallowed here — the caller owns its error UI, and an
- * unhandled rejection must not end later recovery.
- */
+/** Read-only UI polling: pause offscreen, refresh on return, never overlap. */
 export function startVisiblePolling(
-  tick: () => void | boolean | Promise<void | boolean>,
-  everyMs: number,
+  task: () => void | boolean | Promise<void | boolean>,
+  intervalMs: number,
   immediate = true,
 ): () => void {
   let stopped = false;
-  let timer: ReturnType<typeof setInterval> | null = null;
-  let inFlight = false;
-
-  const stopTimer = () => {
-    if (timer === null) return;
-    clearInterval(timer);
-    timer = null;
+  let running = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const clear = () => {
+    clearTimeout(timer);
+    timer = undefined;
   };
-
+  const schedule = () => {
+    clear();
+    if (!stopped && document.visibilityState === "visible") {
+      timer = setTimeout(() => void tick(), intervalMs);
+    }
+  };
+  const tick = async () => {
+    if (stopped || running || document.visibilityState !== "visible") return;
+    clear();
+    running = true;
+    try {
+      // A terminal job can stop before React processes its state update.
+      if ((await task()) === false) stop();
+    } catch {
+      // Callers own the error UI. A failed read must not kill later recovery.
+    } finally {
+      running = false;
+      schedule();
+    }
+  };
+  const onVisibility = () => {
+    clear();
+    if (document.visibilityState === "visible") void tick();
+  };
   const stop = () => {
     stopped = true;
-    stopTimer();
+    clear();
     document.removeEventListener("visibilitychange", onVisibility);
   };
-
-  const run = () => {
-    if (stopped || document.visibilityState !== "visible" || inFlight) return;
-    inFlight = true;
-    void Promise.resolve(tick())
-      .then((result) => {
-        if (result === false) stop();
-      })
-      .catch(() => {
-        /* the caller owns the error UI; keep polling alive */
-      })
-      .finally(() => {
-        inFlight = false;
-      });
-  };
-
-  const startTimer = () => {
-    if (stopped || timer !== null || document.visibilityState !== "visible") return;
-    run();
-    timer = setInterval(run, everyMs);
-  };
-
-  function onVisibility() {
-    if (document.visibilityState === "visible") startTimer();
-    else stopTimer();
-  }
-
-  if (immediate || document.visibilityState !== "visible") onVisibility();
-  else if (document.visibilityState === "visible") timer = setInterval(run, everyMs);
   document.addEventListener("visibilitychange", onVisibility);
+  if (immediate) void tick();
+  else schedule();
   return stop;
 }
