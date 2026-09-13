@@ -154,10 +154,33 @@ brace-expansion @xmldom/xmldom vitest --package-lock-only --ignore-scripts --no-
 
 ## Gates, this pass
 
-`tsc --noEmit` 0 errors · `npm run lint:ci` clean · Prettier clean on every changed file ·
-`npx vitest run` **405 files / 7,248 tests, 7,247 passing** — the single failure is the known,
-unrelated `arapStep11dDiagnosis` timing flake under load, which passes on its own (measured this
-pass) exactly as CLAUDE.md records · `npm run build` succeeded.
+Measured at `45a2a78c` with a clean tree. `tsc --noEmit` 0 errors · `npm run lint:ci` clean ·
+Prettier clean on every changed file · `npx vitest run` **405 files / 7,248 tests, ALL PASSING** ·
+`npm run build` succeeded. The focused four — `gatewayRealCallers`, `shareTwoStep`,
+`gatewayCreditLedger`, `shareActivationFallback` — are 40/40.
+
+One earlier run of the same tree failed `arapStep11dDiagnosis` and the clean run above is the
+reason that is recorded as a FLAKE rather than a result: the file passes on its own (measured), and
+CLAUDE.md carries it as a known timing wobble under load. **A failure that does not reproduce on an
+unchanged tree is unmeasured, not fixed** — it is not claimed as either.
+
+## Ledger SQL, read back from production rather than asserted
+
+The replay and receipt rules are LIVE on `gateway_spend_ledger`, read from `pg_constraint` and
+`pg_indexes` this pass:
+
+    gateway_spend_receipt_identity_idx   UNIQUE (provider, provider_receipt_id)
+                                         WHERE provider_receipt_id IS NOT NULL
+    gateway_spend_ledger_request_id_key  UNIQUE (request_id)
+    gateway_spend_not_called_is_free     outcome NOT_CALLED ⇒ charged_credits = 0
+    gateway_spend_settled_has_price      SETTLED ⇒ charged_credits IS NOT NULL
+    gateway_spend_values_are_finite      no NaN in charged_credits or units_observed
+    charged_credits / units_observed     NULL or >= 0 · currency pinned to CREDITS
+    settlement_state                     PENDING_RECONCILIATION | SETTLED | NOT_CALLED | FAILED
+
+The receipt index is PARTIAL on purpose: a row with no receipt yet is not an identity claim, so
+many PENDING rows coexist while two billable attempts can never claim one receipt. `user_id` is
+`ON DELETE SET NULL`, so an erased account leaves the ledger honest rather than deleting a charge.
 
 ## Spend
 
