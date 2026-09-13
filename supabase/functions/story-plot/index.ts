@@ -62,6 +62,7 @@ import { TEXT_DIRECT_STANDARD } from "../_shared/modelRegistry.ts";
 import { orchestratePlan } from "../_shared/planOrchestrator.ts";
 import { verifyJobToken } from "../_shared/jobToken.ts";
 
+import { FILM_CONTINUITY_RULES, filmPacingGuidance } from "../_shared/filmQuality.ts";
 import { MOVIE_RULES, MAX_DIALOGUE_WORDS } from "../_shared/movieGrammar.ts";
 import { serviceRoleRpc } from "../_shared/financialLedger.ts";
 import { storyIrRescue } from "../_shared/storyIrRescue.ts";
@@ -261,6 +262,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
     const shots = Number(body?.shots);
+    const screenSeconds = Number(body?.screenSeconds);
     const lang = typeof body?.lang === "string" ? body.lang : "en";
     // The user's cast library, if the job carried one. Bounded hard: six
     // characters with short locks, or the reuse block crowds the plan prompt
@@ -300,6 +302,11 @@ Deno.serve(async (req) => {
     // argument every time. Empty string when nothing in the manifest matches.
     const houseCast = reuse.length > 0 ? "" : castBlock(prompt);
     const houseCastBlock = houseCast ? `\n\n${houseCast}` : "";
+    const pacingBlock = filmPacingGuidance(
+      Number.isFinite(screenSeconds) ? screenSeconds : null,
+      shots,
+      narrations.length > 0,
+    );
 
     if (!prompt) return json({ error: "Tell me what happens in your story." }, 400);
     if (prompt.length > MAX_PROMPT) return json({ error: "That prompt is too long." }, 400);
@@ -456,7 +463,7 @@ Deno.serve(async (req) => {
       // The tier is still a routing hint, not a model id: it is the router's
       // job to know which id each tier means, which is why the direct-Gemini
       // branches have to name the id themselves.
-      system: SYSTEM + storyLanguageInstruction(lang),
+      system: SYSTEM + (pacingBlock ? `\n\n${pacingBlock}` : "") + storyLanguageInstruction(lang),
       messages: [
         {
           role: "user" as const,
@@ -545,7 +552,9 @@ Deno.serve(async (req) => {
     if (!plan && shots > SINGLE_CALL_MAX_SHOTS && (hasClaude || hasGemini)) {
       const isVerbatim = narrations.length === shots;
       const spineSystem =
-        (isVerbatim ? SPINE_SYSTEM_VERBATIM : SPINE_SYSTEM) + storyLanguageInstruction(lang);
+        (isVerbatim ? SPINE_SYSTEM_VERBATIM : SPINE_SYSTEM) +
+        (pacingBlock ? `\n\n${pacingBlock}` : "") +
+        storyLanguageInstruction(lang);
       const spineUser = isVerbatim
         ? `Write ONLY the structure — title, logline, setting, and cast locks — for a ` +
           `${shots}-shot film of this story. The narration is already written; do NOT ` +
@@ -624,7 +633,10 @@ Deno.serve(async (req) => {
         const results = await Promise.all(
           groups.map(async (b) => {
             const res = await call({
-              system: BATCH_SYSTEM + storyLanguageInstruction(lang),
+              system:
+                BATCH_SYSTEM +
+                (pacingBlock ? `\n\n${pacingBlock}` : "") +
+                storyLanguageInstruction(lang),
               messages: [
                 {
                   role: "user",
@@ -833,6 +845,7 @@ Deno.serve(async (req) => {
         seed: `${shots}:${prompt.slice(0, 64)}`,
         grade: "classic",
         characters: reuse.map((c) => ({ name: c.name, description: c.lock })),
+        pacingGuidance: pacingBlock || undefined,
         // CREDIT ACCOUNTING. This rung is the one path in story-plot that
         // spends Lovable credits — rungs one and two are direct-provider calls
         // metered elsewhere. The ids are the server's own: the job the signed
@@ -1000,6 +1013,8 @@ const SPINE_SYSTEM = [
   "You are Ting 🔮, ONIQ's built-in assistant, working as a story editor for ONIQ Lores.",
   "You turn one line from a user into the SKELETON of a short animated film.",
   "",
+  FILM_CONTINUITY_RULES,
+  "",
   "Return ONLY a JSON object. No prose, no markdown fence, no commentary.",
   "",
   "Shape:",
@@ -1036,6 +1051,8 @@ const SPINE_SYSTEM = [
 const SPINE_SYSTEM_VERBATIM = [
   "You are Ting 🔮, ONIQ's built-in assistant, working as a story editor for ONIQ Lores.",
   "You read a finished story and write ONLY its STRUCTURE — never its shots.",
+  "",
+  FILM_CONTINUITY_RULES,
   "",
   "Return ONLY a JSON object. No prose, no markdown fence, no commentary.",
   "",

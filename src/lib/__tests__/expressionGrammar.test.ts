@@ -82,12 +82,12 @@ describe("the wiring pins", () => {
 
   it("the worker asks the scene for its register and attaches it", () => {
     expect(
-      /from '\.\.\/\.\.\/src\/lib\/expressionGrammar\.ts'/.test(WORKER_SRC),
-      "story-worker.mjs must import expressionGrammar with the explicit .ts suffix",
+      /from '\.\.\/\.\.\/src\/lib\/filmSound\.ts'/.test(WORKER_SRC),
+      "story-worker.mjs must import filmSound with the explicit .ts suffix",
     ).toBe(true);
     expect(
-      WORKER_SRC.includes("emotionFor("),
-      "story-worker.mjs no longer calls emotionFor — rung 5 is unplugged",
+      WORKER_SRC.includes("soundEmotionFor("),
+      "story-worker.mjs no longer calls soundEmotionFor — rung 5 is unplugged",
     ).toBe(true);
     expect(
       WORKER_SRC.includes("expression ? { expression }"),

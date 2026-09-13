@@ -74,6 +74,7 @@ import { PROGRESS, SETTLED, latestOpenJob, readJobRow } from "./storyJobsClient"
 import { PlanSheet, sayLeft } from "./PlanSheet";
 import { CinematicPanel } from "./CinematicPanel";
 import { attachIntentToPrompt, type ShotIntent } from "@/lib/videoEngineering";
+import { startVisiblePolling } from "@/lib/visiblePolling";
 
 /**
  * Lengths offered as one tap. Anything between the bounds is still allowed.
@@ -254,6 +255,7 @@ export function StoryStudio() {
   // Excluded in verbatim mode: there the prompt IS the narration.
   const [shotIntent, setShotIntent] = useState<ShotIntent>({});
   const [newCastName, setNewCastName] = useState("");
+  const watchingJob = useRef(false);
   const [newCastLock, setNewCastLock] = useState("");
   // THE PLATE — one image the film opens on, in place of the still the
   // pipeline would have drawn for shot 1. Held as the File until the job
@@ -325,25 +327,31 @@ export function StoryStudio() {
     if (!jobId || (jobStatus && SETTLED.has(jobStatus))) return;
     let cancelled = false;
     const tick = async () => {
-      const row = await readJobRow(jobId);
-      if (cancelled || !row?.status) return;
-      setJobStatus(row.status);
-      if (row.status === "failed") {
-        // The seconds are already back — refund_story_seconds runs server-side
-        // when the job is marked failed, so this is telling the user something
-        // that is already true rather than promising it.
-        setJobError(row.error ?? "That Story could not be made. Your time has been returned.");
-        void (async () => {
-          const { data } = await supabase.rpc("story_quota_status");
-          if (!cancelled) setQuota(readQuota(data));
-        })();
+      if (watchingJob.current) return;
+      watchingJob.current = true;
+      try {
+        const row = await readJobRow(jobId);
+        if (cancelled || !row?.status) return;
+        setJobStatus(row.status);
+        if (row.status === "failed") {
+          // The seconds are already back — refund_story_seconds runs server-side
+          // when the job is marked failed, so this is telling the user something
+          // that is already true rather than promising it.
+          setJobError(row.error ?? "That Story could not be made. Your time has been returned.");
+          void (async () => {
+            const { data } = await supabase.rpc("story_quota_status");
+            if (!cancelled) setQuota(readQuota(data));
+          })();
+        }
+      } finally {
+        watchingJob.current = false;
       }
     };
-    void tick();
-    const id = setInterval(() => void tick(), 6000);
+    const stop = startVisiblePolling(tick, 6000);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      watchingJob.current = false;
+      stop();
     };
   }, [jobId, jobStatus]);
 

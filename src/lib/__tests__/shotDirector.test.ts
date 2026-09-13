@@ -19,7 +19,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { vfxKindFor } from "../particleField.ts";
-import { ambienceFor } from "../soundStage.ts";
+import { sceneAmbienceFor } from "../filmSound.ts";
 import {
   FACE_LEGIBLE_SIZES,
   LIGHTING_PALETTE,
@@ -87,14 +87,14 @@ describe("shotDirector weather neutrality (must never change vfx)", () => {
     }
   });
 
-  it("every palette phrase and size is invisible to ambienceFor too", () => {
+  it("every palette phrase and size is invisible to sceneAmbienceFor too", () => {
     // Defence in depth: the worker feeds ambienceFor the UNDECORATED still
     // (pinned below), but a palette word like "dusk" or "twilight" would turn
     // into night crickets the day someone reroutes that call. Keep the whole
     // palette silent to the audio chooser so that refactor can never make a
     // lighting note change a film's sound.
     for (const phrase of [...LIGHTING_PALETTE, ...SHOT_SIZES, "establishing"]) {
-      expect(ambienceFor(phrase), phrase).toBeNull();
+      expect(sceneAmbienceFor(phrase, null), phrase).toBeNull();
     }
   });
 
@@ -162,15 +162,14 @@ describe("story worker carries the director pass", () => {
     expect(src).not.toMatch(/selectSceneWeather\(shot\.still\)/);
   });
 
-  it("keeps emotion on the UNDECORATED still, and rain ambience on visible weather", () => {
+  it("keeps emotion on the UNDECORATED still, and ambience on the visible still", () => {
     // The director varies the image, not the sound stage or the acting: the
     // expression register is earned by the plan's own words. The ambience bed
     // still starts from those words, but rain follows the visible-weather choice
     // so sound and particles cannot disagree.
-    expect(src).toMatch(/const authoredAir = ambienceFor\(`\$\{shot\.still\} \$\{shot\.narration\}`\)/);
-    expect(src).toMatch(/sceneWeather === 'rain' \? 'rain' : authoredAir === 'rain' \? null : authoredAir/);
-    expect(src).toMatch(/emotionFor\(\s*`\$\{shot\.still\} \$\{shot\.narration\}/);
-    expect(src).not.toMatch(/emotionFor\([^)]*directedStill/);
+    expect(src).toMatch(/sceneAmbienceFor\(shot\.still, sceneWeather\)/);
+    expect(src).toMatch(/if \(cinematic\) expression = soundEmotionFor\(shot\);/);
+    expect(src).toMatch(/shotEmotions\.push\(cinematic \? soundEmotionFor\(shot\) : null\)/);
   });
 });
 

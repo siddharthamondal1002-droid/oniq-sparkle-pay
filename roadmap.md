@@ -189,6 +189,11 @@ many PENDING rows coexist while two billable attempts can never claim one receip
   claim is made.
 - No Google, OpenAI, GPU or R2 spend: nothing was deployed, published, rendered or generated.
 
+## 2026-09-13 story patch set
+
+- [x] Non-motion Story repairs: movie-grade `story-plot` now receives `screenSeconds`, carries film continuity guidance through the direct planner and Story IR rescue, and the worker separates visible-scene ambience from shot emotion with `sceneAmbienceFor` / `soundEmotionFor` so non-motion shots keep continuity without narration-only sound drift.
+- [x] Foreground responsiveness: Story polling now pauses while the app is hidden through `startVisiblePolling`, and Ting refuses overlapping asks with an `askInFlight` lock while preserving the newly appended user turn if the function reports `configured: false`.
+
 ## 2026-09-13 — the five review defects, measured
 
 The line above ("no NaN in charged_credits or units_observed") was WRONG and the review is what

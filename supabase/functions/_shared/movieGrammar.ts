@@ -27,6 +27,7 @@
 // with `says:` and double quotes.
 
 import { shotShowsAFace } from "./faceQuality.ts";
+import { FILM_CONTINUITY_RULES } from "./filmQuality.ts";
 
 /** Camera moves the video model executes reliably from a starting frame. */
 export const CAMERA_MOVES = [
@@ -287,6 +288,8 @@ export function composeInHouseVideoPrompt(shot: MovieShot): string {
  * so the single-call film and the batched film obey the same grammar.
  */
 export const MOVIE_RULES = [
+  FILM_CONTINUITY_RULES,
+  "",
   "MOVIE GRAMMAR — these fields turn frames into film:",
   "- `motion`: one or two sentences of what MOVES in the shot — a camera move",
   `  (${["static", "push in", "pull back", "pan", "tilt", "tracking", "crane rise", "low angle", "high angle"].join(", ")})`,
@@ -304,7 +307,7 @@ export const MOVIE_RULES = [
   `  ${["dust motes in light", "embers drifting", "smoke curling", "golden magic glow", "heat shimmer", "rain streaking", "fog rolling", "firelight flickering"].join("; ")}.`,
   "  Effects are atmosphere a video model can ADD to a frame — never object",
   "  transformations, which it cannot.",
-  "- Coverage is the consistency strategy: most shots should have nobody",
+  "- Coverage is the continuity strategy: most shots should have nobody",
   "  LEGIBLE in them (hands, objects, wide silhouettes, a doorway). A face",
   "  should appear only where the beat needs it. Where identity IS legible —",
   "  even a distant figure whose clothing reads — repeat the cast lock in the",

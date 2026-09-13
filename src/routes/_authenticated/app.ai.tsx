@@ -78,6 +78,7 @@ function TingScreen() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
+  const askInFlight = useRef(false);
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<{ stop: () => void; abort?: () => void } | null>(null);
 
@@ -213,7 +214,8 @@ function TingScreen() {
   }
 
   async function ask(text: string) {
-    if (notConfigured) return;
+    if (notConfigured || askInFlight.current) return;
+    askInFlight.current = true;
     const att = attachment;
     const userMsg: Msg = {
       role: "user",
@@ -278,7 +280,6 @@ function TingScreen() {
       };
       if (d?.configured === false) {
         setNotConfigured(true);
-        setMessages(messages);
         return;
       }
       if (d?.error) throw new Error(d.error);
@@ -295,6 +296,7 @@ function TingScreen() {
       const msg = e instanceof Error ? e.message : "";
       toast.error(msg && !/non-2xx/i.test(msg) ? msg : "ting choked on that 😵‍💫 try again");
     } finally {
+      askInFlight.current = false;
       setLoading(false);
     }
   }
