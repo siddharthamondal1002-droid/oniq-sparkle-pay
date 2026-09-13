@@ -55,6 +55,7 @@
 
 import { callGatewayText } from "./llm.ts";
 import type { GatewayRpc } from "./gatewayLedger.ts";
+import { FILM_CONTINUITY_RULES } from "./filmQuality.ts";
 import type { LocalInvoke } from "./localStoryModel.ts";
 import { generateStory, StoryInvalid, type StoryRequest } from "./storyModel.ts";
 import { LocalModelUnavailable } from "./localStoryModel.ts";
@@ -202,6 +203,7 @@ export type RescueInput = {
   seed: string;
   grade: "classic" | "movie";
   characters?: { name: string; description: string }[];
+  pacingGuidance?: string;
   /** Accounting binding for the real caller. Absent in unit tests, which pass
    *  their own transport and never reach a gateway. */
   spend?: RescueSpend;
@@ -222,6 +224,10 @@ export async function storyIrRescue(
     grade: input.grade,
     seed: input.seed,
     ...(input.characters?.length ? { characters: input.characters } : {}),
+    constraints: [
+      FILM_CONTINUITY_RULES,
+      ...(input.pacingGuidance ? [input.pacingGuidance] : []),
+    ],
   };
 
   try {

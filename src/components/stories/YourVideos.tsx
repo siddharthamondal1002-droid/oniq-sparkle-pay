@@ -41,6 +41,7 @@ import {
 
 import { reportClientError } from "@/lib/errorReport";
 import { listSavedVideos, onSavedVideosChanged, type SavedVideo } from "@/lib/savedVideos";
+import { startVisiblePolling } from "@/lib/visiblePolling";
 import {
   PROGRESS,
   SETTLED,
@@ -269,8 +270,7 @@ export function YourVideos() {
   const inFlight = useMemo(() => (rows ?? []).some((r) => !SETTLED.has(r.status)), [rows]);
   useEffect(() => {
     if (!inFlight) return;
-    const id = setInterval(() => void refresh(), POLL_MS);
-    return () => clearInterval(id);
+    return startVisiblePolling(refresh, POLL_MS);
   }, [inFlight, refresh]);
 
   const watch = useCallback(async (jobId: string) => {

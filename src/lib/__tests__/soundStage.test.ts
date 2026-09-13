@@ -156,11 +156,11 @@ describe("the recipes and the mix", () => {
       "the worker no longer votes the film's register — rung 11 is unplugged",
     ).toBe(true);
     expect(
-      WORKER_SRC.includes("shotEmotions.push(expression)"),
+      WORKER_SRC.includes("shotEmotions.push(cinematic ? soundEmotionFor(shot) : null)"),
       "the ballots are no longer collected per shot",
     ).toBe(true);
     expect(
-      /let expression = null;\s*if \(cinematic\)\s*\{\s*expression = emotionFor\(/.test(WORKER_SRC),
+      /let expression = null;\s*if \(cinematic\) expression = soundEmotionFor\(shot\);/.test(WORKER_SRC),
       "score ballots should come from cinematic shot text, not only rigged shots",
     ).toBe(true);
     expect(
@@ -179,7 +179,7 @@ describe("the recipes and the mix", () => {
       "story-worker.mjs must import soundStage with the explicit .ts suffix",
     ).toBe(true);
     expect(
-      WORKER_SRC.includes("ambienceFor(") && WORKER_SRC.includes("ambienceGraph("),
+      WORKER_SRC.includes("sceneAmbienceFor(") && WORKER_SRC.includes("ambienceGraph("),
       "the worker no longer asks the scene for its air — rung 8 is unplugged",
     ).toBe(true);
     expect(
