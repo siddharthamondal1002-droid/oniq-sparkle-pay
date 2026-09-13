@@ -190,9 +190,8 @@ describe("the story-IR rescue books every model call separately", () => {
       }),
     ) as typeof fetch;
 
-    const mod = await import(
-      /* @vite-ignore */ "../../../supabase/functions/_shared/storyIrRescue.ts"
-    );
+    const mod = await import(/* @vite-ignore */ RESCUE_MOD);
+
     const invoke = mod.makeGatewayStoryInvoke(mod.GATEWAY_STORY_MODEL, {
       rpc: await serviceRpc(),
       jobId: "job-9",
