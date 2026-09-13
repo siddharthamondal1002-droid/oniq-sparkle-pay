@@ -144,39 +144,80 @@ export function YourVideos() {
     setConfirmDelete(null);
   }, []);
 
-  const sendSaved = useCallback(async (v: SavedVideo) => {
-    setSharing(true);
-    setShareHint(null);
-    setError(null);
-    try {
-      const outcome = await shareVideoFile(
-        v.uri,
-        v.fileName,
-        {
-          title: "My ONIQ Story",
-          text: "Made with AI on ONIQ 🎬 oniqhub.com",
-          url: "https://oniqhub.com",
-        },
-        setSharePct,
-      );
+  /**
+   * How a share ENDED, in one place, so the two buttons cannot drift apart.
+   * "shared" and "cancelled" both end quietly — the person saw the sheet.
+   */
+  const reportShare = useCallback(
+    (surface: string, outcome: ShareOutcome, whenFailed: string, whenUnsupported: string) => {
       if (outcome === "failed" || outcome === "unsupported") {
-        reportClientError("share-saved-video", `share ${outcome}`, lastShareDiagnostics());
+        reportClientError(surface, `share ${outcome}`, lastShareDiagnostics());
       }
-      if (outcome === "failed") {
-        setError("Could not share that film. It is still on your device.");
-      } else if (outcome === "unsupported") {
-        setShareHint("Sharing isn't available here — send it from your gallery instead.");
-      } else if (outcome === "download-started") {
-        // The share sheet was refused, so the film was handed to the browser
-        // as a download instead. This side cannot see whether it was saved —
-        // so it says where to look, not that it arrived.
+      if (outcome === "failed") setError(whenFailed);
+      else if (outcome === "unsupported") setShareHint(whenUnsupported);
+      else if (outcome === "download-started") {
+        // A download was REQUESTED. Whether the browser wrote it is not
+        // observable from here, so the copy points at where to look.
         setShareHint("Your browser wouldn't open the share sheet — check your downloads.");
       }
-    } finally {
-      setSharing(false);
-      setSharePct(null);
-    }
-  }, []);
+    },
+    [],
+  );
+
+  /**
+   * STEP ONE of the web share: fetch the bytes. On native this finishes the
+   * whole thing, because that sheet takes a URI and has no activation rule.
+   * On the web it leaves a prepared file and the caller shows "Send now" —
+   * the second tap is what keeps the activation the sheet requires.
+   */
+  const prepare = useCallback(
+    async (surface: string, url: string, fileName: string, whenFailed: string, whenUnsupported: string) => {
+      setSharing(true);
+      setShareHint(null);
+      setError(null);
+      setReady(null);
+      try {
+        const r = await prepareVideoShare(url, fileName, SHARE_PAYLOAD, setSharePct);
+        if (r.kind === "ready") {
+          setReady({ file: r.file, surface, whenFailed, whenUnsupported });
+          setShareHint("Your film is ready — tap Send now to choose an app.");
+          return;
+        }
+        reportShare(surface, r.outcome, whenFailed, whenUnsupported);
+      } finally {
+        setSharing(false);
+        setSharePct(null);
+      }
+    },
+    [reportShare],
+  );
+
+  /**
+   * STEP TWO. NOT async, and nothing is awaited before `shareReadyFile` — an
+   * `await` added in front of this call silently restores the very refusal the
+   * split exists to prevent.
+   */
+  const sendNow = useCallback(() => {
+    const r = ready;
+    if (!r) return;
+    setShareHint(null);
+    void shareReadyFile(r.file, SHARE_PAYLOAD).then((outcome) => {
+      setReady(null);
+      reportShare(r.surface, outcome, r.whenFailed, r.whenUnsupported);
+    });
+  }, [ready, reportShare]);
+
+  const sendSaved = useCallback(
+    (v: SavedVideo) =>
+      prepare(
+        "share-saved-video",
+        v.uri,
+        v.fileName,
+        "Could not share that film. It is still on your device.",
+        "Sharing isn't available here — send it from your gallery instead.",
+      ),
+    [prepare],
+  );
 
   // Poll only while something is actually moving. A settled list is a static
   // list, and polling it forever is load with no answer attached.
