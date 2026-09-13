@@ -3,6 +3,7 @@ import { TEXT_DIRECT_HEAVY, TEXT_DIRECT_STANDARD } from "./modelRegistry.ts";
 import { readGrounding, requireGroundingEvidence, translateSearchTools } from "./geminiSearch.ts";
 import {
   captureGatewaySpend,
+  providerReceiptFrom,
   settleGatewaySpend,
   tokensFromUsage,
   type GatewayRpc,
@@ -1253,23 +1254,36 @@ export async function callGatewayText(
       signal: ctrl.signal,
     });
     const text = await res.text().catch(() => "");
+    const receiptId = (body: unknown) => providerReceiptFrom(body, res.headers);
     if (res.status >= 200 && res.status < 300) {
       let body: any = null;
       try {
         body = text ? JSON.parse(text) : null;
       } catch {
         // Served and billed regardless of our ability to read it.
-        await settle({ outcome: "FAILED" });
+        await settle({
+          outcome: "FAILED",
+          providerReceiptId: receiptId(null),
+          detail: { phase: "read-body", status: res.status },
+        });
         return { ok: false, reason: "unparseable gateway response" };
       }
       if (!body) {
-        await settle({ outcome: "FAILED" });
+        await settle({
+          outcome: "FAILED",
+          providerReceiptId: receiptId(null),
+          detail: { phase: "empty-body", status: res.status },
+        });
         return { ok: false, reason: "empty gateway response" };
       }
       // TOKENS ARE ALL THE GATEWAY DISCLOSES. There is no price field, so
       // `chargedCredits` is deliberately absent and the row stays
       // PENDING_RECONCILIATION — a zero here would read as "this was free".
-      await settle({ outcome: "ACCEPTED", unitsObserved: tokensFromUsage(body) });
+      await settle({
+        outcome: "ACCEPTED",
+        unitsObserved: tokensFromUsage(body),
+        providerReceiptId: receiptId(body),
+      });
       return {
         ok: true,
         data: translateOpenAIResponseToAnthropic(body, model),
@@ -1280,18 +1294,38 @@ export async function callGatewayText(
       console.warn(
         `callGatewayText: gateway credits exhausted or rate limited (http ${res.status}) key=${mask(key)}`,
       );
-      // A refusal at the door is the one non-2xx that certainly cost nothing.
-      await settle({ outcome: "NOT_CALLED", detail: { refusedWith: res.status } });
+      // REJECTED, NOT `NOT_CALLED`. This branch used to claim the refusal
+      // "certainly cost nothing" — it cannot. A request DID reach the gateway
+      // and was answered by it; the absence of a disclosed charge is not
+      // evidence of a zero charge, and the gateway discloses no charge on ANY
+      // reply. So the outcome is the refusal that happened and the price stays
+      // null, which leaves the row PENDING_RECONCILIATION. `NOT_CALLED` is
+      // reserved for the local preflights above, which return before the
+      // capture and therefore write no row at all.
+      await settle({
+        outcome: "REJECTED",
+        providerReceiptId: receiptId(null),
+        detail: { phase: "gateway-refused", status: res.status },
+      });
       return { ok: false, reason: `http ${res.status}`, creditsExhausted: true };
     }
     console.warn(`callGatewayText: http ${res.status} key=${mask(key)} body=${text.slice(0, 200)}`);
-    await settle({ outcome: "FAILED", detail: { status: res.status } });
+    await settle({
+      outcome: "FAILED",
+      providerReceiptId: receiptId(null),
+      detail: { phase: "gateway-error", status: res.status },
+    });
     return { ok: false, reason: `http ${res.status}` };
   } catch (e) {
     const reason = (e as Error)?.name === "AbortError" ? "timeout" : String(e).slice(0, 120);
     // AMBIGUOUS, so it is recorded as spent. A timeout says nothing about
-    // whether the gateway served the request.
-    await settle({ outcome: "FAILED", detail: { reason } });
+    // whether the gateway served the request. The ledger detail carries the
+    // allowlisted phase only — `reason` is outside text and goes to the caller,
+    // not into a row an authenticated user can read.
+    await settle({
+      outcome: "FAILED",
+      detail: { phase: (e as Error)?.name === "AbortError" ? "timeout" : "transport" },
+    });
     return { ok: false, reason };
   } finally {
     clearTimeout(t);

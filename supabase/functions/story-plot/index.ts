@@ -63,6 +63,7 @@ import { orchestratePlan } from "../_shared/planOrchestrator.ts";
 import { verifyJobToken } from "../_shared/jobToken.ts";
 
 import { MOVIE_RULES, MAX_DIALOGUE_WORDS } from "../_shared/movieGrammar.ts";
+import { serviceRoleRpc } from "../_shared/financialLedger.ts";
 import { storyIrRescue } from "../_shared/storyIrRescue.ts";
 import { paletteFor } from "../_shared/cinemaLexicon.ts";
 import { styleBlockFor } from "../_shared/directorStyles.ts";
@@ -247,8 +248,8 @@ const TOTAL_BUDGET_MS = 115_000;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const authFail = await requireAuth(req);
-    if (authFail) return authFail;
+    const caller = await requireAuth(req);
+    if (caller instanceof Response) return caller;
     // Tighter than Ting's ten a minute: a plot call is the front of a pipeline
     // that spends real money behind it, and nobody needs four films a minute.
     if (!_rateLimit(_subFromAuth(req), 4)) return json({ error: "slow down bestie 😅" }, 429);
@@ -832,6 +833,17 @@ Deno.serve(async (req) => {
         seed: `${shots}:${prompt.slice(0, 64)}`,
         grade: "classic",
         characters: reuse.map((c) => ({ name: c.name, description: c.lock })),
+        // CREDIT ACCOUNTING. This rung is the one path in story-plot that
+        // spends Lovable credits — rungs one and two are direct-provider calls
+        // metered elsewhere. The ids are the server's own: the job the signed
+        // token names, or the person the auth service identified. A ledger this
+        // function cannot reach does NOT withhold the film; the miss is
+        // announced by gatewayLedger and the row is simply absent.
+        spend: {
+          rpc: serviceRoleRpc(),
+          jobId: caller.jobId,
+          userId: caller.userId,
+        },
       });
       if ("plan" in r) {
         plan = r.plan;
@@ -1315,7 +1327,15 @@ function json(payload: unknown, status = 200) {
   });
 }
 
-async function requireAuth(req: Request): Promise<Response | null> {
+/**
+ * The caller, as the SERVER established it — never as the body claims it.
+ * A runner is identified by the job its signed token names; a person by the
+ * id the auth service returns for their session. Both are used only to label
+ * a gateway spend row, and a caller that supplies neither gets nulls.
+ */
+type PlotCaller = { userId: string | null; jobId: string | null };
+
+async function requireAuth(req: Request): Promise<Response | PlotCaller> {
   // A RUNNER IS NOT A USER. The Story worker holds a per-job capability token,
   // not a Supabase session, so /auth/v1/user would reject it — and passing the
   // service-role key here would not work either, because that is not a user
@@ -1326,7 +1346,8 @@ async function requireAuth(req: Request): Promise<Response | null> {
     const secret = Deno.env.get("STORY_JOB_SECRET");
     if (!secret) return json({ error: "Auth unavailable" }, 500);
     const verified = await verifyJobToken(jobToken, secret);
-    return verified.ok ? null : json({ error: `token ${verified.reason}` }, 401);
+    if (!verified.ok) return json({ error: `token ${verified.reason}` }, 401);
+    return { userId: null, jobId: verified.jobId ?? null };
   }
 
   const authHeader = req.headers.get("Authorization");
@@ -1338,5 +1359,6 @@ async function requireAuth(req: Request): Promise<Response | null> {
     headers: { Authorization: authHeader, apikey: anon },
   });
   if (!res.ok) return json({ error: "Unauthorized" }, 401);
-  return null;
+  const who = (await res.json().catch(() => null)) as { id?: unknown } | null;
+  return { userId: typeof who?.id === "string" ? who.id : null, jobId: null };
 }

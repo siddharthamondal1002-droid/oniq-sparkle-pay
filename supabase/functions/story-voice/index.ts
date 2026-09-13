@@ -22,6 +22,12 @@
 // written as-is — its ffmpeg sniffs content, not extensions.
 
 import { verifyJobToken } from "../_shared/jobToken.ts";
+import { serviceRoleRpc } from "../_shared/financialLedger.ts";
+import {
+  captureGatewaySpend,
+  settleGatewaySpend,
+  providerReceiptFrom,
+} from "../_shared/gatewayLedger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -93,8 +99,8 @@ function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const authFail = await requireAuth(req);
-    if (authFail) return authFail;
+    const caller = await requireAuth(req);
+    if (caller instanceof Response) return caller;
     // Matches story-still: a minute of Story is ~9 shots and each needs one
     // line read, so the two calls run at the same cadence.
     if (!_rateLimit(_subFromAuth(req), 30)) return json({ error: "slow down bestie 😅" }, 429);
@@ -107,6 +113,26 @@ Deno.serve(async (req) => {
     const voice = typeof body?.voice === "string" && body.voice ? body.voice : DEFAULT_VOICE;
     if (!text) return json({ error: "Nothing to read." }, 400);
     if (text.length > MAX_TEXT) return json({ error: "That line is too long." }, 400);
+
+    // CREDIT ACCOUNTING, captured HERE and not a line earlier: everything above
+    // returns without reaching the gateway, so a row written before this point
+    // would record a call that never happened. The unit is CHARACTERS — what a
+    // TTS request is measured in — and the price stays null, because the
+    // gateway discloses none. A ledger this function cannot reach does not
+    // withhold the narration; gatewayLedger announces the miss.
+    const spendRpc = serviceRoleRpc();
+    const requestId = `story-voice:${crypto.randomUUID()}`;
+    await captureGatewaySpend(spendRpc, {
+      requestId,
+      capability: "TTS",
+      model: TTS_MODEL,
+      unit: "characters",
+      jobId: caller.jobId,
+      userId: caller.userId,
+      attempt: 1,
+    });
+    const settle = (s: Parameters<typeof settleGatewaySpend>[2]) =>
+      settleGatewaySpend(spendRpc, requestId, s);
 
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 60000);
@@ -133,14 +159,33 @@ Deno.serve(async (req) => {
           },
         }),
       });
+    } catch (e) {
+      // The request left this machine and no reply came back, so what it cost
+      // is UNKNOWN rather than nothing. No raw message ever enters the ledger —
+      // the phase is one of a closed list and the status is a number.
+      await settle({
+        outcome: "FAILED",
+        detail: { phase: e instanceof DOMException && e.name === "AbortError" ? "timeout" : "transport" },
+      });
+      throw e;
     } finally {
       clearTimeout(timer);
     }
 
-    if (res.status === 401 || res.status === 403) return json({ configured: false }, 200);
+    if (res.status === 401 || res.status === 403) {
+      await settle({ outcome: "REJECTED", detail: { phase: "gateway-refused", status: res.status } });
+      return json({ configured: false }, 200);
+    }
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       console.error("story-voice upstream", res.status, detail.slice(0, 300));
+      // A REFUSED request still REACHED the gateway, and the absence of a
+      // charge receipt is not proof of a zero charge — so it settles REJECTED
+      // and pending, never NOT_CALLED. Only a local preflight never called.
+      await settle({
+        outcome: res.status === 402 || res.status === 429 ? "REJECTED" : "FAILED",
+        detail: { phase: "gateway-refused", status: res.status },
+      });
       // The upstream status rides in the body: the worker retries a THROTTLE
       // (429/5xx passes with time) but not a refusal, and a bare "could not
       // read" left it unable to tell the two apart — three narrations died
@@ -156,9 +201,11 @@ Deno.serve(async (req) => {
     // answer raw audio bytes with the mime in the header. Read whichever
     // arrived.
     let audio: { mime: string; data: string } | null = null;
+    let replyBody: unknown = null;
     const replyType = res.headers.get("content-type") ?? "";
     if (/json/i.test(replyType)) {
       const data = await res.json().catch(() => null);
+      replyBody = data;
       audio = firstInlineAudio(data);
     } else {
       const bytes = new Uint8Array(await res.arrayBuffer());
@@ -166,6 +213,17 @@ Deno.serve(async (req) => {
         audio = { mime: replyType || "audio/wav", data: b64(bytes) };
       }
     }
+    // The credit row closes here, on the reply this call actually received.
+    // The receipt is read from what the gateway NAMED — never invented — and a
+    // reply that names nothing settles pending rather than as a zero charge.
+    const receiptId = providerReceiptFrom(replyBody, res.headers);
+    await settle({
+      outcome: audio ? "ACCEPTED" : "FILTERED",
+      unitsObserved: text.length,
+      providerReceiptId: receiptId,
+      detail: { phase: audio ? "complete" : "empty-reply" },
+    });
+
     if (audio) {
       // Feed the ledger the dispatcher gates on (public.api_budget).
       // SUCCESSES ONLY — a 429 consumes nothing upstream, so counting it
@@ -244,7 +302,11 @@ function json(payload: unknown, status = 200) {
   });
 }
 
-async function requireAuth(req: Request): Promise<Response | null> {
+/** The caller as the SERVER established it — the job a signed token names, or
+ *  the person the auth service identified. Used only to label a spend row. */
+type VoiceCaller = { userId: string | null; jobId: string | null };
+
+async function requireAuth(req: Request): Promise<Response | VoiceCaller> {
   // A RUNNER IS NOT A USER. The Story worker holds a per-job capability token,
   // not a Supabase session, so /auth/v1/user would reject it — and passing the
   // service-role key here would not work either, because that is not a user
@@ -255,7 +317,8 @@ async function requireAuth(req: Request): Promise<Response | null> {
     const secret = Deno.env.get("STORY_JOB_SECRET");
     if (!secret) return json({ error: "Auth unavailable" }, 500);
     const verified = await verifyJobToken(jobToken, secret);
-    return verified.ok ? null : json({ error: `token ${verified.reason}` }, 401);
+    if (!verified.ok) return json({ error: `token ${verified.reason}` }, 401);
+    return { userId: null, jobId: verified.jobId ?? null };
   }
 
   const authHeader = req.headers.get("Authorization");
@@ -267,5 +330,6 @@ async function requireAuth(req: Request): Promise<Response | null> {
     headers: { Authorization: authHeader, apikey: anon },
   });
   if (!res.ok) return json({ error: "Unauthorized" }, 401);
-  return null;
+  const who = (await res.json().catch(() => null)) as { id?: unknown } | null;
+  return { userId: typeof who?.id === "string" ? who.id : null, jobId: null };
 }

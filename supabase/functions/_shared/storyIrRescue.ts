@@ -54,6 +54,7 @@
  */
 
 import { callGatewayText } from "./llm.ts";
+import type { GatewayRpc } from "./gatewayLedger.ts";
 import type { LocalInvoke } from "./localStoryModel.ts";
 import { generateStory, StoryInvalid, type StoryRequest } from "./storyModel.ts";
 import { LocalModelUnavailable } from "./localStoryModel.ts";
@@ -134,22 +135,52 @@ export function planFromIr(ir: StoryIr, want: number): RescuePlan | { reason: st
   };
 }
 
+/** Who is paying, and for which film — supplied by the edge function, never
+ *  by the client. `rpc` null ⇒ the attempt is announced as unrecorded rather
+ *  than silently skipped (see gatewayLedger.ts). */
+export type RescueSpend = {
+  rpc: GatewayRpc | null;
+  jobId?: string | null;
+  userId?: string | null;
+};
+
 /**
  * The transport, and the ONE place a gateway id is named for this path.
  *
  * Returns null when `LOVABLE_API_KEY` is absent, so the caller skips the rung
  * instead of adding a failed attempt to its reasons — an "engine missing" line
  * in `tried` reads to whoever debugs it as an engine that refused.
+ *
+ * EVERY INVOCATION IS ITS OWN ATTEMPT. `generateStory` may call the transport
+ * more than once (a repair pass on a plan that failed validation), and each of
+ * those is a separate request the gateway charges for — so the request id and
+ * the attempt number are minted per call, not per rescue.
  */
-export function makeGatewayStoryInvoke(model = GATEWAY_STORY_MODEL): LocalInvoke | null {
+export function makeGatewayStoryInvoke(
+  model = GATEWAY_STORY_MODEL,
+  spend?: RescueSpend,
+): LocalInvoke | null {
   if (!Deno.env.get("LOVABLE_API_KEY")) return null;
+  let attempt = 0;
   return async (prompt: string, opts: { maxTokens: number }): Promise<string> => {
+    attempt += 1;
     const res = await callGatewayText({
       system: "You are ONIQ's story engine. Reply with JSON only.",
       messages: [{ role: "user", content: prompt }],
       maxTokens: opts.maxTokens,
       gatewayModel: model,
       timeoutMs: 60_000,
+      ...(spend
+        ? {
+            gatewaySpend: {
+              rpc: spend.rpc,
+              requestId: `story-ir:${crypto.randomUUID()}`,
+              jobId: spend.jobId ?? null,
+              userId: spend.userId ?? null,
+              attempt,
+            },
+          }
+        : {}),
     });
     if (!res.ok) throw new LocalModelUnavailable(String(res.reason ?? "gateway refused"));
     const blocks = (res.data as { content?: { type?: string; text?: string }[] })?.content ?? [];
@@ -171,6 +202,9 @@ export type RescueInput = {
   seed: string;
   grade: "classic" | "movie";
   characters?: { name: string; description: string }[];
+  /** Accounting binding for the real caller. Absent in unit tests, which pass
+   *  their own transport and never reach a gateway. */
+  spend?: RescueSpend;
 };
 
 /** A plan, or WHY there is not one — the shape `story-plot`'s ladder records. */
@@ -178,8 +212,9 @@ export async function storyIrRescue(
   input: RescueInput,
   invoke?: LocalInvoke | null,
 ): Promise<{ plan: RescuePlan } | { reason: string }> {
-  const transport = invoke ?? makeGatewayStoryInvoke();
+  const transport = invoke ?? makeGatewayStoryInvoke(GATEWAY_STORY_MODEL, input.spend);
   if (!transport) return { reason: "story-ir: no gateway key" };
+
 
   const request: StoryRequest = {
     idea: input.idea,

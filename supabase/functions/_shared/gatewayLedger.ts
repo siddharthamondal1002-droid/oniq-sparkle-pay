@@ -65,15 +65,53 @@ export type GatewaySettlement = {
   detail?: Record<string, unknown> | null;
 };
 
+/**
+ * WHY THE FAILURE VOCABULARY IS A CLOSED LIST. An accounting miss must be
+ * VISIBLE — a silently dropped row is a charge nobody can reconcile — but the
+ * thing that makes it visible must not be a provider's or an exception's own
+ * words. A raw `error.message` written into `ledger.detail` is unbounded text
+ * from outside ONIQ landing in a row an authenticated user can read. So the
+ * only thing that travels is one of these codes plus, at most, a numeric HTTP
+ * status.
+ */
+export type GatewayAccountingFailure =
+  | "ledger-unavailable"
+  | "capture-rejected"
+  | "capture-threw"
+  | "settle-rejected"
+  | "settle-threw"
+  | "settle-conflict"
+  | "settle-unknown-request";
+
 export type CaptureResult = {
   ok: boolean;
   duplicate: boolean;
-  reason?: string;
+  reason?: GatewayAccountingFailure;
+  settlementState?: GatewaySettlementState;
+};
+
+export type SettleResult = {
+  ok: boolean;
+  reason?: GatewayAccountingFailure;
   settlementState?: GatewaySettlementState;
 };
 
 function nonNegative(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
+}
+
+/**
+ * The ONE place an accounting miss is announced. It is a log line and nothing
+ * else: an approved generation must never be withheld because a bookkeeping
+ * write failed, and the row's absence is already the loudest signal there is
+ * to whoever reconciles. Only the closed code and the request id travel.
+ */
+export function reportAccountingFailure(
+  requestId: string,
+  phase: "capture" | "settle",
+  reason: GatewayAccountingFailure,
+): void {
+  console.warn(`gatewayLedger: ${phase} not recorded (${reason}) request=${requestId}`);
 }
 
 /**
@@ -91,7 +129,10 @@ export async function captureGatewaySpend(
   rpc: GatewayRpc | null,
   c: GatewayCapture,
 ): Promise<CaptureResult> {
-  if (!rpc) return { ok: false, duplicate: false, reason: "ledger-unavailable" };
+  if (!rpc) {
+    reportAccountingFailure(c.requestId, "capture", "ledger-unavailable");
+    return { ok: false, duplicate: false, reason: "ledger-unavailable" };
+  }
   try {
     const { data, error } = await rpc("capture_gateway_spend", {
       _request_id: c.requestId,
@@ -104,28 +145,45 @@ export async function captureGatewaySpend(
       _user_id: c.userId ?? null,
       _detail: c.detail ?? null,
     });
-    if (error) return { ok: false, duplicate: false, reason: "capture-failed" };
+    if (error) {
+      reportAccountingFailure(c.requestId, "capture", "capture-rejected");
+      return { ok: false, duplicate: false, reason: "capture-rejected" };
+    }
     const d = (data ?? {}) as Record<string, unknown>;
+    if (d.ok !== true) {
+      reportAccountingFailure(c.requestId, "capture", "capture-rejected");
+      return { ok: false, duplicate: d.duplicate === true, reason: "capture-rejected" };
+    }
     return {
-      ok: d.ok === true,
+      ok: true,
       duplicate: d.duplicate === true,
       settlementState: d.settlementState as GatewaySettlementState | undefined,
     };
   } catch {
-    return { ok: false, duplicate: false, reason: "capture-failed" };
+    reportAccountingFailure(c.requestId, "capture", "capture-threw");
+    return { ok: false, duplicate: false, reason: "capture-threw" };
   }
 }
 
-/** Close the attempt out. A lost settle leaves the row PENDING, which is the
- *  safe direction: an un-reconciled row is visible, a deleted one is not. */
+/**
+ * Close the attempt out. A lost settle leaves the row PENDING, which is the
+ * safe direction: an un-reconciled row is visible, a deleted one is not.
+ *
+ * THE RESULT IS READ, not discarded. The SQL refuses a replay that contradicts
+ * a charge or a receipt already on the row, and a refusal that nothing looks at
+ * is the same as no constraint at all.
+ */
 export async function settleGatewaySpend(
   rpc: GatewayRpc | null,
   requestId: string,
   s: GatewaySettlement,
-): Promise<void> {
-  if (!rpc) return;
+): Promise<SettleResult> {
+  if (!rpc) {
+    reportAccountingFailure(requestId, "settle", "ledger-unavailable");
+    return { ok: false, reason: "ledger-unavailable" };
+  }
   try {
-    await rpc("settle_gateway_spend", {
+    const { data, error } = await rpc("settle_gateway_spend", {
       _request_id: requestId,
       _outcome: s.outcome,
       _units_observed: nonNegative(s.unitsObserved),
@@ -133,8 +191,21 @@ export async function settleGatewaySpend(
       _provider_receipt_id: s.providerReceiptId ?? null,
       _detail: s.detail ?? null,
     });
+    if (error) {
+      reportAccountingFailure(requestId, "settle", "settle-rejected");
+      return { ok: false, reason: "settle-rejected" };
+    }
+    const d = (data ?? {}) as Record<string, unknown>;
+    if (d.ok !== true) {
+      const reason: GatewayAccountingFailure =
+        d.reason === "unknown-request" ? "settle-unknown-request" : "settle-conflict";
+      reportAccountingFailure(requestId, "settle", reason);
+      return { ok: false, reason };
+    }
+    return { ok: true, settlementState: d.settlementState as GatewaySettlementState | undefined };
   } catch {
-    /* best effort — see above */
+    reportAccountingFailure(requestId, "settle", "settle-threw");
+    return { ok: false, reason: "settle-threw" };
   }
 }
 
@@ -154,13 +225,19 @@ export type GatewayRun<T> = {
  * An ambiguous failure (timeout, non-2xx) settles FAILED rather than
  * NOT_CALLED: the request may well have been served and charged, and claiming
  * otherwise is the one error that makes the ledger under-count.
+ *
+ * THE CAPTURE RESULT IS READ. A capture that did not land is announced through
+ * `reportAccountingFailure` and the settle is still attempted — the row may
+ * exist from an earlier attempt at the same id, and if it does not the settle's
+ * own `unknown-request` refusal is the second, louder signal. What it does NOT
+ * do is refuse the generation: this seam records, it does not authorize.
  */
 export async function withGatewayCostCapture<T>(
   rpc: GatewayRpc | null,
   capture: GatewayCapture,
   run: () => Promise<GatewayRun<T>>,
 ): Promise<T> {
-  await captureGatewaySpend(rpc, capture);
+  const captured = await captureGatewaySpend(rpc, capture);
   try {
     const r = await run();
     await settleGatewaySpend(rpc, capture.requestId, {
@@ -168,16 +245,49 @@ export async function withGatewayCostCapture<T>(
       unitsObserved: r.unitsObserved ?? null,
       chargedCredits: r.chargedCredits ?? null,
       providerReceiptId: r.providerReceiptId ?? null,
-      detail: r.detail ?? null,
+      detail: mergeAccountingDetail(r.detail ?? null, captured),
     });
     return r.value;
   } catch (e) {
+    // ALLOWLISTED ONLY. The thrown message is outside text and this row is
+    // readable by the authenticated owner, so the phase and — where the throw
+    // carries one — a numeric status are all that travel.
     await settleGatewaySpend(rpc, capture.requestId, {
       outcome: "FAILED",
-      detail: { error: String((e as Error)?.message ?? e).slice(0, 200) },
+      detail: mergeAccountingDetail({ phase: "provider-call", ...statusOf(e) }, captured),
     });
     throw e;
   }
+}
+
+/** A numeric HTTP status hung on a thrown error by a caller, if there is one. */
+function statusOf(e: unknown): { status?: number } {
+  const s = (e as { status?: unknown } | null)?.status;
+  return typeof s === "number" && Number.isFinite(s) ? { status: s } : {};
+}
+
+function mergeAccountingDetail(
+  detail: Record<string, unknown> | null,
+  captured: CaptureResult,
+): Record<string, unknown> | null {
+  if (captured.ok) return detail;
+  return { ...(detail ?? {}), captureMissed: captured.reason ?? "capture-rejected" };
+}
+
+/**
+ * The provider's own identifier for this request, taken ONLY from places the
+ * provider actually wrote it. Nothing is synthesised: when the gateway names
+ * no id, the row keeps a null and the reconciliation stays open. Inventing a
+ * receipt field would make an unreconciled charge look settled.
+ */
+export function providerReceiptFrom(body: unknown, headers?: Headers | null): string | null {
+  const fromBody = (body as { id?: unknown } | null)?.id;
+  if (typeof fromBody === "string" && fromBody.trim()) return fromBody.trim().slice(0, 200);
+  for (const name of ["x-request-id", "x-lovable-aig-log-id", "x-lovable-aig-run-id"]) {
+    const v = headers?.get(name);
+    if (v && v.trim()) return v.trim().slice(0, 200);
+  }
+  return null;
 }
 
 /**
