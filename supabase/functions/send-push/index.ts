@@ -369,6 +369,59 @@ Deno.serve(async (req) => {
       ? `Incoming ${call_type ?? "voice"} call — open ONIQ to answer`
       : (preview ?? "New message");
 
+  /**
+   * THE CLOSED SET OF REASON CODES.
+   *
+   * An allowlist rather than a sanitiser, because the values being counted
+   * come from a third party: an FCM `errorCode` and a JavaScript `error.name`
+   * are both strings that party controls, and "we only pass through short
+   * ones" is not a property anybody can check. Anything not named here is
+   * counted as `other` — the count is preserved, the string is not.
+   *
+   * A code here can hold no token, no endpoint, no person and no provider
+   * prose, which is the whole reason the table is codes and not messages.
+   */
+  const REASON_CODES = new Set([
+    // FCM v1 error enums.
+    "UNREGISTERED",
+    "INVALID_ARGUMENT",
+    "SENDER_ID_MISMATCH",
+    "QUOTA_EXCEEDED",
+    "UNAVAILABLE",
+    "INTERNAL",
+    "THIRD_PARTY_AUTH_ERROR",
+    // Transport-level outcomes we name ourselves.
+    "http_400",
+    "http_401",
+    "http_403",
+    "http_404",
+    "http_429",
+    "http_500",
+    "http_503",
+    "http_other",
+    "http_unparseable",
+    "no_access_token",
+    "no_device_token",
+    "timeout",
+    "throw",
+    // Web push.
+    "web_unconfigured",
+    "web_rotated_key",
+    "web_vapid_mismatch",
+    "web_gone",
+    "web_failed",
+    "other",
+  ]);
+  /** Reason code -> count. Codes only; never a token, endpoint or person. */
+  const reasons: Record<string, number> = {};
+  const bumpReason = (code: string, by = 1) => {
+    const key = REASON_CODES.has(code) ? code : "other";
+    reasons[key] = (reasons[key] ?? 0) + by;
+  };
+  /** `http_418` is not in the set; `http_429` is. Fold the rest into one code. */
+  const httpCode = (status: number) =>
+    REASON_CODES.has(`http_${status}`) ? `http_${status}` : "http_other";
+
   // Only pay for a Google OAuth token when there is an FCM row to use it on.
   // A web-only conversation must not fail because the Firebase service
   // account is absent, and vice versa — one transport being unconfigured is
@@ -380,10 +433,26 @@ Deno.serve(async (req) => {
     } catch (e) {
       console.error("oauth error", (e as Error).message);
       if (webSubs.length === 0) {
-        return new Response(JSON.stringify({ error: "auth failed" }), {
-          status: 500,
-          headers: { ...corsHeaders, "content-type": "application/json" },
-        });
+        // COUNTED, EVEN THOUGH THIS IS A 500. The early return used to leave
+        // the body with no `reasons` at all, so the one failure mode that is
+        // unambiguously a credential fault arrived at the witness as a bare
+        // "invoke failed" — the exact shape that cost four rounds of guessing
+        // in September. One row per address that could not be served.
+        bumpReason("no_access_token", fcmTokens.length);
+        return new Response(
+          JSON.stringify({
+            error: "auth failed",
+            sent: 0,
+            acceptedByProvider: 0,
+            deliveredToHandset: null,
+            failed: fcmTokens.length,
+            reasons,
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "content-type": "application/json" },
+          },
+        );
       }
     }
   }
@@ -392,15 +461,15 @@ Deno.serve(async (req) => {
   let sent = 0;
   let failed = 0;
   const staleTokens: string[] = [];
-  /** Reason code -> count. Codes only; never a token, endpoint or person. */
-  const reasons: Record<string, number> = {};
-  const bumpReason = (code: string) => {
-    reasons[code] = (reasons[code] ?? 0) + 1;
-  };
   // A token was minted but there were FCM rows to spend it on and it never
   // arrived — the one state that IS a credential fault, and it was previously
-  // indistinguishable from "no rows to send to".
-  if (fcmTokens.length > 0 && !accessToken) bumpReason("no_access_token");
+  // indistinguishable from "no rows to send to". Counted PER ADDRESS, because
+  // a single bump made a ten-recipient outage look like one.
+  if (fcmTokens.length > 0 && !accessToken) {
+    bumpReason("no_access_token", fcmTokens.length);
+    failed += fcmTokens.length;
+  }
+
 
   await Promise.all(
     (accessToken ? fcmTokens : []).map(async (token) => {
