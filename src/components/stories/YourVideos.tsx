@@ -78,17 +78,18 @@ export function YourVideos() {
   const [sharing, setSharing] = useState(false);
   const [sharePct, setSharePct] = useState<number | null>(null);
   const [shareHint, setShareHint] = useState<string | null>(null);
-  // A file already fetched and waiting for its own tap. Holding it here is
-  // what lets `navigator.share` run with nothing awaited in front of it.
-  const [ready, setReady] = useState<ReadyShare | null>(null);
-  // WHICH preparation is the current one. A fetch takes seconds, so a person
-  // can start one film and tap another before it lands; without this the older
-  // fetch would resolve last and arm the WRONG file. Every prepare takes a
-  // ticket and only the newest ticket may set `ready`.
-  const prepareSeq = useRef(0);
-  // One send at a time. `sendNow` is deliberately not async, so two fast taps
-  // would otherwise both reach the sheet with the same file.
-  const sending = useRef(false);
+  // The prepared file and everything that decides whether it may be sent.
+  // Created once per mount: a new binding per render would drop the armed file
+  // on every keystroke elsewhere on the screen.
+  const bindingRef = useRef<ReturnType<typeof createShareBinding> | null>(null);
+  bindingRef.current ??= createShareBinding();
+  const binding = bindingRef.current;
+  const { ready, sharing, pct: sharePct } = useSyncExternalStore(
+    binding.subscribe,
+    binding.getSnapshot,
+    binding.getSnapshot,
+  );
+
 
   // Films already on this phone. Kept in local state because the server has
   // nothing left to list once a film is saved — saving purges it there.
