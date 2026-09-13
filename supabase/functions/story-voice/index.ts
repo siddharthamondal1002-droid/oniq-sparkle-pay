@@ -93,8 +93,8 @@ function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const authFail = await requireAuth(req);
-    if (authFail) return authFail;
+    const caller = await requireAuth(req);
+    if (caller instanceof Response) return caller;
     // Matches story-still: a minute of Story is ~9 shots and each needs one
     // line read, so the two calls run at the same cadence.
     if (!_rateLimit(_subFromAuth(req), 30)) return json({ error: "slow down bestie 😅" }, 429);
@@ -107,6 +107,26 @@ Deno.serve(async (req) => {
     const voice = typeof body?.voice === "string" && body.voice ? body.voice : DEFAULT_VOICE;
     if (!text) return json({ error: "Nothing to read." }, 400);
     if (text.length > MAX_TEXT) return json({ error: "That line is too long." }, 400);
+
+    // CREDIT ACCOUNTING, captured HERE and not a line earlier: everything above
+    // returns without reaching the gateway, so a row written before this point
+    // would record a call that never happened. The unit is CHARACTERS — what a
+    // TTS request is measured in — and the price stays null, because the
+    // gateway discloses none. A ledger this function cannot reach does not
+    // withhold the narration; gatewayLedger announces the miss.
+    const spendRpc = serviceRoleRpc();
+    const requestId = `story-voice:${crypto.randomUUID()}`;
+    await captureGatewaySpend(spendRpc, {
+      requestId,
+      capability: "TTS",
+      model: TTS_MODEL,
+      unit: "characters",
+      jobId: caller.jobId,
+      userId: caller.userId,
+      attempt: 1,
+    });
+    const settle = (s: Parameters<typeof settleGatewaySpend>[2]) =>
+      settleGatewaySpend(spendRpc, requestId, s);
 
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 60000);
