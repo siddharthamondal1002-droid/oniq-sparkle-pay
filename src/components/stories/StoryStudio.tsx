@@ -326,6 +326,7 @@ export function StoryStudio() {
   useEffect(() => {
     if (!jobId || (jobStatus && SETTLED.has(jobStatus))) return;
     let cancelled = false;
+    let settled = false;
     const tick = async () => {
       if (watchingJob.current) return;
       watchingJob.current = true;
@@ -333,6 +334,9 @@ export function StoryStudio() {
         const row = await readJobRow(jobId);
         if (cancelled || !row?.status) return;
         setJobStatus(row.status);
+        // A settled job stops the timer here rather than waiting for the
+        // state round trip to re-run this effect.
+        if (SETTLED.has(row.status)) settled = true;
         if (row.status === "failed") {
           // The seconds are already back — refund_story_seconds runs server-side
           // when the job is marked failed, so this is telling the user something
@@ -346,6 +350,7 @@ export function StoryStudio() {
       } finally {
         watchingJob.current = false;
       }
+      return !settled;
     };
     const stop = startVisiblePolling(tick, 6000);
     return () => {
