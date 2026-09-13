@@ -38,8 +38,8 @@
 - [x] Item 1 RESOLVED. The blocker was the installer, not the advisories, and the route around it is
       npm 11 with a lock-only, date-bounded update — no `package.json` edit and no overrides:
       `npx npm@11.9.0 update dompurify hono fast-uri js-yaml postcss qs nanoid browserslist
-  brace-expansion @xmldom/xmldom vitest --package-lock-only --ignore-scripts --no-audit
-  --no-fund --before=2026-09-12T00:00:00Z --registry=https://registry.npmjs.org`.
+brace-expansion @xmldom/xmldom vitest --package-lock-only --ignore-scripts --no-audit
+--no-fund --before=2026-09-12T00:00:00Z --registry=https://registry.npmjs.org`.
       The container's own npm (10.9.4) still crashes with
       `TypeError: Cannot read properties of null (reading 'edgesOut')` in arborist's peer-set walk —
       that crash is an npm-10 fault, pre-existing, and npm 11 does not reproduce it.
@@ -56,7 +56,7 @@
       baseline-browser-mapping 2.10.21). Migrated the TESTED npm graph rather than running a blanket
       bun update: a temp directory holding only `package.json`, the updated `package-lock.json` and
       the unchanged `bunfig.toml` (no `bun.lock`), then `bun install --lockfile-only
-  --ignore-scripts` (bun 1.3.3), and the generated `bun.lock` copied back. Frozen lock-only
+--ignore-scripts` (bun 1.3.3), and the generated `bun.lock` copied back. Frozen lock-only
       re-run is idempotent. Package-version set diff against the npm lock is only the `h3-v2` alias
       and two optional WASM packages, exactly as measured externally.
       Gates in this environment, all green: clean `npm ci` in a scratch directory (765 packages),
