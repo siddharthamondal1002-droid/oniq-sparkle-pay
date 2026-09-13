@@ -244,7 +244,11 @@ function json(payload: unknown, status = 200) {
   });
 }
 
-async function requireAuth(req: Request): Promise<Response | null> {
+/** The caller as the SERVER established it — the job a signed token names, or
+ *  the person the auth service identified. Used only to label a spend row. */
+type VoiceCaller = { userId: string | null; jobId: string | null };
+
+async function requireAuth(req: Request): Promise<Response | VoiceCaller> {
   // A RUNNER IS NOT A USER. The Story worker holds a per-job capability token,
   // not a Supabase session, so /auth/v1/user would reject it — and passing the
   // service-role key here would not work either, because that is not a user
