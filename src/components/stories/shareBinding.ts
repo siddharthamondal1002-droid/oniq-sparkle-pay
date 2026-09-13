@@ -17,6 +17,12 @@
  */
 import { prepareVideoShare, shareReadyFile } from "@/lib/share";
 
+export const SHARE_PAYLOAD = {
+  title: "My ONIQ Story",
+  text: "Made with AI on ONIQ 🎬 oniqhub.com",
+  url: "https://oniqhub.com",
+};
+
 /** A prepared file belongs to one kind AND one id. Never to a surface. */
 export type ShareSource = { kind: "film" | "saved"; id: string };
 
@@ -138,9 +144,3 @@ export function createShareBinding(io: ShareIo = { prepare: prepareVideoShare, s
     },
   };
 }
-
-export const SHARE_PAYLOAD = {
-  title: "My ONIQ Story",
-  text: "Made with AI on ONIQ 🎬 oniqhub.com",
-  url: "https://oniqhub.com",
-};
