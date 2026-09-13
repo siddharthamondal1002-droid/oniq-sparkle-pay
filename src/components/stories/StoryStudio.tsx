@@ -323,42 +323,36 @@ export function StoryStudio() {
    * Six seconds. The step it is waiting on is measured in minutes, so a faster
    * tick would only add requests.
    */
+  // A derived boolean, not jobStatus itself: every intermediate transition
+  // would otherwise tear the poller down and start a fresh immediate read.
+  const isWatchingJob = !!jobId && !(jobStatus && SETTLED.has(jobStatus));
   useEffect(() => {
-    if (!jobId || (jobStatus && SETTLED.has(jobStatus))) return;
+    if (!jobId || !isWatchingJob) return;
     let cancelled = false;
-    let settled = false;
     const tick = async () => {
-      if (watchingJob.current) return;
-      watchingJob.current = true;
-      try {
-        const row = await readJobRow(jobId);
-        if (cancelled || !row?.status) return;
-        setJobStatus(row.status);
-        // A settled job stops the timer here rather than waiting for the
-        // state round trip to re-run this effect.
-        if (SETTLED.has(row.status)) settled = true;
-        if (row.status === "failed") {
-          // The seconds are already back — refund_story_seconds runs server-side
-          // when the job is marked failed, so this is telling the user something
-          // that is already true rather than promising it.
-          setJobError(row.error ?? "That Story could not be made. Your time has been returned.");
-          void (async () => {
-            const { data } = await supabase.rpc("story_quota_status");
-            if (!cancelled) setQuota(readQuota(data));
-          })();
-        }
-      } finally {
-        watchingJob.current = false;
+      const row = await readJobRow(jobId);
+      if (cancelled || !row?.status) return true;
+      setJobStatus(row.status);
+      if (row.status === "failed") {
+        // The seconds are already back — refund_story_seconds runs server-side
+        // when the job is marked failed, so this is telling the user something
+        // that is already true rather than promising it.
+        setJobError(row.error ?? "That Story could not be made. Your time has been returned.");
+        void (async () => {
+          const { data } = await supabase.rpc("story_quota_status");
+          if (!cancelled) setQuota(readQuota(data));
+        })();
       }
-      return !settled;
+      // A settled job stops the timer here rather than waiting for the state
+      // round trip to re-run this effect.
+      return !SETTLED.has(row.status);
     };
     const stop = startVisiblePolling(tick, 6000);
     return () => {
       cancelled = true;
-      watchingJob.current = false;
       stop();
     };
-  }, [jobId, jobStatus]);
+  }, [jobId, isWatchingJob]);
 
   /**
    * Pick up a Story already in flight.
