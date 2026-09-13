@@ -68,8 +68,8 @@ describe("the reason table is a closed set", () => {
   });
 
   it("turns an HTTP status into a bounded code rather than a free string", () => {
-    expect(CODE).toContain("function httpCode(");
-    expect(CODE).toContain('bumpReason(httpCode(');
+    expect(CODE).toContain("const httpCode = (status: number)");
+    expect(CODE).toContain("let reasonCode = httpCode(r.status);");
   });
 
   it("counts a provider refusal by its structured code, never its prose", () => {
