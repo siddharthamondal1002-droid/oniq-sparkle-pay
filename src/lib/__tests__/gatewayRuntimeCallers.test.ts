@@ -220,9 +220,8 @@ describe("the story-IR rescue books every model call separately", () => {
   it("settles a credit refusal as REJECTED rather than swallowing it", async () => {
     globalThis.fetch = router(() => new Response("no credits", { status: 402 })) as typeof fetch;
 
-    const mod = await import(
-      /* @vite-ignore */ "../../../supabase/functions/_shared/storyIrRescue.ts"
-    );
+    const mod = await import(/* @vite-ignore */ RESCUE_MOD);
+
     const invoke = mod.makeGatewayStoryInvoke(mod.GATEWAY_STORY_MODEL, {
       rpc: await serviceRpc(),
       jobId: null,
