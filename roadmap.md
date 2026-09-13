@@ -256,3 +256,42 @@ row PENDING for ever with no outcome.
 
 Nothing deployed, published, generated or spent. `story-voice`, `story-still` and `story-plot`
 carry undeployed edge-function changes; they need one deploy message after review.
+
+## Share is bound to a film, not to a surface (2026-09-13)
+
+`ReadyShare` carried only a SURFACE name, so preparing one saved film turned EVERY saved row's
+button into "Send now" and tapping any of them sent the first film; the main film button checked
+`ready` truthiness alone, so opening another film could send the previous one. Three faults sat in
+the same place: a slow fetch landing after the person moved on armed the older file, a closed or
+deleted film left an armed button pointing at bytes that were gone, and two fast taps both reached
+the sheet.
+
+A prepared file now carries `{kind, id}` and only that row may send it. The armed file, the
+stale-fetch ticket and the one-send-at-a-time guard moved into `src/components/stories/
+shareBinding.ts`, so the screen keeps no second copy — **this repo's vitest environment is "node"
+with no DOM and no renderer**, and putting the decisions in a module is what makes them executable
+rather than readable. `sendNow` is still synchronous with nothing awaited before the sheet.
+
+    shareBinding.test.ts        8 runtime tests through the real module:
+                                prepare A then B (A resolving LAST) arms B only,
+                                B's button refuses A and sends nothing,
+                                a second tap sends nothing extra,
+                                an armed file drops when its film closes/leaves
+    shareBindingWiring.test.ts  5 structural, comments stripped: no `ready.surface ===`
+                                decision survives, each button passes its own id
+
+MUTATIONS, 4, every one RED: the stale-fetch check removed; the source+send guard removed; the
+saved row back to `ready?.surface === "share-saved-video"` (the shipped bug, verbatim); the
+invalidation removed.
+
+`src/lib/share.ts`'s comments claimed "any await ends the activation window". Corrected: transient
+activation expires on a TIMER, so an await may or may not spend it — which is why the refusal is
+intermittent, and why the two-step split is the remedy rather than a proof of cause.
+
+    npx tsc --noEmit   0 errors
+    npm run lint:ci    pass (changed files)
+    prettier --write   the changed files
+    npx vitest run     408 files / 7,270 passed
+    npm run build      pass
+
+Nothing deployed, published, generated or spent. Web-only — no migration and no edge function.
