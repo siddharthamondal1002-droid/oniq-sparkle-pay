@@ -282,9 +282,11 @@ export async function shareVideoFile(
  *
  * `shareVideoFile` above cannot avoid the refusal it documents: a File is
  * required before `navigator.share` may be called, obtaining the bytes takes an
- * await, and an await ends the activation window the sheet needs. The remedy is
- * structural rather than clever — prepare the file on the FIRST tap, then let a
- * SECOND tap call `share` with nothing awaited in front of it.
+ * await, and transient activation can EXPIRE while that await runs — not
+ * always, which is why the refusal is intermittent rather than certain. The
+ * remedy is structural rather than clever — prepare the file on the FIRST tap,
+ * then let a SECOND tap call `share` with nothing awaited in front of it.
+
  *
  * Step one. Native platforms still finish in one go (their sheet takes a URI,
  * not a File, and has no activation rule), so this reports "done" for them and
