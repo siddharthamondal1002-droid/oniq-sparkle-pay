@@ -298,12 +298,14 @@ function TingScreen() {
           healthNote: verdict === "health",
         },
       ]);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "";
-      toast.error(msg && !/non-2xx/i.test(msg) ? msg : "ting choked on that 😵‍💫 try again");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "";
+        toast.error(msg && !/non-2xx/i.test(msg) ? msg : "ting choked on that 😵‍💫 try again");
+      } finally {
+        setLoading(false);
+      }
     } finally {
       askInFlight.current = false;
-      setLoading(false);
     }
   }
 
