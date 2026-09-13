@@ -197,9 +197,11 @@ Deno.serve(async (req) => {
     // answer raw audio bytes with the mime in the header. Read whichever
     // arrived.
     let audio: { mime: string; data: string } | null = null;
+    let replyBody: unknown = null;
     const replyType = res.headers.get("content-type") ?? "";
     if (/json/i.test(replyType)) {
       const data = await res.json().catch(() => null);
+      replyBody = data;
       audio = firstInlineAudio(data);
     } else {
       const bytes = new Uint8Array(await res.arrayBuffer());
