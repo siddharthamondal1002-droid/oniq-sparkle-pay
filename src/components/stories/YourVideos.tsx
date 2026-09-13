@@ -166,7 +166,12 @@ export function YourVideos() {
         setError("Could not share that film. It is still on your device.");
       } else if (outcome === "unsupported") {
         setShareHint("Sharing isn't available here — send it from your gallery instead.");
+      } else if (outcome === "downloaded") {
+        // The share sheet refused (activation lost), so the film was saved
+        // instead. Not an error — say where it went rather than nothing.
+        setShareHint("Your browser wouldn't open the share sheet, so the film was saved instead.");
       }
+
     } finally {
       setSharing(false);
       setSharePct(null);
