@@ -1334,7 +1334,8 @@ async function requireAuth(req: Request): Promise<Response | PlotCaller> {
     const secret = Deno.env.get("STORY_JOB_SECRET");
     if (!secret) return json({ error: "Auth unavailable" }, 500);
     const verified = await verifyJobToken(jobToken, secret);
-    return verified.ok ? null : json({ error: `token ${verified.reason}` }, 401);
+    if (!verified.ok) return json({ error: `token ${verified.reason}` }, 401);
+    return { userId: null, jobId: verified.jobId ?? null };
   }
 
   const authHeader = req.headers.get("Authorization");
@@ -1346,5 +1347,6 @@ async function requireAuth(req: Request): Promise<Response | PlotCaller> {
     headers: { Authorization: authHeader, apikey: anon },
   });
   if (!res.ok) return json({ error: "Unauthorized" }, 401);
-  return null;
+  const who = (await res.json().catch(() => null)) as { id?: unknown } | null;
+  return { userId: typeof who?.id === "string" ? who.id : null, jobId: null };
 }
