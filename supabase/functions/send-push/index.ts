@@ -262,10 +262,19 @@ Deno.serve(async (req) => {
     .neq("user_id", senderId);
   const recipientIds = (others ?? []).map((m: { user_id: string }) => m.user_id);
   if (recipientIds.length === 0) {
-    return new Response(JSON.stringify({ sent: 0, failed: 0 }), {
+    // THE THIRD WAY TO ANSWER sent:0, and until now it was the one nobody
+    // could name. `unaddressed` was added in August to separate "nobody had a
+    // push address" from "we reached FCM and it delivered nothing" — but this
+    // branch returned a BARE {sent:0,failed:0}, so a conversation with no
+    // other members was byte-identical to a report written before the
+    // discriminator existed. Three distinct states, two of them reading the
+    // same. `unaddressed: 0` with `noRecipients` says which one this is, and
+    // says it in a field rather than in a log nobody joins to the row.
+    return new Response(JSON.stringify({ sent: 0, failed: 0, unaddressed: 0, noRecipients: true }), {
       headers: { ...corsHeaders, "content-type": "application/json" },
     });
   }
+
 
   const { data: tokens } = await admin
     .from("device_tokens")
