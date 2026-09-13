@@ -1,4 +1,6 @@
+// @vitest-environment jsdom
 /**
+
  * The two recorded `share-video` failures, reproduced and fixed.
  *
  * BOTH reports (2026-09-04 14:18/14:32, 2026-09-11 13:43/13:44) carry the
