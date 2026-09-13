@@ -413,8 +413,10 @@ export function YourVideos() {
               today, tomorrow and from any device the account signs in on. */}
           <button
             type="button"
-            data-testid={ready ? "story-share-send-now" : "story-share-prepare"}
-            onClick={ready ? sendNow : () => void share()}
+            data-testid={filmReady ? "story-share-send-now" : "story-share-prepare"}
+            onClick={
+              filmReady && openId ? () => sendNow({ kind: "film", id: openId }) : () => void share()
+            }
             disabled={busy || sharing}
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
           >
@@ -427,9 +429,10 @@ export function YourVideos() {
               ? sharePct !== null
                 ? `Preparing… ${sharePct}%`
                 : "Preparing…"
-              : ready
+              : filmReady
                 ? "Send now"
                 : "Share — WhatsApp, Facebook & more"}
+
           </button>
           {/* Saving is BACK, and it is no longer a trapdoor. It used to delete
               the film from our side, so a save meant you could never share it
