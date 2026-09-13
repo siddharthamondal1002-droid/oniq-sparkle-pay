@@ -55,11 +55,25 @@
       service-role credential can be minted from here to invoke it. The missing authorization to
       state to Cloudflare is: the R2 API token behind those two secrets needs Object Read & Write on
       bucket `oniq-gpu` (it demonstrably has it on `oniq-chat-media`). No broader or public grant.
-- [ ] Item 4 DESIGNED, NOT APPLIED. `provider_spend_ledger` has `estimated_usd`/`actual_usd` and NO
-      currency column, so a Lovable-gateway call billed in CREDITS cannot be recorded without either
-      inventing a USD conversion (forbidden) or adding columns. Needs an additive migration
-      (`currency`, `units_actual`, `provider_receipt_id`) before gateway usage can be booked — and it
-      must stay out of the USD caps so credits never charge a direct-provider ceiling.
+- [x] Item 4 APPLIED (migration only — nothing deployed). `provider_spend_ledger` is the DOLLAR
+      guard and has no currency column, so a gateway call billed in CREDITS could not be booked
+      there without inventing a rate or charging a direct-provider ceiling with money that never
+      touches it. Both are forbidden, so credits get their own relation:
+      `20260913120000_gateway_credit_ledger.sql` adds `gateway_spend_ledger` (unique `request_id`,
+      `currency='CREDITS'`, nullable `charged_credits`, `provider_receipt_id`, settlement state
+      PENDING_RECONCILIATION | SETTLED | NOT_CALLED | FAILED) plus `capture_gateway_spend` /
+      `settle_gateway_spend`, executable by `service_role` only; a person may read their own rows.
+      `_shared/gatewayLedger.ts` is the seam — capture before the call, settle on every exit
+      INCLUDING the throwing one (an ambiguous failure settles FAILED, never NOT_CALLED, because a
+      timeout says nothing about whether the gateway served the request). An undisclosed price stays
+      NULL and PENDING_RECONCILIATION; 0 is reserved for a call that was genuinely free. Wired into
+      the gateway TEXT engine (`llm.ts`) and the gateway IMAGE engine (`gatewayImage.ts`); the rpc is
+      an argument with no default, so a caller without database reach records nothing and says so.
+      NO historical rows were fabricated. `src/lib/__tests__/gatewayCreditLedger.test.ts` asserts the
+      module names no USD concept at all.
+- [ ] Item 4 REMAINING: `gatewayVoice.ts` (story-voice) is not yet wired, and nothing reconciles a
+      PENDING row — the gateway discloses no price at call time, so every row booked today stays
+      PENDING until a receipt source exists. Neither is deployed.
 - [ ] Item 5: production is `bqwttemnnoexadpwifcj` (corroborated at runtime — it serves the 127
       profiles and run #171). `nzbthoecadcwdoqxhaok` is NOT production. Worker image/digest remains
       UNKNOWN from here (repo 404).
