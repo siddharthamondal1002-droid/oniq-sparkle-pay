@@ -93,15 +93,9 @@ describe("step two shares with nothing awaited in front of it", () => {
 
   it("a cancel NEVER becomes a download", async () => {
     shareMock.mockRejectedValue(new DOMException("no", "AbortError"));
-    const clicks = vi.fn();
-    vi.spyOn(document.body, "appendChild").mockImplementation(((n: Node) => {
-      clicks();
-      return n;
-    }) as typeof document.body.appendChild);
     const out = await shareReadyFile(new File([], "f.mp4"), PAYLOAD);
     expect(out).toBe("cancelled");
-    expect(clicks).not.toHaveBeenCalled();
-    vi.restoreAllMocks();
+    expect(clicked).toBe(0);
   });
 
   it("a platform refusal offers the bytes and claims only that a download started", async () => {
