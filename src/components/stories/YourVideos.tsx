@@ -250,45 +250,19 @@ export function YourVideos() {
    * honest answer is guidance, not a link: the URL behind this film expires,
    * so a pasted link would die in the recipient's chat.
    */
-  const share = useCallback(async () => {
-    if (!openId || !filmUrl) return;
-    setSharing(true);
-    setShareHint(null);
-    setError(null);
-    try {
-      const outcome = await shareVideoFile(
-        filmUrl,
-        `oniq-story-${openId.slice(0, 8)}.mp4`,
-        {
-          title: "My ONIQ Story",
-          text: "Made with AI on ONIQ 🎬 oniqhub.com",
-          url: "https://oniqhub.com",
-        },
-        setSharePct,
-      );
-      if (outcome === "failed" || outcome === "unsupported") {
-        // File the SHAPE of the failure, not just the word. "Share doesn't
-        // work" is unfixable as a report; "native-threw: download failed,
-        // http 400" is a one-line fix.
-        reportClientError("share-video", `share ${outcome}`, lastShareDiagnostics());
-      }
-      if (outcome === "failed") {
-        setError("Could not share that film. It is still here — try again.");
-      } else if (outcome === "unsupported") {
-        setShareHint(
-          "Sharing isn't available in this browser — open ONIQ on your phone to send it.",
-        );
-      } else if (outcome === "download-started") {
-        // A download was REQUESTED. Whether the browser wrote it is not
-        // observable from here, so the copy points at where to look.
-        setShareHint("Your browser wouldn't open the share sheet — check your downloads.");
-      }
-      // "shared" and "cancelled" both end quietly; the user saw the sheet.
-    } finally {
-      setSharing(false);
-      setSharePct(null);
-    }
-  }, [openId, filmUrl]);
+  const share = useCallback(() => {
+    if (!openId || !filmUrl) return Promise.resolve();
+    // The SHAPE of the failure is filed, not just the word: "share doesn't
+    // work" is unfixable as a report; "native-threw: download failed, http
+    // 400" is a one-line fix. That happens inside `reportShare`.
+    return prepare(
+      "share-video",
+      filmUrl,
+      `oniq-story-${openId.slice(0, 8)}.mp4`,
+      "Could not share that film. It is still here — try again.",
+      "Sharing isn't available in this browser — open ONIQ on your phone to send it.",
+    );
+  }, [openId, filmUrl, prepare]);
 
   /**
    * Save a copy onto the phone. The film STAYS in Your videos afterwards —
