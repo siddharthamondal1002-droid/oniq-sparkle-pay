@@ -209,6 +209,18 @@ Deno.serve(async (req) => {
         audio = { mime: replyType || "audio/wav", data: b64(bytes) };
       }
     }
+    // The credit row closes here, on the reply this call actually received.
+    // The receipt is read from what the gateway NAMED — never invented — and a
+    // reply that names nothing settles pending rather than as a zero charge.
+    const receiptId = providerReceiptFrom(replyBody, res.headers);
+    await settle({
+      outcome: audio ? "ACCEPTED" : "FILTERED",
+      settlementState: "PENDING_RECONCILIATION",
+      unitsObserved: text.length,
+      providerReceiptId: receiptId,
+      detail: { phase: audio ? "complete" : "empty-reply" },
+    });
+
     if (audio) {
       // Feed the ledger the dispatcher gates on (public.api_budget).
       // SUCCESSES ONLY — a 429 consumes nothing upstream, so counting it
