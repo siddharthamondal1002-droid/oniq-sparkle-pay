@@ -247,8 +247,8 @@ const TOTAL_BUDGET_MS = 115_000;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const authFail = await requireAuth(req);
-    if (authFail) return authFail;
+    const caller = await requireAuth(req);
+    if (caller instanceof Response) return caller;
     // Tighter than Ting's ten a minute: a plot call is the front of a pipeline
     // that spends real money behind it, and nobody needs four films a minute.
     if (!_rateLimit(_subFromAuth(req), 4)) return json({ error: "slow down bestie 😅" }, 429);
