@@ -75,7 +75,10 @@ describe("step one prepares without sharing", () => {
   });
 
   it("reports a dead URL as a failure, not as a ready file", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 404 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 404 })),
+    );
     const r = await prepareVideoShare("https://x/f.mp4", "f.mp4", PAYLOAD);
     expect(r).toEqual({ kind: "done", outcome: "failed" });
     expect(lastShareDiagnostics()?.error).toBe("http 404");

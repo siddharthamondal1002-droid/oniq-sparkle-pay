@@ -186,7 +186,13 @@ export function YourVideos() {
    * the second tap is what keeps the activation the sheet requires.
    */
   const prepare = useCallback(
-    async (surface: string, url: string, fileName: string, whenFailed: string, whenUnsupported: string) => {
+    async (
+      surface: string,
+      url: string,
+      fileName: string,
+      whenFailed: string,
+      whenUnsupported: string,
+    ) => {
       setSharing(true);
       setShareHint(null);
       setError(null);
