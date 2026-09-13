@@ -342,8 +342,10 @@ export function YourVideos() {
     // work" is unfixable as a report; "native-threw: download failed, http
     // 400" is a one-line fix. That happens inside `reportShare`.
     return prepare(
+      { kind: "film", id: openId },
       "share-video",
       filmUrl,
+
       `oniq-story-${openId.slice(0, 8)}.mp4`,
       "Could not share that film. It is still here — try again.",
       "Sharing isn't available in this browser — open ONIQ on your phone to send it.",
