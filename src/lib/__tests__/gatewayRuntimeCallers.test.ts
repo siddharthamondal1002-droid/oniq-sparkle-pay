@@ -101,7 +101,7 @@ afterEach(() => {
 
 /** The rpc the production code builds for itself, exercised through fetch. */
 async function serviceRpc(): Promise<GatewayRpc | null> {
-  const mod = await import(/* @vite-ignore */ "../../../supabase/functions/_shared/financialLedger.ts");
+  const mod = await import(/* @vite-ignore */ LEDGER_MOD);
   return mod.serviceRoleRpc() as GatewayRpc | null;
 }
 
