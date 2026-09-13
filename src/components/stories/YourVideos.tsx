@@ -88,9 +88,6 @@ export function YourVideos() {
     pct: sharePct,
   } = useSyncExternalStore(binding.subscribe, binding.getSnapshot, binding.getSnapshot);
 
-
-
-
   // Films already on this phone. Kept in local state because the server has
   // nothing left to list once a film is saved — saving purges it there.
   const [onDevice, setOnDevice] = useState<SavedVideo[]>([]);
@@ -267,8 +264,6 @@ export function YourVideos() {
     );
   }, [binding, openId, onDevice]);
 
-
-
   // Poll only while something is actually moving. A settled list is a static
   // list, and polling it forever is load with no answer attached.
   const inFlight = useMemo(() => (rows ?? []).some((r) => !SETTLED.has(r.status)), [rows]);
@@ -348,9 +343,7 @@ export function YourVideos() {
   // Which SAVED row, if any, is armed. One row, never the whole list.
   const readySavedId = ready?.source.kind === "saved" ? ready.source.id : null;
 
-
   return (
-
     <div className="pb-4">
       {/* Same labelling rule as every other generative surface: the label AND
           an in-app way to report the output. Declared as `stories_ai_output`
@@ -404,7 +397,6 @@ export function YourVideos() {
               : filmReady
                 ? "Send now"
                 : "Share — WhatsApp, Facebook & more"}
-
           </button>
           {/* Saving is BACK, and it is no longer a trapdoor. It used to delete
               the film from our side, so a save meant you could never share it

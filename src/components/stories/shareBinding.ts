@@ -62,7 +62,9 @@ export type ShareIo = {
   send: typeof shareReadyFile;
 };
 
-export function createShareBinding(io: ShareIo = { prepare: prepareVideoShare, send: shareReadyFile }) {
+export function createShareBinding(
+  io: ShareIo = { prepare: prepareVideoShare, send: shareReadyFile },
+) {
   let snapshot: ShareSnapshot = { ready: null, sharing: false, pct: null };
   const listeners = new Set<() => void>();
   // Whoever took the LAST ticket wins. A fetch takes seconds, so a person can
