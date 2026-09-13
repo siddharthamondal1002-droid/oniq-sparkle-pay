@@ -75,5 +75,16 @@
       PENDING row — the gateway discloses no price at call time, so every row booked today stays
       PENDING until a receipt source exists. Neither is deployed.
 - [ ] Item 5: production is `bqwttemnnoexadpwifcj` (corroborated at runtime — it serves the 127
-      profiles and run #171). `nzbthoecadcwdoqxhaok` is NOT production. Worker image/digest remains
-      UNKNOWN from here (repo 404).
+      profiles and run #171). `nzbthoecadcwdoqxhaok` is NOT production. CORRECTION to the earlier
+      "repo 404": the worker repository is reachable after all —
+      `siddharthamondal1002-droid/oniq-gpu-worker` is PUBLIC and its source, CI run and
+      image-publish run are readable through the GitHub API; the 404 was this container's Git
+      transport, not the repository's visibility, and reading one as the other is what stalled the
+      checkpoint diagnosis. What is still UNKNOWN from here is which image DIGEST the live RunPod
+      endpoint is actually running, which is an endpoint fact and not a repository one.
+
+## Spend
+
+- Lovable agent credits consumed by this work: `cost_credits` 13.9 (read from the message objects,
+  not estimated). No Google, OpenAI, GPU or R2 spend: nothing was deployed, published or rendered.
+
