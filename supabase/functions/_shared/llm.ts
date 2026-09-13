@@ -3,6 +3,7 @@ import { TEXT_DIRECT_HEAVY, TEXT_DIRECT_STANDARD } from "./modelRegistry.ts";
 import { readGrounding, requireGroundingEvidence, translateSearchTools } from "./geminiSearch.ts";
 import {
   captureGatewaySpend,
+  providerReceiptFrom,
   settleGatewaySpend,
   tokensFromUsage,
   type GatewayRpc,
