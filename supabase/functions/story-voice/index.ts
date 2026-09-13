@@ -172,8 +172,18 @@ Deno.serve(async (req) => {
       clearTimeout(timer);
     }
 
+    // THE RECEIPT IS READ FROM A FAILED RESPONSE TOO. A refusal still REACHED
+    // the gateway, and the id it set on that response is the only handle a
+    // reconciliation has on a charge it may have taken. Reading it only on the
+    // happy path leaves exactly the charges that need tracing untraceable.
+    const failureReceipt = () => providerReceiptFrom(null, res.headers);
+
     if (res.status === 401 || res.status === 403) {
-      await settle({ outcome: "REJECTED", detail: { phase: "gateway-refused", status: res.status } });
+      await settle({
+        outcome: "REJECTED",
+        providerReceiptId: failureReceipt(),
+        detail: { phase: "gateway-refused", status: res.status },
+      });
       return json({ configured: false }, 200);
     }
     if (!res.ok) {
@@ -184,6 +194,7 @@ Deno.serve(async (req) => {
       // and pending, never NOT_CALLED. Only a local preflight never called.
       await settle({
         outcome: res.status === 402 || res.status === 429 ? "REJECTED" : "FAILED",
+        providerReceiptId: failureReceipt(),
         detail: { phase: "gateway-refused", status: res.status },
       });
       // The upstream status rides in the body: the worker retries a THROTTLE
@@ -200,18 +211,32 @@ Deno.serve(async (req) => {
     // the rate in its mime — the worker wraps it); a normalizing one would
     // answer raw audio bytes with the mime in the header. Read whichever
     // arrived.
+    //
+    // THE BODY READ CAN THROW — a truncated stream aborts `arrayBuffer()`
+    // after a 200. Before this was wrapped, that throw left the row PENDING
+    // for ever with no outcome: an accepted, charged request recorded as
+    // unfinished. It settles FAILED with the receipt the response named.
     let audio: { mime: string; data: string } | null = null;
     let replyBody: unknown = null;
     const replyType = res.headers.get("content-type") ?? "";
-    if (/json/i.test(replyType)) {
-      const data = await res.json().catch(() => null);
-      replyBody = data;
-      audio = firstInlineAudio(data);
-    } else {
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      if (bytes.length > 0) {
-        audio = { mime: replyType || "audio/wav", data: b64(bytes) };
+    try {
+      if (/json/i.test(replyType)) {
+        const data = await res.json().catch(() => null);
+        replyBody = data;
+        audio = firstInlineAudio(data);
+      } else {
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        if (bytes.length > 0) {
+          audio = { mime: replyType || "audio/wav", data: b64(bytes) };
+        }
       }
+    } catch (e) {
+      await settle({
+        outcome: "FAILED",
+        providerReceiptId: failureReceipt(),
+        detail: { phase: "body-read" },
+      });
+      throw e;
     }
     // The credit row closes here, on the reply this call actually received.
     // The receipt is read from what the gateway NAMED — never invented — and a
@@ -223,6 +248,7 @@ Deno.serve(async (req) => {
       providerReceiptId: receiptId,
       detail: { phase: audio ? "complete" : "empty-reply" },
     });
+
 
     if (audio) {
       // Feed the ledger the dispatcher gates on (public.api_budget).
