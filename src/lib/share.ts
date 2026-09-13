@@ -166,7 +166,7 @@ export async function shareVideoFile(
   filename: string,
   p: SharePayload,
   onProgress?: (pct: number | null) => void,
-): Promise<"shared" | "cancelled" | "failed" | "unsupported"> {
+): Promise<"shared" | "downloaded" | "cancelled" | "failed" | "unsupported"> {
   const native = await shareMediaFile(mediaUrl, filename, p, onProgress);
   if (native !== "unsupported") return native;
 
@@ -174,6 +174,7 @@ export async function shareVideoFile(
     lastDiag = baseDiag("web-share-absent");
     return "unsupported";
   }
+  let downloaded: Blob | null = null;
   try {
     onProgress?.(null);
     const res = await fetch(mediaUrl);
@@ -182,6 +183,7 @@ export async function shareVideoFile(
       return "failed";
     }
     const blob = await res.blob();
+    downloaded = blob;
     const file = new File([blob], filename, { type: blob.type || "video/mp4" });
     // canShare is the feature test for FILE payloads; navigator.share existing
     // alone only proves link-sharing. Checked after the download because the
@@ -197,10 +199,52 @@ export async function shareVideoFile(
       lastDiag = baseDiag("web-cancelled");
       return "cancelled";
     }
+    // THE MEASURED FAILURE, and it is not a capability problem. Both recorded
+    // share-video reports (2026-09-04, 2026-09-11) are this exact throw:
+    //   NotAllowedError — "The request is not allowed by the user agent or the
+    //   platform in the current context, possibly because the user denied
+    //   permission."
+    // with `webShare:true, webShareFiles:true` in the same diagnostics — so the
+    // browser CAN share files and refused anyway. Web Share requires transient
+    // user activation, and the multi-megabyte `await fetch` above spends it
+    // before the sheet is ever asked for. Reading that as "share is broken" is
+    // what produced two unactionable reports.
+    //
+    // The film is already in hand at this point, so the honest answer is the
+    // rule this module states everywhere else: the button is never a dead end.
+    // Hand the bytes over as a download rather than losing them. A genuine
+    // cancel is caught above and must NEVER reach this fallback.
+    const activationLost = e instanceof DOMException && e.name === "NotAllowedError";
+    if (activationLost && downloaded) {
+      try {
+        const url = URL.createObjectURL(downloaded);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        // Recorded as its own stage, not as a failure: the person got the film.
+        // A distinct stage is what lets the next reader count activation losses
+        // separately from transport faults instead of re-deriving it from an
+        // error string.
+        lastDiag = { ...baseDiag("web-activation-lost"), error: "shared via download fallback" };
+        return "downloaded";
+      } catch (fallbackErr) {
+        lastDiag = {
+          ...baseDiag("web-download-fallback-failed"),
+          error: fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr),
+        };
+        return "failed";
+      }
+    }
     lastDiag = { ...baseDiag("web-threw"), error: e instanceof Error ? e.message : String(e) };
     return "failed";
   }
 }
+
 
 const enc = encodeURIComponent;
 
