@@ -1315,7 +1315,15 @@ function json(payload: unknown, status = 200) {
   });
 }
 
-async function requireAuth(req: Request): Promise<Response | null> {
+/**
+ * The caller, as the SERVER established it — never as the body claims it.
+ * A runner is identified by the job its signed token names; a person by the
+ * id the auth service returns for their session. Both are used only to label
+ * a gateway spend row, and a caller that supplies neither gets nulls.
+ */
+type PlotCaller = { userId: string | null; jobId: string | null };
+
+async function requireAuth(req: Request): Promise<Response | PlotCaller> {
   // A RUNNER IS NOT A USER. The Story worker holds a per-job capability token,
   // not a Supabase session, so /auth/v1/user would reject it — and passing the
   // service-role key here would not work either, because that is not a user
