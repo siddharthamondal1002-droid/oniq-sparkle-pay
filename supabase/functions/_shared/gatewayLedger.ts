@@ -225,13 +225,19 @@ export type GatewayRun<T> = {
  * An ambiguous failure (timeout, non-2xx) settles FAILED rather than
  * NOT_CALLED: the request may well have been served and charged, and claiming
  * otherwise is the one error that makes the ledger under-count.
+ *
+ * THE CAPTURE RESULT IS READ. A capture that did not land is announced through
+ * `reportAccountingFailure` and the settle is still attempted — the row may
+ * exist from an earlier attempt at the same id, and if it does not the settle's
+ * own `unknown-request` refusal is the second, louder signal. What it does NOT
+ * do is refuse the generation: this seam records, it does not authorize.
  */
 export async function withGatewayCostCapture<T>(
   rpc: GatewayRpc | null,
   capture: GatewayCapture,
   run: () => Promise<GatewayRun<T>>,
 ): Promise<T> {
-  await captureGatewaySpend(rpc, capture);
+  const captured = await captureGatewaySpend(rpc, capture);
   try {
     const r = await run();
     await settleGatewaySpend(rpc, capture.requestId, {
@@ -239,16 +245,49 @@ export async function withGatewayCostCapture<T>(
       unitsObserved: r.unitsObserved ?? null,
       chargedCredits: r.chargedCredits ?? null,
       providerReceiptId: r.providerReceiptId ?? null,
-      detail: r.detail ?? null,
+      detail: mergeAccountingDetail(r.detail ?? null, captured),
     });
     return r.value;
   } catch (e) {
+    // ALLOWLISTED ONLY. The thrown message is outside text and this row is
+    // readable by the authenticated owner, so the phase and — where the throw
+    // carries one — a numeric status are all that travel.
     await settleGatewaySpend(rpc, capture.requestId, {
       outcome: "FAILED",
-      detail: { error: String((e as Error)?.message ?? e).slice(0, 200) },
+      detail: mergeAccountingDetail({ phase: "provider-call", ...statusOf(e) }, captured),
     });
     throw e;
   }
+}
+
+/** A numeric HTTP status hung on a thrown error by a caller, if there is one. */
+function statusOf(e: unknown): { status?: number } {
+  const s = (e as { status?: unknown } | null)?.status;
+  return typeof s === "number" && Number.isFinite(s) ? { status: s } : {};
+}
+
+function mergeAccountingDetail(
+  detail: Record<string, unknown> | null,
+  captured: CaptureResult,
+): Record<string, unknown> | null {
+  if (captured.ok) return detail;
+  return { ...(detail ?? {}), captureMissed: captured.reason ?? "capture-rejected" };
+}
+
+/**
+ * The provider's own identifier for this request, taken ONLY from places the
+ * provider actually wrote it. Nothing is synthesised: when the gateway names
+ * no id, the row keeps a null and the reconciliation stays open. Inventing a
+ * receipt field would make an unreconciled charge look settled.
+ */
+export function providerReceiptFrom(body: unknown, headers?: Headers | null): string | null {
+  const fromBody = (body as { id?: unknown } | null)?.id;
+  if (typeof fromBody === "string" && fromBody.trim()) return fromBody.trim().slice(0, 200);
+  for (const name of ["x-request-id", "x-lovable-aig-log-id", "x-lovable-aig-run-id"]) {
+    const v = headers?.get(name);
+    if (v && v.trim()) return v.trim().slice(0, 200);
+  }
+  return null;
 }
 
 /**
