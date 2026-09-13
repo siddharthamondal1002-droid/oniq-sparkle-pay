@@ -255,11 +255,23 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: others } = await admin
+  // A FAILED LOOKUP IS NOT AN EMPTY ROOM. `.select()` resolves with
+  // `data: null` on an error, so the old code read a database fault as "this
+  // conversation has no other members" and answered 200 with `noRecipients`.
+  // That is the worst possible shape: the fault is invisible, the message is
+  // never announced, and the witness records nothing because nothing failed.
+  const { data: others, error: othersErr } = await admin
     .from("conversation_members")
     .select("user_id")
     .eq("conversation_id", conversation_id)
     .neq("user_id", senderId);
+  if (othersErr) {
+    console.error("send-push: member lookup failed —", othersErr.message);
+    return new Response(JSON.stringify({ error: "recipient lookup failed", sent: 0, failed: 0 }), {
+      status: 500,
+      headers: { ...corsHeaders, "content-type": "application/json" },
+    });
+  }
   const recipientIds = (others ?? []).map((m: { user_id: string }) => m.user_id);
   if (recipientIds.length === 0) {
     // THE THIRD WAY TO ANSWER sent:0, and until now it was the one nobody
@@ -270,6 +282,9 @@ Deno.serve(async (req) => {
     // discriminator existed. Three distinct states, two of them reading the
     // same. `unaddressed: 0` with `noRecipients` says which one this is, and
     // says it in a field rather than in a log nobody joins to the row.
+    //
+    // It can only be reached now when the lookup SUCCEEDED and returned
+    // nothing, which is what makes it a true statement about the room.
     return new Response(
       JSON.stringify({ sent: 0, failed: 0, unaddressed: 0, noRecipients: true }),
       {
@@ -278,10 +293,20 @@ Deno.serve(async (req) => {
     );
   }
 
-  const { data: tokens } = await admin
+  const { data: tokens, error: tokensErr } = await admin
     .from("device_tokens")
     .select("token, platform, keys")
     .in("user_id", recipientIds);
+  if (tokensErr) {
+    // Same class as above: a failed address lookup previously became
+    // `unaddressed: N`, i.e. "these people never registered" — an accusation
+    // about the recipients for a fault on our own side.
+    console.error("send-push: token lookup failed —", tokensErr.message);
+    return new Response(JSON.stringify({ error: "address lookup failed", sent: 0, failed: 0 }), {
+      status: 500,
+      headers: { ...corsHeaders, "content-type": "application/json" },
+    });
+  }
 
   // TWO TRANSPORTS, ONE TABLE. An android row's `token` is an FCM
   // registration token; a web row's is the subscription endpoint URL, with
@@ -311,10 +336,22 @@ Deno.serve(async (req) => {
     console.warn(
       `send-push: no push address for any of ${recipientIds.length} recipient(s) — kind=${kind}`,
     );
-    return new Response(JSON.stringify({ sent: 0, failed: 0, unaddressed: recipientIds.length }), {
-      headers: { ...corsHeaders, "content-type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        sent: 0,
+        failed: 0,
+        unaddressed: recipientIds.length,
+        // The reason table is reported on EVERY zero, not only on the FCM
+        // path. An empty `reasons` beside a positive `unaddressed` used to be
+        // read as "no reason given"; it now carries the reason it has.
+        reasons: { no_device_token: recipientIds.length },
+      }),
+      {
+        headers: { ...corsHeaders, "content-type": "application/json" },
+      },
+    );
   }
+
 
   const { data: senderProfile } = await admin
     .from("profiles")
