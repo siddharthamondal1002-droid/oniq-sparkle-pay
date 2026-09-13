@@ -203,7 +203,9 @@ describe("the callers that book their own gateway spend", () => {
     expect(CODE).toContain("withGatewayCostCapture(");
     expect(CODE).toContain('unit: "images"');
     // No binding ⇒ no ledger call at all, so a caller without database reach
-    // draws exactly as it did before.
-    expect(CODE).toContain("if (!spend) return drawStillOnGateway(");
+    // draws exactly as it did before. The draw now also returns the provider's
+    // receipt id, so the unbound path takes `.still` off it — the receipt is
+    // only of use to a row nobody is writing here.
+    expect(CODE).toContain("if (!spend) return (await drawStillOnGateway(");
   });
 });
