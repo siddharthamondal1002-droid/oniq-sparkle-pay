@@ -38,8 +38,8 @@
 - [x] Item 1 RESOLVED. The blocker was the installer, not the advisories, and the route around it is
       npm 11 with a lock-only, date-bounded update — no `package.json` edit and no overrides:
       `npx npm@11.9.0 update dompurify hono fast-uri js-yaml postcss qs nanoid browserslist
-    brace-expansion @xmldom/xmldom vitest --package-lock-only --ignore-scripts --no-audit
-    --no-fund --before=2026-09-12T00:00:00Z --registry=https://registry.npmjs.org`.
+brace-expansion @xmldom/xmldom vitest --package-lock-only --ignore-scripts --no-audit
+--no-fund --before=2026-09-12T00:00:00Z --registry=https://registry.npmjs.org`.
       The container's own npm (10.9.4) still crashes with
       `TypeError: Cannot read properties of null (reading 'edgesOut')` in arborist's peer-set walk —
       that crash is an npm-10 fault, pre-existing, and npm 11 does not reproduce it.
@@ -56,7 +56,7 @@
       baseline-browser-mapping 2.10.21). Migrated the TESTED npm graph rather than running a blanket
       bun update: a temp directory holding only `package.json`, the updated `package-lock.json` and
       the unchanged `bunfig.toml` (no `bun.lock`), then `bun install --lockfile-only
-    --ignore-scripts` (bun 1.3.3), and the generated `bun.lock` copied back. Frozen lock-only
+--ignore-scripts` (bun 1.3.3), and the generated `bun.lock` copied back. Frozen lock-only
       re-run is idempotent. Package-version set diff against the npm lock is only the `h3-v2` alias
       and two optional WASM packages, exactly as measured externally.
       Gates in this environment, all green: clean `npm ci` in a scratch directory (765 packages),
@@ -99,19 +99,69 @@
       an argument with no default, so a caller without database reach records nothing and says so.
       NO historical rows were fabricated. `src/lib/__tests__/gatewayCreditLedger.test.ts` asserts the
       module names no USD concept at all.
-- [ ] Item 4 REMAINING: `gatewayVoice.ts` (story-voice) is not yet wired, and nothing reconciles a
-      PENDING row — the gateway discloses no price at call time, so every row booked today stays
-      PENDING until a receipt source exists. Neither is deployed.
-- [ ] Item 5: production is `bqwttemnnoexadpwifcj` (corroborated at runtime — it serves the 127
-      profiles and run #171). `nzbthoecadcwdoqxhaok` is NOT production. CORRECTION to the earlier
-      "repo 404": the worker repository is reachable after all —
+- [x] Item 1 CLOSED — THE HOOKS HAVE REAL CALLERS NOW. The previous pass changed only the two
+      seams and left every production call site passing nothing, so the accounting was reported as
+      done while recording not one row. That is this repository's most-recorded failure, and
+      `src/lib/__tests__/gatewayRealCallers.test.ts` exists so it cannot recur silently: both
+      `story-still` draws, the `story-plot` IR rescue and the INLINE `story-voice` TTS path each
+      pass a binding built from `serviceRoleRpc()` and server-derived identity — `auth.jobId` and
+      `caller.userId`, never a body field. Every provider ATTEMPT mints its own
+      `crypto.randomUUID()`, so a redraw and a rescue's repair pass are distinct rows rather than a
+      charge that vanishes into a duplicate. `gatewayVoice.ts` is deliberately NOT the caller: it
+      is an orphan module, and story-voice's live TTS call is inline.
+- [x] Item 2 CLOSED: a 402 or 429 REACHED the gateway, so it settles REJECTED with an unknown
+      charge, never NOT_CALLED. "No receipt" is not a proof of no charge. NOT_CALLED is now
+      reserved for a LOCAL preflight refusal, and an image preflight failure captures nothing at
+      all rather than booking an attempt that was never made.
+- [x] Item 3 CLOSED: `withGatewayCostCapture` reads its capture result and `settleGatewaySpend`
+      returns a bounded `SettleResult` instead of swallowing the RPC error — a missed row is now
+      visible without changing whether the generation itself is served. `ledger.detail` carries an
+      allowlisted phase plus a numeric status and never a raw exception message; the provider's own
+      request id is preserved from the verified body or headers even when the charge is unknown,
+      and no receipt field is invented.
+- [x] Item 5 CLOSED: the share flow is fixed at the product call site, not declared unfixable.
+      `YourVideos` prepares the File on the first tap (`saved-share-prepare`) and the next tap
+      (`saved-share-send-now`) calls `navigator.share` synchronously with nothing awaited in front
+      of it, so the transient activation survives. No effect auto-shares. A cancel is a cancel and
+      never becomes a download; a genuine platform refusal still offers the bytes and claims only
+      `download-started`, which is all a programmatic click can honestly prove.
+- [ ] Item 4 REMAINING: nothing reconciles a PENDING row — the gateway discloses no price at call
+      time, so every row booked today stays PENDING until a receipt source exists. Nothing here is
+      deployed.
+- [ ] Item 5 (infrastructure): production is `bqwttemnnoexadpwifcj` (corroborated at runtime — it
+      serves the 127 profiles and run #171). `nzbthoecadcwdoqxhaok` is NOT production. CORRECTION
+      to the earlier "repo 404": the worker repository is reachable after all —
       `siddharthamondal1002-droid/oniq-gpu-worker` is PUBLIC and its source, CI run and
       image-publish run are readable through the GitHub API; the 404 was this container's Git
       transport, not the repository's visibility, and reading one as the other is what stalled the
-      checkpoint diagnosis. What is still UNKNOWN from here is which image DIGEST the live RunPod
-      endpoint is actually running, which is an endpoint fact and not a repository one.
+      checkpoint diagnosis. SOURCE/READ ACCESS IS NOT LIVE IMAGE IDENTITY: which image DIGEST the
+      live RunPod endpoint is running is an ENDPOINT fact, still unknown from here, and so is the
+      character-motion bucket authorization.
+
+## Two test defects this pass exposed, both in the tests rather than the code
+
+- **A COMMENT CONTAINING `/*` ATE 80% OF A FILE UNDER TEST.** `gatewayRealCallers.test.ts` stripped
+  block comments BEFORE line comments, and `story-voice/index.ts` carries
+  `// ... for google/*-tts the ...` — a false block opener that swallowed the rest of the file, so
+  three assertions failed against perfectly correct source. Line comments come off first now. The
+  shared `src/test/sourceText.ts` has the same hazard by construction and was NOT changed here: it
+  is used by dozens of guards and widening its scope is its own change.
+- **`vitest.config.ts` sets `environment: "node"`,** so there is no DOM. The new share test stubs
+  `navigator`, `document` and `URL` outright, the way `shareActivationFallback.test.ts` does, and
+  counts the fallback CLICK rather than a return value — the fallback could otherwise report a
+  download without handing the bytes over, which is the exact claim the two-step split exists to
+  stop making.
+
+## Gates, this pass
+
+`tsc --noEmit` 0 errors · `npm run lint:ci` clean · Prettier clean on every changed file ·
+`npx vitest run` **405 files / 7,248 tests, 7,247 passing** — the single failure is the known,
+unrelated `arapStep11dDiagnosis` timing flake under load, which passes on its own (measured this
+pass) exactly as CLAUDE.md records · `npm run build` succeeded.
 
 ## Spend
 
-- Lovable agent credits consumed by this work: `cost_credits` 13.9 (read from the message objects,
-  not estimated). No Google, OpenAI, GPU or R2 spend: nothing was deployed, published or rendered.
+- Lovable agent credits, read from message metadata and not estimated: dependency turn **5.8**,
+  initial repair **13.9**, review **18.7**, this task **20.2**. No blanket "nothing was charged"
+  claim is made.
+- No Google, OpenAI, GPU or R2 spend: nothing was deployed, published, rendered or generated.

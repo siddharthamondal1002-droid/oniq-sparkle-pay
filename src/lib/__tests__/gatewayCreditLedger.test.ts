@@ -94,10 +94,11 @@ describe("what the seam records", () => {
     expect(r.ok).toBe(false);
     expect(r.reason).toBe("ledger-unavailable");
     // A missing ledger must not throw: a still that cannot be booked is still
-    // a still the person asked for.
-    await expect(
-      settleGatewaySpend(null, "req-1", { outcome: "ACCEPTED" }),
-    ).resolves.toBeUndefined();
+    // a still the person asked for. It must not be SILENT either — settlement
+    // reports the same bounded reason rather than returning nothing, which is
+    // what made a missed row invisible before.
+    const s = await settleGatewaySpend(null, "req-1", { outcome: "ACCEPTED" });
+    expect(s).toEqual({ ok: false, reason: "ledger-unavailable" });
   });
 });
 
@@ -202,7 +203,9 @@ describe("the callers that book their own gateway spend", () => {
     expect(CODE).toContain("withGatewayCostCapture(");
     expect(CODE).toContain('unit: "images"');
     // No binding ⇒ no ledger call at all, so a caller without database reach
-    // draws exactly as it did before.
-    expect(CODE).toContain("if (!spend) return drawStillOnGateway(");
+    // draws exactly as it did before. The draw now also returns the provider's
+    // receipt id, so the unbound path takes `.still` off it — the receipt is
+    // only of use to a row nobody is writing here.
+    expect(CODE).toContain("if (!spend) return (await drawStillOnGateway(");
   });
 });

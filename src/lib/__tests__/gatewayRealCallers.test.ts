@@ -20,13 +20,21 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
-/** Comments quote the code they explain — every guard here would otherwise
- *  match the paragraph above the line instead of the line. Eleven prose
- *  matches in this repo say so. */
+/**
+ * Comments quote the code they explain — every guard here would otherwise
+ * match the paragraph above the line instead of the line. Eleven prose
+ * matches in this repo say so.
+ *
+ * LINE COMMENTS COME OFF FIRST, and the order is not cosmetic: story-voice
+ * carries `// ... for google/*-tts the ...`, whose `/*` opened a false block
+ * comment that swallowed 80% of the file. Every assertion below then read an
+ * almost-empty string and three of them failed against correct source — the
+ * strip, not the code, was the thing that was wrong.
+ */
 function code(path: string): string {
   return readFileSync(path, "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^\s*\/\/.*$/gm, "");
+    .replace(/^\s*\/\/.*$/gm, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
 const STILL = code("supabase/functions/story-still/index.ts");

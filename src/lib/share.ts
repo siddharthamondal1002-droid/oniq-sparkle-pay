@@ -328,7 +328,10 @@ export async function prepareVideoShare(
     }
     return { kind: "ready", file };
   } catch (e) {
-    lastDiag = { ...baseDiag("web-prepare-threw"), error: e instanceof Error ? e.message : String(e) };
+    lastDiag = {
+      ...baseDiag("web-prepare-threw"),
+      error: e instanceof Error ? e.message : String(e),
+    };
     return { kind: "done", outcome: "failed" };
   }
 }
@@ -359,10 +362,7 @@ export function shareReadyFile(
   );
 }
 
-function afterShareThrew(
-  e: unknown,
-  file: File,
-): "cancelled" | "download-started" | "failed" {
+function afterShareThrew(e: unknown, file: File): "cancelled" | "download-started" | "failed" {
   if (e instanceof DOMException && e.name === "AbortError") {
     lastDiag = baseDiag("web-cancelled");
     return "cancelled";
