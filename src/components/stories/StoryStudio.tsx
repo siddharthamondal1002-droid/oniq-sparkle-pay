@@ -255,7 +255,7 @@ export function StoryStudio() {
   // Excluded in verbatim mode: there the prompt IS the narration.
   const [shotIntent, setShotIntent] = useState<ShotIntent>({});
   const [newCastName, setNewCastName] = useState("");
-  const watchingJob = useRef(false);
+  
   const [newCastLock, setNewCastLock] = useState("");
   // THE PLATE — one image the film opens on, in place of the still the
   // pipeline would have drawn for shot 1. Held as the File until the job
