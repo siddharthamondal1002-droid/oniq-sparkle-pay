@@ -216,28 +216,34 @@ function TingScreen() {
   async function ask(text: string) {
     if (notConfigured || askInFlight.current) return;
     askInFlight.current = true;
-    const att = attachment;
-    const userMsg: Msg = {
-      role: "user",
-      content: text,
-      attachment: att ? { kind: att.kind, name: att.name, previewUrl: att.previewUrl } : undefined,
-    };
-    const next = [...messages, userMsg];
-    setMessages(next);
-    setInput("");
-    setAttachment(null);
-
-    // HARD-CODED crisis routing: warmth + the country crisis card, never a
-    // model conversation. Runs on the raw text of every turn, so rephrasing,
-    // roleplay or "hypothetically" framing still lands here.
-    const verdict = guardTingPrompt(text);
-    if (verdict === "crisis") {
-      setMessages([...next, { role: "assistant", content: CRISIS_RESPONSE, crisis: true }]);
-      return;
-    }
-
-    setLoading(true);
+    // The release covers the WHOLE handler, not just the network leg: crisis
+    // routing and the not-configured reply both return early, and releasing
+    // only in the inner finally left the lock held for the tab's life.
     try {
+      const att = attachment;
+      const userMsg: Msg = {
+        role: "user",
+        content: text,
+        attachment: att
+          ? { kind: att.kind, name: att.name, previewUrl: att.previewUrl }
+          : undefined,
+      };
+      const next = [...messages, userMsg];
+      setMessages(next);
+      setInput("");
+      setAttachment(null);
+
+      // HARD-CODED crisis routing: warmth + the country crisis card, never a
+      // model conversation. Runs on the raw text of every turn, so rephrasing,
+      // roleplay or "hypothetically" framing still lands here.
+      const verdict = guardTingPrompt(text);
+      if (verdict === "crisis") {
+        setMessages([...next, { role: "assistant", content: CRISIS_RESPONSE, crisis: true }]);
+        return;
+      }
+
+      setLoading(true);
+      try {
       // Cap history to the last ~10 turns AND never send a whitespace-only
       // content block — Anthropic 400s on those, which killed multi-turn
       // image chats after the first empty-caption image.
