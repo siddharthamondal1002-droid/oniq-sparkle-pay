@@ -75,20 +75,20 @@ export function YourVideos() {
   const [filmUrl, setFilmUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sharing, setSharing] = useState(false);
-  const [sharePct, setSharePct] = useState<number | null>(null);
   const [shareHint, setShareHint] = useState<string | null>(null);
   // The prepared file and everything that decides whether it may be sent.
   // Created once per mount: a new binding per render would drop the armed file
-  // on every keystroke elsewhere on the screen.
+  // on every unrelated state change on this screen.
   const bindingRef = useRef<ReturnType<typeof createShareBinding> | null>(null);
   bindingRef.current ??= createShareBinding();
   const binding = bindingRef.current;
-  const { ready, sharing, pct: sharePct } = useSyncExternalStore(
-    binding.subscribe,
-    binding.getSnapshot,
-    binding.getSnapshot,
-  );
+  const {
+    ready,
+    sharing,
+    pct: sharePct,
+  } = useSyncExternalStore(binding.subscribe, binding.getSnapshot, binding.getSnapshot);
+
+
 
 
   // Films already on this phone. Kept in local state because the server has
