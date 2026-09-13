@@ -1169,7 +1169,16 @@ function translateOpenAIResponseToAnthropic(oai: any, model: string): any {
 
 /** One call to the gateway's chat endpoint, in the Anthropic result shape. */
 export async function callGatewayText(
-  opts: CallClaudeOpts & { tier?: "standard" | "heavy" },
+  opts: CallClaudeOpts & {
+    tier?: "standard" | "heavy";
+    /**
+     * CREDIT ACCOUNTING, opt-in and additive. Absent ⇒ nothing is recorded
+     * and this function behaves exactly as it did. Present ⇒ the attempt is
+     * captured before the request and settled after it, in CREDITS, in
+     * `gateway_spend_ledger` — never in dollars and never against a USD cap.
+     */
+    gatewaySpend?: GatewaySpendBinding;
+  },
 ): Promise<CallClaudeResult & { creditsExhausted?: boolean }> {
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) {
@@ -1198,6 +1207,26 @@ export async function callGatewayText(
   if (tools) payload.tools = tools;
   if (opts.toolChoice) payload.tool_choice = translateToolChoiceToOpenAI(opts.toolChoice);
 
+  // CAPTURED HERE, not at the top: everything above returns without reaching
+  // the gateway, so a row written earlier would record a call that never
+  // happened. The first line that can cost credits is the fetch below.
+  const spend = opts.gatewaySpend;
+  const spendRpc = spend?.rpc ?? null;
+  if (spend) {
+    await captureGatewaySpend(spendRpc, {
+      requestId: spend.requestId,
+      capability: "TEXT",
+      model,
+      unit: "tokens",
+      jobId: spend.jobId ?? null,
+      attempt: spend.attempt ?? null,
+      userId: spend.userId ?? null,
+    });
+  }
+  const settle = async (s: Parameters<typeof settleGatewaySpend>[2]) => {
+    if (spend) await settleGatewaySpend(spendRpc, spend.requestId, s);
+  };
+
   const timeoutMs = opts.timeoutMs ?? 12000;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -1214,9 +1243,18 @@ export async function callGatewayText(
       try {
         body = text ? JSON.parse(text) : null;
       } catch {
+        // Served and billed regardless of our ability to read it.
+        await settle({ outcome: "FAILED" });
         return { ok: false, reason: "unparseable gateway response" };
       }
-      if (!body) return { ok: false, reason: "empty gateway response" };
+      if (!body) {
+        await settle({ outcome: "FAILED" });
+        return { ok: false, reason: "empty gateway response" };
+      }
+      // TOKENS ARE ALL THE GATEWAY DISCLOSES. There is no price field, so
+      // `chargedCredits` is deliberately absent and the row stays
+      // PENDING_RECONCILIATION — a zero here would read as "this was free".
+      await settle({ outcome: "ACCEPTED", unitsObserved: tokensFromUsage(body) });
       return {
         ok: true,
         data: translateOpenAIResponseToAnthropic(body, model),
@@ -1227,17 +1265,24 @@ export async function callGatewayText(
       console.warn(
         `callGatewayText: gateway credits exhausted or rate limited (http ${res.status}) key=${mask(key)}`,
       );
+      // A refusal at the door is the one non-2xx that certainly cost nothing.
+      await settle({ outcome: "NOT_CALLED", detail: { refusedWith: res.status } });
       return { ok: false, reason: `http ${res.status}`, creditsExhausted: true };
     }
     console.warn(`callGatewayText: http ${res.status} key=${mask(key)} body=${text.slice(0, 200)}`);
+    await settle({ outcome: "FAILED", detail: { status: res.status } });
     return { ok: false, reason: `http ${res.status}` };
   } catch (e) {
     const reason = (e as Error)?.name === "AbortError" ? "timeout" : String(e).slice(0, 120);
+    // AMBIGUOUS, so it is recorded as spent. A timeout says nothing about
+    // whether the gateway served the request.
+    await settle({ outcome: "FAILED", detail: { reason } });
     return { ok: false, reason };
   } finally {
     clearTimeout(t);
   }
 }
+
 
 /** Anthropic tool_choice -> OpenAI tool_choice. */
 function translateToolChoiceToOpenAI(choice: unknown): unknown {
