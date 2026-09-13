@@ -100,7 +100,6 @@ export function sendPush(payload: {
             reasons: d?.reasons ?? null,
           });
         }
-
       })
       .catch((e: unknown) => {
         reportClientError("send-push", "invoke threw", String(e));

@@ -59,7 +59,6 @@ function stubBrowser(shareImpl: () => Promise<void>) {
   });
 }
 
-
 beforeEach(() => {
   clicked = 0;
 });
@@ -80,7 +79,7 @@ describe("web share when the activation window is gone", () => {
     expect(clicked).toBe(1);
     // NOT "web-threw". A distinct stage is what lets the next reader count
     // activation losses without re-deriving them from an error string.
-    expect(lastShareDiagnostics().stage).toBe("web-activation-lost");
+    expect(lastShareDiagnostics()?.stage).toBe("web-activation-lost");
   });
 
   it("a cancelled sheet is never turned into a download", async () => {
@@ -94,7 +93,7 @@ describe("web share when the activation window is gone", () => {
     // The whole point: the person said no. Handing them the file anyway is a
     // worse bug than the one being fixed.
     expect(clicked).toBe(0);
-    expect(lastShareDiagnostics().stage).toBe("web-cancelled");
+    expect(lastShareDiagnostics()?.stage).toBe("web-cancelled");
   });
 
   it("an unrelated throw is still a failure, so the fallback hides nothing", async () => {
@@ -106,7 +105,7 @@ describe("web share when the activation window is gone", () => {
 
     expect(outcome).toBe("failed");
     expect(clicked).toBe(0);
-    expect(lastShareDiagnostics().stage).toBe("web-threw");
+    expect(lastShareDiagnostics()?.stage).toBe("web-threw");
   });
 
   it("a successful share does not download a second copy", async () => {

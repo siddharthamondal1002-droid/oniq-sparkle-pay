@@ -270,11 +270,13 @@ Deno.serve(async (req) => {
     // discriminator existed. Three distinct states, two of them reading the
     // same. `unaddressed: 0` with `noRecipients` says which one this is, and
     // says it in a field rather than in a log nobody joins to the row.
-    return new Response(JSON.stringify({ sent: 0, failed: 0, unaddressed: 0, noRecipients: true }), {
-      headers: { ...corsHeaders, "content-type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ sent: 0, failed: 0, unaddressed: 0, noRecipients: true }),
+      {
+        headers: { ...corsHeaders, "content-type": "application/json" },
+      },
+    );
   }
-
 
   const { data: tokens } = await admin
     .from("device_tokens")
@@ -362,7 +364,6 @@ Deno.serve(async (req) => {
   // arrived — the one state that IS a credential fault, and it was previously
   // indistinguishable from "no rows to send to".
   if (fcmTokens.length > 0 && !accessToken) bumpReason("no_access_token");
-
 
   await Promise.all(
     (accessToken ? fcmTokens : []).map(async (token) => {
@@ -484,7 +485,6 @@ Deno.serve(async (req) => {
         failed++;
         bumpReason(e instanceof Error && e.name ? `throw_${e.name}` : "throw");
       }
-
     }),
   );
 
@@ -716,5 +716,4 @@ Deno.serve(async (req) => {
     }),
     { headers: { ...corsHeaders, "content-type": "application/json" } },
   );
-
 });

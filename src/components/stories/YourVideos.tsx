@@ -171,7 +171,6 @@ export function YourVideos() {
         // instead. Not an error — say where it went rather than nothing.
         setShareHint("Your browser wouldn't open the share sheet, so the film was saved instead.");
       }
-
     } finally {
       setSharing(false);
       setSharePct(null);
@@ -241,7 +240,6 @@ export function YourVideos() {
         setShareHint("Your browser wouldn't open the share sheet, so the film was saved instead.");
       }
       // "shared" and "cancelled" both end quietly; the user saw the sheet.
-
     } finally {
       setSharing(false);
       setSharePct(null);
