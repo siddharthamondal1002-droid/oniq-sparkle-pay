@@ -44,20 +44,21 @@ function stubBrowser(shareImpl: () => Promise<void>) {
     canShare: () => true,
     userAgent: "test",
   } as unknown as Navigator);
-  // The anchor download is the fallback under test; count the click rather
-  // than asserting on a return value the fallback could fake.
-  const realCreate = document.createElement.bind(document);
-  vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
-    const el = realCreate(tag);
-    if (tag === "a") (el as HTMLAnchorElement).click = () => void clicked++;
-    return el;
+  // This repo's vitest environment is "node", so there is no DOM to spy on —
+  // the anchor is stubbed outright. Counting the CLICK rather than reading a
+  // return value matters: the fallback could report "downloaded" without ever
+  // handing the bytes over, and that is precisely the failure being fixed.
+  const anchor = { href: "", download: "", rel: "", click: () => void clicked++, remove() {} };
+  vi.stubGlobal("document", {
+    createElement: (tag: string) => (tag === "a" ? anchor : {}),
+    body: { appendChild: () => undefined },
   });
   vi.stubGlobal("URL", {
-    ...URL,
     createObjectURL: () => "blob:stub",
     revokeObjectURL: () => undefined,
   });
 }
+
 
 beforeEach(() => {
   clicked = 0;
