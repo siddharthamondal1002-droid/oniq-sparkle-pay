@@ -29,7 +29,11 @@
 // stillRoute.ts, which is the whole of that decision and is pure so it can be
 // tested rather than reasoned about.
 
-import { withGatewayCostCapture, type GatewayRpc } from "./gatewayLedger.ts";
+import {
+  providerReceiptFrom,
+  withGatewayCostCapture,
+  type GatewayRpc,
+} from "./gatewayLedger.ts";
 
 /** Where the gateway serves images. */
 export const GATEWAY_IMAGE_URL = "https://ai.gateway.lovable.dev/v1/images/generations";
