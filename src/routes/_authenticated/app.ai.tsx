@@ -216,88 +216,96 @@ function TingScreen() {
   async function ask(text: string) {
     if (notConfigured || askInFlight.current) return;
     askInFlight.current = true;
-    const att = attachment;
-    const userMsg: Msg = {
-      role: "user",
-      content: text,
-      attachment: att ? { kind: att.kind, name: att.name, previewUrl: att.previewUrl } : undefined,
-    };
-    const next = [...messages, userMsg];
-    setMessages(next);
-    setInput("");
-    setAttachment(null);
-
-    // HARD-CODED crisis routing: warmth + the country crisis card, never a
-    // model conversation. Runs on the raw text of every turn, so rephrasing,
-    // roleplay or "hypothetically" framing still lands here.
-    const verdict = guardTingPrompt(text);
-    if (verdict === "crisis") {
-      setMessages([...next, { role: "assistant", content: CRISIS_RESPONSE, crisis: true }]);
-      return;
-    }
-
-    setLoading(true);
+    // The release covers the WHOLE handler, not just the network leg: crisis
+    // routing and the not-configured reply both return early, and releasing
+    // only in the inner finally left the lock held for the tab's life.
     try {
-      // Cap history to the last ~10 turns AND never send a whitespace-only
-      // content block — Anthropic 400s on those, which killed multi-turn
-      // image chats after the first empty-caption image.
-      const payload = next.slice(-20).map((m) => {
-        const raw = (m.content ?? "").trim();
-        if (raw) return { role: m.role, content: raw };
-        // Image/pdf-only turn: use a short non-whitespace placeholder so the
-        // history stays valid without resending the bytes.
-        if (m.attachment) {
-          const kind =
-            m.attachment.kind === "pdf"
-              ? "PDF"
-              : m.attachment.kind === "text"
-                ? "text file"
-                : "image";
-          return { role: m.role, content: `(shared a ${kind})` };
-        }
-        return { role: m.role, content: "(no message)" };
-      });
-      const body: Record<string, unknown> = { messages: payload, search: webSearch };
-      try {
-        const { getUserLanguage } = await import("@/lib/userLanguage");
-        body.lang = await getUserLanguage();
-      } catch {
-        /* degrade to English */
-      }
-      if (att) {
-        body.attachment =
-          att.kind === "text"
-            ? { kind: "text", text: att.text }
-            : { kind: att.kind, mime: att.mime, data: att.data };
-      }
-      const { data, error } = await supabase.functions.invoke("ting", { body });
-      if (error) throw error;
-      const d = data as {
-        configured?: boolean;
-        reply?: string;
-        sources?: string[];
-        error?: string;
+      const att = attachment;
+      const userMsg: Msg = {
+        role: "user",
+        content: text,
+        attachment: att
+          ? { kind: att.kind, name: att.name, previewUrl: att.previewUrl }
+          : undefined,
       };
-      if (d?.configured === false) {
-        setNotConfigured(true);
+      const next = [...messages, userMsg];
+      setMessages(next);
+      setInput("");
+      setAttachment(null);
+
+      // HARD-CODED crisis routing: warmth + the country crisis card, never a
+      // model conversation. Runs on the raw text of every turn, so rephrasing,
+      // roleplay or "hypothetically" framing still lands here.
+      const verdict = guardTingPrompt(text);
+      if (verdict === "crisis") {
+        setMessages([...next, { role: "assistant", content: CRISIS_RESPONSE, crisis: true }]);
         return;
       }
-      if (d?.error) throw new Error(d.error);
-      setMessages([
-        ...next,
-        {
-          role: "assistant",
-          content: d?.reply ?? "",
-          sources: d?.sources ?? [],
-          healthNote: verdict === "health",
-        },
-      ]);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "";
-      toast.error(msg && !/non-2xx/i.test(msg) ? msg : "ting choked on that 😵‍💫 try again");
+
+      setLoading(true);
+      try {
+        // Cap history to the last ~10 turns AND never send a whitespace-only
+        // content block — Anthropic 400s on those, which killed multi-turn
+        // image chats after the first empty-caption image.
+        const payload = next.slice(-20).map((m) => {
+          const raw = (m.content ?? "").trim();
+          if (raw) return { role: m.role, content: raw };
+          // Image/pdf-only turn: use a short non-whitespace placeholder so the
+          // history stays valid without resending the bytes.
+          if (m.attachment) {
+            const kind =
+              m.attachment.kind === "pdf"
+                ? "PDF"
+                : m.attachment.kind === "text"
+                  ? "text file"
+                  : "image";
+            return { role: m.role, content: `(shared a ${kind})` };
+          }
+          return { role: m.role, content: "(no message)" };
+        });
+        const body: Record<string, unknown> = { messages: payload, search: webSearch };
+        try {
+          const { getUserLanguage } = await import("@/lib/userLanguage");
+          body.lang = await getUserLanguage();
+        } catch {
+          /* degrade to English */
+        }
+        if (att) {
+          body.attachment =
+            att.kind === "text"
+              ? { kind: "text", text: att.text }
+              : { kind: att.kind, mime: att.mime, data: att.data };
+        }
+        const { data, error } = await supabase.functions.invoke("ting", { body });
+        if (error) throw error;
+        const d = data as {
+          configured?: boolean;
+          reply?: string;
+          sources?: string[];
+          error?: string;
+        };
+        if (d?.configured === false) {
+          setNotConfigured(true);
+          return;
+        }
+        if (d?.error) throw new Error(d.error);
+        setMessages([
+          ...next,
+          {
+            role: "assistant",
+            content: d?.reply ?? "",
+            sources: d?.sources ?? [],
+            healthNote: verdict === "health",
+          },
+        ]);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "";
+        toast.error(msg && !/non-2xx/i.test(msg) ? msg : "ting choked on that 😵‍💫 try again");
+      } finally {
+        setLoading(false);
+      }
     } finally {
       askInFlight.current = false;
-      setLoading(false);
     }
   }
 

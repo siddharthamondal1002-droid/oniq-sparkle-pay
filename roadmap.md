@@ -323,3 +323,44 @@ in-flight prepare resolves as `{outcome: null}` and arms nothing. Two new runtim
     npm run build pass
 
 No deployment, publish, paid generation or GPU spend. Awaits owner review.
+
+### 2026-09-13 — three release defects: the Ting crisis lock, the poll helper, the Story watcher
+
+**1. A LOCK RELEASED IN THE WRONG `finally`.** `ask()` set `askInFlight.current = true`
+at the top and released it in the NETWORK leg's `finally` — but crisis routing
+`return`s before that leg is ever entered. So the first crisis message in a tab
+locked Ting permanently: no error, no spinner, every later send silently dropped by
+the guard. The release now wraps the WHOLE handler, and the not-configured early
+return is covered by the same change. `src/lib/__tests__/tingRequestRuntime.test.ts`
+executes the ACTUAL route handler (extracted by AST, transpiled, run with its UI and
+network dependencies replaced) rather than reading its source; the crisis test was
+MEASURED RED before the fix (`expected true to be false`) and green after.
+
+**2. `Promise.resolve(tick())` CANNOT CATCH A SYNCHRONOUS THROW.** The interval helper
+evaluated `tick()` outside any try, so a task throwing before its first await escaped
+as an unhandled rejection and the interval kept firing on top of it. Replaced with the
+completion-scheduled `setTimeout` shape: the next read is scheduled only after the
+previous one finishes, so a slow read cannot be overlapped by a timer OR by a
+foreground event, `await task()` returning `false` stops the poller, and cleanup during
+an in-flight read prevents any later scheduling. Task type widened to accept a
+synchronous `void | boolean`.
+
+**3. THE STORY WATCHER UNLOCKED A REQUEST IT DID NOT OWN.** The effect depended on
+`[jobId, jobStatus]`, so every intermediate transition tore the poller down and started
+a fresh immediate read; and its cleanup reset the shared `watchingJob` ref, so a slow
+request's teardown released the lock a NEWER request was holding. The ref is gone (it
+was used nowhere else) and the effect keys on a derived boolean,
+`isWatchingJob = !!jobId && !(jobStatus && SETTLED.has(jobStatus))`, with a local
+`cancelled` flag and a `tick` that returns `!SETTLED.has(row.status)`. Failed-job quota
+reporting is unchanged.
+
+    focused   tingRequestRuntime 3, tingRequestLock 2, visiblePollingRuntime 5,
+              visiblePolling 6, plus filmNonMotion / soundStage / shotDirector /
+              shareBinding / shareBindingWiring — 69 tests, all pass
+    tsc --noEmit 0 errors; lint:ci (changed files) pass; prettier (changed files) pass
+    npm run build pass
+
+**No live runtime proof is claimed**: the crisis lock, the poll cadence and the watcher
+are proven by executing the real handler and the real helper under fake timers, not by a
+session on a handset. Nothing deployed, nothing published, no edge function redeployed
+(these are client-side files), no paid generation, no GPU or provider spend, 0 credits.
