@@ -293,26 +293,38 @@ async function drawStillOnGateway(
     clearTimeout(timer);
   }
 
+  // THE STATUS RIDES ON THE THROW. `withGatewayCostCapture` reads a numeric
+  // `status` off the error and records that number and nothing else — the
+  // upstream's own text stays in the message, which goes to the worker's log
+  // and never into a ledger row.
+  const withStatus = (e: GatewayError): GatewayError => {
+    (e as GatewayError & { status?: number }).status = res.status;
+    return e;
+  };
   if (res.status === 401 || res.status === 403) {
-    throw new GatewayError("unconfigured", "the gateway rejected the credential");
+    throw withStatus(new GatewayError("unconfigured", "the gateway rejected the credential"));
   }
   // The pool itself running dry is ITS OWN failure, named plainly: the
   // worker's log must say "credits", not "the model refused the frame".
   if (res.status === 402 || res.status === 429) {
     const detail = await res.text().catch(() => "");
-    throw new GatewayError(
-      "credits",
-      `image credits exhausted or rate limited (${res.status} ${detail.slice(0, 200)})`,
+    throw withStatus(
+      new GatewayError(
+        "credits",
+        `image credits exhausted or rate limited (${res.status} ${detail.slice(0, 200)})`,
+      ),
     );
   }
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new GatewayError("upstream", `gateway ${res.status} ${detail.slice(0, 300)}`);
+    throw withStatus(new GatewayError("upstream", `gateway ${res.status} ${detail.slice(0, 300)}`));
   }
 
   const data = await res.json().catch(() => ({}));
   const image = firstImage(data);
-  if (image) return image;
+  // The receipt is read from what the gateway actually returned — its own id,
+  // or a request id it set on the response. Never synthesised.
+  if (image) return { still: image, receiptId: providerReceiptFrom(data, res.headers) };
 
   // A refusal comes back as a 200 with no image part rather than an error
   // status, so "ok but empty" has to be treated as a failure here or the
@@ -320,7 +332,9 @@ async function drawStillOnGateway(
   // with it: the worker retries refused frames down a ladder of safer
   // prompts, and a bare "refused" left it guessing whether the trigger was
   // the wording, the safety filter, or the prompt being blocked outright.
-  throw new GatewayError("refused", `no image part (${refusalReason(data) || "unstated"})`);
+  throw withStatus(
+    new GatewayError("refused", `no image part (${refusalReason(data) || "unstated"})`),
+  );
 }
 
 /** Why the gateway answered 200 without an image, as far as it said. */
