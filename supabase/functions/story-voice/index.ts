@@ -165,7 +165,6 @@ Deno.serve(async (req) => {
       // the phase is one of a closed list and the status is a number.
       await settle({
         outcome: "FAILED",
-        settlementState: "PENDING_RECONCILIATION",
         detail: { phase: e instanceof DOMException && e.name === "AbortError" ? "timeout" : "transport" },
       });
       throw e;
@@ -174,7 +173,7 @@ Deno.serve(async (req) => {
     }
 
     if (res.status === 401 || res.status === 403) {
-      await settle({ outcome: "REJECTED", settlementState: "PENDING_RECONCILIATION", detail: { phase: "gateway-refused", status: res.status } });
+      await settle({ outcome: "REJECTED", detail: { phase: "gateway-refused", status: res.status } });
       return json({ configured: false }, 200);
     }
     if (!res.ok) {
@@ -185,7 +184,6 @@ Deno.serve(async (req) => {
       // and pending, never NOT_CALLED. Only a local preflight never called.
       await settle({
         outcome: res.status === 402 || res.status === 429 ? "REJECTED" : "FAILED",
-        settlementState: "PENDING_RECONCILIATION",
         detail: { phase: "gateway-refused", status: res.status },
       });
       // The upstream status rides in the body: the worker retries a THROTTLE
@@ -221,7 +219,6 @@ Deno.serve(async (req) => {
     const receiptId = providerReceiptFrom(replyBody, res.headers);
     await settle({
       outcome: audio ? "ACCEPTED" : "FILTERED",
-      settlementState: "PENDING_RECONCILIATION",
       unitsObserved: text.length,
       providerReceiptId: receiptId,
       detail: { phase: audio ? "complete" : "empty-reply" },
