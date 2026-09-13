@@ -252,8 +252,16 @@ export async function withGatewayCostCapture<T>(
     // ALLOWLISTED ONLY. The thrown message is outside text and this row is
     // readable by the authenticated owner, so the phase and — where the throw
     // carries one — a numeric status are all that travel.
+    //
+    // THE RECEIPT TRAVELS ON THE FAILURE TOO. A refused or errored request
+    // still REACHED the provider, and the id it named on that response is the
+    // only handle a reconciliation has on the charge it may have taken.
+    // Dropping it because the call failed is how a real charge becomes
+    // untraceable. It is read off the error where the caller hung one; it is
+    // never synthesised.
     await settleGatewaySpend(rpc, capture.requestId, {
       outcome: "FAILED",
+      providerReceiptId: receiptOf(e),
       detail: mergeAccountingDetail({ phase: "provider-call", ...statusOf(e) }, captured),
     });
     throw e;
@@ -264,6 +272,12 @@ export async function withGatewayCostCapture<T>(
 function statusOf(e: unknown): { status?: number } {
   const s = (e as { status?: unknown } | null)?.status;
   return typeof s === "number" && Number.isFinite(s) ? { status: s } : {};
+}
+
+/** The provider's receipt id, when a caller hung one on the error it threw. */
+export function receiptOf(e: unknown): string | null {
+  const r = (e as { providerReceiptId?: unknown } | null)?.providerReceiptId;
+  return typeof r === "string" && r.trim() ? r.trim().slice(0, 200) : null;
 }
 
 function mergeAccountingDetail(

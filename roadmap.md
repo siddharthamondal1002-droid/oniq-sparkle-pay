@@ -188,3 +188,71 @@ many PENDING rows coexist while two billable attempts can never claim one receip
   initial repair **13.9**, review **18.7**, this task **20.2**. No blanket "nothing was charged"
   claim is made.
 - No Google, OpenAI, GPU or R2 spend: nothing was deployed, published, rendered or generated.
+
+## 2026-09-13 — the five review defects, measured
+
+The line above ("no NaN in charged_credits or units_observed") was WRONG and the review is what
+caught it. `x = x` does not reject NaN in Postgres: numeric NaN compares EQUAL to itself and sorts
+ABOVE every finite value, so the old constraint admitted `'NaN'::numeric` and both infinities.
+Measured on production with real SQL, not JS equivalents:
+
+    'NaN'::numeric = 'NaN'::numeric                    true    <- the old check passed it
+    'NaN'      > '-Infinity' and < 'Infinity'          false   <- the new one refuses it
+    'Infinity' > '-Infinity' and < 'Infinity'          false
+    '-Infinity' > '-Infinity'                          false
+    1.5        > '-Infinity' and < 'Infinity'          true
+
+Migration `20260913120000` (applied, read back from `pg_constraint`) replaces the finiteness check
+with the ordering form and rewrites both RPCs:
+
+- **`capture_gateway_spend` now compares the immutable context.** It previously returned
+  `ok: true, duplicate: true` for ANY existing row, so re-using a request id under a different
+  model, capability, unit, job, user or attempt was silently absorbed into the first record and the
+  second charge vanished. A mismatch is refused as `context-conflict`. Concurrency-safe: the row is
+  taken `FOR UPDATE`, and the lost-insert race re-reads under the same lock before comparing.
+- **`settle_gateway_spend`'s `_x <> _x` NaN guard** is replaced by the same ordering form.
+
+### The runtime verification the source scan could not give
+
+`gatewayRealCallers.test.ts` greps call sites — it cannot see whether a row is written, whether a
+retry mints a second id, or whether a failure settles at all. `gatewayRuntimeCallers.test.ts`
+EXECUTES the three production paths against a mocked network: `globalThis.Deno` is given an
+`env.get` over a fixture map and a `serve` that keeps the handler instead of listening, and `fetch`
+is replaced. No production logic is stubbed and no gate is bypassed — auth, validation, capture and
+settlement are the deployed lines, run. 9 tests, all green:
+
+    image    capture before the draw · ACCEPTED with units 1 and the gateway's receipt · no price
+             429 settles FAILED and KEEPS the receipt · a local refusal writes NO row
+    text     two invocations of the rescue transport ⇒ two DISTINCT request ids, attempts 1 and 2
+             402 settles REJECTED with a null charge
+    voice    TTS captured in characters · ACCEPTED with the receipt · 429 keeps the receipt
+             a body read that throws after a 200 settles FAILED phase body-read
+             a validation refusal writes NO row
+
+Mutation-checked: removing `receiptOf(e)` from the ledger's failure settle turns the run RED
+(1 failed / 8 passed), restored green.
+
+### Receipts on the failure paths
+
+A refused or errored request REACHED the provider, and the id it set on that response is the only
+handle a reconciliation has on a charge it may have taken. Reading it only on success leaves
+exactly the charges that need tracing untraceable. Fixed in three places: `withGatewayCostCapture`
+settles with `receiptOf(e)`, `gatewayImage` hangs the response's receipt on the error alongside the
+status, and `story-voice` reads it on both the 401/403 and the non-2xx settle. `story-voice`'s body
+read is now wrapped — a truncated stream aborting `arrayBuffer()` after a 200 previously left the
+row PENDING for ever with no outcome.
+
+`shareTwoStep.test.ts` needed no change: 8/8 green under the existing test-DOM conventions.
+
+### Gates at this commit
+
+    npx tsc --noEmit          0 errors
+    npm run lint:ci           pass
+    prettier --write          the four changed files
+    npx vitest run            406 files / 7,257 — 3 timeouts under load
+                              (arapStep11dDiagnosis x2, edgeImports), all three
+                              PASS on their own: 2 files / 9 tests green
+    npm run build             pass
+
+Nothing deployed, published, generated or spent. `story-voice`, `story-still` and `story-plot`
+carry undeployed edge-function changes; they need one deploy message after review.

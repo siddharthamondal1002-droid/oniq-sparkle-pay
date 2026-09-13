@@ -29,11 +29,7 @@
 // stillRoute.ts, which is the whole of that decision and is pure so it can be
 // tested rather than reasoned about.
 
-import {
-  providerReceiptFrom,
-  withGatewayCostCapture,
-  type GatewayRpc,
-} from "./gatewayLedger.ts";
+import { providerReceiptFrom, withGatewayCostCapture, type GatewayRpc } from "./gatewayLedger.ts";
 
 /** Where the gateway serves images. */
 export const GATEWAY_IMAGE_URL = "https://ai.gateway.lovable.dev/v1/images/generations";
@@ -259,7 +255,6 @@ async function drawStillOnGateway(
 ): Promise<{ still: GatewayStill; receiptId: string | null }> {
   const ref = (opts.referenceDataUrl ?? "").trim();
 
-
   const ask = composeAsk(prompt, opts.negativePrompt);
   // Multimodal content only when a reference rode along; otherwise the exact
   // text-only shape the pipeline sent for the whole of the gateway era, so an
@@ -301,10 +296,18 @@ async function drawStillOnGateway(
   // `status` off the error and records that number and nothing else — the
   // upstream's own text stays in the message, which goes to the worker's log
   // and never into a ledger row.
+  //
+  // SO DOES THE RECEIPT. A 402, a 500 or a 200-with-no-image all REACHED the
+  // gateway, and the id it set on that response is the only handle a
+  // reconciliation has on whatever it charged. Reading it only on success is
+  // how the charges that most need tracing are the ones with no trace.
   const withStatus = (e: GatewayError): GatewayError => {
-    (e as GatewayError & { status?: number }).status = res.status;
+    const tagged = e as GatewayError & { status?: number; providerReceiptId?: string | null };
+    tagged.status = res.status;
+    tagged.providerReceiptId = providerReceiptFrom(null, res.headers);
     return e;
   };
+
   if (res.status === 401 || res.status === 403) {
     throw withStatus(new GatewayError("unconfigured", "the gateway rejected the credential"));
   }
