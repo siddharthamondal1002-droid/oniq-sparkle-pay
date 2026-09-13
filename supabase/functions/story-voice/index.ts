@@ -22,6 +22,12 @@
 // written as-is — its ffmpeg sniffs content, not extensions.
 
 import { verifyJobToken } from "../_shared/jobToken.ts";
+import { serviceRoleRpc } from "../_shared/financialLedger.ts";
+import {
+  captureGatewaySpend,
+  settleGatewaySpend,
+  providerReceiptFrom,
+} from "../_shared/gatewayLedger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
