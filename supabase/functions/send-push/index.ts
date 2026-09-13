@@ -707,6 +707,7 @@ Deno.serve(async (req) => {
           `send-push: ${stale.length} web subscriber(s) recorded a different VAPID key — skipped, the app repairs them on next start`,
         );
         for (const s of stale) rotatedKeyEndpoints.push(s.endpoint);
+        bumpReason("web_rotated_key", stale.length);
       }
       webAttempted = deliverable.length;
 
@@ -727,6 +728,7 @@ Deno.serve(async (req) => {
           webFailed++;
           if (r.gone) {
             deadEndpoints.push(sub.endpoint);
+            bumpReason("web_gone");
           } else if (r.vapidMismatch) {
             // THE SERVICE SAID IT, WE DID NOT INFER IT.
             //
@@ -744,6 +746,7 @@ Deno.serve(async (req) => {
             // itself with — subscribeWebPush finds the mismatch on next start
             // and does the unsubscribe → delete → re-subscribe properly.
             mismatchSubs.push(sub);
+            bumpReason("web_vapid_mismatch");
           } else {
             // Status and the service's complaint only — the endpoint is a
             // capability URL and belongs in logs no more than a token does.
