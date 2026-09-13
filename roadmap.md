@@ -13,15 +13,28 @@
 ## 2026-09-13 health report
 
 - [x] Item 2 (partial): `send-push` now distinguishes provider ACCEPTANCE from handset delivery, and
-      `push.ts` records a sanitized reason breakdown instead of a silent success. See
-      `src/lib/__tests__/sendPushDiscriminator.test.ts`.
-- [x] Item 2 (partial): the video share path no longer reports success when the sheet never opened;
-      `src/lib/__tests__/shareActivationFallback.test.ts` covers the cancellation case, which must stay
-      a non-error.
-- [x] Item 6: measured, and the answer is NO overload. `pg_stat_statements.stats_reset` is NULL, so the
-      166 GiB has no window. In the live counters the only temp writers are introspection/tooling
-      queries totalling ~4 MiB; every application query writes ZERO temp blocks. No index or memory
-      change is warranted — do not add one on the strength of the cumulative figure.
+      `push.ts` records a sanitized reason breakdown instead of a silent success. A failed member or
+      token SELECT is now a 500 rather than `noRecipients`/`unaddressed` — our fault must not be
+      reported as the recipient's. Reason codes are a closed allowlist folded to `other`; no token,
+      endpoint or provider body is ever counted. See `src/lib/__tests__/sendPushDiscriminator.test.ts`.
+- [x] Item 2 (partial): the video share path no longer claims a save it cannot observe. A refused
+      `navigator.share` REQUESTS a download and returns `download-started`; the stage is
+      `web-share-refused-download-requested`, not the earlier `web-activation-lost`, which asserted a
+      cause (lost transient activation) that a Permissions-Policy or user-agent denial produces
+      identically. The file-capability probe now runs BEFORE the fetch, so a browser that cannot share
+      files no longer downloads megabytes first. The fetch-before-share order itself is NOT fixed and
+      cannot be from inside `share.ts`: a File is required before `share()` and any await ends the
+      activation window — the remedy is a second explicit tap at the call site.
+      `src/lib/__tests__/shareActivationFallback.test.ts` keeps cancellation a non-error.
+- [x] Item 6: measured, and the answer is NO overload. `pg_stat_statements.stats_reset` is NULL —
+      which means the view has never been reset, so the 166 GiB is a cumulative total over an
+      UNKNOWN window (it is not a statement about a recent spike, and no rate can be derived from
+      it). A `pg_stat_statements` snapshot is also bounded by `pg_stat_statements.max`, so
+      evicted statements are absent from that total altogether. In the live counters the only temp
+      writers are introspection/tooling queries totalling ~4 MiB; every application query writes
+      ZERO temp blocks. No index or memory change is warranted — do not add one on the strength of
+      the cumulative figure.
+
 
 - [ ] Item 1 BLOCKED, and the blocker is the installer, not the advisories. Every fix is in-range
       (no semver-major): @xmldom/xmldom 0.9.12, brace-expansion 5.0.9, browserslist 4.28.9,
