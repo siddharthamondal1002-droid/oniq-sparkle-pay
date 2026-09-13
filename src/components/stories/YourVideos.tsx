@@ -508,12 +508,12 @@ export function YourVideos() {
                   <button
                     type="button"
                     data-testid={
-                      ready?.surface === "share-saved-video"
-                        ? "saved-share-send-now"
-                        : "saved-share-prepare"
+                      readySavedId === v.id ? "saved-share-send-now" : "saved-share-prepare"
                     }
                     onClick={
-                      ready?.surface === "share-saved-video" ? sendNow : () => void sendSaved(v)
+                      readySavedId === v.id
+                        ? () => sendNow({ kind: "saved", id: v.id })
+                        : () => void sendSaved(v)
                     }
                     disabled={sharing}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-primary/50 bg-primary/10 px-3 py-2 text-[11px] font-semibold text-primary disabled:opacity-50"
@@ -523,8 +523,9 @@ export function YourVideos() {
                     ) : (
                       <Share2 className="h-3.5 w-3.5" />
                     )}
-                    {ready?.surface === "share-saved-video" ? "Send now" : "Send"}
+                    {readySavedId === v.id ? "Send now" : "Send"}
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setConfirmDelete(confirmDelete === v.id ? null : v.id)}
