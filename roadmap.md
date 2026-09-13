@@ -26,15 +26,12 @@
 - [ ] Item 1 BLOCKED, and the blocker is the installer, not the advisories. Every fix is in-range
       (no semver-major): @xmldom/xmldom 0.9.12, brace-expansion 5.0.9, browserslist 4.28.9,
       baseline-browser-mapping 2.11.23, dompurify 3.4.15, fast-uri 4.1.4, hono 4.13.7, js-yaml 4.3.2,
-      nanoid 3.3.19, postcss 8.5.28, qs 6.16.0, vitest ^4.1.11. Three measured obstacles:
-        1. `npm install --package-lock-only` CRASHES on this tree —
-           `TypeError: Cannot read properties of null (reading 'edgesOut')` in arborist's peer-set
-           walk for `vitest`. It crashed identically BEFORE any edit (the first `npm audit fix`), so
-           it is pre-existing and not caused by the overrides.
-        2. The platform installs with BUN, which "does not support nested overrides" — so the scoped
-           `{"@lovable.dev/mcp-js": {"esbuild": ...}}` form cannot be used here.
-        3. The installer enforces a MINIMUM RELEASE AGE of 86400s; `baseline-browser-mapping@2.11.23`
-           was refused for being under 24h old.
+      nanoid 3.3.19, postcss 8.5.28, qs 6.16.0, vitest ^4.1.11. Three measured obstacles: 1. `npm install --package-lock-only` CRASHES on this tree —
+      `TypeError: Cannot read properties of null (reading 'edgesOut')` in arborist's peer-set
+      walk for `vitest`. It crashed identically BEFORE any edit (the first `npm audit fix`), so
+      it is pre-existing and not caused by the overrides. 2. The platform installs with BUN, which "does not support nested overrides" — so the scoped
+      `{"@lovable.dev/mcp-js": {"esbuild": ...}}` form cannot be used here. 3. The installer enforces a MINIMUM RELEASE AGE of 86400s; `baseline-browser-mapping@2.11.23`
+      was refused for being under 24h old.
       The edit was reverted so package.json and package-lock.json stay consistent — a package.json the
       lockfile does not match breaks `npm ci`, which is a worse outcome than the advisories.
       NOT residual-by-choice: @capacitor/cli / xcode / uuid, whose only fix npm marks semver-major.
