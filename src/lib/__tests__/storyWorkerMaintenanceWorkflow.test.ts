@@ -16,13 +16,14 @@ function stripYamlComments(src: string): string {
 }
 
 const SRC = stripYamlComments(WORKFLOW);
+const TRIGGERS = SRC.slice(SRC.indexOf("on:"), SRC.indexOf("permissions:"));
 
 describe("story worker maintenance workflow stays read-only and records the right facts", () => {
   it("runs only on a manual trigger plus a low-risk schedule", () => {
-    expect(SRC).toContain("workflow_dispatch:");
-    expect(SRC).toContain('cron: "17 6 * * *"');
-    expect(SRC).not.toContain("repository_dispatch:");
-    expect(SRC).not.toContain("push:");
+    expect(TRIGGERS).toContain("workflow_dispatch:");
+    expect(TRIGGERS).toContain('cron: "17 6 * * *"');
+    expect(TRIGGERS).not.toContain("repository_dispatch:");
+    expect(TRIGGERS).not.toContain("push:");
   });
 
   it("keeps GitHub permissions read-only", () => {
