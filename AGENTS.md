@@ -27,3 +27,15 @@ Every hook goes above every early return, always.
 
 Never run a repo-wide `eslint --fix` and commit it. The pre-existing tail is
 frozen in `eslint-suppressions*.json`; only new violations fail.
+
+## External repo agents (ChatGPT GitHub connector)
+
+This repository has no in-repo ChatGPT connector switch. Grant ChatGPT repo access through GitHub/OpenAI app installation, then keep the repo side constrained:
+
+- Prefer **branch + pull request** access over direct writes to `main`.
+- Grant the least repository scope needed for the task.
+- Require connector-driven agents to read this file before making changes.
+- Treat deployment, provider, billing, and other owner decisions as approval-gated.
+- Keep changes small and always finish with `npm run lint:ci`.
+
+See `docs/chatgpt-github-connector.md` for the setup and verification checklist.
