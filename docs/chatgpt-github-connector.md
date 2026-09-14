@@ -48,5 +48,5 @@ After the connector is installed:
 
 ## Optional future extension
 
-If you want ChatGPT to do things *inside* ONIQ instead of just editing the repo, add a narrow server-side action for a specific task rather than giving broad write authority.
+If you want ChatGPT to do things _inside_ ONIQ instead of just editing the repo, add a narrow server-side action for a specific task rather than giving broad write authority.
 Examples: a single admin-safe status action, a single report-generation action, or a single read-only diagnostic action.
