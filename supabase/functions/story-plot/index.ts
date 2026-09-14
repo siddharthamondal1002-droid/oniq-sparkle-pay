@@ -302,6 +302,27 @@ Deno.serve(async (req) => {
     // argument every time. Empty string when nothing in the manifest matches.
     const houseCast = reuse.length > 0 ? "" : castBlock(prompt);
     const houseCastBlock = houseCast ? `\n\n${houseCast}` : "";
+    // VERBATIM MODE (owner directive, 2026-08-14): the worker supplies the
+    // narrations — the user's own text, pre-sliced — and Ting designs only
+    // what prose cannot carry: the frames, the locks, the sizes. The worker
+    // overwrites narration again after the reply, so this instruction is
+    // about QUALITY (frames that match the given words), not enforcement.
+    const narrations: string[] = Array.isArray(body?.narrations)
+      ? body.narrations.filter((n: unknown) => typeof n === "string" && n.trim().length > 0)
+      : [];
+    if (narrations.length > 0 && narrations.length !== shots) {
+      return json({ error: "Narration count must match the shot count." }, 400);
+    }
+    // The caps MAX_PROMPT exists to enforce, applied to the new field too:
+    // a chunk is bounded by the voice's own ceiling, and the total by the
+    // prompt cap it was sliced from — the review panel flagged the token
+    // spend this reopened when only the count was checked.
+    if (narrations.some((n) => n.length > 1200)) {
+      return json({ error: "A narration piece is too long." }, 400);
+    }
+    if (narrations.reduce((a, n) => a + n.length, 0) > MAX_PROMPT + 200) {
+      return json({ error: "The narrations are too long." }, 400);
+    }
     const pacingBlock = filmPacingGuidance(
       Number.isFinite(screenSeconds) ? screenSeconds : null,
       shots,
@@ -367,27 +388,6 @@ Deno.serve(async (req) => {
       callGemini({ ...o, geminiModel: TEXT_DIRECT_STANDARD.id }),
     );
 
-    // VERBATIM MODE (owner directive, 2026-08-14): the worker supplies the
-    // narrations — the user's own text, pre-sliced — and Ting designs only
-    // what prose cannot carry: the frames, the locks, the sizes. The worker
-    // overwrites narration again after the reply, so this instruction is
-    // about QUALITY (frames that match the given words), not enforcement.
-    const narrations: string[] = Array.isArray(body?.narrations)
-      ? body.narrations.filter((n: unknown) => typeof n === "string" && n.trim().length > 0)
-      : [];
-    if (narrations.length > 0 && narrations.length !== shots) {
-      return json({ error: "Narration count must match the shot count." }, 400);
-    }
-    // The caps MAX_PROMPT exists to enforce, applied to the new field too:
-    // a chunk is bounded by the voice's own ceiling, and the total by the
-    // prompt cap it was sliced from — the review panel flagged the token
-    // spend this reopened when only the count was checked.
-    if (narrations.some((n) => n.length > 1200)) {
-      return json({ error: "A narration piece is too long." }, 400);
-    }
-    if (narrations.reduce((a, n) => a + n.length, 0) > MAX_PROMPT + 200) {
-      return json({ error: "The narrations are too long." }, 400);
-    }
     // TING IS THE CONTENT FILTER, ALWAYS (owner directive, 2026-08-14).
     //
     // Verbatim mode was the one path where user words reached the narrator
