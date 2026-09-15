@@ -58,14 +58,24 @@ describe("secrets are server-side only", () => {
     }
   });
 
-  it("never puts a key, or a key name, in a response body or a log line", () => {
+  it("never puts a key into a log line or a response body", () => {
+    // Scoped to what FOLLOWS `console.` / `json(` on the line, because the
+    // first draft banned the identifier anywhere on such a line and so flagged
+    // `if (!openAiKey && …) return json({ configured: false })` — a presence
+    // check, not a leak. A ban wide enough to catch the whole line catches the
+    // wrong thing; the window is the argument list.
+    const KEYS = /openAiKey|geminiKey|claudeKey|API_KEY/;
     for (const line of CODE.split("\n")) {
-      if (!/console\.|json\(/.test(line)) continue;
-      expect(line, `a key must not reach this line: ${line.trim()}`).not.toMatch(
-        /openAiKey|geminiKey|claudeKey|API_KEY/,
+      const at = Math.max(line.indexOf("console."), line.indexOf("json("));
+      if (at < 0) continue;
+      expect(line.slice(at), `a key must not reach this argument: ${line.trim()}`).not.toMatch(
+        KEYS,
       );
     }
+    // And the one place a key IS allowed to go: the provider's own auth header.
+    expect(CODE).toMatch(/authorization:\s*`Bearer \$\{openAiKey\}`/);
   });
+
 
   it("tells the client only whether Ting is configured at all", () => {
     expect(CODE).toMatch(/configured:\s*false/);
