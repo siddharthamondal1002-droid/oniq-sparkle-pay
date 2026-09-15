@@ -145,7 +145,7 @@ function ResearchLab() {
           <section className="mt-5" aria-labelledby="capabilities-title">
             <div className="flex items-center justify-between gap-3">
               <h2 id="capabilities-title" className="font-display text-lg font-bold">Configured capabilities</h2>
-              <span className="font-mono text-[10px] text-muted-foreground">
+              <span className="font-mono text-[11px] text-muted-foreground">
                 {capabilities.repository.commit?.slice(0, 7) ?? "unknown"}
               </span>
             </div>
