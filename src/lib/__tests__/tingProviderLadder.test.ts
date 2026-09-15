@@ -38,7 +38,11 @@ describe("provider order", () => {
   });
 
   it("names each provider's own leg exactly once", () => {
-    for (const leg of ["async function legOpenAi", "async function legGemini", "async function legClaude"]) {
+    for (const leg of [
+      "async function legOpenAi",
+      "async function legGemini",
+      "async function legClaude",
+    ]) {
       expect(CODE.split(leg).length - 1, leg).toBe(1);
     }
   });
@@ -76,7 +80,6 @@ describe("secrets are server-side only", () => {
     expect(CODE).toMatch(/authorization:\s*`Bearer \$\{openAiKey\}`/);
   });
 
-
   it("tells the client only whether Ting is configured at all", () => {
     expect(CODE).toMatch(/configured:\s*false/);
     // The client contract is unchanged: reply, sources, configured, error.
@@ -93,7 +96,10 @@ describe("secrets are server-side only", () => {
 
 describe("every paid leg is behind the durable ledger", () => {
   it("guards the OpenAI leg against the financial ledger", () => {
-    const leg = CODE.slice(CODE.indexOf("async function legOpenAi"), CODE.indexOf("async function legGemini"));
+    const leg = CODE.slice(
+      CODE.indexOf("async function legOpenAi"),
+      CODE.indexOf("async function legGemini"),
+    );
     expect(leg).toMatch(/withProviderSpendGuard\(/);
     // The fetch must be INSIDE the guarded callback, so it cannot run before
     // admission and cannot skip settlement.
@@ -103,7 +109,10 @@ describe("every paid leg is behind the durable ledger", () => {
   });
 
   it("guards the Gemini and Claude legs the way they always were", () => {
-    const gemini = CODE.slice(CODE.indexOf("async function legGemini"), CODE.indexOf("async function legClaude"));
+    const gemini = CODE.slice(
+      CODE.indexOf("async function legGemini"),
+      CODE.indexOf("async function legClaude"),
+    );
     const claude = CODE.slice(CODE.indexOf("async function legClaude"));
     expect(gemini).toMatch(/withSearchSpendGuard\(/);
     expect(claude).toMatch(/withSearchSpendGuard\(/);
@@ -132,7 +141,10 @@ describe("every paid leg is behind the durable ledger", () => {
 
 describe("the fallback does not invent live sources", () => {
   it("sends Gemini no search tool and reserves no searches", () => {
-    const gemini = CODE.slice(CODE.indexOf("async function legGemini"), CODE.indexOf("async function legClaude"));
+    const gemini = CODE.slice(
+      CODE.indexOf("async function legGemini"),
+      CODE.indexOf("async function legClaude"),
+    );
     expect(gemini).toMatch(/maxSearches:\s*0/);
     expect(gemini).not.toMatch(/tools:/);
   });

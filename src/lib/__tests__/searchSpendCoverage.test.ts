@@ -256,7 +256,6 @@ describe("every AI CALL in the repository is either reserved for or listed", () 
       );
     }
   });
-
 });
 
 describe("no direct provider invocation from UI code", () => {

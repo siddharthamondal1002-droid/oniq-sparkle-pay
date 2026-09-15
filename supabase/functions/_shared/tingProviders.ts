@@ -314,7 +314,12 @@ export function extractClaudeReply(body: unknown): TingAnswer {
     }
   };
   for (const b of blocks as readonly unknown[]) {
-    const blk = (b ?? {}) as { type?: unknown; text?: unknown; citations?: unknown; content?: unknown };
+    const blk = (b ?? {}) as {
+      type?: unknown;
+      text?: unknown;
+      citations?: unknown;
+      content?: unknown;
+    };
     if (blk.type === "text" && typeof blk.text === "string") {
       if (blk.text) chunks.push(blk.text);
       if (Array.isArray(blk.citations)) {
@@ -323,7 +328,8 @@ export function extractClaudeReply(body: unknown): TingAnswer {
         }
       }
     } else if (blk.type === "web_search_tool_result" && Array.isArray(blk.content)) {
-      for (const r of blk.content as readonly unknown[]) collect((r as { url?: unknown } | null)?.url);
+      for (const r of blk.content as readonly unknown[])
+        collect((r as { url?: unknown } | null)?.url);
     }
   }
   return { reply: chunks.join("\n\n").trim(), sources };

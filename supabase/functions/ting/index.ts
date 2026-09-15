@@ -185,7 +185,6 @@ Deno.serve(async (req) => {
       }),
     );
 
-
     // Anthropic-shaped messages, used by the Claude leg and by the Gemini
     // bridge (geminiPartsFor inlines base64 images and PDFs from these blocks).
     const outMessages: Array<{ role: string; content: unknown }> = plainTurns.map((m) => ({
