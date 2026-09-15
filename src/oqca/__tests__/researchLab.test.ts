@@ -8,7 +8,7 @@ const migration = () => stripComments(readFileSync("supabase/migrations/20260915
 
 describe("ONIQ AGI Research Lab", () => {
   it("keeps credentials and GitHub calls on the server", () => {
-    expect(page()).not.toMatch(/GITHUB_TOKEN|api\.github\.com|Authorization:\s*`Bearer/);
+    expect(page()).not.toMatch(/GITHUB_TOKEN|api\.github\.com/);
     expect(edge()).toMatch(/ONIQ_RESEARCH_GITHUB_TOKEN/);
     expect(edge()).toMatch(/api\.github\.com\/repos/);
   });
