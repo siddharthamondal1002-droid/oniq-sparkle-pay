@@ -760,35 +760,32 @@ describe("the production gate is closed", () => {
  * Google model would have switched it on by accident. These assertions exist
  * so that cannot come back silently.
  */
-describe("ting's fallback is gated, classified, and priced", () => {
+describe("ting's ladder is ordered, priced, and refuses rather than shops", () => {
   const { readFileSync } = require("node:fs") as typeof import("node:fs");
   const { join } = require("node:path") as typeof import("node:path");
   const TING = readFileSync(join(process.cwd(), "supabase/functions/ting/index.ts"), "utf8");
 
-  it("goes through the classifier and the decision, not a bare !res.ok", () => {
-    expect(TING).toMatch(/classifyClaudeFailure\(/);
-    expect(TING).toMatch(/failoverDecision\(/);
-    // ATTACHMENTS FAIL OVER TOO since the attachment-drop fix on main: the
-    // trigger is `gate.eligible` alone, and hasAttachment now decides only
-    // HOW the message is bridged, not whether there is a second engine at
-    // all. ting/index.ts records why — a Ting message carrying a photo or a
-    // PDF previously had no fallback and simply died whenever Anthropic was
-    // out, and the reason it was excluded (a bridge that flattened content to
-    // text) was fixed at the bridge instead.
-    //
-    // What this test exists to guard is UNCHANGED, and is why the pin moves
-    // rather than goes: the trigger must be the classified decision and never
-    // a bare `!res.ok`. Both branches are pinned, so the gate being consulted
-    // at all stays asserted rather than only the path that fails over.
-    expect(TING).toMatch(/if \(gate\.eligible\) \{/);
-    expect(TING).toMatch(/if \(!gate\.eligible\) \{/);
+  /**
+   * SUPERSEDED BY THE OWNER DIRECTIVE OF 2026-09-13, and rewritten rather than
+   * deleted, because the property underneath it did not change.
+   *
+   * This block used to pin Claude as Ting's primary and the Gemini leg as a
+   * credit-exhaustion-only escape hatch gated by classifyClaudeFailure and
+   * failoverDecision. Ting's order is now OpenAI, then Gemini, then Claude, so
+   * those two helpers are no longer on its path — they remain the gate for
+   * every OTHER Anthropic caller, and the tests above still exercise them.
+   *
+   * What must stay true of Ting is the reason that gate existed at all: a
+   * request the spend ledger REFUSED must never be re-run somewhere else,
+   * because a ceiling that can be walked around is not a ceiling. That is now
+   * a property of the ladder, pinned here and — with the ordering and the
+   * per-leg reservations — in src/lib/__tests__/tingProviderLadder.test.ts.
+   */
+  it("a ledger refusal stops the ladder instead of buying a call elsewhere", () => {
+    expect(TING).toMatch(/if \(r\.kind === "refused"\) \{[\s\S]{0,200}?break;/);
   });
 
-  it("reads the owner gate from the environment", () => {
-    expect(TING).toMatch(/failoverEnvFrom\(\(k\) => Deno\.env\.get\(k\)\)/);
-  });
-
-  it("calls the priced model, never the unpriced one it used to name", () => {
+  it("calls the priced Gemini model, never the unpriced one it used to name", () => {
     expect(TING).toMatch(/model: GEMINI_FAILOVER_MODEL/);
     expect(TING).toMatch(/geminiModel: GEMINI_FAILOVER_MODEL/);
     // As a string LITERAL. The name survives in a comment explaining the
@@ -796,20 +793,23 @@ describe("ting's fallback is gated, classified, and priced", () => {
     expect(TING).not.toMatch(/"gemini-3\.6-flash"/);
   });
 
-  it("derives the fallback request id instead of minting a fresh one", () => {
-    // A fresh uuid per attempt would let a client retry reserve twice.
+  it("derives each leg's request id instead of minting a fresh one", () => {
+    // A fresh uuid per attempt would let a client retry reserve twice, and two
+    // legs sharing one id would make the second reservation impossible.
     expect(TING).toMatch(/requestId: geminiRequestId\(/);
+    expect(TING).toMatch(/requestId: openAiRequestId\(/);
     expect(TING).not.toMatch(/requestId: requestIdFrom\(null\)/);
   });
 
-  it("zeroes the fallback's searches through geminiBudgetFrom", () => {
-    expect(TING).toMatch(/budget: geminiBudgetFrom\(/);
+  it("shapes the Gemini leg's budget through geminiBudgetFrom", () => {
+    expect(TING).toMatch(/geminiBudgetFrom\(/);
   });
 
-  it("keeps Claude as the primary — the failover does not demote Haiku", () => {
-    expect(TING).toMatch(/const TING_MODEL = "claude-haiku-4-5"/);
+  it("keeps Haiku as the Anthropic leg — the reorder did not promote a dearer model", () => {
+    expect(TING).toMatch(/const TING_CLAUDE_MODEL = "claude-haiku-4-5"/);
   });
 });
+
 
 describe("callGemini's model is separate from callClaude's", () => {
   const { readFileSync } = require("node:fs") as typeof import("node:fs");
