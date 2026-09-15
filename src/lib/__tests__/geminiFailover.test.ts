@@ -810,7 +810,6 @@ describe("ting's ladder is ordered, priced, and refuses rather than shops", () =
   });
 });
 
-
 describe("callGemini's model is separate from callClaude's", () => {
   const { readFileSync } = require("node:fs") as typeof import("node:fs");
   const { join } = require("node:path") as typeof import("node:path");
