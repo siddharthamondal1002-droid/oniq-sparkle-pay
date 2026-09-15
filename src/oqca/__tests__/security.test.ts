@@ -466,7 +466,6 @@ describe("brief section 18 — Security", () => {
     expect(CLOCK.test("Date.UTC(2026, 8, 10)")).toBe(false);
   });
 });
-
 describe("the guard catches what it claims to — mutation checks, inline", () => {
   // A guard that has never been mutated has never been tested (CLAUDE.md,
   // 2026-09-08). These do not edit the tree: they run the SAME patterns over
@@ -594,4 +593,3 @@ describe("brief section 3 — the physical layer knows nothing about cognition",
     expect(importsOf("src/oqca/bench/runner.ts")).toContain("./stats.ts");
   });
 });
-
