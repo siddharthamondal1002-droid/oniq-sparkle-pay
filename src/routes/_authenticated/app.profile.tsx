@@ -469,7 +469,7 @@ function SafetySection() {
                 Health AI
               </Link>
               <Link to="/app/admin/oqca" className={linkClass}>
-                OQCA
+                ONIQ AGI Research Lab
               </Link>
             </div>
           </div>
