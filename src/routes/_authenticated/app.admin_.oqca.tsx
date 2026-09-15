@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { BookOpen, CheckCircle2, FlaskConical, Github, Loader2, ShieldCheck } from "lucide-react";
+import { BookOpen, Bot, CheckCircle2, FlaskConical, Github, Loader2, ShieldCheck } from "lucide-react";
 import { OniqHeader } from "@/components/oniq/OniqHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeError";
@@ -31,15 +31,16 @@ async function invoke<T>(body: Record<string, unknown>): Promise<T> {
 }
 
 function ResearchLab() {
-  const [mode, setMode] = useState<"research" | "write">("research");
+  const [mode, setMode] = useState<"research" | "agent" | "write">("research");
   const [capabilities, setCapabilities] = useState<CapabilityResponse | null>(null);
   const [query, setQuery] = useState("");
   const [evidence, setEvidence] = useState<Evidence[]>([]);
+  const [agentInput, setAgentInput] = useState("");
   const [objective, setObjective] = useState("");
   const [details, setDetails] = useState("");
   const [staged, setStaged] = useState<StagedWrite | null>(null);
   const [confirmation, setConfirmation] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useState<{ url: string; label: string; runId?: string | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,6 +51,7 @@ function ResearchLab() {
   }, []);
 
   const writer = capabilities?.capabilities.find((c) => c.id === "create_research_issue");
+  const agent = capabilities?.capabilities.find((c) => c.id === "trigger_workspace_agent");
 
   async function research() {
     if (!query.trim()) return;
@@ -60,6 +62,24 @@ function ResearchLab() {
       setEvidence(result.evidence);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Research failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function stageAgent() {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await invoke<StagedWrite>({
+        action: "stage_write",
+        kind: "agent_trigger",
+        input: agentInput,
+      });
+      setStaged(result);
+      setConfirmation("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Agent run could not be staged");
     } finally {
       setBusy(false);
     }
@@ -89,15 +109,22 @@ function ResearchLab() {
     setBusy(true);
     setError(null);
     try {
-      const result = await invoke<{ issueUrl: string }>({
+      const result = await invoke<{ issueUrl?: string; conversationUrl?: string; agentTriggerRunId?: string | null }>({
         action: "confirm_write",
         requestId: staged.requestId,
         confirmation,
       });
-      setStatus(result.issueUrl);
+      if (result.conversationUrl) {
+        setStatus({ url: result.conversationUrl, label: "Open agent conversation", runId: result.agentTriggerRunId });
+        setAgentInput("");
+      } else if (result.issueUrl) {
+        setStatus({ url: result.issueUrl, label: "Issue created" });
+        setObjective("");
+        setDetails("");
+      } else {
+        throw new Error("Confirmed request returned no destination");
+      }
       setStaged(null);
-      setObjective("");
-      setDetails("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Confirmed request was not completed");
     } finally {
@@ -125,18 +152,19 @@ function ResearchLab() {
       />
 
       <main className="px-5 pt-5">
-        <div className="grid grid-cols-2 rounded-lg bg-muted p-1" role="tablist" aria-label="Research Lab mode">
-          {(["research", "write"] as const).map((item) => (
+        <div className="grid grid-cols-3 rounded-lg bg-muted p-1" role="tablist" aria-label="Research Lab mode">
+          {(["research", "agent", "write"] as const).map((item) => (
             <button
               key={item}
               type="button"
               role="tab"
               aria-selected={mode === item}
-              onClick={() => setMode(item)}
-              className={`press flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${mode === item ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+              onClick={() => { setMode(item); setStatus(null); }}
+              disabled={busy || !!staged}
+              className={`press flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-sm font-semibold disabled:opacity-50 ${mode === item ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
             >
-              {item === "research" ? <BookOpen className="h-4 w-4" /> : <Github className="h-4 w-4" />}
-              {item === "research" ? "Research" : "Write request"}
+              {item === "research" ? <BookOpen className="h-4 w-4" /> : item === "agent" ? <Bot className="h-4 w-4" /> : <Github className="h-4 w-4" />}
+              {item === "research" ? "Research" : item === "agent" ? "Agent" : "Issue"}
             </button>
           ))}
         </div>
@@ -191,6 +219,28 @@ function ResearchLab() {
               {!busy && query && evidence.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No matching repository evidence loaded.</p>}
             </div>
           </section>
+        ) : mode === "agent" ? (
+          <section className="mt-6" aria-labelledby="agent-title">
+            <h2 id="agent-title" className="font-display text-lg font-bold">Published Research Lab agent</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Queues one input on the configured ChatGPT API channel after a five-minute, one-time confirmation. The server access token never enters the browser.</p>
+            <fieldset disabled={!agent?.available || busy || !!staged} className="mt-4 space-y-3 disabled:opacity-50">
+              <textarea value={agentInput} onChange={(e) => setAgentInput(e.target.value)} placeholder="Research objective, evidence requirements, constraints, and desired output..." aria-label="Agent input" className="input-base min-h-40 w-full resize-y" maxLength={6000} />
+              <button type="button" onClick={() => void stageAgent()} disabled={agentInput.trim().length < 2} className="press w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50">Review agent run</button>
+            </fieldset>
+            {!agent?.available && capabilities && <p className="mt-3 rounded-lg border border-border p-3 text-xs text-muted-foreground">Workspace Agent access is not configured on the server. The channel is unavailable.</p>}
+            {staged && (
+              <div role="alertdialog" aria-labelledby="agent-confirm-title" className="mt-4 border-y border-amber-500/40 py-4">
+                <h3 id="agent-confirm-title" className="font-semibold">Explicit confirmation required</h3>
+                <p className="mt-1 text-xs text-muted-foreground">Type <span className="font-mono text-foreground">{staged.confirmationPhrase}</span>. This queues one live agent run, expires at {new Date(staged.expiresAt).toLocaleTimeString()}, and can be used once.</p>
+                <input value={confirmation} onChange={(e) => setConfirmation(e.target.value)} aria-label="Agent confirmation phrase" className="input-base mt-3 w-full font-mono" autoComplete="off" />
+                <div className="mt-3 flex gap-2">
+                  <button type="button" onClick={() => setStaged(null)} className="press flex-1 rounded-lg border border-border px-4 py-2.5 text-sm font-semibold">Cancel</button>
+                  <button type="button" onClick={() => void confirmWrite()} disabled={confirmation !== staged.confirmationPhrase || busy} className="press flex-1 rounded-lg bg-destructive px-4 py-2.5 text-sm font-semibold text-destructive-foreground disabled:opacity-50">Run agent</button>
+                </div>
+              </div>
+            )}
+            {status && <a href={status.url} target="_blank" rel="noreferrer" className="mt-4 flex items-center gap-2 text-sm font-semibold text-emerald-500"><CheckCircle2 className="h-4 w-4" />{status.label}{status.runId ? ` (${status.runId})` : ""}</a>}
+          </section>
         ) : (
           <section className="mt-6" aria-labelledby="write-title">
             <h2 id="write-title" className="font-display text-lg font-bold">Research backlog issue</h2>
@@ -212,7 +262,7 @@ function ResearchLab() {
                 </div>
               </div>
             )}
-            {status && <a href={status} target="_blank" rel="noreferrer" className="mt-4 flex items-center gap-2 text-sm font-semibold text-emerald-500"><CheckCircle2 className="h-4 w-4" />Issue created</a>}
+            {status && <a href={status.url} target="_blank" rel="noreferrer" className="mt-4 flex items-center gap-2 text-sm font-semibold text-emerald-500"><CheckCircle2 className="h-4 w-4" />{status.label}</a>}
           </section>
         )}
 

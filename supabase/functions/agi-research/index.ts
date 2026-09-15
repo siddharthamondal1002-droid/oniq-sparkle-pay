@@ -4,7 +4,9 @@ import { corsHeaders, json } from "../_shared/llm.ts";
 const REPOSITORY = "siddharthamondal1002-droid/oniq-sparkle-pay";
 const DEFAULT_BRANCH = "main";
 const VERIFIED_CHECKPOINT = "4ab803407d9cc343262f32ff538863154c2bd4e1";
-const CONFIRMATION_PHRASE = "CREATE RESEARCH ISSUE";
+const ISSUE_CONFIRMATION_PHRASE = "CREATE RESEARCH ISSUE";
+const AGENT_CONFIRMATION_PHRASE = "RUN RESEARCH AGENT";
+const WORKSPACE_AGENT_CHANNEL = "agtch_6aa9492e2eec8191bbefd0c09127a457";
 const MAX_FILES = 6;
 const MAX_FILE_BYTES = 80_000;
 const TEXT_FILE = /\.(?:md|ts|tsx|js|mjs|json|toml|yml|yaml|sql)$/i;
@@ -66,6 +68,56 @@ async function requireAdmin(req: Request): Promise<AdminContext | Response> {
   const { data: isAdmin } = await db.rpc("is_admin", { _uid: userRes.user.id });
   if (isAdmin !== true) return json(403, { error: "Admins only" });
   return { db, userId: userRes.user.id };
+}
+
+function workspaceAgentConfigured(): boolean {
+  return Boolean(Deno.env.get("ONIQ_WORKSPACE_AGENT_ACCESS_TOKEN"));
+}
+
+async function triggerWorkspaceAgent(requestId: string, input: string, userId: string) {
+  const token = Deno.env.get("ONIQ_WORKSPACE_AGENT_ACCESS_TOKEN");
+  if (!token) return { ok: false as const };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const response = await fetch(
+      `https://api.chatgpt.com/v1/workspace_agents/${WORKSPACE_AGENT_CHANNEL}/trigger`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "OpenAI-Beta": "workspace_agent_runs=v1",
+          "Idempotency-Key": requestId,
+        },
+        body: JSON.stringify({
+          conversation_key: `oniq-research-${userId}`,
+          input,
+        }),
+        signal: controller.signal,
+      },
+    );
+    if (response.status !== 202) return { ok: false as const };
+    const body = await response.json().catch(() => ({}));
+    const conversationUrl =
+      typeof body?.conversation_url === "string" &&
+        body.conversation_url.startsWith("https://chatgpt.com/")
+        ? body.conversation_url
+        : null;
+    const runId =
+      typeof body?.agent_trigger_run_id === "string" &&
+        /^apirun_[A-Za-z0-9_-]+$/.test(body.agent_trigger_run_id)
+        ? body.agent_trigger_run_id
+        : null;
+    return conversationUrl
+      ? { ok: true as const, conversationUrl, runId }
+      : { ok: false as const };
+  } catch {
+    return { ok: false as const };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function repositoryState() {
@@ -141,6 +193,7 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const action = typeof body?.action === "string" ? body.action : "capabilities";
   const writerConfigured = Boolean(Deno.env.get("ONIQ_RESEARCH_GITHUB_TOKEN"));
+  const agentConfigured = workspaceAgentConfigured();
 
   if (action === "capabilities") {
     const state = await repositoryState();
@@ -150,6 +203,7 @@ Deno.serve(async (req) => {
         { id: "repository_research", label: "Repository-backed research", mode: "read", available: state.commit !== null, detail: "Bounded evidence excerpts from text files at the server-resolved default-branch commit." },
         { id: "oqca_observe", label: "OQCA production observation", mode: "read", available: true, detail: "Existing admin-only bounded observer; production tool-call budget remains zero." },
         { id: "create_research_issue", label: "Create research backlog issue", mode: "write", available: writerConfigured, detail: writerConfigured ? "One reversible GitHub issue after a short-lived, one-time confirmation." : "Disabled until a least-privilege server-only GitHub token is configured." },
+        { id: "trigger_workspace_agent", label: "Run published Research Lab agent", mode: "write", available: agentConfigured, detail: agentConfigured ? "Triggers the configured ChatGPT API channel after a short-lived, one-time confirmation." : "Disabled until a server-only Workspace Agent access token is configured." },
       ],
     });
   }
@@ -161,37 +215,72 @@ Deno.serve(async (req) => {
   }
 
   if (action === "stage_write") {
-    if (!writerConfigured) return json(503, { error: "Repository writes are not configured" });
-    if (body?.kind !== "issue") return json(400, { error: "Only research issues are supported" });
-    const title = typeof body?.title === "string" ? body.title.trim() : "";
-    const issueBody = typeof body?.body === "string" ? body.body.trim() : "";
-    if (title.length < 8 || title.length > 160 || issueBody.length < 20 || issueBody.length > 6000) return json(400, { error: "Invalid issue title or body" });
+    const kind = body?.kind;
+    let payload: Record<string, string>;
+    let confirmationPhrase: string;
+
+    if (kind === "issue") {
+      if (!writerConfigured) return json(503, { error: "Repository writes are not configured" });
+      const title = typeof body?.title === "string" ? body.title.trim() : "";
+      const issueBody = typeof body?.body === "string" ? body.body.trim() : "";
+      if (title.length < 8 || title.length > 160 || issueBody.length < 20 || issueBody.length > 6000) return json(400, { error: "Invalid issue title or body" });
+      payload = { title, body: issueBody };
+      confirmationPhrase = ISSUE_CONFIRMATION_PHRASE;
+    } else if (kind === "agent_trigger") {
+      if (!agentConfigured) return json(503, { error: "Workspace Agent access is not configured" });
+      const input = typeof body?.input === "string" ? body.input.trim() : "";
+      if (input.length < 2 || input.length > 6000) return json(400, { error: "Agent input must be 2-6000 characters" });
+      payload = { input };
+      confirmationPhrase = AGENT_CONFIRMATION_PHRASE;
+    } else {
+      return json(400, { error: "Unsupported Research Lab execution kind" });
+    }
+
     const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
     const { data, error } = await auth.db
       .from("agi_research_write_requests")
-      .insert({ created_by: auth.userId, repository: REPOSITORY, kind: "issue", payload: { title, body: issueBody }, expires_at: expiresAt })
+      .insert({ created_by: auth.userId, repository: REPOSITORY, kind, payload, expires_at: expiresAt })
       .select("id")
       .single();
-    if (error || !data) return json(503, { error: "Write confirmation store is unavailable" });
-    return json(200, { requestId: data.id, confirmationPhrase: CONFIRMATION_PHRASE, expiresAt });
+    if (error || !data) return json(503, { error: "Execution confirmation store is unavailable" });
+    return json(200, { requestId: data.id, confirmationPhrase, expiresAt });
   }
 
   if (action === "confirm_write") {
-    if (!writerConfigured) return json(503, { error: "Repository writes are not configured" });
     const requestId = typeof body?.requestId === "string" ? body.requestId : "";
-    if (!UUID.test(requestId) || body?.confirmation !== CONFIRMATION_PHRASE) return json(400, { error: "Confirmation did not match" });
+    const kind =
+      body?.confirmation === ISSUE_CONFIRMATION_PHRASE
+        ? "issue"
+        : body?.confirmation === AGENT_CONFIRMATION_PHRASE
+          ? "agent_trigger"
+          : null;
+    if (!UUID.test(requestId) || !kind) return json(400, { error: "Confirmation did not match" });
+    if (kind === "issue" && !writerConfigured) return json(503, { error: "Repository writes are not configured" });
+    if (kind === "agent_trigger" && !agentConfigured) return json(503, { error: "Workspace Agent access is not configured" });
+
     const { data: request, error } = await auth.db
       .from("agi_research_write_requests")
       .update({ status: "executing", confirmed_at: new Date().toISOString() })
       .eq("id", requestId)
       .eq("created_by", auth.userId)
+      .eq("kind", kind)
       .eq("status", "pending")
       .gt("expires_at", new Date().toISOString())
-      .select("payload")
+      .select("kind, payload")
       .maybeSingle();
-    if (error || !request) return json(409, { error: "Write request is expired, already used, or unavailable" });
+    if (error || !request) return json(409, { error: "Execution request is expired, already used, or unavailable" });
 
-    const payload = request.payload as { title?: string; body?: string };
+    const payload = request.payload as { title?: string; body?: string; input?: string };
+    if (request.kind === "agent_trigger") {
+      const result = await triggerWorkspaceAgent(requestId, payload.input ?? "", auth.userId);
+      if (!result.ok) {
+        await auth.db.from("agi_research_write_requests").update({ status: "failed", completed_at: new Date().toISOString() }).eq("id", requestId).eq("status", "executing");
+        return json(502, { error: "ChatGPT rejected or could not confirm the agent trigger; it will not be retried automatically" });
+      }
+      await auth.db.from("agi_research_write_requests").update({ status: "completed", completed_at: new Date().toISOString(), result_url: result.conversationUrl }).eq("id", requestId).eq("status", "executing");
+      return json(200, { conversationUrl: result.conversationUrl, agentTriggerRunId: result.runId });
+    }
+
     const response = await github("/issues", {
       method: "POST",
       body: JSON.stringify({
