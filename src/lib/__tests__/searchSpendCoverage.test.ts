@@ -127,6 +127,19 @@ const GUARDED_DIRECT_LEDGER = [
   "voice-generate",
 ];
 
+/**
+ * MIXED LADDERS — a caller whose legs are priced differently from each other.
+ *
+ * `ting` reserves its OpenAI leg directly against the ledger, because no
+ * published per-token rate for that provider could be verified from here and
+ * MODEL_RATES holds prices, not guesses. Its Gemini and Anthropic legs keep
+ * the per-token search adapter that has always priced them. Listing it here
+ * rather than with the four above is deliberate: the "never uses web_search"
+ * exemption belongs to callers that bypass the adapter ENTIRELY, and ting does
+ * not.
+ */
+const GUARDED_HYBRID = ["ting"];
+
 describe("every SEARCH in the repository is reserved for", () => {
   const fns = edgeFunctions();
 
