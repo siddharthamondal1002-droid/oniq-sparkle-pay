@@ -213,7 +213,7 @@ describe("every AI CALL in the repository is either reserved for or listed", () 
 
   it("the direct-ledger set is exactly what it claims to be", () => {
     const direct = fns.filter((f) => /withProviderSpendGuard\(/.test(f.src)).map((f) => f.name);
-    expect(direct.sort()).toEqual([...GUARDED_DIRECT_LEDGER].sort());
+    expect(direct.sort()).toEqual([...GUARDED_DIRECT_LEDGER, ...GUARDED_HYBRID].sort());
   });
   it("a direct-ledger caller never uses the metered web_search tool", () => {
     // The whole point of bypassing the search adapter is that these units
@@ -226,6 +226,24 @@ describe("every AI CALL in the repository is either reserved for or listed", () 
       );
     }
   });
+  it("a hybrid caller holds BOTH guards, one per provider leg", () => {
+    // ting is the only caller with a mixed ladder: its OpenAI leg reserves a
+    // bounded figure directly (no published per-token rate exists for that
+    // provider — see _shared/tingProviders.ts), while its Gemini and Anthropic
+    // legs stay on the per-token search adapter that has always priced them.
+    // The exemption above must NOT extend to it: the leg that runs web_search
+    // is the adapter-guarded one, which is exactly what this pins.
+    for (const name of GUARDED_HYBRID) {
+      const src = read(join(FN_DIR, name, "index.ts"));
+      expect(src, `${name} must keep the search adapter for its metered legs`).toMatch(
+        /withSearchSpendGuard\(/,
+      );
+      expect(src, `${name} must reserve its unpriced leg directly`).toMatch(
+        /withProviderSpendGuard\(/,
+      );
+    }
+  });
+
 });
 
 describe("no direct provider invocation from UI code", () => {
