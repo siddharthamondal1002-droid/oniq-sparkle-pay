@@ -33,10 +33,12 @@ describe("ONIQ AGI Research Lab", () => {
     expect(source).toMatch(/setTimeout\(\(\) => controller\.abort\(\), 12_000\)/);
   });
 
-  it("permits only issues and requires a one-time unexpired confirmation", () => {
+  it("permits only bounded issue and agent actions with exact confirmation", () => {
     const source = edge();
-    expect(source).toMatch(/body\?\.kind !== "issue"/);
-    expect(source).toMatch(/body\?\.confirmation !== CONFIRMATION_PHRASE/);
+    expect(source).toMatch(/kind === "issue"/);
+    expect(source).toMatch(/kind === "agent_trigger"/);
+    expect(source).toMatch(/body\?\.confirmation === ISSUE_CONFIRMATION_PHRASE/);
+    expect(source).toMatch(/body\?\.confirmation === AGENT_CONFIRMATION_PHRASE/);
     expect(source).toMatch(/\.eq\("status", "pending"\)/);
     expect(source).toMatch(/\.gt\("expires_at"/);
     expect(source).not.toMatch(/\/git\/refs|\/contents|\/deployments/);
