@@ -177,10 +177,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    const plainTurns = messages.map((m: { role: "user" | "assistant"; content: string }) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    const plainTurns: TingTurn[] = messages.map(
+      (m: { role: "user" | "assistant"; content: string }) => ({
+        role: m.role,
+        content: m.content,
+      }),
+    );
+
 
     // Anthropic-shaped messages, used by the Claude leg and by the Gemini
     // bridge (geminiPartsFor inlines base64 images and PDFs from these blocks).
