@@ -41,6 +41,7 @@ import {
   tingOpenAiModel,
   type TingAnswer,
   type TingAttachment,
+  type TingTurn,
 } from "../_shared/tingProviders.ts";
 
 // --- spend shape of ONE Ting turn -------------------------------------------
