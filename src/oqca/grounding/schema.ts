@@ -1,3 +1,5 @@
+import { parseManifest, type BenchmarkManifest } from "../bench/manifest.ts";
+
 export const GROUNDING_SCHEMA_VERSION = "1.0";
 
 export type GroundingClaim = {
@@ -44,6 +46,20 @@ export type GroundingSuite = {
 };
 
 export type SealedGroundingFixture = {
+  readonly id: BenchmarkManifest["id"];
+  readonly version: BenchmarkManifest["version"];
+  readonly family: BenchmarkManifest["family"];
+  readonly hypothesis: BenchmarkManifest["hypothesis"];
+  readonly null_hypothesis: BenchmarkManifest["nullHypothesis"];
+  readonly baselines: BenchmarkManifest["baselines"];
+  readonly treatment: BenchmarkManifest["treatment"];
+  readonly controls: BenchmarkManifest["controls"];
+  readonly seeds: BenchmarkManifest["seeds"];
+  readonly metrics: BenchmarkManifest["metrics"];
+  readonly generator: BenchmarkManifest["generator"];
+  readonly parameters: BenchmarkManifest["parameters"];
+  readonly information_note: BenchmarkManifest["informationNote"];
+  readonly expected_behaviour: BenchmarkManifest["expectedBehaviour"];
   readonly suite: GroundingSuite;
   readonly arms: {
     readonly treatment: Readonly<Record<string, GroundingResponse>>;
@@ -147,7 +163,30 @@ export function parseThresholds(value: unknown): GroundingThresholds {
 
 export function parseSealedFixture(value: unknown): SealedGroundingFixture {
   const root = record(value, "fixture");
-  exactKeys(root, ["suite", "arms", "seal"], "fixture");
+  exactKeys(
+    root,
+    [
+      "id",
+      "version",
+      "family",
+      "hypothesis",
+      "null_hypothesis",
+      "baselines",
+      "treatment",
+      "controls",
+      "seeds",
+      "metrics",
+      "generator",
+      "parameters",
+      "information_note",
+      "expected_behaviour",
+      "suite",
+      "arms",
+      "seal",
+    ],
+    "fixture",
+  );
+  const manifest = parseManifest(root);
   const rawSuite = record(root.suite, "suite");
   exactKeys(
     rawSuite,
@@ -248,6 +287,20 @@ export function parseSealedFixture(value: unknown): SealedGroundingFixture {
     throw new GroundingSchemaError("seal.digest must be 64 lowercase hex characters");
 
   return {
+    id: manifest.id,
+    version: manifest.version,
+    family: manifest.family,
+    hypothesis: manifest.hypothesis,
+    null_hypothesis: manifest.nullHypothesis,
+    baselines: manifest.baselines,
+    treatment: manifest.treatment,
+    controls: manifest.controls,
+    seeds: manifest.seeds,
+    metrics: manifest.metrics,
+    generator: manifest.generator,
+    parameters: manifest.parameters,
+    information_note: manifest.informationNote,
+    expected_behaviour: manifest.expectedBehaviour,
     suite: {
       schema_version: schemaVersion,
       suite_id: stringValue(rawSuite.suite_id, "suite.suite_id"),

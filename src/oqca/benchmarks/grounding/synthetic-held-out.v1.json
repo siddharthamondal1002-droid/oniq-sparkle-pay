@@ -1,4 +1,27 @@
 {
+  "id": "grounding/synthetic-held-out-v1",
+  "version": "1.1",
+  "family": "grounding",
+  "hypothesis": "The compatibility trial remains at chance; grounding quality is measured only by the separately sealed suite.",
+  "null_hypothesis": "The compatibility trial rises above chance, indicating that its synthetic inputs leak the expected answer.",
+  "baselines": ["bayes_uninformed", "vector_context"],
+  "treatment": "oqca_phase",
+  "controls": [],
+  "seeds": [
+    1000, 1007, 1014, 1021, 1028, 1035, 1042, 1049, 1056, 1063,
+    1070, 1077, 1084, 1091, 1098, 1105, 1112, 1119, 1126, 1133
+  ],
+  "metrics": ["accuracy"],
+  "generator": "tie_no_fact",
+  "parameters": {
+    "hypotheses": 3,
+    "steps": 2,
+    "theta": 0.7328151017865066,
+    "tiedLikelihood": 0.5,
+    "otherLikelihood": 0.2
+  },
+  "information_note": "The legacy OQCA runner receives only tied synthetic likelihoods and no contextual fact. The sealed grounding suite and recorded arms below are consumed only by the dedicated grounding harness.",
+  "expected_behaviour": "The compatibility trial stays near chance; the dedicated grounding harness separately enforces its sealed thresholds.",
   "suite": {
     "schema_version": "1.0",
     "suite_id": "synthetic-held-out-v1",
@@ -129,3 +152,4 @@
   },
   "seal": { "algorithm": "sha256", "digest": "9d14220a39fef93929a3e420fce9988f260c7d8b71fed25efaa9d344e058468d" }
 }
+
