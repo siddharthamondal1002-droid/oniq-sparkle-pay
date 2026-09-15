@@ -155,8 +155,23 @@ describe("every searching function is on Haiku and reserves per hop", () => {
   });
 
   it("every function keeps the $0.50 ceiling in its budget", () => {
+    // The ceiling may be written inline or held in a named constant — ting
+    // gained TING_MAX_TURN_USD when its OpenAI leg needed to compare its own
+    // worst case against the same figure. What must not change is the VALUE,
+    // so a named one is resolved to its declaration rather than accepted on
+    // the strength of having a reassuring name.
     for (const p of SEARCH_FNS) {
-      expect(read(p), p).toMatch(/maxEstimatedUsd:\s*0\.5\b/);
+      const src = read(p);
+      const field = src.match(/maxEstimatedUsd:\s*([A-Za-z0-9_.]+)/);
+      expect(field, `${p} must set a ceiling`).toBeTruthy();
+      const value = field![1];
+      if (/^[\d.]+$/.test(value)) {
+        expect(Number(value), p).toBe(0.5);
+        continue;
+      }
+      const decl = src.match(new RegExp(`const ${value}\\s*=\\s*([\\d.]+)`));
+      expect(decl, `${p} names ${value} but never declares it`).toBeTruthy();
+      expect(Number(decl![1]), `${p} via ${value}`).toBe(0.5);
     }
   });
 
