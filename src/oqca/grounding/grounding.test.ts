@@ -36,8 +36,15 @@ describe("held-out grounding benchmark", () => {
 
   it("keeps citation presence separate from claim support", () => {
     const parsed = fixture();
-    const response = structuredClone(parsed.arms.baseline);
-    (response.unanswerable.claims[0] as { citations: string[] }).citations = ["atlas-note"];
+    const response = {
+      ...parsed.arms.baseline,
+      unanswerable: {
+        ...parsed.arms.baseline.unanswerable,
+        claims: parsed.arms.baseline.unanswerable.claims.map((claim, index) =>
+          index === 0 ? { ...claim, citations: ["atlas-note"] } : claim,
+        ),
+      },
+    };
     const changed = { ...parsed, arms: { ...parsed.arms, baseline: response } };
     const metrics = runGroundingBenchmark(changed).baseline;
 
@@ -93,10 +100,22 @@ describe("held-out grounding benchmark", () => {
   });
 
   it("revalidates typed fixtures at the run boundary", () => {
-    const parsed = structuredClone(fixture());
-    (parsed.arms.treatment["answerable-single"] as { claims: unknown[] }).claims = [];
+    const parsed = fixture();
+    const changed = {
+      ...parsed,
+      arms: {
+        ...parsed.arms,
+        treatment: {
+          ...parsed.arms.treatment,
+          ["answerable-single"]: {
+            ...parsed.arms.treatment["answerable-single"],
+            claims: [],
+          },
+        },
+      },
+    };
 
-    expect(() => runGroundingBenchmark(parsed)).toThrow(/must contain a claim/);
+    expect(() => runGroundingBenchmark(changed)).toThrow(/must contain a claim/);
   });
 
   it("rejects duplicate emitted claim ids", () => {
