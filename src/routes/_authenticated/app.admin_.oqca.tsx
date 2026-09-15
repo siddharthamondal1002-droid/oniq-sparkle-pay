@@ -159,7 +159,7 @@ function ResearchLab() {
               type="button"
               role="tab"
               aria-selected={mode === item}
-              onClick={() => setMode(item)}
+              onClick={() => { setMode(item); setStatus(null); }}
               disabled={busy || !!staged}
               className={`press flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-sm font-semibold disabled:opacity-50 ${mode === item ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
             >
