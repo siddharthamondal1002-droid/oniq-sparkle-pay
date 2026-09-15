@@ -10,7 +10,7 @@ local clone or paid execution.
 tree enumeration, targeted source/migration/doc inspection, PR/workflow lookup,
 and independent challenge review.
 
-**Result:** 2,896 tree entries and 2,583 blobs inventoried; reusable AI, safety,
+**Result:** 2,900 tree entries and 2,587 blobs inventoried; reusable AI, safety,
 cost, memory, retrieval, multimodal, and OQCA components identified. Multiple
 material integrity gaps were reproduced from source. No sealed live-system
 capability evidence was found.

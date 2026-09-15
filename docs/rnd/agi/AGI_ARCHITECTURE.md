@@ -3,14 +3,14 @@
 **Status:** Proposed from baseline evidence. This is not a production or AGI
 claim.  
 **Pinned repository:** `main` at
-`b97f6b73a06c33a242b9122d94a73fdc82858d1a`
+`042dc46c0e94c97214377fd691df523b22e10519`
 
 ## Evidence-Backed Reuse Map
 
 | Layer | Observed reusable component | Evidence | Current limit |
 |---|---|---|---|
 | Model inventory | 15 typed `ModelEntry` records across text, image, video, speech, and retrieval-related paths | `supabase/functions/_shared/modelRegistry.ts::MODEL_REGISTRY` | `selectByCapability()` is found only in the registry and tests, not a production caller |
-| Text and tools | Direct Google, Anthropic tool-use, and gateway paths | `modelRegistry.ts`; `supabase/functions/ting/index.ts`; `smart-scout/index.ts` | Provider quality/latency ranking is not operationally measured |
+| Text and tools | Ting's OpenAI/Gemini/Claude ladder plus direct Google, Anthropic tool-use, and gateway paths | `modelRegistry.ts`; `supabase/functions/ting/index.ts`; `_shared/tingProviders.ts`; `smart-scout/index.ts` | Ting's OpenAI model sits outside the central registry; provider quality/latency ranking is not operationally measured |
 | Retrieval | Retrieval-first evidence-package and validation helpers with exact URL checks, price/source checks, and a six-call bound | `supabase/functions/_shared/webRetrieval.ts` | No production call site was found; its reservation helper is not observed as integrated |
 | Grounding UX | Ting and Smart Scout return sources; image/PDF inputs are accepted | `ting/index.ts`; `smart-scout/index.ts` | No sealed live grounding or raw-multimodal score |
 | Personalization memory | Six-key consent-aware user preference store with confirm/delete operations and RLS policies | `src/lib/memory.ts`; migrations `20260802111835...sql`, `20260803130657...sql` | Not working, episodic, or semantic agent memory; write failures are swallowed |

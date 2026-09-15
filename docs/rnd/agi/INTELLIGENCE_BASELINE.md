@@ -1,8 +1,9 @@
 # ONIQ Intelligence Baseline v0.1
 
-**As of:** 2026-09-15 23:07 IST  
+**Started:** 2026-09-15 23:07 IST  
+**Final repository refresh:** 2026-09-15 23:37 IST  
 **Pinned revision:** `main` at
-`b97f6b73a06c33a242b9122d94a73fdc82858d1a`  
+`042dc46c0e94c97214377fd691df523b22e10519`  
 **Measured stage:** **UNDETERMINED**  
 **Decision:** `MODIFY`
 
@@ -22,18 +23,19 @@ production action, deployment, or external agent was invoked.
 
 | Measure | Result | Counting method |
 |---|---:|---|
-| Tree entries | 2,896 | Git Trees API, recursive, all returned entries |
-| Blobs | 2,583 | entries where `type == blob` |
-| TypeScript tests | 418 | paths matching `.(test\|spec).(ts\|tsx)` |
+| Tree entries | 2,900 | Git Trees API, recursive, all returned entries |
+| Blobs | 2,587 | entries where `type == blob` |
+| TypeScript tests | 420 | paths matching `.(test\|spec).(ts\|tsx)` |
 | Workflow files | 13 | `.github/workflows/*.yml` or `*.yaml` |
 | SQL migrations | 373 | `supabase/migrations/*.sql` |
 | Function top-level directories | 68 | distinct `supabase/functions/<name>` paths; includes `_shared`, so not a deployable-function count |
 | Typed model entries | 15 | exported `ModelEntry` constants in `modelRegistry.ts` |
 
-The pinned merge commit has no attached PR-triggered workflow run. Its merged
-PR head `03b288155d8b94d2fab1b1925009b3ef7a862d4a` has verified successful `lint`
-workflow run 1966. The PR records 418/418 test files and 7,334/7,334 tests
-passing, but formatting reported no merge base and is not independently claimed.
+The pinned commit has no attached PR-triggered workflow run. Its parent
+`b97f6b7` came from PR #172; that PR head has verified successful `lint` run
+1966 with 418/418 files and 7,334/7,334 tests passing. The pinned commit then
+adds two Ting test files and a provider-ladder change, so run 1966 is historical
+context and does not validate the final 420-test-file tree.
 
 ## Capability Inventory
 

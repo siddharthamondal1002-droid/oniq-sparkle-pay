@@ -57,7 +57,7 @@ authority.
 
 ## Current Position
 
-At repository commit `b97f6b73a06c33a242b9122d94a73fdc82858d1a`,
+At repository commit `042dc46c0e94c97214377fd691df523b22e10519`,
 the strict measured stage is **UNDETERMINED**. AGI-0 implementation paths are
 present, but no live answer-generation behavior was run in this sprint. Code
 supports a plausible AGI-1 architecture hypothesis, but no sealed live-system
