@@ -249,9 +249,13 @@ export async function readBoundedStream(
   }
 }
 
+/** The deadline's own rejection value, so it cannot be mistaken for a reset. */
+const DEADLINE = Symbol("read-deadline");
+
 function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("deadline")), Math.max(1, ms));
+    const timer = setTimeout(() => reject(DEADLINE), Math.max(1, ms));
+
     promise.then(
       (v) => {
         clearTimeout(timer);
