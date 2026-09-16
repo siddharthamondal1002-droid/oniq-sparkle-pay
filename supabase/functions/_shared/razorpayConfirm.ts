@@ -627,7 +627,7 @@ export async function callGrantRpc(
   const raw = await res.text().catch(() => null);
   if (raw === null) return { error: { code: "grant-read-failed", retryable: true } };
 
-  if (false) {
+  if (shape === "void") {
     // Void contract: 2xx with an empty body or a literal null is success.
     const trimmed = raw.trim();
     if (trimmed === "" || trimmed === "null") return { result: {} };
