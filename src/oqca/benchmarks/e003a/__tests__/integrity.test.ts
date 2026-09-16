@@ -98,10 +98,11 @@ describe("E-003A sealed artifact chain", () => {
         trusted,
       ),
     ).toThrow(/repository_sha/);
-    if (output.binding.role !== "output") throw new Error("fixture role");
+    const outputBinding = output.binding;
+    if (outputBinding.role !== "output") throw new Error("fixture role");
     expect(() =>
       verifyArtifact(
-        { ...output, binding: { ...output.binding, output_bundle_sha256: "short" } },
+        { ...output, binding: { ...outputBinding, output_bundle_sha256: "short" } },
         trusted,
       ),
     ).toThrow(/output_bundle_sha256/);
