@@ -566,7 +566,7 @@ export function evidenceMatches(
     return refuse("not-captured", payment.status === "authorized" || payment.status === "created");
   }
   if (payment.amountRefunded > 0) return refuse("refunded");
-  if (payment.refundStatus !== null && payment.refundStatus !== "null") return refuse("refunded");
+  if (payment.refundStatus !== null) return refuse("refunded");
   // A row that already names a DIFFERENT payment is a second payment against
   // one purchase. Refusing keeps the first settlement authoritative.
   if (binding.storedPaymentId && binding.storedPaymentId !== expectedPaymentId) {
