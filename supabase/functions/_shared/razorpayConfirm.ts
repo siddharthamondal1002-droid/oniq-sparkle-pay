@@ -188,9 +188,23 @@ export async function readBoundedStream(
   maxBytes: number,
   stallMs: number = STREAM_STALL_MS,
 ): Promise<BoundedRead> {
+  // CANCELLATION IS INITIATED, NEVER AWAITED. `cancel()` resolves only when the
+  // underlying source acknowledges, and a source that never does would hold the
+  // refusal open for exactly as long as the body we are refusing to read — the
+  // bound would be decorative. The rejection is still handled, so the discarded
+  // promise cannot surface as an unhandled rejection.
+  const abandon = (s: { cancel(): Promise<void> } | null | undefined) => {
+    try {
+      void s?.cancel().catch(() => {});
+    } catch {
+      /* a source that throws synchronously is already gone */
+    }
+  };
+
   const declared = Number(declaredLength ?? "");
   if (declaredLength !== null && Number.isFinite(declared) && declared > maxBytes) {
-    await body?.cancel().catch(() => {});
+    abandon(body);
+
     return { error: { code: "body-too-large", retryable: false } };
   }
   if (!body) return { text: "" };
