@@ -1,0 +1,43 @@
++ echo $'=== razorpay confirmation \342\200\224 raw command output ==='
+=== razorpay confirmation — raw command output ===
+++ date -u +%FT%TZ
++ echo 'date: 2026-09-16T20:18:40Z'
+date: 2026-09-16T20:18:40Z
+++ git rev-parse HEAD
++ echo 'commit: 1f0959ba0d7d106a002029367b4dfe710c84484d'
+commit: 1f0959ba0d7d106a002029367b4dfe710c84484d
++ echo
+
++ echo '### 1. focused runtime tests'
+### 1. focused runtime tests
++ npx vitest run src/lib/__tests__/razorpayConfirmRuntime.test.ts
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/dev-server[39m
+
+ [32m✓[39m src/lib/__tests__/razorpayConfirmRuntime.test.ts [2m([22m[2m124 tests[22m[2m)[22m[33m 497[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m124 passed[39m[22m[90m (124)[39m
+[2m   Start at [22m 20:18:41
+[2m   Duration [22m 876ms[2m (transform 163ms, setup 0ms, import 127ms, tests 497ms, environment 0ms)[22m
+
++ echo
+
++ echo '### 2. related regressions'
+### 2. related regressions
++ npx vitest run src/lib/__tests__/classicWithdrawn.test.ts src/lib/__tests__/phase0Gate.test.ts src/lib/__tests__/storyStageGates.test.ts src/lib/creator/__tests__/payoutConcurrency.test.ts src/lib/__tests__/edgeImports.test.ts
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/dev-server[39m
+
+ [32m✓[39m src/lib/__tests__/classicWithdrawn.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/storyStageGates.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/creator/__tests__/payoutConcurrency.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/phase0Gate.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 257[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/edgeImports.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1525[2mms[22m[39m
+     [33m[2m✓[22m[39m imports every _shared name it uses [33m 1514[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m5 passed[39m[22m[90m (5)[39m
+[2m      Tests [22m [1m[32m71 passed[39m[22m[90m (71)[39m
+[2m   Start at [22m 20:18:43
+[2m   Duration [22m 2.07s[2m (transform 388ms, setup 0ms, import 672ms, tests 1.82s, environment 1ms)[22m
+
