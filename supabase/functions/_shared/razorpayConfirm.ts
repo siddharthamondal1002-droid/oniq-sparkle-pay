@@ -218,7 +218,8 @@ export async function readBoundedStream(
       try {
         step = await withDeadline(reader.read(), stallMs);
       } catch (e) {
-        await reader.cancel().catch(() => {});
+        abandon(reader);
+
         // A STALL AND A RESET ARE DIFFERENT FAULTS and must not collapse into
         // one label: the deadline rejects with its own sentinel, so a stream
         // that errors mid-read is reported as a read failure rather than as a
