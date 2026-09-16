@@ -858,6 +858,50 @@ describe("v1.7 §19/§20 — self-evaluation answers from evidence, or not at al
     expect(perf?.evidence).toEqual([]);
   });
 
+  it("blocked and inconclusive experiments cannot claim no regression", () => {
+    const d = design({
+      objectiveId: "o",
+      kind: "improvement",
+      hypothesis: "the candidate reduces open gaps",
+      baselineArm: "before",
+      candidateArm: "after",
+      variables: ["candidate"],
+      controls: ["environment"],
+      metric: "open_gaps",
+      direction: "lower_is_better",
+      criterion: { minDelta: 1, minSamples: 2 },
+      seed: 0,
+      configuration: {},
+    });
+    const complete = (value: number) =>
+      measurement("open_gaps", value, {
+        unit: "concepts",
+        samples: 2,
+        direction: "lower_is_better",
+      });
+    const experiments = [
+      experimentBlocked(d, "capability refused", "t"),
+      compare(d, unmeasured("open_gaps", "lower_is_better", "missing"), complete(1), "t"),
+    ];
+    for (const experiment of experiments) {
+      const e = selfEvaluate({ ...base, status: "blocked", experiment });
+      const regression = e.questions.find((q) => q.question.includes("regression"));
+      expect(regression?.answer).toBe("unestablished");
+      expect(regression?.evidence).toEqual([]);
+    }
+
+    const measured = selfEvaluate({
+      ...base,
+      status: "success",
+      experiment: compare(d, complete(1), complete(1), "t"),
+    });
+    const regression = measured.questions.find((q) => q.question.includes("regression"));
+    expect(regression?.answer).toBe("no");
+    expect(regression?.evidence).toEqual([
+      "experiment verdict NO_DIFFERENCE; no regression recorded",
+    ]);
+  });
+
   it("confirming what was already held is settled and is NOT learning", () => {
     const e = selfEvaluate({ ...base, status: "success", settled: ["a", "b"] });
     expect(e.questions.find((q) => q.question.includes("learn"))?.answer).toBe("no");
