@@ -155,9 +155,12 @@ made-up string in the test file.
   from our own row on both the credit and the failure path, the void failure
   contract, duplicate deliveries, a single binding resolution, and the streaming
   limits (oversized chunked body with no `content-length` and its cancellation,
-  declared-length refusal without reading, stalled reads, mid-read resets, BOM
-  preservation, malformed-byte refusal, multi-byte characters split across
-  chunks).
+  declared-length refusal without reading, a `cancel()` that never settles on
+  both refusal paths, stalled reads, mid-read resets, BOM preservation,
+  malformed-byte refusal, multi-byte characters split across chunks), plus a
+  missing/wrong/non-string `entity` and a missing or string-`"null"`
+  `refund_status`.
+
 - A test that reaches an RPC and asserts no SUCCESS is asserting exactly that. A
   semantic refusal is only observable by calling the RPC, so those cases do not
   claim "no RPC call".
