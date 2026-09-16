@@ -124,7 +124,20 @@ export async function runKernel(cfg: KernelConfig): Promise<KernelReport> {
    */
   const offered: readonly OfferedTool[] = cfg.registry.specs
     .filter((s) => s.authorized)
-    .map((s) => ({ name: s.name, description: s.description, schema: s.schema }));
+    .map((s) => ({
+      name: s.name,
+      description: s.description,
+      schema: s.schema,
+      version: "oqca-tool-spec-v1",
+      scopes: [
+        `mode:${cfg.mode}`,
+        `effect:${s.sideEffect}`,
+        `authorized:${s.authorized}`,
+        `reversible:${s.reversible}`,
+        `risk:${s.risk}`,
+        `cost-usd:${s.costUsd}`,
+      ],
+    }));
 
   for (let i = 0; i < maxIterations; i += 1) {
     state = { ...state, iteration: state.iteration + 1 };
