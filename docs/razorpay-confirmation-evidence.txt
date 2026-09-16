@@ -41,3 +41,46 @@ commit: 1f0959ba0d7d106a002029367b4dfe710c84484d
 [2m   Start at [22m 20:18:43
 [2m   Duration [22m 2.07s[2m (transform 388ms, setup 0ms, import 672ms, tests 1.82s, environment 1ms)[22m
 
+
+### 3. controlled mutation M1 — the captured guard removed (expect RED)
+mutation: razorpayConfirm.ts:557  `if (payment.status !== "captured" || payment.captured !== true) {` -> `if (false) {`
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m src/lib/__tests__/razorpayConfirmRuntime.test.ts:[2m310:28[22m[39m
+    [90m308|[39m     scenario[33m.[39mpayment [33m=[39m [34mcapturedPayment[39m(over)[33m;[39m
+    [90m309|[39m     [35mconst[39m res [33m=[39m [35mawait[39m [34mcallVerify[39m([35mawait[39m [34msignedVerifyBody[39m())[33m;[39m
+    [90m310|[39m     [34mexpect[39m([34msucceeded[39m(res))[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   |[39m                            [31m^[39m
+    [90m311|[39m     [34mexpect[39m([34mgrants[39m())[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m312|[39m   })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lib/__tests__/razorpayConfirmRuntime.test.ts[2m > [22mrazorpay-webhook — the provider path[2m > [22mdoes not acknowledge a handled event it could not process: not captured yet
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m src/lib/__tests__/razorpayConfirmRuntime.test.ts:[2m598:28[22m[39m
+    [90m596|[39m     [34marrange[39m()[33m;[39m
+    [90m597|[39m     [35mconst[39m res [33m=[39m [35mawait[39m [34mcallWebhook[39m([34mcapturedEvent[39m())[33m;[39m
+    [90m598|[39m     [34mexpect[39m([34msucceeded[39m(res))[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   |[39m                            [31m^[39m
+    [90m599|[39m     [34mexpect[39m(res[33m.[39mstatus)[33m.[39m[34mtoBeGreaterThanOrEqual[39m([34m500[39m)[33m;[39m
+    [90m600|[39m   })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m4 failed[39m[22m[2m | [22m[1m[32m120 passed[39m[22m[90m (124)[39m
+[2m   Start at [22m 20:19:20
+[2m   Duration [22m 760ms[2m (transform 138ms, setup 0ms, import 109ms, tests 430ms, environment 0ms)[22m
+
