@@ -1,9 +1,8 @@
 import { createHash, verify } from "node:crypto";
 
-export type ArtifactBinding = {
+type CommonBinding = {
   readonly schema_version: "1.0";
   readonly artifact_id: string;
-  readonly role: "runner" | "evaluator" | "output";
   readonly repository_sha: string;
   readonly environment_sha256: string;
   readonly dependency_lock_sha256: string;
@@ -13,8 +12,16 @@ export type ArtifactBinding = {
   readonly task_manifest_sha256: string;
   readonly thresholds_sha256: string;
   readonly evaluator_sha256: string;
-  readonly output_bundle_sha256: string;
 };
+
+export type ArtifactBinding =
+  | (CommonBinding & { readonly role: "runner" | "evaluator" })
+  | (CommonBinding & {
+      readonly role: "output";
+      readonly runner_manifest_sha256: string;
+      readonly evaluator_manifest_sha256: string;
+      readonly output_bundle_sha256: string;
+    });
 
 export type SignedArtifact = {
   readonly binding: ArtifactBinding;
@@ -113,7 +120,6 @@ export function verifyExperimentChain(
     "task_manifest_sha256",
     "thresholds_sha256",
     "evaluator_sha256",
-    "output_bundle_sha256",
   ] as const;
   for (const key of shared) {
     if (
@@ -122,5 +128,11 @@ export function verifyExperimentChain(
     ) {
       throw new Error(`artifact chain mismatch at ${key}`);
     }
+  }
+  if (
+    output.binding.runner_manifest_sha256 !== bindingDigest(runner.binding) ||
+    output.binding.evaluator_manifest_sha256 !== bindingDigest(evaluator.binding)
+  ) {
+    throw new Error("output does not bind the signed runner and evaluator manifests");
   }
 }
