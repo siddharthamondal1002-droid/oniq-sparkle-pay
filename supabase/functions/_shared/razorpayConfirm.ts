@@ -482,6 +482,9 @@ export function parsePaymentEntity(
   body: Record<string, unknown>,
 ): { payment: RazorpayPayment } | { error: ConfirmFailure } {
   const bad = (code: string, retryable = true) => ({ error: { code, retryable } });
+  // The envelope is part of the evidence: a body that is not a payment entity
+  // is not a payment, however many payment-shaped fields it happens to carry.
+  if (body.entity !== "payment") return bad("provider-bad-entity");
   if (!isProviderId(body.id, "pay")) return bad("provider-bad-shape");
   if (!isProviderId(body.order_id, "order")) return bad("provider-bad-shape");
   const amount = body.amount;
@@ -505,15 +508,19 @@ export function parsePaymentEntity(
   ) {
     return bad("provider-bad-refund-amount");
   }
+  // REQUIRED, like every other field here. An ABSENT refund_status is not
+  // evidence of no refund — it is evidence that the refund state was not read,
+  // and defaulting it to null was the one remaining invented value.
   const refundStatusRaw = body.refund_status;
-  let refundStatus: "null" | "partial" | "full" | null;
-  if (refundStatusRaw === null || refundStatusRaw === undefined) {
+  let refundStatus: "partial" | "full" | null;
+  if (refundStatusRaw === null) {
     refundStatus = null;
   } else if (typeof refundStatusRaw === "string" && REFUND_STATUSES.has(refundStatusRaw)) {
-    refundStatus = refundStatusRaw as "null" | "partial" | "full";
+    refundStatus = refundStatusRaw as "partial" | "full";
   } else {
     return bad("provider-bad-refund-status");
   }
+
 
   return {
     payment: {
