@@ -28,11 +28,9 @@ const common = {
   task_manifest_sha256: hex("tasks"),
   thresholds_sha256: hex("thresholds"),
   evaluator_sha256: hex("evaluator"),
-  output_bundle_sha256: hex("output"),
 } as const;
 
-function artifact(role: ArtifactBinding["role"]): SignedArtifact {
-  const binding: ArtifactBinding = { ...common, artifact_id: `${role}-1`, role };
+function signBinding(binding: ArtifactBinding): SignedArtifact {
   const digest = bindingDigest(binding);
   return {
     binding,
@@ -45,15 +43,28 @@ function artifact(role: ArtifactBinding["role"]): SignedArtifact {
   };
 }
 
+function chain() {
+  const runner = signBinding({ ...common, artifact_id: "runner-1", role: "runner" });
+  const evaluator = signBinding({ ...common, artifact_id: "evaluator-1", role: "evaluator" });
+  const output = signBinding({
+    ...common,
+    artifact_id: "output-1",
+    role: "output",
+    runner_manifest_sha256: bindingDigest(runner.binding),
+    evaluator_manifest_sha256: bindingDigest(evaluator.binding),
+    output_bundle_sha256: hex("output"),
+  });
+  return { runner, evaluator, output };
+}
+
 describe("E-003A sealed artifact chain", () => {
-  it("accepts matching artifacts signed by the custodian", () => {
-    expect(() =>
-      verifyExperimentChain(artifact("runner"), artifact("evaluator"), artifact("output"), trusted),
-    ).not.toThrow();
+  it("accepts pre-run manifests and their bound post-run output", () => {
+    const { runner, evaluator, output } = chain();
+    expect(() => verifyExperimentChain(runner, evaluator, output, trusted)).not.toThrow();
   });
 
   it("rejects a modified binding before evaluating it", () => {
-    const runner = artifact("runner");
+    const { runner } = chain();
     const tampered: SignedArtifact = {
       ...runner,
       binding: { ...runner.binding, prompt_sha256: hex("changed") },
@@ -62,42 +73,37 @@ describe("E-003A sealed artifact chain", () => {
   });
 
   it("rejects a valid signature from a key outside the trust set", () => {
-    expect(() => verifyArtifact(artifact("runner"), [])).toThrow(/untrusted signing key/);
+    const { runner } = chain();
+    expect(() => verifyArtifact(runner, [])).toThrow(/untrusted signing key/);
   });
 
-  it("rejects an output swapped from another run even when separately signed", () => {
-    const output = artifact("output");
+  it("rejects a post-run output bound to different manifests", () => {
+    const { runner, evaluator, output } = chain();
+    if (output.binding.role !== "output") throw new Error("fixture role");
     const binding: ArtifactBinding = {
       ...output.binding,
-      output_bundle_sha256: hex("other-output"),
+      runner_manifest_sha256: hex("different-runner"),
     };
-    const digest = bindingDigest(binding);
-    const swapped: SignedArtifact = {
-      binding,
-      seal: {
-        ...output.seal,
-        digest,
-        signature_base64: sign(null, Buffer.from(digest), privateKey).toString("base64"),
-      },
-    };
-    expect(() =>
-      verifyExperimentChain(artifact("runner"), artifact("evaluator"), swapped, trusted),
-    ).toThrow(/chain mismatch/);
+    const swapped = signBinding(binding);
+    expect(() => verifyExperimentChain(runner, evaluator, swapped, trusted)).toThrow(
+      /does not bind/,
+    );
   });
 
   it("rejects malformed commit and component digests", () => {
-    const runner = artifact("runner");
+    const { runner, output } = chain();
     expect(() =>
       verifyArtifact(
         { ...runner, binding: { ...runner.binding, repository_sha: "short" } },
         trusted,
       ),
     ).toThrow(/repository_sha/);
+    if (output.binding.role !== "output") throw new Error("fixture role");
     expect(() =>
       verifyArtifact(
-        { ...runner, binding: { ...runner.binding, tool_catalog_sha256: "short" } },
+        { ...output, binding: { ...output.binding, output_bundle_sha256: "short" } },
         trusted,
       ),
-    ).toThrow(/tool_catalog_sha256/);
+    ).toThrow(/output_bundle_sha256/);
   });
 });
