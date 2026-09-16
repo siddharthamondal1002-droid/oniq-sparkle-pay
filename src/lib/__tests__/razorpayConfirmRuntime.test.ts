@@ -707,8 +707,19 @@ describe("razorpay-webhook — the provider path", () => {
 });
 
 describe("bounded reads — the ceiling is enforced while streaming", () => {
-  type Shared = typeof import("../../../supabase/functions/_shared/razorpayConfirm.ts");
+  // The shape is declared by hand rather than with `typeof import(...)`: a
+  // literal specifier in a TYPE position pulls the module — and `Deno` — into
+  // the browser program just as an ordinary import would, and tsc goes red.
+  type Shared = {
+    readBoundedStream: (
+      body: ReadableStream<Uint8Array> | null,
+      declaredLength: string | null,
+      maxBytes: number,
+      stallMs?: number,
+    ) => Promise<{ text: string } | { error: { code: string; retryable: boolean } }>;
+  };
   const shared = () => import(/* @vite-ignore */ SHARED_MOD) as Promise<Shared>;
+
 
   /** A chunked stream with NO content-length, the case arrayBuffer() missed. */
   function chunked(chunks: Uint8Array[], onCancel?: () => void): ReadableStream<Uint8Array> {
