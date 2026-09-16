@@ -30,11 +30,7 @@ import type { RazorpayCreds } from "./razorpay.ts";
 
 /** The five things ONIQ sells through the one Razorpay account. */
 export type ProductKind =
-  | "order"
-  | "story_seconds"
-  | "watermark_removal"
-  | "plan_month"
-  | "video_seconds";
+  "order" | "story_seconds" | "watermark_removal" | "plan_month" | "video_seconds";
 
 type ProductSpec = {
   kind: ProductKind;
@@ -183,7 +179,8 @@ export async function resolveBinding(
       userId,
       amountMinor: amount,
       currency,
-      storedPaymentId: typeof storedPaymentId === "string" && storedPaymentId ? storedPaymentId : null,
+      storedPaymentId:
+        typeof storedPaymentId === "string" && storedPaymentId ? storedPaymentId : null,
       status: typeof row.status === "string" ? row.status : "",
       creditRpc: spec.creditRpc,
       failRpc: spec.failRpc,
@@ -272,8 +269,7 @@ export async function fetchRazorpayPayment(
         status: typeof body.status === "string" ? body.status : "",
         captured: body.captured === true,
         amount_refunded: typeof body.amount_refunded === "number" ? body.amount_refunded : 0,
-        refund_status:
-          typeof body.refund_status === "string" ? body.refund_status : null,
+        refund_status: typeof body.refund_status === "string" ? body.refund_status : null,
       },
     };
   } catch {

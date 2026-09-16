@@ -190,7 +190,9 @@ async function callWebhook(
 function capturedEvent(over: Record<string, unknown> = {}) {
   return {
     event: "payment.captured",
-    payload: { payment: { entity: { id: PAY, order_id: ORDER, notes: { kind: "order" }, ...over } } },
+    payload: {
+      payment: { entity: { id: PAY, order_id: ORDER, notes: { kind: "order" }, ...over } },
+    },
   };
 }
 
@@ -425,10 +427,7 @@ describe("razorpay-webhook — the provider path", () => {
   it("is idempotent-safe on a duplicate delivery: same RPC, same arguments", async () => {
     await callWebhook(capturedEvent());
     await callWebhook(capturedEvent());
-    expect(grants().map((c) => c.fn)).toEqual([
-      "credit_story_purchase",
-      "credit_story_purchase",
-    ]);
+    expect(grants().map((c) => c.fn)).toEqual(["credit_story_purchase", "credit_story_purchase"]);
     expect(grants()[0].args).toEqual(grants()[1].args);
   });
 
