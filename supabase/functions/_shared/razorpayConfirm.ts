@@ -207,9 +207,14 @@ export async function readBoundedStream(
       let step: ReadableStreamReadResult<Uint8Array>;
       try {
         step = await withDeadline(reader.read(), stallMs);
-      } catch {
+      } catch (e) {
         await reader.cancel().catch(() => {});
-        return { error: { code: "body-stalled", retryable: true } };
+        // A STALL AND A RESET ARE DIFFERENT FAULTS and must not collapse into
+        // one label: the deadline rejects with its own sentinel, so a stream
+        // that errors mid-read is reported as a read failure rather than as a
+        // silent upstream.
+        if (e === DEADLINE) return { error: { code: "body-stalled", retryable: true } };
+        return { error: { code: "body-read-failed", retryable: true } };
       }
       if (step.done) break;
       const chunk = step.value;
@@ -225,6 +230,8 @@ export async function readBoundedStream(
     await reader.cancel().catch(() => {});
     return { error: { code: "body-read-failed", retryable: true } };
   }
+
+
 
   const joined = new Uint8Array(total);
   let at = 0;
