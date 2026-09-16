@@ -104,7 +104,7 @@ payout helper and making no POST to Razorpay at all.
    yours" and "not there" answer identically.
 4. **HMAC over the server-stored order id** plus the caller's payment id.
 5. **The provider's own record** — one bounded `GET
-   https://api.razorpay.com/v1/payments/:id`: fixed origin, `redirect: "manual"`,
+https://api.razorpay.com/v1/payments/:id`: fixed origin, `redirect: "manual"`,
    8 s deadline, 64 KiB streamed body cap, no retries, nothing from the payload
    logged. Requires matching id and order, a positive safe-integer amount equal
    to our stored minor-unit price, our stored currency, `status === "captured"`

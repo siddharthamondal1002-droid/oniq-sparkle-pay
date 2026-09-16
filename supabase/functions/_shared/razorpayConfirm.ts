@@ -34,11 +34,7 @@ import type { RazorpayCreds } from "./razorpay.ts";
 
 /** The five things ONIQ sells through the one Razorpay account. */
 export type ProductKind =
-  | "order"
-  | "story_seconds"
-  | "watermark_removal"
-  | "plan_month"
-  | "video_seconds";
+  "order" | "story_seconds" | "watermark_removal" | "plan_month" | "video_seconds";
 
 /** What a PostgREST RPC is contracted to answer with. */
 export type RpcShape = "json" | "void";
@@ -231,8 +227,6 @@ export async function readBoundedStream(
     return { error: { code: "body-read-failed", retryable: true } };
   }
 
-
-
   const joined = new Uint8Array(total);
   let at = 0;
   for (const chunk of chunks) {
@@ -303,8 +297,7 @@ export async function resolveBinding(
   const found: PurchaseBinding[] = [];
   for (const spec of PRODUCTS) {
     const select =
-      `provider_order_id,provider,user_id,currency,status,provider_payment_id,` +
-      spec.amountColumn;
+      `provider_order_id,provider,user_id,currency,status,provider_payment_id,` + spec.amountColumn;
     const url =
       `${rest.supabaseUrl}/rest/v1/${spec.table}` +
       `?provider_order_id=eq.${encodeURIComponent(providerOrderId)}&select=${select}&limit=2`;

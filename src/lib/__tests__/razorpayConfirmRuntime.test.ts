@@ -574,7 +574,10 @@ describe("razorpay-webhook — the provider path", () => {
   // There is no durable event inbox and no quarantine table, so a 2xx on a
   // handled event that was not processed is a payment nobody will ever grant.
   it.each([
-    ["not captured yet", () => void (scenario.payment = capturedPayment({ status: "authorized", captured: false }))],
+    [
+      "not captured yet",
+      () => void (scenario.payment = capturedPayment({ status: "authorized", captured: false })),
+    ],
     ["refunded", () => void (scenario.payment = capturedPayment({ amount_refunded: 4900 }))],
     ["amount mismatch", () => void (scenario.payment = capturedPayment({ amount: 1 }))],
     ["provider 401", () => void (scenario.paymentStatus = 401)],
@@ -588,7 +591,8 @@ describe("razorpay-webhook — the provider path", () => {
     ["an order we have not written yet", () => void (scenario.tables = {})],
     [
       "an ambiguous order",
-      () => void (scenario.tables = { story_purchases: [storyRow()], plan_purchases: [storyRow()] }),
+      () =>
+        void (scenario.tables = { story_purchases: [storyRow()], plan_purchases: [storyRow()] }),
     ],
     ["the grant RPC erroring", () => void (scenario.rpcStatus = 500)],
     ["the grant RPC semantically refusing", () => void (scenario.rpcResult = { ok: false })],
@@ -783,7 +787,7 @@ describe("bounded reads — the ceiling is enforced while streaming", () => {
 
   it("keeps the bytes exact: a BOM survives and is not normalised", async () => {
     const { readBoundedStream } = await shared();
-    const body = new TextEncoder().encode("\uFEFF{\"a\":1}");
+    const body = new TextEncoder().encode('\uFEFF{"a":1}');
     const got = await readBoundedStream(chunked([body]), String(body.byteLength), 1024);
     expect("text" in got && got.text).toBe('\uFEFF{"a":1}');
     // Byte-for-byte round trip is what the HMAC depends on.
@@ -799,11 +803,7 @@ describe("bounded reads — the ceiling is enforced while streaming", () => {
   it("joins a multi-byte character split across chunks", async () => {
     const { readBoundedStream } = await shared();
     const whole = new TextEncoder().encode("₹");
-    const got = await readBoundedStream(
-      chunked([whole.slice(0, 1), whole.slice(1)]),
-      null,
-      64,
-    );
+    const got = await readBoundedStream(chunked([whole.slice(0, 1), whole.slice(1)]), null, 64);
     expect(got).toEqual({ text: "₹" });
   });
 
