@@ -529,7 +529,7 @@ export function parsePaymentEntity(
   // and defaulting it to null was the one remaining invented value.
   const refundStatusRaw = body.refund_status;
   let refundStatus: "partial" | "full" | null;
-  if (refundStatusRaw === null) {
+  if (refundStatusRaw === null || refundStatusRaw === undefined) {
     refundStatus = null;
   } else if (typeof refundStatusRaw === "string" && REFUND_STATUSES.has(refundStatusRaw)) {
     refundStatus = refundStatusRaw as "partial" | "full";
