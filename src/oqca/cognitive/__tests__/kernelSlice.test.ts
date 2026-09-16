@@ -279,15 +279,27 @@ describe("model adapter", () => {
       instructions: "i",
       input: "x",
       toolsOffered: [
-        { name: "z", description: "z", schema: ["b", "a"], scopes: ["write", "read"] },
-        { name: "a", description: "a", schema: [] },
+        {
+          name: "z",
+          description: "z",
+          schema: ["b", "a"],
+          version: "1",
+          scopes: ["write", "read"],
+        },
+        { name: "a", description: "a", schema: [], version: "1", scopes: [] },
       ],
     } as const;
     const b = {
       ...a,
       toolsOffered: [
-        { name: "a", description: "a", schema: [] },
-        { name: "z", description: "z", schema: ["a", "b"], scopes: ["read", "write"] },
+        { name: "a", description: "a", schema: [], version: "1", scopes: [] },
+        {
+          name: "z",
+          description: "z",
+          schema: ["a", "b"],
+          version: "1",
+          scopes: ["read", "write"],
+        },
       ],
     } as const;
     expect(replayKey(a)).toBe(replayKey(b));
@@ -321,7 +333,13 @@ describe("openai adapter: shape only — no call has ever been made", () => {
       instructions: "i",
       input: "x",
       toolsOffered: [
-        { name: "db_error_detail", description: "detail for one surface", schema: ["surface"] },
+        {
+          name: "db_error_detail",
+          description: "detail for one surface",
+          schema: ["surface"],
+          version: "test-v1",
+          scopes: [],
+        },
       ],
     });
     const tools = body.tools as Record<string, unknown>[];
@@ -343,7 +361,15 @@ describe("openai adapter: shape only — no call has ever been made", () => {
     const body = responsesBody("m", {
       instructions: "i",
       input: "x",
-      toolsOffered: [{ name: "two_args", description: "d", schema: ["a", "b"] }],
+      toolsOffered: [
+        {
+          name: "two_args",
+          description: "d",
+          schema: ["a", "b"],
+          version: "test-v1",
+          scopes: [],
+        },
+      ],
     });
     const tool = (body.tools as Record<string, unknown>[])[0];
     const params = tool.parameters as Record<string, unknown>;
@@ -357,7 +383,15 @@ describe("openai adapter: shape only — no call has ever been made", () => {
     const body = responsesBody("m", {
       instructions: "i",
       input: "x",
-      toolsOffered: [{ name: "db_job_counts", description: "counts", schema: [] }],
+      toolsOffered: [
+        {
+          name: "db_job_counts",
+          description: "counts",
+          schema: [],
+          version: "test-v1",
+          scopes: [],
+        },
+      ],
     });
     const params = (body.tools as Record<string, unknown>[])[0].parameters as Record<
       string,
