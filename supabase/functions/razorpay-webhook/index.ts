@@ -4,23 +4,34 @@
 // A user pays and their train goes into a tunnel; the app is killed before the
 // callback fires; the browser crashes. The money left their account and ONIQ
 // never heard. This is the path that does not depend on the customer's device
-// still being alive, and it is why a payment integration that only has the
-// client callback is incomplete rather than merely simpler.
+// still being alive.
 //
 // A DIFFERENT SECRET FROM THE KEY SECRET. Webhook bodies are signed with
 // RAZORPAY_WEBHOOK_SECRET, set when the webhook is registered in the dashboard.
 // Verifying against the key secret never matches, and the failure reads as
 // "webhooks are broken" rather than "wrong secret", which is a long afternoon.
 //
-// SIGNED OVER THE RAW BODY, byte for byte. Parsing the JSON and re-serialising
-// changes key order and whitespace and the digest stops matching, so the text
-// is read once and verified before anything looks inside it.
+// SIGNED OVER THE RAW BODY, byte for byte, BEFORE ANYTHING PARSES IT. Parsing
+// and re-serialising changes key order and whitespace and the digest stops
+// matching — and an unverified body has no business reaching a JSON parser.
 //
-// NO USER JWT. Razorpay cannot present one, so this is verify_jwt = false and
-// the signature IS the authentication. That is the whole security of this
-// endpoint: no signature, no action, and the body is never trusted before the
-// check passes.
-import { verifyWebhookSignature } from "../_shared/razorpay.ts";
+// NO USER JWT. Razorpay cannot present one, so the signature IS the
+// authentication.
+//
+// THE NOTES NO LONGER ROUTE ANYTHING. `notes.kind` is a string we wrote on the
+// order and the event echoes back; using it to pick which ledger to credit
+// meant the routing decision was outside our database. The product, the owner
+// and the price are now read from OUR row by provider order id, and the grant
+// only happens after Razorpay's own record of the payment agrees on amount,
+// currency and capture. An event is a prompt to go and check, never evidence.
+import { razorpayCreds, verifyWebhookSignature } from "../_shared/razorpay.ts";
+import {
+  callGrantRpc,
+  confirmPayment,
+  isProviderId,
+  readBoundedBody,
+  resolveBinding,
+} from "../_shared/razorpayConfirm.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,21 +45,28 @@ const FAILED_EVENTS = new Set(["payment.failed"]);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const webhookSecret = Deno.env.get("RAZORPAY_WEBHOOK_SECRET");
-    if (!supabaseUrl || !serviceKey) return json({ configured: false }, 200);
-    if (!webhookSecret) {
-      // 200, deliberately. A 5xx makes Razorpay retry for hours against an
-      // endpoint that cannot succeed; this says "heard you, not configured"
-      // and is visible in the logs instead.
-      console.error("razorpay-webhook: RAZORPAY_WEBHOOK_SECRET is not set");
-      return json({ configured: false, missing: ["RAZORPAY_WEBHOOK_SECRET"] }, 200);
+    // FAIL CLOSED AND DO NOT ACKNOWLEDGE. This used to answer 200 so Razorpay
+    // would stop retrying — which turns a misconfiguration into a silently
+    // dropped payment. A 5xx keeps the event alive until someone fixes it.
+    if (!supabaseUrl || !serviceKey || !webhookSecret) {
+      console.error("razorpay-webhook not configured");
+      return json({ error: "not configured" }, 500);
+    }
+    const got = razorpayCreds();
+    if ("missing" in got) {
+      console.error("razorpay-webhook missing key credentials");
+      return json({ error: "not configured" }, 500);
     }
 
-    // RAW FIRST. Nothing may parse this before the signature is checked.
-    const raw = await req.text();
+    // RAW FIRST, AND BOUNDED. Nothing may parse this before the signature is
+    // checked, and nothing unbounded may be read into memory at all.
+    const raw = await readBoundedBody(req, 512 * 1024);
+    if (raw === null) return json({ error: "body too large" }, 413);
     const verified = await verifyWebhookSignature(
       webhookSecret,
       raw,
@@ -61,12 +79,12 @@ Deno.serve(async (req) => {
 
     let event: Record<string, unknown> = {};
     try {
-      event = JSON.parse(raw);
+      event = JSON.parse(raw) as Record<string, unknown>;
     } catch {
       return json({ error: "bad json" }, 400);
     }
 
-    const name = String(event.event ?? "");
+    const name = typeof event.event === "string" ? event.event : "";
     const payload = (event.payload ?? {}) as Record<string, unknown>;
     const paymentEntity = ((payload.payment as Record<string, unknown>)?.entity ?? {}) as Record<
       string,
@@ -77,105 +95,74 @@ Deno.serve(async (req) => {
       unknown
     >;
 
-    const providerOrderId = String(paymentEntity.order_id ?? orderEntity.id ?? "");
-    const providerPaymentId = String(paymentEntity.id ?? "");
+    const providerOrderId = isProviderId(paymentEntity.order_id, "order")
+      ? paymentEntity.order_id
+      : isProviderId(orderEntity.id, "order")
+        ? orderEntity.id
+        : null;
+    const providerPaymentId = isProviderId(paymentEntity.id, "pay") ? paymentEntity.id : null;
+
     if (!providerOrderId) {
       // Acknowledged: an event we cannot attribute is not an error Razorpay
       // should retry, it is an event we do not care about.
-      return json({ ok: true, ignored: "no order id on the event", event: name }, 200);
+      return json({ ok: true, ignored: "no usable order id on the event", event: name }, 200);
     }
 
-    // WHICH PRODUCT WAS THIS. ONIQ sells two unrelated things through one
-    // Razorpay account: food orders, which settle against `orders`, and Story
-    // seconds, which credit an allowance. The `kind` note is set when the order
-    // is created and is the only thing on the event that distinguishes them.
-    //
-    // The note decides WHICH LEDGER TO LOOK IN and nothing else. It does not
-    // decide the amount, the owner, or how many seconds to credit — all of
-    // those are re-read from our own row, found by provider order id. A forged
-    // note cannot mint anything, because the only path it can reach is a
-    // lookup that will not find a matching purchase.
-    const notes = {
-      ...((orderEntity.notes as Record<string, unknown>) ?? {}),
-      ...((paymentEntity.notes as Record<string, unknown>) ?? {}),
-    };
-    const kindNote = String(notes.kind ?? "");
-    const isStory = kindNote === "story_seconds";
-    const isWatermark = kindNote === "watermark_removal";
-    // Monthly plans. The note is written when the order is created, so an
-    // event carrying it is one we made — the RPC still re-reads the row by
-    // provider order id and never trusts this string for anything but routing.
-    const isPlan = kindNote === "plan_month";
-    // Finished video time (PAYG minutes, 2026-08-27). Routing only, same as
-    // every other kind: the amount and owner come from our own row.
-    const isVideo = kindNote === "video_seconds";
-
-    const svc = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
+    const rest = { supabaseUrl, serviceKey };
 
     if (PAID_EVENTS.has(name)) {
-      const rpc = isStory
-        ? "credit_story_purchase"
-        : isWatermark
-          ? "settle_watermark_purchase"
-          : isPlan
-            ? "credit_plan_purchase"
-            : isVideo
-              ? "credit_video_purchase"
-              : "mark_order_paid";
-      const marked = await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
-        method: "POST",
-        headers: { ...svc, "content-type": "application/json" },
-        body: JSON.stringify({
-          _provider_order_id: providerOrderId,
-          _provider_payment_id: providerPaymentId || null,
-          _confirmed_by: "webhook",
-        }),
-      });
-      if (!marked.ok) {
-        const detail = await marked.text().catch(() => "");
-        console.error("razorpay-webhook mark", rpc, marked.status, detail.slice(0, 200));
-        // 500 HERE IS CORRECT, unlike above: this is a transient failure on our
-        // side against a real payment, and Razorpay's retry is exactly what we
-        // want. Both RPCs are idempotent, so a retry is safe.
-        return json({ error: "could not record the payment" }, 500);
+      // An `order.paid` with no payment entity cannot be confirmed against a
+      // specific payment, so it grants nothing. The matching
+      // `payment.captured` is the one that can be, and it always follows.
+      if (!providerPaymentId) {
+        return json({ ok: false, refused: "no payment id on the event", event: name }, 200);
       }
-      return json(
-        {
-          ok: true,
-          kind: isStory
-            ? "story_seconds"
-            : isWatermark
-              ? "watermark_removal"
-              : isPlan
-                ? "plan_month"
-                : isVideo
-                  ? "video_seconds"
-                  : "order",
-          ...(await marked.json()),
-        },
-        200,
-      );
+      const confirmed = await confirmPayment(rest, got.creds, providerOrderId, providerPaymentId);
+      if ("error" in confirmed) {
+        console.error("razorpay-webhook evidence", confirmed.error.code, providerOrderId);
+        // Retryable means we could not establish the facts — keep the event
+        // alive. A definitive refusal is acknowledged, because retrying it
+        // will produce the same verdict for ever.
+        if (confirmed.error.retryable) return json({ error: "could not confirm" }, 500);
+        return json({ ok: false, refused: confirmed.error.code }, 200);
+      }
+      const binding = confirmed.binding;
+      const granted = await callGrantRpc(rest, binding.creditRpc, {
+        _provider_order_id: binding.providerOrderId,
+        _provider_payment_id: providerPaymentId,
+        _confirmed_by: "webhook",
+      });
+      if ("error" in granted) {
+        console.error("razorpay-webhook mark", binding.creditRpc, granted.error.code);
+        // 500 so Razorpay retries: the RPCs are idempotent, so a retry is safe
+        // and a real captured payment must not be lost to a transient failure.
+        if (granted.error.retryable) return json({ error: "could not record the payment" }, 500);
+        return json({ ok: false, refused: granted.error.code }, 200);
+      }
+      return json({ ok: true, kind: binding.kind, ...granted.result }, 200);
     }
 
     if (FAILED_EVENTS.has(name)) {
-      const rpc = isStory
-        ? "fail_story_purchase"
-        : isWatermark
-          ? "fail_watermark_purchase"
-          : isPlan
-            ? "fail_plan_purchase"
-            : isVideo
-              ? "fail_video_purchase"
-              : "mark_payment_failed";
-      await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
-        method: "POST",
-        headers: { ...svc, "content-type": "application/json" },
-        body: JSON.stringify({
-          _provider_order_id: providerOrderId,
-          _error: String(paymentEntity.error_description ?? "payment failed"),
-        }),
-      }).catch((e) => console.error("razorpay-webhook fail-mark", rpc, e));
-      return json({ ok: true, recorded: "failed" }, 200);
+      // Unchanged business policy — this only records a failure, it grants
+      // nothing — but the ledger it records against now comes from our row
+      // rather than from a note on the event.
+      const bound = await resolveBinding(rest, providerOrderId);
+      if ("error" in bound) {
+        if (bound.error.retryable) return json({ error: "could not read that order" }, 500);
+        return json({ ok: true, ignored: bound.error.code, event: name }, 200);
+      }
+      const marked = await callGrantRpc(rest, bound.binding.failRpc, {
+        _provider_order_id: bound.binding.providerOrderId,
+        _error:
+          typeof paymentEntity.error_description === "string"
+            ? paymentEntity.error_description.slice(0, 300)
+            : "payment failed",
+      });
+      if ("error" in marked && marked.error.retryable) {
+        console.error("razorpay-webhook fail-mark", bound.binding.failRpc, marked.error.code);
+        return json({ error: "could not record the failure" }, 500);
+      }
+      return json({ ok: true, recorded: "failed", kind: bound.binding.kind }, 200);
     }
 
     // Everything else — refunds, settlements, disputes — is acknowledged and
