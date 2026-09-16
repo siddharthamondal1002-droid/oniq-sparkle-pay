@@ -795,6 +795,60 @@ describe("bounded reads — the ceiling is enforced while streaming", () => {
     expect(cancelled).toBe(true);
   });
 
+  // A source whose cancel() never settles must not hold the refusal open: the
+  // bound on the body would otherwise be worth nothing, because the caller
+  // waits exactly as long as the sender chooses.
+  it.each([
+    ["an oversized chunked body", null as string | null, () => chunked([bytes(64), bytes(64)])],
+    [
+      "a declared length over the ceiling",
+      "999999",
+      () => new ReadableStream<Uint8Array>({ pull: (c) => void c.close() }),
+    ],
+  ])("returns promptly when cancellation never settles: %s", async (_l, len, make) => {
+    const { readBoundedStream } = await shared();
+    const source = make();
+    let cancelAttempted = false;
+    // The stream itself is fine; its cancel() is the adversary.
+    const hostile = new Proxy(source, {
+      get(target, prop, recv) {
+        if (prop === "cancel") {
+          return () => {
+            cancelAttempted = true;
+            return new Promise<void>(() => {});
+          };
+        }
+        if (prop === "getReader") {
+          return () => {
+            const reader = target.getReader();
+            return new Proxy(reader, {
+              get(rt, rp, rr) {
+                if (rp === "cancel") {
+                  return () => {
+                    cancelAttempted = true;
+                    return new Promise<void>(() => {});
+                  };
+                }
+                const v = Reflect.get(rt, rp, rr);
+                return typeof v === "function" ? v.bind(rt) : v;
+              },
+            });
+          };
+        }
+        const v = Reflect.get(target, prop, recv);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    });
+
+    const got = await Promise.race([
+      readBoundedStream(hostile, len, 100),
+      new Promise((resolve) => setTimeout(() => resolve("TIMED-OUT"), 1000)),
+    ]);
+    expect(got).toEqual({ error: { code: "body-too-large", retryable: false } });
+    expect(cancelAttempted).toBe(true);
+  });
+
+
   it("surfaces a stream that errors mid-read as retryable", async () => {
     const { readBoundedStream } = await shared();
     const stream = new ReadableStream<Uint8Array>({
