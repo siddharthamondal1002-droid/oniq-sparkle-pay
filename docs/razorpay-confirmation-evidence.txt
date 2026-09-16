@@ -170,3 +170,41 @@ mutation: razorpayConfirm.ts:501  `const refunded = body.amount_refunded;` -> `.
 [2m   Start at [22m 20:19:54
 [2m   Duration [22m 812ms[2m (transform 149ms, setup 0ms, import 109ms, tests 471ms, environment 0ms)[22m
 
+
+### 6. controlled mutation M4 — the void failure contract removed, {ok:true} demanded of all (expect RED)
+mutation: razorpayConfirm.ts:630  `if (shape === "void") {` -> `if (false) {`
+     [32m✓[39m bounds a stalled stream instead of holding the function open[32m 22[2mms[22m[39m
+     [32m✓[39m surfaces a stream that errors mid-read as retryable[32m 1[2mms[22m[39m
+     [32m✓[39m keeps the bytes exact: a BOM survives and is not normalised[32m 2[2mms[22m[39m
+     [32m✓[39m refuses malformed bytes rather than replacing them[32m 1[2mms[22m[39m
+     [32m✓[39m joins a multi-byte character split across chunks[32m 1[2mms[22m[39m
+     [32m✓[39m reads an absent body as empty[32m 1[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/lib/__tests__/razorpayConfirmRuntime.test.ts[2m > [22mrazorpay-webhook — the provider path[2m > [22maccepts the void failure contract for watermark removal: an empty body
+[41m[1m FAIL [22m[49m src/lib/__tests__/razorpayConfirmRuntime.test.ts[2m > [22mrazorpay-webhook — the provider path[2m > [22maccepts the void failure contract for watermark removal: a literal null
+[31m[1mAssertionError[22m: expected 503 to be 200 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 200[39m
+[31m+ 503[39m
+
+[36m [2m❯[22m src/lib/__tests__/razorpayConfirmRuntime.test.ts:[2m679:24[22m[39m
+    [90m677|[39m     scenario[33m.[39mrpcBody [33m=[39m raw[33m;[39m
+    [90m678|[39m     [35mconst[39m res [33m=[39m [35mawait[39m [34mcallWebhook[39m([34mfailedEvent[39m())[33m;[39m
+    [90m679|[39m     [34mexpect[39m(res[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m200[39m)[33m;[39m
+    [90m   |[39m                        [31m^[39m
+    [90m680|[39m     expect(rpcCalls.map((c) => c.fn)).toEqual(["fail_watermark_purchas…
+    [90m681|[39m   })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m122 passed[39m[22m[90m (124)[39m
+[2m   Start at [22m 20:20:10
+[2m   Duration [22m 707ms[2m (transform 127ms, setup 0ms, import 102ms, tests 411ms, environment 0ms)[22m
+
