@@ -160,6 +160,7 @@ function storyRow(over: Record<string, unknown> = {}) {
 
 function capturedPayment(over: Record<string, unknown> = {}) {
   return {
+    entity: "payment",
     id: PAY,
     order_id: ORDER,
     amount: 4900,
@@ -171,6 +172,7 @@ function capturedPayment(over: Record<string, unknown> = {}) {
     ...over,
   };
 }
+
 
 async function loadHandler(mod: string): Promise<(req: Request) => Promise<Response>> {
   handlers = [];
