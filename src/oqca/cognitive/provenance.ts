@@ -61,7 +61,41 @@ export type Provenance = {
   readonly at: string;
   /** The exact bytes/rows, bounded. Verbatim, never reworded. */
   readonly excerpt: string | null;
+  /** Shared upstream identity for mirrors, syndication, or derived records. */
+  readonly independenceKey?: string;
 };
+
+function canonicalUrl(locator: string): string | null {
+  try {
+    const url = new URL(locator);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    url.hash = "";
+    url.hostname = url.hostname.toLowerCase();
+    if (
+      (url.protocol === "https:" && url.port === "443") ||
+      (url.protocol === "http:" && url.port === "80")
+    ) {
+      url.port = "";
+    }
+    const sorted = [...url.searchParams.entries()].sort(
+      ([ak, av], [bk, bv]) => ak.localeCompare(bk) || av.localeCompare(bv),
+    );
+    url.search = "";
+    for (const [key, value] of sorted) url.searchParams.append(key, value);
+    if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/, "");
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+/** Identity used to count independent evidence, never the evidence-row id. */
+export function canonicalSourceIdentity(p: Provenance): string {
+  const explicit = p.independenceKey?.trim();
+  if (explicit) return `upstream:${explicit}`;
+  const locator = p.locator.trim();
+  return canonicalUrl(locator) ?? `locator:${locator}`;
+}
 
 /**
  * THE ONE PROMOTION RULE, AND IT IS DELIBERATELY NOT SYMMETRIC.
@@ -79,6 +113,7 @@ export function promote(
   if (contradicting.length > 0) return "UNPROVEN";
   const verifying = supporting.filter((p) => !NON_VERIFYING_SOURCES.includes(p.source));
   if (verifying.length === 0) return "SUPPORTED";
-  if (verifying.length >= 2) return "VERIFIED";
-  return verifying[0].source === "model" ? "SUPPORTED" : "OBSERVED";
+  const independent = new Set(verifying.map(canonicalSourceIdentity));
+  if (independent.size >= 2) return "VERIFIED";
+  return "OBSERVED";
 }
