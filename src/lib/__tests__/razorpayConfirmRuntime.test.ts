@@ -139,6 +139,9 @@ function capturedPayment(over: Record<string, unknown> = {}) {
 
 async function loadHandler(mod: string): Promise<(req: Request) => Promise<Response>> {
   handlers = [];
+  // Fresh module each call: the handler is captured out of `Deno.serve`, which
+  // only runs on first evaluation, so a cached module yields no handler.
+  vi.resetModules();
   await import(/* @vite-ignore */ mod);
   return handlers[handlers.length - 1];
 }
