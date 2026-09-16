@@ -14,20 +14,41 @@
 // SIGNED OVER THE RAW BODY, byte for byte, BEFORE ANYTHING PARSES IT. Parsing
 // and re-serialising changes key order and whitespace and the digest stops
 // matching — and an unverified body has no business reaching a JSON parser.
+// The bounded reader decodes strictly (no replacement characters, BOM kept) so
+// the string hashed is the bytes sent.
 //
 // NO USER JWT. Razorpay cannot present one, so the signature IS the
 // authentication.
 //
-// THE NOTES NO LONGER ROUTE ANYTHING. `notes.kind` is a string we wrote on the
-// order and the event echoes back; using it to pick which ledger to credit
-// meant the routing decision was outside our database. The product, the owner
-// and the price are now read from OUR row by provider order id, and the grant
-// only happens after Razorpay's own record of the payment agrees on amount,
-// currency and capture. An event is a prompt to go and check, never evidence.
+// THE NOTES ROUTE NOTHING. `notes.kind` is a string we wrote on the order and
+// the event echoes back; using it to pick which ledger to credit put the
+// routing decision outside our database. The product, the owner and the price
+// are read from OUR row by provider order id, and the grant only happens after
+// Razorpay's own record of the payment agrees. An event is a prompt to go and
+// check, never evidence.
+//
+// ═══ A 2xx IS A PROMISE WE CANNOT KEEP ═══
+//
+// Razorpay stops retrying once it gets a 2xx, and ONIQ has NO durable event
+// inbox and NO quarantine table — so an acknowledged event that was not
+// processed is simply gone, and with it a paid purchase nobody will ever
+// grant. The previous version acknowledged a long list of situations that all
+// look final and are not: a provider 401/403/404 (a rotated key, the wrong
+// account), a redirect (a gateway in front of the API), a payment not captured
+// *yet*, an order id our database has not caught up with, an ambiguous or
+// missing binding, a missing payment id, and a semantic refusal from a grant
+// RPC that may itself have been racing another writer.
+//
+// SO THE RULE IS NARROW AND ABSOLUTE: if the event is one this function
+// HANDLES, it gets a 2xx only when it was successfully processed. Everything
+// else is a retryable non-2xx and grants nothing. Events we do not handle at
+// all — refunds, settlements, disputes — are still acknowledged, because there
+// is nothing for a retry to achieve.
 import { razorpayCreds, verifyWebhookSignature } from "../_shared/razorpay.ts";
 import {
   callGrantRpc,
-  confirmPayment,
+  confirmAgainstBinding,
+  isPlainRecord,
   isProviderId,
   readBoundedBody,
   resolveBinding,
@@ -43,6 +64,9 @@ const corsHeaders = {
 const PAID_EVENTS = new Set(["payment.captured", "order.paid"]);
 const FAILED_EVENTS = new Set(["payment.failed"]);
 
+/** The one status for "we did not finish; please send this again". */
+const RETRY = 503;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -50,9 +74,8 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const webhookSecret = Deno.env.get("RAZORPAY_WEBHOOK_SECRET");
-    // FAIL CLOSED AND DO NOT ACKNOWLEDGE. This used to answer 200 so Razorpay
-    // would stop retrying — which turns a misconfiguration into a silently
-    // dropped payment. A 5xx keeps the event alive until someone fixes it.
+    // FAIL CLOSED AND DO NOT ACKNOWLEDGE. Answering 200 so Razorpay stops
+    // retrying turns a misconfiguration into a silently dropped payment.
     if (!supabaseUrl || !serviceKey || !webhookSecret) {
       console.error("razorpay-webhook not configured");
       return json({ error: "not configured" }, 500);
@@ -63,37 +86,46 @@ Deno.serve(async (req) => {
       return json({ error: "not configured" }, 500);
     }
 
-    // RAW FIRST, AND BOUNDED. Nothing may parse this before the signature is
-    // checked, and nothing unbounded may be read into memory at all.
-    const raw = await readBoundedBody(req, 512 * 1024);
-    if (raw === null) return json({ error: "body too large" }, 413);
+    // RAW FIRST, AND BOUNDED WHILE STREAMING. Nothing may parse this before the
+    // signature is checked, and a chunked body with no content-length must not
+    // be buffered whole before its size is looked at.
+    const read = await readBoundedBody(req, 512 * 1024);
+    if ("error" in read) {
+      const code = read.error.code;
+      if (code === "body-too-large") return json({ error: "body too large" }, 413);
+      // A stalled or unreadable stream is not the event's fault: keep it alive.
+      return json({ error: "could not read the body" }, RETRY);
+    }
+    const raw = read.text;
     const verified = await verifyWebhookSignature(
       webhookSecret,
       raw,
       req.headers.get("x-razorpay-signature"),
     );
     if (!verified.ok) {
+      // Our own reason code only. An unverified body is attacker-controlled.
       console.error("razorpay-webhook rejected", verified.reason);
       return json({ error: "bad signature" }, 401);
     }
 
-    let event: Record<string, unknown> = {};
+    let parsedEvent: unknown;
     try {
-      event = JSON.parse(raw) as Record<string, unknown>;
+      parsedEvent = JSON.parse(raw);
     } catch {
       return json({ error: "bad json" }, 400);
     }
+    if (!isPlainRecord(parsedEvent)) return json({ error: "bad json" }, 400);
+    const event = parsedEvent;
 
     const name = typeof event.event === "string" ? event.event : "";
-    const payload = (event.payload ?? {}) as Record<string, unknown>;
-    const paymentEntity = ((payload.payment as Record<string, unknown>)?.entity ?? {}) as Record<
-      string,
-      unknown
-    >;
-    const orderEntity = ((payload.order as Record<string, unknown>)?.entity ?? {}) as Record<
-      string,
-      unknown
-    >;
+    const handled = PAID_EVENTS.has(name) || FAILED_EVENTS.has(name);
+    // Not ours to act on — refunds, settlements, disputes. Acknowledged,
+    // because no amount of retrying changes what this function would do.
+    if (!handled) return json({ ok: true, ignored: name }, 200);
+
+    const payload = isPlainRecord(event.payload) ? event.payload : {};
+    const paymentEntity = entityOf(payload.payment);
+    const orderEntity = entityOf(payload.order);
 
     const providerOrderId = isProviderId(paymentEntity.order_id, "order")
       ? paymentEntity.order_id
@@ -103,30 +135,43 @@ Deno.serve(async (req) => {
     const providerPaymentId = isProviderId(paymentEntity.id, "pay") ? paymentEntity.id : null;
 
     if (!providerOrderId) {
-      // Acknowledged: an event we cannot attribute is not an error Razorpay
-      // should retry, it is an event we do not care about.
-      return json({ ok: true, ignored: "no usable order id on the event", event: name }, 200);
+      // A HANDLED event we cannot attribute is not a shrug. Either the payload
+      // shape moved or we are reading it wrong, and either way a real payment
+      // may be behind it — so it stays queued rather than disappearing.
+      console.error("razorpay-webhook no order id", name);
+      return json({ error: "no usable order id on the event", event: name }, RETRY);
     }
 
     const rest = { supabaseUrl, serviceKey };
 
+    // ONE binding, used for the provider check and for routing the RPC.
+    const bound = await resolveBinding(rest, providerOrderId);
+    if ("error" in bound) {
+      // Even "unknown-order" is retryable HERE, unlike in the callback: the
+      // webhook races our own insert, so an order id we have not written yet
+      // is an eventual-consistency gap, not a verdict.
+      console.error("razorpay-webhook binding", bound.error.code, name);
+      return json({ error: "could not resolve that order", reason: bound.error.code }, RETRY);
+    }
+    const binding = bound.binding;
+
     if (PAID_EVENTS.has(name)) {
       // An `order.paid` with no payment entity cannot be confirmed against a
-      // specific payment, so it grants nothing. The matching
-      // `payment.captured` is the one that can be, and it always follows.
+      // specific payment. Razorpay normally also sends `payment.captured` for
+      // the same order, but that is not guaranteed to arrive, or to arrive
+      // first, so this is held for retry rather than written off.
       if (!providerPaymentId) {
-        return json({ ok: false, refused: "no payment id on the event", event: name }, 200);
+        console.error("razorpay-webhook no payment id", name);
+        return json({ error: "no payment id on the event", event: name }, RETRY);
       }
-      const confirmed = await confirmPayment(rest, got.creds, providerOrderId, providerPaymentId);
+      const confirmed = await confirmAgainstBinding(got.creds, binding, providerPaymentId);
       if ("error" in confirmed) {
-        console.error("razorpay-webhook evidence", confirmed.error.code, providerOrderId);
-        // Retryable means we could not establish the facts — keep the event
-        // alive. A definitive refusal is acknowledged, because retrying it
-        // will produce the same verdict for ever.
-        if (confirmed.error.retryable) return json({ error: "could not confirm" }, 500);
-        return json({ ok: false, refused: confirmed.error.code }, 200);
+        console.error("razorpay-webhook evidence", confirmed.error.code);
+        // No acknowledgement either way. A provider 401/403/404, a redirect, a
+        // not-yet-captured payment and a mismatch all look alike from here,
+        // and only the first three are even about this payment.
+        return json({ error: "could not confirm", reason: confirmed.error.code }, RETRY);
       }
-      const binding = confirmed.binding;
       const granted = await callGrantRpc(rest, binding.creditRpc, {
         _provider_order_id: binding.providerOrderId,
         _provider_payment_id: providerPaymentId,
@@ -134,46 +179,51 @@ Deno.serve(async (req) => {
       });
       if ("error" in granted) {
         console.error("razorpay-webhook mark", binding.creditRpc, granted.error.code);
-        // 500 so Razorpay retries: the RPCs are idempotent, so a retry is safe
-        // and a real captured payment must not be lost to a transient failure.
-        if (granted.error.retryable) return json({ error: "could not record the payment" }, 500);
-        return json({ ok: false, refused: granted.error.code }, 200);
+        // Includes `grant-refused` — a 200 carrying ok:false. The RPCs are
+        // idempotent, so a retry is safe, and a semantic refusal can be a race
+        // with the callback rather than a settled answer.
+        return json({ error: "could not record the payment", reason: granted.error.code }, RETRY);
       }
       return json({ ok: true, kind: binding.kind, ...granted.result }, 200);
     }
 
-    if (FAILED_EVENTS.has(name)) {
-      // Unchanged business policy — this only records a failure, it grants
-      // nothing — but the ledger it records against now comes from our row
-      // rather than from a note on the event.
-      const bound = await resolveBinding(rest, providerOrderId);
-      if ("error" in bound) {
-        if (bound.error.retryable) return json({ error: "could not read that order" }, 500);
-        return json({ ok: true, ignored: bound.error.code, event: name }, 200);
-      }
-      const marked = await callGrantRpc(rest, bound.binding.failRpc, {
-        _provider_order_id: bound.binding.providerOrderId,
+    // payment.failed. This grants nothing — it only records the failure — but
+    // it is still a handled event, so it is acknowledged only when the RPC
+    // actually succeeded.
+    const marked = await callGrantRpc(
+      rest,
+      binding.failRpc,
+      {
+        _provider_order_id: binding.providerOrderId,
         _error:
           typeof paymentEntity.error_description === "string"
             ? paymentEntity.error_description.slice(0, 300)
             : "payment failed",
-      });
-      if ("error" in marked && marked.error.retryable) {
-        console.error("razorpay-webhook fail-mark", bound.binding.failRpc, marked.error.code);
-        return json({ error: "could not record the failure" }, 500);
-      }
-      return json({ ok: true, recorded: "failed", kind: bound.binding.kind }, 200);
+      },
+      fetch,
+      // NOT EVERY FAILURE RPC ANSWERS THE SAME WAY. `fail_watermark_purchase`
+      // is declared `returns void`, so success is a 200 with an empty body;
+      // the other four return `{ok:true}`. The spec carries which.
+      binding.failShape,
+    );
+    if ("error" in marked) {
+      console.error("razorpay-webhook fail-mark", binding.failRpc, marked.error.code);
+      return json({ error: "could not record the failure", reason: marked.error.code }, RETRY);
     }
-
-    // Everything else — refunds, settlements, disputes — is acknowledged and
-    // not acted on. Silently succeeding on an event we do not handle beats
-    // making Razorpay retry it forever.
-    return json({ ok: true, ignored: name }, 200);
-  } catch (e) {
-    console.error("razorpay-webhook fn error", e);
+    return json({ ok: true, recorded: "failed", kind: binding.kind }, 200);
+  } catch {
+    // The caught value is deliberately not logged: it can carry fragments of a
+    // body that, at this point, may not even have been verified.
+    console.error("razorpay-webhook fn error");
     return json({ error: "Something went sideways" }, 500);
   }
 });
+
+/** `payload.<thing>.entity`, defensively — any non-record is an empty record. */
+function entityOf(node: unknown): Record<string, unknown> {
+  if (!isPlainRecord(node)) return {};
+  return isPlainRecord(node.entity) ? node.entity : {};
+}
 
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
