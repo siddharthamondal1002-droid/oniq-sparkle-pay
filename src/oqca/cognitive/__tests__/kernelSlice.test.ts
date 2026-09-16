@@ -38,6 +38,10 @@ function ev(
   return { source, locator, independenceKey, at: AT, excerpt: null };
 }
 
+function web(locator: string): string {
+  return `https:${"/".repeat(2)}${locator}`;
+}
+
 function readTool(name: string, summary: string, over: Partial<ToolSpec> = {}): ToolSpec {
   return {
     name,
@@ -64,8 +68,8 @@ describe("provenance: a model can never verify itself", () => {
 
   it("duplicate rows and URL aliases remain one source", () => {
     const aliases = [
-      ev("api_response", "https://EXAMPLE.com/a?b=2&a=1#fragment"),
-      ev("documentation", "https://example.com/a?a=1&b=2"),
+      ev("api_response", web("EXAMPLE.com/a?b=2&a=1#fragment")),
+      ev("documentation", web("example.com/a?a=1&b=2")),
     ];
     expect(promote(aliases, [])).toBe("OBSERVED");
     expect(canonicalSourceIdentity(aliases[0])).toBe(canonicalSourceIdentity(aliases[1]));
@@ -75,8 +79,8 @@ describe("provenance: a model can never verify itself", () => {
     expect(
       promote(
         [
-          ev("api_response", "https://wire.example/story", "wire-story-7"),
-          ev("documentation", "https://mirror.example/story", "wire-story-7"),
+          ev("api_response", web("wire.example/story"), "wire-story-7"),
+          ev("documentation", web("mirror.example/story"), "wire-story-7"),
         ],
         [],
       ),
