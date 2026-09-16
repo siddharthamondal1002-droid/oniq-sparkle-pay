@@ -41,7 +41,7 @@ https://api.razorpay.com/v1/payments/:id`: fixed origin, `redirect: "manual"`,
    stored minor-unit price, our stored currency, `status === "captured"` **and**
    `captured === true`, no refund indicators, and no conflicting stored payment
    id.
-6. **Then the existing idempotent service-role RPC**, whose HTTP status *and*
+6. **Then the existing idempotent service-role RPC**, whose HTTP status _and_
    `ok` are both checked — a 200 carrying `{"ok":false}` is a refusal.
 
 Failure policy: configuration, database, provider and RPC failures fail closed
