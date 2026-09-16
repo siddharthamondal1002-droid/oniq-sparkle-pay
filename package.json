@@ -19,7 +19,8 @@
     "test": "vitest run",
     "check:deps": "node scripts/check-deps-exist.mjs",
     "prepare": "husky",
-    "test:diagnose": "node scripts/test-diagnose.mjs"
+    "test:diagnose": "node scripts/test-diagnose.mjs",
+    "bench:e003a:verify": "node scripts/oqca-e003a-verify.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",
