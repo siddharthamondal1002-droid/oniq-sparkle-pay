@@ -387,13 +387,18 @@ export type RazorpayPayment = {
   status: string;
   captured: boolean;
   amountRefunded: number;
-  refundStatus: "null" | "partial" | "full" | null;
+  refundStatus: "partial" | "full" | null;
 };
 
 const PAYMENT_URL_BASE = "https://api.razorpay.com/v1/payments/";
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_BODY_BYTES = 64 * 1024;
-const REFUND_STATUSES = new Set(["null", "partial", "full"]);
+// JSON null is the unrefunded value. The STRING "null" is not: it is what a
+// serialiser produces when it has lost the difference between a null and the
+// word, and treating it as unrefunded would grant on a payment whose refund
+// state was never actually read.
+const REFUND_STATUSES = new Set(["partial", "full"]);
+
 
 /**
  * Read ONE payment from Razorpay with the server credentials.
