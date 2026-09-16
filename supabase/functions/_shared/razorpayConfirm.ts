@@ -239,7 +239,7 @@ export async function readBoundedStream(
       chunks.push(chunk);
     }
   } catch {
-    await reader.cancel().catch(() => {});
+    abandon(reader);
     return { error: { code: "body-read-failed", retryable: true } };
   }
 
