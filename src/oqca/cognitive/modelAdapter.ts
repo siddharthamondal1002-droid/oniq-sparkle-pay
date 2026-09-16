@@ -39,9 +39,9 @@ export type OfferedTool = {
   /** Argument names the tool reads. Empty means it takes none. */
   readonly schema: readonly string[];
   /** Version of the callable contract, not the provider implementation. */
-  readonly version?: string;
+  readonly version: string;
   /** Immutable permission scopes required to offer the tool. */
-  readonly scopes?: readonly string[];
+  readonly scopes: readonly string[];
 };
 
 export type ModelRequest = {
@@ -114,8 +114,8 @@ function canonicalTool(tool: OfferedTool) {
     name: tool.name,
     description: tool.description,
     schema: [...tool.schema].sort(),
-    version: tool.version ?? "",
-    scopes: [...(tool.scopes ?? [])].sort(),
+    version: tool.version,
+    scopes: [...tool.scopes].sort(),
   };
 }
 
