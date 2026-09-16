@@ -1,7 +1,14 @@
-# Razorpay confirmation hardening — 2026-09-16
+# Razorpay confirmation hardening
 
-Baseline: `0919fec1d6366237ec27234c258ae7911c287b6d`. Source only. **Nothing was
-deployed, published, migrated, or sent to Razorpay.**
+Source only. **Nothing here was deployed, published, migrated, or sent to
+Razorpay**, and no payout path was touched. These are newly committed SOURCE
+handlers: the code described below has not been deployed, so nothing in this
+document is a statement about what is currently running in production.
+
+Scope note on the product: ONIQ itself is an existing published application.
+The separate APP reference package this work was reviewed against is a
+prototype. Neither fact makes ONIQ a bank or a payment service provider, and
+**nothing here establishes RBI compliance or any other regulatory status.**
 
 ## What was wrong
 
@@ -19,64 +26,145 @@ Both confirmation paths granted on evidence that does not establish payment.
 - The webhook answered HTTP 200 when it was not configured, turning a
   misconfiguration into a silently dropped payment.
 
+## Found in review of the first pass, and fixed here
+
+1. **Body limits were enforced after buffering.** `arrayBuffer()` reads the
+   whole body and only then reports its size, so a chunked request with no
+   `content-length` was unbounded in practice. Reads are now bounded WHILE
+   streaming: a declared length over the ceiling is refused before a byte is
+   read, the running total is checked per chunk, the stream is cancelled on
+   overflow, and a stalled read has its own deadline. Decoding is `fatal`
+   (malformed bytes refuse rather than becoming U+FFFD) with `ignoreBOM: true`
+   (a BOM is preserved), so the string the webhook HMAC is computed over is byte
+   for byte what arrived. A stall and a mid-read reset are reported as different
+   codes rather than collapsing into one.
+2. **Malformed provider fields became benign defaults.** A missing or
+   non-numeric `amount_refunded` read as `0` and an unreadable `refund_status`
+   as `null` — inventing the evidence that a payment was not refunded out of the
+   fact that it could not be read. Every field is now required and typed:
+   `amount_refunded` must be a non-negative safe integer no greater than
+   `amount`; `refund_status` must be absent, `null`, or one of
+   `null`/`partial`/`full`; `captured` must be a boolean; `amount` a positive
+   safe integer; `currency` three letters; both ids well-formed. A null or array
+   provider root is rejected rather than read as an object.
+3. **The webhook acknowledged events it had not processed.** With **no durable
+   event inbox and no quarantine table**, a 2xx is final: the event is gone. The
+   previous version acknowledged provider 401/403/404, redirects, not-yet
+   captured payments, unknown or ambiguous bindings, missing payment ids, and
+   semantic grant refusals — every one of which can be a credential fault, a
+   database race, eventual consistency, or an unresolved paid purchase. A
+   handled event now receives a 2xx **only when it was successfully processed**;
+   otherwise it gets a retryable `503` and grants nothing. Event types the
+   function does not handle at all (refunds, settlements, disputes) are still
+   acknowledged. The claim that `payment.captured` always follows `order.paid`
+   has been removed — it is not guaranteed, so an `order.paid` without a payment
+   entity is retried rather than written off.
+4. **Failure RPC contracts differ, and the code assumed one.** Read from the
+   live catalogue: `fail_watermark_purchase` is declared `returns void`, so
+   success is HTTP 200 with a null or empty body, while `fail_story_purchase`,
+   `fail_plan_purchase`, `fail_video_purchase` and `mark_payment_failed` return
+   `jsonb` `{ok:true}`. The old helper demanded `{ok:true}` from all of them,
+   which made every successful watermark failure look broken; and the
+   `payment.failed` path ignored a semantic `ok:false` from the others and
+   reported success. The expected shape is now carried per product, and any
+   failure-RPC result that is not a success produces a non-2xx. **No state
+   transition and no migration was changed.**
+5. **The binding was partly taken from the caller.** `resolveBinding` did not
+   select `provider_order_id`, so the id used for the HMAC, the provider
+   comparison and the RPC argument was the caller's string. It now selects and
+   re-validates the stored id and requires `provider = 'razorpay'`; a non-array
+   database response is a fault rather than "no rows"; a non-null but malformed
+   stored payment id refuses instead of reading as "never settled"; two rows in
+   one table refuse as ambiguous. The callback used to resolve the binding
+   twice — once for ownership and again inside the confirmation helper — and
+   then grant against the first. There is now **one** resolution, used for
+   ownership, the HMAC, the provider check and the RPC routing.
+6. **Assorted strictness.** Both JSON roots must be plain non-null,
+   non-array objects. Signatures must be exactly 64 hex characters (HMAC-SHA256
+   is that long; a 40–128 range admitted nothing useful). A callback with
+   missing configuration answers non-2xx while keeping the existing
+   `configured: false` payload the client already reads. Caught errors are no
+   longer logged as values — only our own code strings are — because the caught
+   value can carry request fragments from a body that may not even be verified.
+
 ## What it does now
 
-New shared module `supabase/functions/_shared/razorpayConfirm.ts`, isolated from
-the payout helper and making no POST to Razorpay at all.
+Shared module `supabase/functions/_shared/razorpayConfirm.ts`, isolated from the
+payout helper and making no POST to Razorpay at all.
 
 1. **Strict shapes** — `order_…` / `pay_…` validated before hashing or being put
-   in a URL; the signature must be hex.
+   in a URL; the signature must be 64 hex characters.
 2. **Our row decides the product** — the provider order id is looked up across
    the five purchase tables (`payments`, `story_purchases`,
-   `watermark_purchases`, `plan_purchases`, `video_purchases`). Two claimants,
-   or a row with a non-integer/non-positive price, refuses. The caller and the
-   event never name the product.
+   `watermark_purchases`, `plan_purchases`, `video_purchases`) exactly once. Two
+   claimants, a stored id that disagrees, a different provider, or a
+   non-integer/non-positive price all refuse. The caller and the event never
+   name the product.
 3. **Ownership** (callback path) — the signed-in user must own that row; "not
    yours" and "not there" answer identically.
 4. **HMAC over the server-stored order id** plus the caller's payment id.
 5. **The provider's own record** — one bounded `GET
 https://api.razorpay.com/v1/payments/:id`: fixed origin, `redirect: "manual"`,
-   8 s deadline, 64 KiB body cap, no retries, nothing from the payload logged.
-   Requires matching id and order, a positive safe-integer amount equal to our
-   stored minor-unit price, our stored currency, `status === "captured"` **and**
-   `captured === true`, no refund indicators, and no conflicting stored payment
-   id.
+   8 s deadline, 64 KiB streamed body cap, no retries, nothing from the payload
+   logged. Requires matching id and order, a positive safe-integer amount equal
+   to our stored minor-unit price, our stored currency, `status === "captured"`
+   **and** `captured === true`, well-formed refund fields showing no refund, and
+   no conflicting stored payment id.
 6. **Then the existing idempotent service-role RPC**, whose HTTP status _and_
-   `ok` are both checked — a 200 carrying `{"ok":false}` is a refusal.
+   declared result contract are both checked — a 200 carrying `{"ok":false}` is
+   a refusal, and a void RPC's empty body is a success.
 
-Failure policy: configuration, database, provider and RPC failures fail closed
-and stay retryable (callback 502, webhook 500). A definitive verdict is
-acknowledged (webhook 200 with `ok:false, refused:<code>`) because retrying it
-returns the same answer. Webhook bodies are size-bounded before the signature
+Failure policy: configuration, database, provider and RPC failures fail closed.
+The callback answers 502 (retryable) or 400/404 (settled), and never reports
+success on a refusal. The webhook returns 503 for any handled event it did not
+process. Webhook bodies are size-bounded while streaming, before the signature
 check; the raw body is still hashed before anything parses it. Accepted payment
 methods, pricing, providers, refund policy and failed-payment policy are
 unchanged.
 
 ## Evidence
 
-- `src/lib/__tests__/razorpayConfirmRuntime.test.ts` — 43 tests that execute the
-  real deployed handlers against a mocked network, asserting **no grant RPC** on
-  authorized / failed / refunded, id / order / amount / currency mismatch, wrong
-  user, unauthenticated, malformed input, bad signature, unknown order,
-  ambiguous binding, database failure, provider failure and semantic RPC
-  refusal — plus all five products routed from our own row, notes unable to
-  select another product, and duplicate deliveries.
-- Controlled mutation: removing the `captured` guard turns 4 tests red
-  (`authorized, never captured`, `captured flag false`, `failed`, and the
-  webhook's `authorized`); restored, 43/43 pass.
-- `tsgo --noEmit`, `lint:ci` on the changed path, Prettier on all four files and
-  `deno check` of both functions pass; related regressions (`classicWithdrawn`,
-  `phase0Gate`, `storyStageGates`, `payoutConcurrency`, `edgeImports`) pass
-  71/71.
+`docs/razorpay-confirmation-evidence.txt` holds the raw stdout/stderr of the
+commands below. All fixtures are fictional; the only key material anywhere is a
+made-up string in the test file.
 
-## Residual blockers (not addressed this cycle)
+- `src/lib/__tests__/razorpayConfirmRuntime.test.ts` — tests that execute the
+  committed handler bodies against a mocked network. They assert **no grant and
+  no reported success** on: authorized / failed / refunded / partially refunded,
+  id / order / amount / currency mismatch, malformed refund amounts (numeric
+  string, negative, fractional, larger than the payment, absent), unrecognised
+  refund status, non-boolean `captured`, malformed provider roots, provider
+  401/403/404/429/500, provider redirects, provider unreachable, corrupt
+  bindings (wrong stored order id, wrong provider, bad stored payment id, bad
+  price, bad currency, missing owner), malformed database responses, duplicate
+  rows, wrong user, unauthenticated, malformed input, bad and wrong-length
+  signatures, non-object JSON roots, unknown order, ambiguous binding,
+  configuration absent, and semantic RPC refusal — plus all five products routed
+  from our own row on both the credit and the failure path, the void failure
+  contract, duplicate deliveries, a single binding resolution, and the streaming
+  limits (oversized chunked body with no `content-length` and its cancellation,
+  declared-length refusal without reading, stalled reads, mid-read resets, BOM
+  preservation, malformed-byte refusal, multi-byte characters split across
+  chunks).
+- A test that reaches an RPC and asserts no SUCCESS is asserting exactly that. A
+  semantic refusal is only observable by calling the RPC, so those cases do not
+  claim "no RPC call".
+- Controlled mutation of the `captured` guard, re-run after restoring it.
+- `tsgo --noEmit`, `lint:ci` on the changed paths, Prettier, and `deno check` of
+  both functions.
 
-- **No durable event inbox** — webhook deliveries are not stored, so there is no
-  reconciliation job and no replay of an event dropped during an outage.
-- **Failed-to-late-success policy** — a purchase marked failed and later
-  captured has no defined transition.
+## Residual blockers (not addressed)
+
+- **No durable event inbox** — deliveries are still not stored. The 503 policy
+  above leans entirely on Razorpay's own retry schedule; an event that exhausts
+  it is still lost, and there is no reconciliation job and no replay.
+- **Failed-to-late-success is inconsistent by product, not undefined.** Read
+  from the live catalogue: `mark_order_paid` refuses any status other than
+  `created` or `paid`, so a purchase marked failed cannot later be credited,
+  while `credit_story_purchase`, `credit_plan_purchase`, `credit_video_purchase`
+  and `settle_watermark_purchase` only short-circuit on `paid` and will credit a
+  row previously marked failed. That difference is a product decision, not an
+  engineering one, and was not changed here.
 - **Refunds and disputes** are acknowledged and not acted on.
 - **Account and product qualification** with the provider is unverified here.
-
-None of this establishes RBI compliance, and the app remains a prototype rather
-than a bank or payment service provider.
+- **Nothing is deployed**, so none of this is in effect for any user.
