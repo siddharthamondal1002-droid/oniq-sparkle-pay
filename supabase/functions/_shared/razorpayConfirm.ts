@@ -204,7 +204,7 @@ export async function readBoundedStream(
 
   const declared = Number(declaredLength ?? "");
   if (declaredLength !== null && Number.isFinite(declared) && declared > maxBytes) {
-    abandon(body);
+    await abandon(body);
 
     return { error: { code: "body-too-large", retryable: false } };
   }
