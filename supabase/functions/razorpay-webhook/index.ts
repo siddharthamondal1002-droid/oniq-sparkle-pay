@@ -65,7 +65,7 @@ const PAID_EVENTS = new Set(["payment.captured", "order.paid"]);
 const FAILED_EVENTS = new Set(["payment.failed"]);
 
 /** The one status for "we did not finish; please send this again". */
-const RETRY = 200;
+const RETRY = 503;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
