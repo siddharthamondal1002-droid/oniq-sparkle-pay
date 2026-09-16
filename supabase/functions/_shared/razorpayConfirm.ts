@@ -188,9 +188,23 @@ export async function readBoundedStream(
   maxBytes: number,
   stallMs: number = STREAM_STALL_MS,
 ): Promise<BoundedRead> {
+  // CANCELLATION IS INITIATED, NEVER AWAITED. `cancel()` resolves only when the
+  // underlying source acknowledges, and a source that never does would hold the
+  // refusal open for exactly as long as the body we are refusing to read — the
+  // bound would be decorative. The rejection is still handled, so the discarded
+  // promise cannot surface as an unhandled rejection.
+  const abandon = (s: { cancel(): Promise<void> } | null | undefined) => {
+    try {
+      void s?.cancel().catch(() => {});
+    } catch {
+      /* a source that throws synchronously is already gone */
+    }
+  };
+
   const declared = Number(declaredLength ?? "");
   if (declaredLength !== null && Number.isFinite(declared) && declared > maxBytes) {
-    await body?.cancel().catch(() => {});
+    abandon(body);
+
     return { error: { code: "body-too-large", retryable: false } };
   }
   if (!body) return { text: "" };
@@ -204,7 +218,8 @@ export async function readBoundedStream(
       try {
         step = await withDeadline(reader.read(), stallMs);
       } catch (e) {
-        await reader.cancel().catch(() => {});
+        abandon(reader);
+
         // A STALL AND A RESET ARE DIFFERENT FAULTS and must not collapse into
         // one label: the deadline rejects with its own sentinel, so a stream
         // that errors mid-read is reported as a read failure rather than as a
@@ -217,13 +232,14 @@ export async function readBoundedStream(
       if (!chunk) continue;
       total += chunk.byteLength;
       if (total > maxBytes) {
-        await reader.cancel().catch(() => {});
+        abandon(reader);
+
         return { error: { code: "body-too-large", retryable: false } };
       }
       chunks.push(chunk);
     }
   } catch {
-    await reader.cancel().catch(() => {});
+    abandon(reader);
     return { error: { code: "body-read-failed", retryable: true } };
   }
 
@@ -387,13 +403,17 @@ export type RazorpayPayment = {
   status: string;
   captured: boolean;
   amountRefunded: number;
-  refundStatus: "null" | "partial" | "full" | null;
+  refundStatus: "partial" | "full" | null;
 };
 
 const PAYMENT_URL_BASE = "https://api.razorpay.com/v1/payments/";
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_BODY_BYTES = 64 * 1024;
-const REFUND_STATUSES = new Set(["null", "partial", "full"]);
+// JSON null is the unrefunded value. The STRING "null" is not: it is what a
+// serialiser produces when it has lost the difference between a null and the
+// word, and treating it as unrefunded would grant on a payment whose refund
+// state was never actually read.
+const REFUND_STATUSES = new Set(["partial", "full"]);
 
 /**
  * Read ONE payment from Razorpay with the server credentials.
@@ -477,6 +497,9 @@ export function parsePaymentEntity(
   body: Record<string, unknown>,
 ): { payment: RazorpayPayment } | { error: ConfirmFailure } {
   const bad = (code: string, retryable = true) => ({ error: { code, retryable } });
+  // The envelope is part of the evidence: a body that is not a payment entity
+  // is not a payment, however many payment-shaped fields it happens to carry.
+  if (body.entity !== "payment") return bad("provider-bad-entity");
   if (!isProviderId(body.id, "pay")) return bad("provider-bad-shape");
   if (!isProviderId(body.order_id, "order")) return bad("provider-bad-shape");
   const amount = body.amount;
@@ -500,12 +523,15 @@ export function parsePaymentEntity(
   ) {
     return bad("provider-bad-refund-amount");
   }
+  // REQUIRED, like every other field here. An ABSENT refund_status is not
+  // evidence of no refund — it is evidence that the refund state was not read,
+  // and defaulting it to null was the one remaining invented value.
   const refundStatusRaw = body.refund_status;
-  let refundStatus: "null" | "partial" | "full" | null;
-  if (refundStatusRaw === null || refundStatusRaw === undefined) {
+  let refundStatus: "partial" | "full" | null;
+  if (refundStatusRaw === null) {
     refundStatus = null;
   } else if (typeof refundStatusRaw === "string" && REFUND_STATUSES.has(refundStatusRaw)) {
-    refundStatus = refundStatusRaw as "null" | "partial" | "full";
+    refundStatus = refundStatusRaw as "partial" | "full";
   } else {
     return bad("provider-bad-refund-status");
   }
@@ -554,7 +580,7 @@ export function evidenceMatches(
     return refuse("not-captured", payment.status === "authorized" || payment.status === "created");
   }
   if (payment.amountRefunded > 0) return refuse("refunded");
-  if (payment.refundStatus !== null && payment.refundStatus !== "null") return refuse("refunded");
+  if (payment.refundStatus !== null) return refuse("refunded");
   // A row that already names a DIFFERENT payment is a second payment against
   // one purchase. Refusing keeps the first settlement authoritative.
   if (binding.storedPaymentId && binding.storedPaymentId !== expectedPaymentId) {

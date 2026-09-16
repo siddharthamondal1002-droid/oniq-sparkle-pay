@@ -256,3 +256,74 @@ deno exit: 0
 [2m   Start at [22m 20:21:36
 [2m   Duration [22m 1.87s[2m (transform 289ms, setup 0ms, import 532ms, tests 1.76s, environment 1ms)[22m
 
+
+============================================================
+APPENDED: final narrow correction (strict entity + required
+refund_status + non-blocking cancellation). All fixtures below
+are FICTIONAL; no provider was called and nothing was deployed.
+============================================================
+
+### 13. mutation M5 — entity check removed (raw stdout)
+
+mutation: `if (body.entity !== "payment") return bad(...)` -> `if (false) ...`
+
+ FAIL  src/lib/__tests__/razorpayConfirmRuntime.test.ts > razorpay-verify — the callback path > rejects a malformed provider payment rather than defaulting it: entity missing
+ FAIL  src/lib/__tests__/razorpayConfirmRuntime.test.ts > razorpay-verify — the callback path > rejects a malformed provider payment rather than defaulting it: entity wrong
+ FAIL  src/lib/__tests__/razorpayConfirmRuntime.test.ts > razorpay-verify — the callback path > rejects a malformed provider payment rather than defaulting it: entity not a string
+Failed Tests 3
+verdict: RED, then restored.
+
+### 14. mutation M6 — absent refund_status defaults to null (raw stdout)
+
+mutation: `if (refundStatusRaw === null) {` -> `if (refundStatusRaw === null || refundStatusRaw === undefined) {`
+
+ FAIL  src/lib/__tests__/razorpayConfirmRuntime.test.ts > razorpay-verify — the callback path > rejects a malformed provider payment rather than defaulting it: refund status missing
+Failed Tests 1
+verdict: RED, then restored.
+
+### 15. mutation M7 — cancellation awaited again (raw stdout)
+
+mutation: `abandon` made async and awaited at the declared-length and overflow sites
+
+ FAIL  src/lib/__tests__/razorpayConfirmRuntime.test.ts > bounded reads — the ceiling is enforced while streaming > returns promptly when cancellation never settles: an oversized chunked body
+ FAIL  src/lib/__tests__/razorpayConfirmRuntime.test.ts > bounded reads — the ceiling is enforced while streaming > returns promptly when cancellation never settles: a declared length over the ceiling
+Failed Tests 2
+verdict: RED, then restored.
+
+### 16. restored — focused tests (raw stdout)
+
+ [32m✓[39m src/lib/__tests__/razorpayConfirmRuntime.test.ts [2m([22m[2m131 tests[22m[2m)[22m[33m 347[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m131 passed[39m[22m[90m (131)[39m
+[2m   Start at [22m 20:31:18
+[2m   Duration [22m 626ms[2m (transform 116ms, setup 0ms, import 93ms, tests 347ms, environment 0ms)[22m
+
+
+### 17. restored — neighbouring suites (raw stdout)
+ [32m✓[39m src/lib/__tests__/deleteCreation.test.ts [2m([22m[2m31 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/storyLifecycle.test.ts [2m([22m[2m23 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m54 passed[39m[22m[90m (54)[39m
+[2m   Start at [22m 20:31:19
+[2m   Duration [22m 329ms[2m (transform 124ms, setup 0ms, import 189ms, tests 36ms, environment 0ms)[22m
+
+
+### 18. restored — tsgo --noEmit (raw stdout)
+tsgo exit: 0
+
+### 19. restored — npm run lint:ci (raw stdout)
+
+> lint:ci
+> node scripts/lint-ci.mjs src/lib/__tests__/razorpayConfirmRuntime.test.ts
+
+
+### 20. restored — prettier --check (raw stdout)
+Checking formatting...
+All matched files use Prettier code style!
+
+### 21. restored — deno check of both handlers (raw stdout)
+[0m[32mCheck[0m supabase/functions/razorpay-verify/index.ts
+[0m[32mCheck[0m supabase/functions/razorpay-webhook/index.ts
+deno exit: 0
