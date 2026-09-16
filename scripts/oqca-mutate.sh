@@ -2457,4 +2457,58 @@ mirror
 report "M162 a cycle that measured nothing answers 'no' rather than unestablished" "$(run $SI)"
 restore $F
 
+
+# M163: replay identity drops the tool catalog. A transcript can then cross a
+# permission surface without changing its key.
+F=src/oqca/cognitive/modelAdapter.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/cognitive/modelAdapter.ts'; s=open(p).read()
+old='    tools,\n  });'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'    tools: [],\n  });')
+open(p,'w').write(s)
+PY2
+mirror
+report "M163 replay identity drops the permission surface" "$(run src/oqca/cognitive/__tests__/kernelSlice.test.ts)"
+restore $F
+
+# M164: provenance counts rows again, allowing aliases and mirrors to manufacture
+# independent confirmation.
+F=src/oqca/cognitive/provenance.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/cognitive/provenance.ts'; s=open(p).read()
+old='  const independent = new Set(verifying.map(canonicalSourceIdentity));'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  const independent = new Set(verifying.map((_, index) => String(index)));')
+open(p,'w').write(s)
+PY2
+mirror
+report "M164 provenance counts duplicate rows as independent sources" "$(run src/oqca/cognitive/__tests__/kernelSlice.test.ts)"
+restore $F
+
+# M165: BLOCKED falls through to a clean no-regression answer.
+F=src/oqca/autonomy/regressionAssessment.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/autonomy/regressionAssessment.ts'; s=open(p).read()
+old='  if (verdict === null || verdict === "INCONCLUSIVE" || verdict === "BLOCKED") {'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  if (verdict === null || verdict === "INCONCLUSIVE") {')
+open(p,'w').write(s)
+PY2
+mirror
+report "M165 a blocked experiment claims no regression" "$(run $SI)"
+restore $F
+
+# M166: the verifier stops binding the signed digest to the artifact body.
+F=src/oqca/benchmarks/e003a/integrity.ts; cp $F "$BAK"
+mutate <<'PY2'
+p='src/oqca/benchmarks/e003a/integrity.ts'; s=open(p).read()
+old='  if (digest !== artifact.seal.digest) throw new Error("artifact digest mismatch");'
+assert s.count(old)==1, s.count(old)
+s=s.replace(old,'  if (false) throw new Error("artifact digest mismatch");')
+open(p,'w').write(s)
+PY2
+report "M166 a modified artifact keeps its old signed digest" "$(run src/oqca/benchmarks/e003a/__tests__/integrity.test.ts)"
+restore $F
+
 echo "done"
