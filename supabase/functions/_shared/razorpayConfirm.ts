@@ -498,7 +498,7 @@ export function parsePaymentEntity(
   if (typeof status !== "string" || !status) return bad("provider-bad-status");
   if (typeof body.captured !== "boolean") return bad("provider-bad-captured");
 
-  const refunded = body.amount_refunded;
+  const refunded = typeof body.amount_refunded === "number" ? body.amount_refunded : 0;
   if (
     typeof refunded !== "number" ||
     !Number.isSafeInteger(refunded) ||
