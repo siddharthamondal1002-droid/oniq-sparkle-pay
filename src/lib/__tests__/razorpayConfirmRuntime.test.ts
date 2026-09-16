@@ -323,6 +323,15 @@ describe("razorpay-verify — the callback path", () => {
     ["refund amount missing", { amount_refunded: undefined }],
     ["refund status unrecognised", { refund_status: "processing" }],
     ["refund status as a number", { refund_status: 0 }],
+    // ABSENT is not "not refunded": it is a refund state nobody read.
+    ["refund status missing", { refund_status: undefined }],
+    // The WORD "null" is what a serialiser emits once it has lost the
+    // difference between a null and the word; it is not the unrefunded value.
+    ["refund status as the string null", { refund_status: "null" }],
+    ["entity missing", { entity: undefined }],
+    ["entity wrong", { entity: "order" }],
+    ["entity not a string", { entity: 1 }],
+
     ["captured missing", { captured: undefined }],
     ["captured as a string", { captured: "true" }],
     ["amount as a numeric string", { amount: "4900" }],
