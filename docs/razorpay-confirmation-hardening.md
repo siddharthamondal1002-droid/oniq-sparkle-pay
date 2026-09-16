@@ -37,16 +37,28 @@ Both confirmation paths granted on evidence that does not establish payment.
    (malformed bytes refuse rather than becoming U+FFFD) with `ignoreBOM: true`
    (a BOM is preserved), so the string the webhook HMAC is computed over is byte
    for byte what arrived. A stall and a mid-read reset are reported as different
-   codes rather than collapsing into one.
+   codes rather than collapsing into one. **Cancellation is initiated and never
+   awaited**: `cancel()` settles only when the underlying source agrees, so
+   awaiting it would let a source that never agrees hold the refusal open for
+   exactly as long as the body being refused — the bound would be decorative.
+   The discarded promise's rejection is still handled. A test drives both
+   refusal paths with a `cancel()` that never settles and asserts the refusal
+   still returns.
 2. **Malformed provider fields became benign defaults.** A missing or
    non-numeric `amount_refunded` read as `0` and an unreadable `refund_status`
    as `null` — inventing the evidence that a payment was not refunded out of the
    fact that it could not be read. Every field is now required and typed:
+   `entity` must be exactly `"payment"` (a body that is not a payment entity is
+   not a payment, however many payment-shaped fields it carries);
    `amount_refunded` must be a non-negative safe integer no greater than
-   `amount`; `refund_status` must be absent, `null`, or one of
-   `null`/`partial`/`full`; `captured` must be a boolean; `amount` a positive
-   safe integer; `currency` three letters; both ids well-formed. A null or array
-   provider root is rejected rather than read as an object.
+   `amount`; `refund_status` must be PRESENT and exactly JSON `null`,
+   `"partial"` or `"full"` — an absent field is a refund state nobody read, and
+   the string `"null"` is what a serialiser emits once it has lost the
+   difference between a null and the word; `captured` must be a boolean;
+   `amount` a positive safe integer; `currency` three letters; both ids
+   well-formed. A null or array provider root is rejected rather than read as an
+   object.
+
 3. **The webhook acknowledged events it had not processed.** With **no durable
    event inbox and no quarantine table**, a 2xx is final: the event is gone. The
    previous version acknowledged provider 401/403/404, redirects, not-yet
