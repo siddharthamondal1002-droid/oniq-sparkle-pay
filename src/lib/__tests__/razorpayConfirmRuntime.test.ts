@@ -173,7 +173,6 @@ function capturedPayment(over: Record<string, unknown> = {}) {
   };
 }
 
-
 async function loadHandler(mod: string): Promise<(req: Request) => Promise<Response>> {
   handlers = [];
   // Fresh module each call: the handler is captured out of `Deno.serve`, which
@@ -847,7 +846,6 @@ describe("bounded reads — the ceiling is enforced while streaming", () => {
     expect(got).toEqual({ error: { code: "body-too-large", retryable: false } });
     expect(cancelAttempted).toBe(true);
   });
-
 
   it("surfaces a stream that errors mid-read as retryable", async () => {
     const { readBoundedStream } = await shared();

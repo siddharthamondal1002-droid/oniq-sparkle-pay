@@ -201,8 +201,6 @@ export async function readBoundedStream(
     }
   };
 
-
-
   const declared = Number(declaredLength ?? "");
   if (declaredLength !== null && Number.isFinite(declared) && declared > maxBytes) {
     abandon(body);
@@ -235,7 +233,6 @@ export async function readBoundedStream(
       total += chunk.byteLength;
       if (total > maxBytes) {
         abandon(reader);
-
 
         return { error: { code: "body-too-large", retryable: false } };
       }
@@ -418,7 +415,6 @@ const MAX_BODY_BYTES = 64 * 1024;
 // state was never actually read.
 const REFUND_STATUSES = new Set(["partial", "full"]);
 
-
 /**
  * Read ONE payment from Razorpay with the server credentials.
  *
@@ -539,7 +535,6 @@ export function parsePaymentEntity(
   } else {
     return bad("provider-bad-refund-status");
   }
-
 
   return {
     payment: {
