@@ -193,13 +193,14 @@ export async function readBoundedStream(
   // refusal open for exactly as long as the body we are refusing to read — the
   // bound would be decorative. The rejection is still handled, so the discarded
   // promise cannot surface as an unhandled rejection.
-  const abandon = async (s: { cancel(): Promise<void> } | null | undefined) => {
+  const abandon = (s: { cancel(): Promise<void> } | null | undefined) => {
     try {
-      await s?.cancel().catch(() => {});
+      void s?.cancel().catch(() => {});
     } catch {
       /* a source that throws synchronously is already gone */
     }
   };
+
 
 
   const declared = Number(declaredLength ?? "");
