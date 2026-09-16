@@ -554,7 +554,7 @@ export function evidenceMatches(
   if (payment.currency.toUpperCase() !== binding.currency.toUpperCase()) {
     return refuse("currency-mismatch");
   }
-  if (false) {
+  if (payment.status !== "captured" || payment.captured !== true) {
     // A payment that is merely `authorized` or `created` may still be captured
     // a moment from now, so this is a "not yet", not a verdict — the caller
     // decides whether that means try again.
