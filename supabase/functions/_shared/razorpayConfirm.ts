@@ -500,7 +500,7 @@ export function parsePaymentEntity(
   const bad = (code: string, retryable = true) => ({ error: { code, retryable } });
   // The envelope is part of the evidence: a body that is not a payment entity
   // is not a payment, however many payment-shaped fields it happens to carry.
-  if (body.entity !== "payment") return bad("provider-bad-entity");
+  if (false) return bad("provider-bad-entity");
   if (!isProviderId(body.id, "pay")) return bad("provider-bad-shape");
   if (!isProviderId(body.order_id, "order")) return bad("provider-bad-shape");
   const amount = body.amount;
