@@ -720,7 +720,6 @@ describe("bounded reads — the ceiling is enforced while streaming", () => {
   };
   const shared = () => import(/* @vite-ignore */ SHARED_MOD) as Promise<Shared>;
 
-
   /** A chunked stream with NO content-length, the case arrayBuffer() missed. */
   function chunked(chunks: Uint8Array[], onCancel?: () => void): ReadableStream<Uint8Array> {
     let i = 0;

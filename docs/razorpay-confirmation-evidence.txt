@@ -208,3 +208,51 @@ mutation: razorpayConfirm.ts:630  `if (shape === "void") {` -> `if (false) {`
 [2m   Start at [22m 20:20:10
 [2m   Duration [22m 707ms[2m (transform 127ms, setup 0ms, import 102ms, tests 411ms, environment 0ms)[22m
 
+
+### 7. every mutation reverted; working tree back to the intended state
+ M docs/razorpay-confirmation-evidence.txt
+ M src/lib/__tests__/razorpayConfirmRuntime.test.ts
+
+### 8. focused runtime tests, restored tree
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/dev-server[39m
+
+ [32m✓[39m src/lib/__tests__/razorpayConfirmRuntime.test.ts [2m([22m[2m124 tests[22m[2m)[22m[33m 387[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m124 passed[39m[22m[90m (124)[39m
+[2m   Start at [22m 20:21:24
+[2m   Duration [22m 684ms[2m (transform 120ms, setup 0ms, import 97ms, tests 387ms, environment 0ms)[22m
+
+
+### 9. typecheck (tsgo --noEmit, whole program)
+tsgo exit: 0
+
+### 10. lint:ci
+
+> lint:ci
+> node scripts/lint-ci.mjs src/lib/__tests__/razorpayConfirmRuntime.test.ts
+
+lint exit: 0
+
+### 11. deno check of both handlers
+[0m[32mCheck[0m supabase/functions/razorpay-verify/index.ts
+[0m[32mCheck[0m supabase/functions/razorpay-webhook/index.ts
+deno exit: 0
+
+### 12. related regressions
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/dev-server[39m
+
+ [32m✓[39m src/lib/__tests__/classicWithdrawn.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/storyStageGates.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/creator/__tests__/payoutConcurrency.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/phase0Gate.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 229[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/edgeImports.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1498[2mms[22m[39m
+     [33m[2m✓[22m[39m imports every _shared name it uses [33m 1493[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m5 passed[39m[22m[90m (5)[39m
+[2m      Tests [22m [1m[32m71 passed[39m[22m[90m (71)[39m
+[2m   Start at [22m 20:21:36
+[2m   Duration [22m 1.87s[2m (transform 289ms, setup 0ms, import 532ms, tests 1.76s, environment 1ms)[22m
+
