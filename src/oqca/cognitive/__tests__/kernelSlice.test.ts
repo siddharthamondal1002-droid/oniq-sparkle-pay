@@ -8,7 +8,7 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { promote, type Provenance } from "../provenance.ts";
+import { canonicalSourceIdentity, promote, type Provenance } from "../provenance.ts";
 import { mayExecute, parseExecutionMode } from "../executionMode.ts";
 import { EMPTY_WORLD, observe, standingOf, type Fact } from "../worldModel.ts";
 import { initialState, uncertaintyOf, type Hypothesis } from "../cognitiveState.ts";
@@ -30,8 +30,12 @@ import { runKernel } from "../cognitiveKernel.ts";
 const AT = "2026-09-12T00:00:00.000Z";
 const clock = () => AT;
 
-function ev(source: Provenance["source"], locator = "x"): Provenance {
-  return { source, locator, at: AT, excerpt: null };
+function ev(
+  source: Provenance["source"],
+  locator = "x",
+  independenceKey?: string,
+): Provenance {
+  return { source, locator, independenceKey, at: AT, excerpt: null };
 }
 
 function readTool(name: string, summary: string, over: Partial<ToolSpec> = {}): ToolSpec {
@@ -53,7 +57,30 @@ function readTool(name: string, summary: string, over: Partial<ToolSpec> = {}): 
 
 describe("provenance: a model can never verify itself", () => {
   it("two independent verifying sources reach VERIFIED", () => {
-    expect(promote([ev("database_query"), ev("repository_read")], [])).toBe("VERIFIED");
+    expect(promote([ev("database_query", "db:one"), ev("repository_read", "repo:two")], [])).toBe(
+      "VERIFIED",
+    );
+  });
+
+  it("duplicate rows and URL aliases remain one source", () => {
+    const aliases = [
+      ev("api_response", "https://EXAMPLE.com/a?b=2&a=1#fragment"),
+      ev("documentation", "https://example.com/a?a=1&b=2"),
+    ];
+    expect(promote(aliases, [])).toBe("OBSERVED");
+    expect(canonicalSourceIdentity(aliases[0])).toBe(canonicalSourceIdentity(aliases[1]));
+  });
+
+  it("mirrors sharing an upstream identity are not independent", () => {
+    expect(
+      promote(
+        [
+          ev("api_response", "https://wire.example/story", "wire-story-7"),
+          ev("documentation", "https://mirror.example/story", "wire-story-7"),
+        ],
+        [],
+      ),
+    ).toBe("OBSERVED");
   });
 
   it("a model alone is SUPPORTED however many times it speaks", () => {
@@ -226,6 +253,44 @@ describe("model adapter", () => {
     const r = await a.reason(req);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.proposal.text).toBe("hello");
+  });
+
+  it("replay identity changes with every authority-bearing tool field", () => {
+    const tool = {
+      name: "repo_read",
+      description: "read",
+      schema: ["path"],
+      version: "1",
+      scopes: ["repo:read"],
+    } as const;
+    const req = { instructions: "i", input: "x", toolsOffered: [tool] } as const;
+    const variants = [
+      { ...req, toolsOffered: [] },
+      { ...req, toolsOffered: [{ ...tool, name: "repo_write" }] },
+      { ...req, toolsOffered: [{ ...tool, schema: ["ref"] }] },
+      { ...req, toolsOffered: [{ ...tool, version: "2" }] },
+      { ...req, toolsOffered: [{ ...tool, scopes: ["repo:write"] }] },
+    ];
+    for (const variant of variants) expect(replayKey(variant)).not.toBe(replayKey(req));
+  });
+
+  it("replay identity canonicalizes catalog, schema, and scope ordering", () => {
+    const a = {
+      instructions: "i",
+      input: "x",
+      toolsOffered: [
+        { name: "z", description: "z", schema: ["b", "a"], scopes: ["write", "read"] },
+        { name: "a", description: "a", schema: [] },
+      ],
+    } as const;
+    const b = {
+      ...a,
+      toolsOffered: [
+        { name: "a", description: "a", schema: [] },
+        { name: "z", description: "z", schema: ["a", "b"], scopes: ["read", "write"] },
+      ],
+    } as const;
+    expect(replayKey(a)).toBe(replayKey(b));
   });
 });
 
