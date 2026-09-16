@@ -84,3 +84,51 @@ mutation: razorpayConfirm.ts:557  `if (payment.status !== "captured" || payment.
 [2m   Start at [22m 20:19:20
 [2m   Duration [22m 760ms[2m (transform 138ms, setup 0ms, import 109ms, tests 430ms, environment 0ms)[22m
 
+
+### 4. controlled mutation M2 — the webhook acknowledges unprocessed handled events again (expect RED)
+mutation: razorpay-webhook/index.ts:68  `const RETRY = 503;` -> `const RETRY = 200;`
+
+[41m[1m FAIL [22m[49m src/lib/__tests__/razorpayConfirmRuntime.test.ts[2m > [22mrazorpay-webhook — the provider path[2m > [22mdoes not acknowledge a JSON failure RPC that semantically refused
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m src/lib/__tests__/razorpayConfirmRuntime.test.ts:[2m694:28[22m[39m
+    [90m692|[39m     scenario[33m.[39mrpcResult [33m=[39m { ok[33m:[39m [35mfalse[39m[33m,[39m reason[33m:[39m [32m"already settled"[39m }[33m;[39m
+    [90m693|[39m     [35mconst[39m res [33m=[39m [35mawait[39m [34mcallWebhook[39m([34mfailedEvent[39m())[33m;[39m
+    [90m694|[39m     [34mexpect[39m([34msucceeded[39m(res))[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   |[39m                            [31m^[39m
+    [90m695|[39m     [34mexpect[39m(rpcCalls[33m.[39m[34mmap[39m((c) [33m=>[39m c[33m.[39mfn))[33m.[39m[34mtoEqual[39m([[32m"fail_story_purchase"[39m])[33m;[39m
+    [90m696|[39m   })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/20]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lib/__tests__/razorpayConfirmRuntime.test.ts[2m > [22mrazorpay-webhook — the provider path[2m > [22mdoes not acknowledge a JSON failure RPC that returned an empty body
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m src/lib/__tests__/razorpayConfirmRuntime.test.ts:[2m701:28[22m[39m
+    [90m699|[39m     scenario[33m.[39mrpcBody [33m=[39m [32m""[39m[33m;[39m
+    [90m700|[39m     [35mconst[39m res [33m=[39m [35mawait[39m [34mcallWebhook[39m([34mfailedEvent[39m())[33m;[39m
+    [90m701|[39m     [34mexpect[39m([34msucceeded[39m(res))[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   |[39m                            [31m^[39m
+    [90m702|[39m   })[33m;[39m
+    [90m703|[39m })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/20]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m20 failed[39m[22m[2m | [22m[1m[32m104 passed[39m[22m[90m (124)[39m
+[2m   Start at [22m 20:19:37
+[2m   Duration [22m 775ms[2m (transform 146ms, setup 0ms, import 113ms, tests 443ms, environment 0ms)[22m
+
