@@ -232,7 +232,8 @@ export async function readBoundedStream(
       if (!chunk) continue;
       total += chunk.byteLength;
       if (total > maxBytes) {
-        await reader.cancel().catch(() => {});
+        abandon(reader);
+
         return { error: { code: "body-too-large", retryable: false } };
       }
       chunks.push(chunk);
