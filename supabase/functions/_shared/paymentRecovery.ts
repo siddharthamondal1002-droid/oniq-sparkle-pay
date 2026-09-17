@@ -284,18 +284,15 @@ export async function fetchOrderPayments(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await doFetch(
-      `${ORDERS_URL_BASE}${encodeURIComponent(providerOrderId)}/payments`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: "Basic " + btoa(`${creds.keyId}:${creds.keySecret}`),
-          accept: "application/json",
-        },
-        redirect: "manual",
-        signal: controller.signal,
+    const res = await doFetch(`${ORDERS_URL_BASE}${encodeURIComponent(providerOrderId)}/payments`, {
+      method: "GET",
+      headers: {
+        Authorization: "Basic " + btoa(`${creds.keyId}:${creds.keySecret}`),
+        accept: "application/json",
       },
-    );
+      redirect: "manual",
+      signal: controller.signal,
+    });
     if (res.status >= 300 && res.status < 400) {
       return { error: { code: "provider-redirect", retryable: true } };
     }
