@@ -426,7 +426,7 @@ end $$;
 --      first answered `duplicate` and never wrote the conflict down.
 -- ===========================================================================
 do $$
-declare h1 text := repeat('a',64); h2 text := repeat('b',64); r jsonb; v_row record;
+declare h1 text := repeat('7',64); h2 text := repeat('8',64); r jsonb; v_row record;
 begin
   perform public.payment_inbox_record('evt_dlv_E1', h1, 'payment.captured','paid',
             'order_x1','pay_x1',null,null,100,'captured',now());
@@ -460,7 +460,7 @@ end $$;
 --      nullable column it was not, and the conflict was invisible for ever.
 -- ===========================================================================
 do $$
-declare h3 text := repeat('c',64); h4 text := repeat('d',64); r jsonb;
+declare h3 text := repeat('5',64); h4 text := repeat('6',64); r jsonb;
 begin
   -- Headerless first.
   perform public.payment_inbox_record(null, h3, 'payment.captured','paid',
