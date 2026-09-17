@@ -27,8 +27,10 @@
 // refund, no payout — those verbs do not appear.
 
 import {
+  evidenceMatches,
   isPlainRecord,
   isProviderId,
+  parsePaymentEntity,
   readBoundedStream,
   type ConfirmFailure,
   type PurchaseBinding,
@@ -210,6 +212,12 @@ export function extractEventFacts(event: Record<string, unknown>): EventFacts {
     (isProviderId(refund.payment_id, "pay") ? refund.payment_id : null) ??
     (isProviderId(dispute.payment_id, "pay") ? dispute.payment_id : null);
 
+  // NO FALLBACK TO THE PAYMENT FOR A REFUND OR DISPUTE FACT. A `refund.created`
+  // whose own amount is missing or is the STRING "4900" would otherwise record
+  // the payment's full 490000 as the refunded amount — a total refund written
+  // down where a partial one, or an unreadable one, actually happened. Unknown
+  // must stay unknown and visible; a plausible wrong number is worse than a
+  // null, because only the null makes anyone go and look.
   return {
     eventName,
     eventClass,
@@ -217,9 +225,9 @@ export function extractEventFacts(event: Record<string, unknown>): EventFacts {
     providerPaymentId,
     providerRefundId: idOrNull(refund.id, "rfnd"),
     providerDisputeId: idOrNull(dispute.id, "disp"),
-    amountMinor: minorOrNull(subject.amount) ?? minorOrNull(payment.amount),
-    providerStatus: statusOrNull(subject.status) ?? statusOrNull(payment.status),
-    providerCreatedAt: isoOrNull(subject.created_at) ?? isoOrNull(payment.created_at),
+    amountMinor: minorOrNull(subject.amount),
+    providerStatus: statusOrNull(subject.status),
+    providerCreatedAt: isoOrNull(subject.created_at),
   };
 }
 
@@ -344,19 +352,24 @@ export async function fetchOrderPayments(
 /**
  * Which of an order's payments, if any, is the one that settles OUR row.
  *
- * STRICT AND SINGULAR. Captured, `status === "captured"`, unrefunded, and an
- * exact match on order id, amount and currency against our own binding. Two
- * candidates is an ambiguity refusal rather than a first-match win — the same
- * rule `resolveBinding` applies to two rows claiming one order, for the same
- * reason.
+ * IT REUSES THE CONFIRMATION VALIDATORS RATHER THAN RE-READING THE FIELDS.
+ * The first version of this function did its own field-by-field parse, and a
+ * second parser of the same evidence is a second set of rules: it accepted an
+ * item with no `entity` envelope and one with no `refund_status` at all, both
+ * of which `parsePaymentEntity` refuses — so the recovery path would have
+ * granted on evidence the ordinary confirmation path rejects. There is one
+ * parser (`parsePaymentEntity`) and one comparison (`evidenceMatches`), and
+ * this function only decides which items are even candidates.
  *
- * SKIPPING AND REFUSING ARE DIFFERENT ANSWERS, and only one of them is a skip.
- * A payment belonging to another order, or one that is merely authorized or
- * failed, is ORDINARY and passed over. A payment that IS on our order and does
- * not match it — wrong amount, wrong currency, unreadable fields, already
- * refunded — is a refusal by name: swallowing it reports "no captured payment",
- * which is retryable, so the one case worth a person's attention is the one
- * that looks like the provider being slow.
+ * SKIPPING AND REFUSING ARE DIFFERENT ANSWERS. A payment belonging to another
+ * order, or one that is merely authorized, is ORDINARY and passed over. A
+ * payment that IS on our order and does not match it is a refusal by name:
+ * swallowing it reports "no captured payment", which is retryable, so the one
+ * case worth a person's attention would look like the provider being slow.
+ *
+ * A STORED PAYMENT ID THAT DISAGREES IS A CONFLICT, NOT A CANDIDATE. Our row
+ * having already settled against `pay_A` while the order now shows a captured
+ * `pay_B` is two payments for one purchase; picking either is a guess.
  */
 export function pickCapturedPayment(
   items: readonly Record<string, unknown>[],
@@ -364,44 +377,26 @@ export function pickCapturedPayment(
 ): { payment: RazorpayPayment } | { error: ConfirmFailure } {
   const hits: RazorpayPayment[] = [];
   for (const item of items) {
-    if (!isProviderId(item.order_id, "order")) {
-      return { error: { code: "malformed-payment-item", retryable: false } };
-    }
-    if (item.order_id !== binding.providerOrderId) continue; // another order: ordinary
-    if (item.status !== "captured" || item.captured !== true) continue; // not settled: ordinary
+    // A quick, non-authoritative look at the order id only, so that another
+    // order's item is passed over before it is judged. Everything that decides
+    // anything goes through the shared parser below.
+    if (typeof item.order_id === "string" && item.order_id !== binding.providerOrderId) continue;
 
-    if (!isProviderId(item.id, "pay")) {
-      return { error: { code: "malformed-payment-item", retryable: false } };
+    const parsed = parsePaymentEntity(item);
+    if ("error" in parsed) return { error: parsed.error };
+    const payment = parsed.payment;
+
+    if (payment.order_id !== binding.providerOrderId) continue; // another order: ordinary
+    if (payment.status !== "captured" || payment.captured !== true) continue; // not settled yet
+
+    if (binding.storedPaymentId && binding.storedPaymentId !== payment.id) {
+      return { error: { code: "stored-payment-id-conflict", retryable: false } };
     }
-    if (typeof item.amount !== "number" || !Number.isSafeInteger(item.amount)) {
-      return { error: { code: "malformed-payment-amount", retryable: false } };
-    }
-    if (item.amount !== binding.amountMinor) {
-      return { error: { code: "amount-mismatch", retryable: false } };
-    }
-    if (typeof item.currency !== "string" || item.currency !== binding.currency) {
-      return { error: { code: "currency-mismatch", retryable: false } };
-    }
-    const refunded = item.amount_refunded;
-    if (typeof refunded !== "number" || !Number.isSafeInteger(refunded) || refunded < 0) {
-      return { error: { code: "malformed-refund-field", retryable: false } };
-    }
-    const refundStatus = item.refund_status;
-    if (refunded > 0 || (refundStatus !== null && refundStatus !== undefined)) {
-      // Captured and then given back. Granting on this would hand over the
-      // thing and the money; it is a case, not a retry.
-      return { error: { code: "payment-refunded", retryable: false } };
-    }
-    hits.push({
-      id: item.id,
-      order_id: item.order_id,
-      amount: item.amount,
-      currency: item.currency,
-      status: "captured",
-      captured: true,
-      amountRefunded: 0,
-      refundStatus: null,
-    });
+
+    const match = evidenceMatches(payment, binding, binding.storedPaymentId ?? payment.id);
+    if (!match.ok) return { error: match.error };
+
+    hits.push(payment);
   }
   if (hits.length === 0) return { error: { code: "no-captured-payment", retryable: true } };
   if (hits.length > 1) return { error: { code: "ambiguous-captured-payment", retryable: false } };
