@@ -9,9 +9,9 @@
 do $$
 declare a jsonb; b jsonb; c jsonb; n integer;
 begin
-  a := public.payment_inbox_record('evt_1', repeat('a',64), 'payment.captured', 'paid',
+  a := public.payment_inbox_record('evt_dlv_1', repeat('a',64), 'payment.captured', 'paid',
                                    'order_1','pay_1',null,null, 4900, 'captured', now());
-  b := public.payment_inbox_record('evt_1', repeat('a',64), 'payment.captured', 'paid',
+  b := public.payment_inbox_record('evt_dlv_1', repeat('a',64), 'payment.captured', 'paid',
                                    'order_1','pay_1',null,null, 4900, 'captured', now());
   -- Same bytes, no event-id header at all. A single dedup_key would have made
   -- this a second row and paid the order twice.
@@ -32,11 +32,11 @@ declare a jsonb; b jsonb; v text;
 begin
   a := public.payment_inbox_record(null, repeat('b',64), 'payment.captured','paid',
                                    'order_b','pay_b',null,null, 100,'captured', now());
-  b := public.payment_inbox_record('evt_b', repeat('b',64), 'payment.captured','paid',
+  b := public.payment_inbox_record('evt_dlv_b', repeat('b',64), 'payment.captured','paid',
                                    'order_b','pay_b',null,null, 100,'captured', now());
   perform public.t_assert(b->>'outcome' = 'duplicate', 'still a duplicate');
   select provider_event_id into v from public.payment_webhook_events where body_sha256 = repeat('b',64);
-  perform public.t_assert(v = 'evt_b', 'the late header is adopted, got '||coalesce(v,'null'));
+  perform public.t_assert(v = 'evt_dlv_b', 'the late header is adopted, got '||coalesce(v,'null'));
   raise notice 'T1b ok  late event id adopted without a second row';
 end $$;
 
@@ -46,11 +46,11 @@ end $$;
 do $$
 declare r jsonb; st text; stored text; n integer;
 begin
-  r := public.payment_inbox_record('evt_1', repeat('c',64), 'payment.captured','paid',
+  r := public.payment_inbox_record('evt_dlv_1', repeat('c',64), 'payment.captured','paid',
                                    'order_1','pay_X',null,null, 9900,'captured', now());
   perform public.t_assert(r->>'outcome' = 'conflict', 'mismatched body conflicts: '||r::text);
   select state, conflict_sha256 into st, stored
-    from public.payment_webhook_events where provider_event_id = 'evt_1';
+    from public.payment_webhook_events where provider_event_id = 'evt_dlv_1';
   perform public.t_assert(st = 'conflict', 'the original row is marked conflict, got '||st);
   perform public.t_assert(stored = repeat('c',64), 'the incoming digest is kept as evidence');
   select count(*) into n from public.ops_alerts
@@ -68,14 +68,14 @@ end $$;
 do $$
 declare v_id uuid; v_lease uuid; r jsonb;
 begin
-  perform public.payment_inbox_record('evt_3', repeat('d',64), 'payment.captured','paid',
+  perform public.payment_inbox_record('evt_dlv_3', repeat('d',64), 'payment.captured','paid',
                                       'order_3','pay_3',null,null, 100,'captured', now());
-  select id into v_id from public.payment_webhook_events where provider_event_id='evt_3';
+  select id into v_id from public.payment_webhook_events where provider_event_id='evt_dlv_3';
   select lease_token into v_lease from public.payment_inbox_claim(10, 120) where id = v_id;
   perform public.t_assert(v_lease is not null, 'the row was claimed');
 
   -- A second body arrives under the same id while the worker is mid-flight.
-  perform public.payment_inbox_record('evt_3', repeat('e',64), 'payment.captured','paid',
+  perform public.payment_inbox_record('evt_dlv_3', repeat('e',64), 'payment.captured','paid',
                                       'order_3','pay_3',null,null, 100,'captured', now());
   r := public.payment_inbox_complete(v_id, v_lease, 'done', null, 60);
   perform public.t_assert(r->>'ok' = 'false', 'the stale completion is refused: '||r::text);
@@ -90,9 +90,9 @@ end $$;
 do $$
 declare v_id uuid; v_lease uuid; v_att integer; r jsonb;
 begin
-  perform public.payment_inbox_record('evt_4', repeat('f',64), 'payment.captured','paid',
+  perform public.payment_inbox_record('evt_dlv_4', repeat('f',64), 'payment.captured','paid',
                                       'order_4','pay_4',null,null, 100,'captured', now());
-  select id into v_id from public.payment_webhook_events where provider_event_id='evt_4';
+  select id into v_id from public.payment_webhook_events where provider_event_id='evt_dlv_4';
   perform public.t_assert((select attempts from public.payment_webhook_events where id=v_id) = 0,
                           'a recorded row starts at zero attempts');
 
@@ -115,9 +115,9 @@ end $$;
 do $$
 declare v_id uuid; i integer; n integer;
 begin
-  perform public.payment_inbox_record('evt_5', repeat('1',64), 'payment.captured','paid',
+  perform public.payment_inbox_record('evt_dlv_5', repeat('1',64), 'payment.captured','paid',
                                       'order_5','pay_5',null,null, 100,'captured', now());
-  select id into v_id from public.payment_webhook_events where provider_event_id='evt_5';
+  select id into v_id from public.payment_webhook_events where provider_event_id='evt_dlv_5';
   for i in 1..20 loop
     perform public.payment_inbox_claim(10, 1);                      -- claim and "crash"
     update public.payment_webhook_events
@@ -135,9 +135,9 @@ end $$;
 do $$
 declare v_id uuid; v_last uuid; r jsonb; st text; n integer;
 begin
-  perform public.payment_inbox_record('evt_6', repeat('2',64), 'payment.captured','paid',
+  perform public.payment_inbox_record('evt_dlv_6', repeat('2',64), 'payment.captured','paid',
                                       'order_6','pay_6',null,null, 100,'captured', now());
-  select id into v_id from public.payment_webhook_events where provider_event_id='evt_6';
+  select id into v_id from public.payment_webhook_events where provider_event_id='evt_dlv_6';
   perform public.payment_inbox_claim(10, 120);
   update public.payment_webhook_events set lease_expires_at = now() - interval '1 s' where id=v_id;
   r := public.payment_inbox_reap();
@@ -428,12 +428,12 @@ end $$;
 do $$
 declare h1 text := repeat('a',64); h2 text := repeat('b',64); r jsonb; v_row record;
 begin
-  perform public.payment_inbox_record('evt_E1', h1, 'payment.captured','paid',
+  perform public.payment_inbox_record('evt_dlv_E1', h1, 'payment.captured','paid',
             'order_x1','pay_x1',null,null,100,'captured',now());
-  perform public.payment_inbox_record('evt_E2', h2, 'payment.captured','paid',
+  perform public.payment_inbox_record('evt_dlv_E2', h2, 'payment.captured','paid',
             'order_x2','pay_x2',null,null,200,'captured',now());
 
-  r := public.payment_inbox_record('evt_E1', h2, 'payment.captured','paid',
+  r := public.payment_inbox_record('evt_dlv_E1', h2, 'payment.captured','paid',
          'order_x2','pay_x2',null,null,200,'captured',now());
   perform public.t_assert(r->>'outcome' = 'conflict',
     'a crossed id/body pair is quarantined, got ' || coalesce(r->>'outcome','null'));
@@ -470,27 +470,27 @@ begin
     'a headerless delivery stores no id');
 
   -- Adopted under E3.
-  r := public.payment_inbox_record('evt_E3', h3, 'payment.captured','paid',
+  r := public.payment_inbox_record('evt_dlv_E3', h3, 'payment.captured','paid',
          'order_x3','pay_x3',null,null,300,'captured',now());
   perform public.t_assert(r->>'outcome' = 'duplicate', 'the same bytes are a duplicate');
   perform public.t_assert(
-    (select provider_event_id from public.payment_webhook_events where body_sha256=h3) = 'evt_E3',
+    (select provider_event_id from public.payment_webhook_events where body_sha256=h3) = 'evt_dlv_E3',
     'and the late header is adopted');
 
   -- A SECOND id for the same bytes. Nothing to adopt into the column; the
   -- alias table is what remembers it.
-  r := public.payment_inbox_record('evt_E4', h3, 'payment.captured','paid',
+  r := public.payment_inbox_record('evt_dlv_E4', h3, 'payment.captured','paid',
          'order_x3','pay_x3',null,null,300,'captured',now());
   perform public.t_assert(r->>'outcome' = 'duplicate', 'still a duplicate');
   perform public.t_assert(
     (select count(*) from public.payment_webhook_event_ids where body_sha256=h3) = 2,
     'both delivery identities are remembered');
   perform public.t_assert(
-    (select provider_event_id from public.payment_webhook_events where body_sha256=h3) = 'evt_E3',
+    (select provider_event_id from public.payment_webhook_events where body_sha256=h3) = 'evt_dlv_E3',
     'and the first id is NOT relabelled');
 
   -- Now the payload under E4 changes. This is the case the alias exists for.
-  r := public.payment_inbox_record('evt_E4', h4, 'payment.captured','paid',
+  r := public.payment_inbox_record('evt_dlv_E4', h4, 'payment.captured','paid',
          'order_x9','pay_x9',null,null,999,'captured',now());
   perform public.t_assert(r->>'outcome' = 'conflict',
     'a changed body under the SECOND alias is caught, got ' || coalesce(r->>'outcome','null'));
