@@ -170,7 +170,7 @@ const EPOCH_MAX = 4_102_444_800; // 2100-01-01
 
 function isoOrNull(value: unknown): string | null {
   if (typeof value !== "number" || !Number.isSafeInteger(value)) return null;
-  if (value < EPOCH_MIN || value > EPOCH_MAX) return null;
+  if (value < 0) return null;
   return new Date(value * 1000).toISOString();
 }
 
