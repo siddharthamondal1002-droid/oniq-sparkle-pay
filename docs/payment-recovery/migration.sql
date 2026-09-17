@@ -1131,16 +1131,26 @@ grant execute on function public.payment_case_resolve(uuid,text,text) to authent
 --     comparison against the service credential it holds. A decoded `role`
 --     claim is a claim; anyone can mint a JWT that says service_role.
 -- ---------------------------------------------------------------------------
-create or replace function public.payment_recovery_tick()
+--     MAINTENANCE AND DISPATCH ARE TWO FUNCTIONS, and separating them is not
+--     tidiness. The worker itself must run the maintenance half at the top of
+--     every invocation, or a lease abandoned by a crashed worker waits for the
+--     next cron minute. If it called the TICK to do that, the tick would POST
+--     the worker, which would call the tick, which would POST the worker: one
+--     scheduled minute becomes an unbounded fan-out of invocations, each one
+--     of them billable and each one of them claiming rows. `maintain` is the
+--     half that touches only our own tables; `tick` is `maintain` plus exactly
+--     one dispatch, and only cron calls it.
+create or replace function public.payment_recovery_maintain()
 returns jsonb
 language plpgsql
 security definer
 set search_path to 'public'
 as $function$
 declare
-  v_key text; v_req bigint; v_added integer; v_aged integer; v_reaped jsonb; v_rreaped jsonb;
-  v_url text := 'https://bqwttemnnoexadpwifcj.supabase.co/functions/v1/payment-recovery';
+  v_added integer; v_aged integer; v_reaped jsonb; v_rreaped jsonb;
 begin
+  -- One maintainer at a time. Taken here rather than in the tick so a worker
+  -- invocation and a cron minute that overlap cannot both reap and enqueue.
   perform pg_advisory_xact_lock(hashtext('payment_recovery_tick'));
   v_reaped  := public.payment_inbox_reap();
   -- BOTH reapers. The inbox one alone leaves an abandoned final reconcile
@@ -1151,30 +1161,51 @@ begin
   -- nothing invokes is a report nobody runs, and the rows it exists to surface
   -- are by definition the ones already older than a month.
   v_aged    := public.payment_reconcile_backfill_aged(200);
+  return jsonb_build_object('enqueued', v_added, 'aged', v_aged,
+                            'reaped', v_reaped, 'reconcile_reaped', v_rreaped);
+end;
+$function$;
+revoke all on function public.payment_recovery_maintain() from public, anon, authenticated;
+grant execute on function public.payment_recovery_maintain() to service_role;
+
+create or replace function public.payment_recovery_tick()
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_key text; v_req bigint; v_maint jsonb;
+  -- THE WORKER HAS NO FUNCTION OF ITS OWN. This project cannot add edge
+  -- functions, so it is an explicit, credential-gated MODE on the webhook that
+  -- already exists. The mode is matched exactly; a missing or misspelt one is
+  -- refused rather than falling through to the provider branch.
+  v_url text := 'https://bqwttemnnoexadpwifcj.supabase.co/functions/v1/razorpay-webhook?mode=recovery';
+begin
+  v_maint := public.payment_recovery_maintain();
 
   v_key := public.ops_watch_pick_key();
   if v_key is null then
     raise warning 'payment_recovery_tick: no service credential available';
-    return jsonb_build_object('enqueued', v_added, 'aged', v_aged, 'reaped', v_reaped,
-                              'reconcile_reaped', v_rreaped, 'dispatched', false);
+    return v_maint || jsonb_build_object('dispatched', false);
   end if;
 
   select net.http_post(
            url := v_url,
            headers := jsonb_build_object('Content-Type','application/json',
                                          'Authorization','Bearer ' || v_key),
-           body := jsonb_build_object('source','cron'),
+           body := jsonb_build_object('source','cron','action','run'),
            timeout_milliseconds := 55000) into v_req;
 
-  return jsonb_build_object('enqueued', v_added, 'aged', v_aged, 'reaped', v_reaped,
-                            'reconcile_reaped', v_rreaped,
-                            'dispatched', true, 'request_id', v_req);
+  return v_maint || jsonb_build_object('dispatched', true, 'request_id', v_req);
 end;
 $function$;
 revoke all on function public.payment_recovery_tick() from public, anon, authenticated;
 
--- RUN THIS ONLY AFTER the worker is deployed AND one manual call with the key
--- `ops_watch_pick_key()` returns has answered 200 rather than 401.
+-- RUN THIS ONLY AFTER the webhook carrying `?mode=recovery` is deployed AND one
+-- manual call with the key `ops_watch_pick_key()` returns — `{"action":"probe"}`,
+-- which reads nothing and writes nothing — has answered 200 rather than 401.
+-- STILL NOT CALLED BY THIS FILE: applying the migration creates no schedule.
 create or replace function public.payment_recovery_setup_schedule()
 returns text
 language plpgsql

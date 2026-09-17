@@ -388,3 +388,23 @@ scheduled, and no charge, refund or payout is ever issued.
       refunded downgrade, settle_watermark_purchase applied-on-failed-grant,
       grant_subscription first-grant race, stored-payment-id conflict checks in all five
       grant RPCs, no regrant from refunded
+
+### Worker + webhook wiring (2026-09-17, in progress)
+
+Routing decision, owner-directed: the worker FOLDS INTO the existing
+`razorpay-webhook` function behind an explicit `?mode=recovery`. The platform
+refuses to create new edge functions in this project, and a TanStack route was
+declined.
+
+- [ ] `_shared/paymentRecoveryWorker.ts` exporting `handlePaymentRecovery(req)`
+      — no second `Deno.serve`
+- [ ] `_shared/razorpayCaseRead.ts` — provider CURRENT-state refund/dispute reads
+- [ ] `razorpay-webhook`: durable inbox persistence before any 2xx; exact
+      `?mode=recovery` branch gated by constant-time service-credential match
+- [ ] bounded fetch threaded through `resolveBinding` / `callGrantRpc` / every
+      provider call so the total worker deadline is real
+- [ ] executed entrypoint tests (both URL modes) + raw evidence in
+      `docs/payment-recovery/`
+- [ ] draft cron tick repointed at the same function + recovery mode, STILL
+      DISABLED until reviewed, deployed and an authenticated probe succeeds
+- [ ] queued UI request runs after this
