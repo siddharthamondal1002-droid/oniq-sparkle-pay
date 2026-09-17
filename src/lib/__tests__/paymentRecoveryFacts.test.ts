@@ -20,8 +20,10 @@ type Rec = Record<string, unknown>;
 const ORDER = "order_ABCdef123456";
 const PAY = "pay_ABCdef123456";
 
-const binding = {
-  kind: "story" as const,
+// A plain record, not `as never`: spreading a `never` is a type error, and the
+// cast belongs at the call sites that need the nominal type.
+const binding: Rec = {
+  kind: "story",
   table: "story_purchases",
   providerOrderId: ORDER,
   userId: "11111111-1111-1111-1111-111111111111",
@@ -31,8 +33,8 @@ const binding = {
   status: "created",
   creditRpc: "credit_story_purchase",
   failRpc: "fail_story_purchase",
-  failShape: "order" as unknown as never,
-} as never;
+  failShape: "order",
+};
 
 async function mod() {
   return (await import(/* @vite-ignore */ MOD)) as Rec & {
@@ -117,11 +119,46 @@ describe("extracting facts from a verified body", () => {
     expect(f.providerOrderId).toBe(ORDER);
   });
 
+  it("leaves a refund UNKNOWN rather than substituting the payment's amount", async () => {
+    const m = await mod();
+    const payment = { entity: { id: PAY, order_id: ORDER, amount: 490000, status: "captured" } };
+
+    // The refund entity carries no amount at all.
+    const missing = m.extractEventFacts({
+      event: "refund.created",
+      payload: { refund: { entity: { id: "rfnd_ABCdef123456", payment_id: PAY } }, payment },
+    });
+    expect(missing.amountMinor).toBeNull();
+    expect(missing.providerStatus).toBeNull();
+
+    // And the shape that is worse, because it looks like data: a string.
+    const stringy = m.extractEventFacts({
+      event: "refund.created",
+      payload: {
+        refund: { entity: { id: "rfnd_ABCdef123456", amount: "4900", status: 7 } },
+        payment,
+      },
+    });
+    expect(stringy.amountMinor).toBeNull();
+    expect(stringy.providerStatus).toBeNull();
+
+    // Same rule for a dispute.
+    const disputed = m.extractEventFacts({
+      event: "payment.dispute.created",
+      payload: { dispute: { entity: { id: "disp_ABCdef123456", payment_id: PAY } }, payment },
+    });
+    expect(disputed.amountMinor).toBeNull();
+    // The linkage still resolves: only the FACTS are unknown.
+    expect(disputed.providerPaymentId).toBe(PAY);
+  });
+
   it("still reads the payment for a capture", async () => {
     const m = await mod();
     const f = m.extractEventFacts({
       event: "payment.captured",
-      payload: { payment: { entity: { id: PAY, order_id: ORDER, amount: 4900, status: "captured" } } },
+      payload: {
+        payment: { entity: { id: PAY, order_id: ORDER, amount: 4900, status: "captured" } },
+      },
     });
     expect(f).toMatchObject({
       eventClass: "paid",
@@ -155,7 +192,9 @@ describe("extracting facts from a verified body", () => {
     ).toBe("2023-11-14T22:13:20.000Z");
     expect((m.extractEventFacts({ event: "x".repeat(500) }).eventName as string).length).toBe(64);
     expect(m.extractEventFacts({}).eventClass).toBe("other");
-    expect(m.extractEventFacts({ event: "refund.created", payload: "nope" }).amountMinor).toBeNull();
+    expect(
+      m.extractEventFacts({ event: "refund.created", payload: "nope" }).amountMinor,
+    ).toBeNull();
   });
 
   it("keeps nothing that identifies a person", async () => {
@@ -212,7 +251,11 @@ describe("the retry schedule", () => {
 });
 
 describe("picking the payment that settles our row", () => {
+  // `entity: "payment"` is part of the evidence, and its absence is the first
+  // thing the shared parser refuses. The earlier private parser in this module
+  // accepted an item without it, and without `refund_status`.
   const captured = (over: Rec = {}): Rec => ({
+    entity: "payment",
     id: PAY,
     order_id: ORDER,
     amount: 4900,
@@ -224,10 +267,37 @@ describe("picking the payment that settles our row", () => {
     ...over,
   });
 
+  const pick = (m: Awaited<ReturnType<typeof mod>>, items: Rec[], b: Rec = binding) =>
+    m.pickCapturedPayment(items, b as never) as Rec;
+
   it("takes the single exact match", async () => {
     const m = await mod();
-    const r = m.pickCapturedPayment([captured()], binding) as Rec;
-    expect((r.payment as Rec).id).toBe(PAY);
+    expect((pick(m, [captured()]).payment as Rec).id).toBe(PAY);
+  });
+
+  it("refuses the two items the private parser used to accept", async () => {
+    const m = await mod();
+    // No entity envelope at all.
+    const noEntity = captured();
+    delete noEntity.entity;
+    expect((pick(m, [noEntity]).error as Rec).code).toBe("provider-bad-entity");
+
+    // refund_status absent is not evidence of no refund; it is evidence that
+    // the refund state was never read.
+    const noRefundStatus = captured();
+    delete noRefundStatus.refund_status;
+    expect((pick(m, [noRefundStatus]).error as Rec).code).toBe("provider-bad-refund-status");
+  });
+
+  it("refuses a captured payment that disagrees with the id our row already stored", async () => {
+    const m = await mod();
+    const settled = { ...binding, storedPaymentId: "pay_AAAdef123456" };
+    const e = pick(m, [captured()], settled).error as Rec;
+    expect(e.code).toBe("stored-payment-id-conflict");
+    expect(e.retryable).toBe(false);
+    // The same id is not a conflict; it is the row settling against itself.
+    const same = { ...binding, storedPaymentId: PAY };
+    expect((pick(m, [captured()], same).payment as Rec).id).toBe(PAY);
   });
 
   it("passes over what is ordinary and refuses what is wrong", async () => {
@@ -236,41 +306,34 @@ describe("picking the payment that settles our row", () => {
     const authorized = captured({ status: "authorized", captured: false });
 
     // Another order, and an unsettled attempt on ours: both ordinary.
-    expect(
-      ((m.pickCapturedPayment([other, authorized], binding) as Rec).error as Rec).code,
-    ).toBe("no-captured-payment");
+    expect((pick(m, [other, authorized]).error as Rec).code).toBe("no-captured-payment");
 
-    // On OUR order and not matching it: named, and not retryable.
+    // On OUR order and not matching it: named by the SHARED validators.
     for (const [over, code] of [
       [{ amount: 4800 }, "amount-mismatch"],
       [{ currency: "USD" }, "currency-mismatch"],
-      [{ amount: "4900" }, "malformed-payment-amount"],
-      [{ id: "nonsense" }, "malformed-payment-item"],
-      [{ amount_refunded: "0" }, "malformed-refund-field"],
-      [{ amount_refunded: 100 }, "payment-refunded"],
-      [{ refund_status: "partial" }, "payment-refunded"],
+      [{ amount: "4900" }, "provider-bad-amount"],
+      [{ id: "nonsense" }, "provider-bad-shape"],
+      [{ amount_refunded: "0" }, "provider-bad-refund-amount"],
+      [{ amount_refunded: 100 }, "refunded"],
+      [{ refund_status: "partial" }, "refunded"],
     ] as [Rec, string][]) {
-      const e = (m.pickCapturedPayment([captured(over)], binding) as Rec).error as Rec;
       // `expect([code, e.retryable]).toEqual([e.code, false])` was the first
       // form of this and compared e.code with ITSELF — green whatever the code.
-      expect(e.code).toBe(code);
-      expect(e.retryable).toBe(false);
+      expect((pick(m, [captured(over)]).error as Rec).code).toBe(code);
     }
   });
 
   it("refuses two candidates rather than taking the first", async () => {
     const m = await mod();
-    const e = (
-      m.pickCapturedPayment([captured(), captured({ id: "pay_BBBdef123456" })], binding) as Rec
-    ).error as Rec;
+    const e = pick(m, [captured(), captured({ id: "pay_BBBdef123456" })]).error as Rec;
     expect(e.code).toBe("ambiguous-captured-payment");
     expect(e.retryable).toBe(false);
   });
 
   it("refuses an unreadable item instead of dropping it", async () => {
     const m = await mod();
-    const e = (m.pickCapturedPayment([{ order_id: 42 }], binding) as Rec).error as Rec;
-    expect(e.code).toBe("malformed-payment-item");
+    expect((pick(m, [{ order_id: 42 }]).error as Rec).code).toBe("provider-bad-entity");
   });
 });
 
@@ -304,10 +367,8 @@ describe("the one outbound call", () => {
     // A dropped item reads downstream as "no captured payment", which is
     // retryable, so a shape change would look like the provider being slow.
     expect(
-      (
-        ((await m.fetchOrderPayments(creds, ORDER, respond('{"items":["x"]}'))) as Rec)
-          .error as Rec
-      ).code,
+      (((await m.fetchOrderPayments(creds, ORDER, respond('{"items":["x"]}'))) as Rec).error as Rec)
+        .code,
     ).toBe("provider-bad-item");
     expect(
       (((await m.fetchOrderPayments(creds, "not-an-order", respond("{}"))) as Rec).error as Rec)

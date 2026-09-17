@@ -364,3 +364,27 @@ reporting is unchanged.
 are proven by executing the real handler and the real helper under fake timers, not by a
 session on a handset. Nothing deployed, nothing published, no edge function redeployed
 (these are client-side files), no paid generation, no GPU or provider spend, 0 credits.
+
+## Payment operations recovery — open tasks (2026-09-17)
+
+Cycle 1 is code + isolated SQL tests only. NOTHING is applied, deployed or
+scheduled, and no charge, refund or payout is ever issued.
+
+- [x] pure module `paymentRecovery.ts` + executed module tests
+- [x] reviewable SQL `docs/payment-recovery/migration.sql` + executed tests in a
+      throwaway PostgreSQL cluster (multi-session concurrency, ACL, fairness)
+- [x] R1 `pickCapturedPayment` must reuse `parsePaymentEntity` + `evidenceMatches`
+      rather than a second, weaker parser; reject a storedPaymentId conflict
+- [x] R2 `extractEventFacts` must NOT fall back to the payment's amount/status for a
+      refund/dispute fact — unknown stays unknown
+- [x] R3 durable provider event-id ALIAS mapping: crossed id/body pairs must quarantine,
+      and a headerless body adopted under a second id must stay detectable
+- [x] R4 reconcile reaper (fenced exhaustion + case + alert); the tick must CALL the
+      bounded aged backfill
+- [x] R5 case linkage must refuse a differing non-null binding; same-rank conflict limited
+      to terminal events; case rows carry currency and a verified provider status
+- [x] R6 harness: unique private temp dir, own cleanup, no repurposed HOME
+- [ ] next cycle (separate, DB): mark_order_paid failed->captured, mark_payment_failed
+      refunded downgrade, settle_watermark_purchase applied-on-failed-grant,
+      grant_subscription first-grant race, stored-payment-id conflict checks in all five
+      grant RPCs, no regrant from refunded

@@ -78,6 +78,26 @@ alter table public.payment_webhook_events enable row level security;
 create or replace function public.payment_recovery_max_attempts()
 returns integer language sql immutable as $function$ select 12 $function$;
 
+-- 1b. EVERY DELIVERY IDENTITY WE HAVE EVER SEEN, and which body it named.
+--
+--     A single nullable column on the event row could only remember the FIRST
+--     id a body arrived under. So a body first seen headerless, then delivered
+--     again under `E2`, then a DIFFERENT body delivered under `E2`, looked like
+--     an ordinary new event: the crossed pair was never detectable because the
+--     alias was never written down. The mapping is its own table, and it is
+--     what the conflict check reads.
+create table if not exists public.payment_webhook_event_ids (
+  provider_event_id text        primary key
+                      check (provider_event_id ~ '^[A-Za-z0-9_-]{6,80}$'),
+  event_row_id      uuid        not null
+                      references public.payment_webhook_events(id) on delete cascade,
+  body_sha256       text        not null check (body_sha256 ~ '^[0-9a-f]{64}$'),
+  first_seen_at     timestamptz not null default now()
+);
+create index if not exists payment_webhook_event_ids_row
+  on public.payment_webhook_event_ids (event_row_id);
+alter table public.payment_webhook_event_ids enable row level security;
+
 -- ---------------------------------------------------------------------------
 -- 2. THE RECONCILER'S CURSOR. Separate from the five purchase tables: those
 --    belong to the order-creation path, which this cycle does not touch.
@@ -121,8 +141,17 @@ create table if not exists public.payment_cases (
   purchase_table      text,
   user_id             uuid,
   amount_minor        bigint      check (amount_minor is null or amount_minor >= 0),
+  -- An amount with no currency is not a sum of money. A screen showing "4900"
+  -- beside a rupee sign it inferred is how a ₹49 refund is read as ₹4,900.
+  currency            text        check (currency is null or currency ~ '^[A-Za-z]{3}$'),
   current_event       text,
   current_rank        integer     not null default -1,
+  -- WHAT THE EVENT STREAM SAYS, AND WHAT A FRESH READ SAID, ARE TWO FACTS.
+  -- `current_event` is the last delivery; these two are the last time anyone
+  -- actually ASKED the provider. A cycling dispute is only readable from the
+  -- second, and a case with none must show as unverified rather than as agreed.
+  provider_status_verified    text,
+  provider_status_verified_at timestamptz,
   status              text        not null default 'open'
                         check (status in ('open','resolved','needs_provider_refresh')),
   open_reason         text        not null default 'policy-decision-outstanding',
@@ -150,7 +179,8 @@ create table if not exists public.payment_case_events (
   id          bigserial   primary key,
   case_id     uuid        not null references public.payment_cases(id) on delete cascade,
   kind        text        not null check (kind in ('opened','advanced','stale','conflict',
-                                                   'reopened','resolved','linked')),
+                                                   'reopened','resolved','linked',
+                                                   'linkage_refused','provider_refreshed')),
   event_name  text,
   rank        integer,
   detail      jsonb       not null default '{}'::jsonb,
@@ -177,15 +207,20 @@ create trigger payment_case_events_no_change
 -- 4. ACL. Nothing is granted by default and nothing should be: a client that
 --    could write here could manufacture evidence of a payment.
 -- ---------------------------------------------------------------------------
-revoke all on public.payment_webhook_events   from public, anon, authenticated;
-revoke all on public.payment_reconcile_cursor from public, anon, authenticated;
-revoke all on public.payment_cases            from public, anon, authenticated;
-revoke all on public.payment_case_events      from public, anon, authenticated;
+revoke all on public.payment_webhook_events    from public, anon, authenticated;
+revoke all on public.payment_webhook_event_ids from public, anon, authenticated;
+revoke all on public.payment_reconcile_cursor  from public, anon, authenticated;
+revoke all on public.payment_cases             from public, anon, authenticated;
+revoke all on public.payment_case_events       from public, anon, authenticated;
 
-grant select, insert, update on public.payment_webhook_events   to service_role;
-grant select, insert, update on public.payment_reconcile_cursor to service_role;
-grant select, insert, update on public.payment_cases            to service_role;
-grant select, insert         on public.payment_case_events      to service_role;
+grant select, insert, update on public.payment_webhook_events    to service_role;
+-- The alias mapping is written once per delivery identity and never edited:
+-- an UPDATE here would be re-pointing an id at another body, which is the very
+-- thing the table exists to make impossible.
+grant select, insert         on public.payment_webhook_event_ids to service_role;
+grant select, insert, update on public.payment_reconcile_cursor  to service_role;
+grant select, insert, update on public.payment_cases             to service_role;
+grant select, insert         on public.payment_case_events       to service_role;
 
 -- RLS is on with NO policy for anon/authenticated on any of the four. There is
 -- no direct client read path; admins go through the RPC, which re-derives the
@@ -223,12 +258,19 @@ grant execute on function public.payment_ops_alert(text,smallint,text,jsonb) to 
 -- ---------------------------------------------------------------------------
 -- 6. RECORDING A DELIVERY. Called after the HMAC passed, before any answer.
 --
---    ATOMIC BY INSERT-THEN-CATCH, not select-then-insert. Two concurrent
+--    THE EVENT ID IS CHECKED FIRST, and that ordering is the correction. The
+--    earlier version matched on the BODY first, so this sequence went
+--    undetected: (E1,H1) and (E2,H2) are already stored, and then E1 arrives
+--    carrying H2. The body matched row two, the function answered `duplicate`,
+--    and the fact that one delivery identity had now named two different
+--    payloads was never written down — the conflict this whole mechanism
+--    exists to catch, silently swallowed.
+--
+--    ATOMIC BY UPSERT AND ROW LOCK, not select-then-insert. Two concurrent
 --    deliveries of the same body both pass a prior SELECT and both insert; the
 --    unique index is the only thing that actually serialises them, so the
---    insert goes first and the violation is the branch. The exception block is
---    a subtransaction, so the failed insert is rolled back and the function
---    continues.
+--    insert carries `on conflict do nothing` and the re-read takes the row
+--    lock.
 -- ---------------------------------------------------------------------------
 create or replace function public.payment_inbox_record(
   p_provider_event_id   text,
@@ -249,70 +291,107 @@ security definer
 set search_path to 'public'
 as $function$
 declare
-  v_id    uuid;
-  v_row   public.payment_webhook_events%rowtype;
+  v_id        uuid;
+  v_alias     public.payment_webhook_event_ids%rowtype;
+  v_row       public.payment_webhook_events%rowtype;
+  v_duplicate boolean := false;
 begin
-  begin
-    insert into public.payment_webhook_events (
-      provider_event_id, body_sha256, event_name, event_class,
-      provider_order_id, provider_payment_id, provider_refund_id, provider_dispute_id,
-      amount_minor, provider_status, provider_created_at, state
-    ) values (
-      p_provider_event_id, p_body_sha256, left(coalesce(p_event_name,''), 64), p_event_class,
-      p_provider_order_id, p_provider_payment_id, p_provider_refund_id, p_provider_dispute_id,
-      p_amount_minor, p_provider_status, p_provider_created_at,
-      case when p_event_class = 'other' then 'ignored' else 'pending' end
-    )
-    returning id into v_id;
-    return jsonb_build_object('outcome', 'recorded', 'id', v_id);
-  exception when unique_violation then
-    null;  -- fall through; which index fired is decided by reading
-  end;
-
-  -- SAME BYTES: a redelivery, whatever header it carried. If this delivery
-  -- brought an event id the first one lacked, record it — but never overwrite
-  -- one, which would be relabelling somebody else's delivery.
-  select * into v_row from public.payment_webhook_events
-   where body_sha256 = p_body_sha256;
-  if found then
-    if p_provider_event_id is not null and v_row.provider_event_id is null then
-      begin
-        update public.payment_webhook_events
-           set provider_event_id = p_provider_event_id, updated_at = now()
-         where id = v_row.id and provider_event_id is null;
-      exception when unique_violation then
-        null;  -- that id already names a different body; the branch below owns it
-      end;
+  -- 1. THE DELIVERY IDENTITY, BEFORE ANYTHING ELSE.
+  if p_provider_event_id is not null then
+    select * into v_alias from public.payment_webhook_event_ids
+     where provider_event_id = p_provider_event_id for update;
+    if found and v_alias.body_sha256 is distinct from p_body_sha256 then
+      return public.payment_inbox_quarantine(
+        v_alias.event_row_id, p_provider_event_id, v_alias.body_sha256, p_body_sha256);
     end if;
-    return jsonb_build_object('outcome', 'duplicate', 'id', v_row.id, 'state', v_row.state);
   end if;
 
-  -- SAME EVENT ID, DIFFERENT BYTES. Durable evidence, and terminal: `conflict`
-  -- is not in the claimable set, so a worker holding a stale lease on this row
-  -- cannot complete it back into `done`.
-  select * into v_row from public.payment_webhook_events
-   where provider_event_id = p_provider_event_id
-   for update;
-  if found then
+  -- 2. THE CANONICAL BODY ROW. One row per distinct set of verified bytes.
+  insert into public.payment_webhook_events (
+    provider_event_id, body_sha256, event_name, event_class,
+    provider_order_id, provider_payment_id, provider_refund_id, provider_dispute_id,
+    amount_minor, provider_status, provider_created_at, state
+  ) values (
+    p_provider_event_id, p_body_sha256, left(coalesce(p_event_name,''), 64), p_event_class,
+    p_provider_order_id, p_provider_payment_id, p_provider_refund_id, p_provider_dispute_id,
+    p_amount_minor, p_provider_status, p_provider_created_at,
+    case when p_event_class = 'other' then 'ignored' else 'pending' end
+  )
+  on conflict (body_sha256) do nothing
+  returning id into v_id;
+
+  if v_id is null then
+    v_duplicate := true;
+    select * into v_row from public.payment_webhook_events
+     where body_sha256 = p_body_sha256 for update;
+    if not found then
+      -- The colliding row was inserted by a transaction that then rolled back.
+      return jsonb_build_object('outcome', 'retry');
+    end if;
+    v_id := v_row.id;
+  end if;
+
+  -- 3. THE ALIAS, REMEMBERED WHETHER OR NOT IT IS THE FIRST ONE. A second id
+  --    for a body we already hold is not noise: it is what makes a LATER
+  --    changed body under that id detectable at step 1.
+  if p_provider_event_id is not null then
+    insert into public.payment_webhook_event_ids (provider_event_id, event_row_id, body_sha256)
+    values (p_provider_event_id, v_id, p_body_sha256)
+    on conflict (provider_event_id) do nothing;
+
+    -- Re-read rather than trust the insert: a concurrent delivery may have
+    -- claimed this id for different bytes between step 1 and here.
+    select * into v_alias from public.payment_webhook_event_ids
+     where provider_event_id = p_provider_event_id;
+    if v_alias.body_sha256 is distinct from p_body_sha256 then
+      return public.payment_inbox_quarantine(
+        v_alias.event_row_id, p_provider_event_id, v_alias.body_sha256, p_body_sha256);
+    end if;
+
+    -- The column is the FIRST id this body was seen under, for display and for
+    -- the existing index. Never overwritten: that would relabel a delivery.
     update public.payment_webhook_events
-       set state = 'conflict',
-           conflict_sha256 = coalesce(conflict_sha256, p_body_sha256),
-           lease_token = null,
-           lease_expires_at = null,
-           last_error = 'event-id-body-mismatch',
-           updated_at = now()
-     where id = v_row.id;
-    perform public.payment_ops_alert(
-      'payment_inbox_conflict', 1::smallint,
-      'A webhook event id arrived with a different body — one delivery identity, two payloads.',
-      jsonb_build_object('event_id', p_provider_event_id, 'stored_sha256', v_row.body_sha256,
-                         'incoming_sha256', p_body_sha256));
-    return jsonb_build_object('outcome', 'conflict', 'id', v_row.id);
+       set provider_event_id = p_provider_event_id, updated_at = now()
+     where id = v_id and provider_event_id is null;
   end if;
 
-  return jsonb_build_object('outcome', 'unknown-violation');
+  if v_duplicate then
+    return jsonb_build_object('outcome', 'duplicate', 'id', v_id, 'state', v_row.state);
+  end if;
+  return jsonb_build_object('outcome', 'recorded', 'id', v_id);
 end;
 $function$;
+
+-- One delivery identity, two payloads. Terminal: `conflict` is not claimable,
+-- so a worker still holding a lease on this row cannot complete it into `done`.
+create or replace function public.payment_inbox_quarantine(
+  p_row_id uuid, p_event_id text, p_stored_sha text, p_incoming_sha text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+begin
+  update public.payment_webhook_events
+     set state = 'conflict',
+         conflict_sha256 = coalesce(conflict_sha256, p_incoming_sha),
+         lease_token = null, lease_expires_at = null,
+         last_error = 'event-id-body-mismatch', updated_at = now()
+   where id = p_row_id;
+
+  perform public.payment_ops_alert(
+    'payment_inbox_conflict', 1::smallint,
+    'A webhook event id arrived with a different body — one delivery identity, two payloads.',
+    jsonb_build_object('event_id', p_event_id, 'stored_sha256', p_stored_sha,
+                       'incoming_sha256', p_incoming_sha));
+
+  return jsonb_build_object('outcome', 'conflict', 'id', p_row_id);
+end;
+$function$;
+revoke all on function public.payment_inbox_quarantine(uuid,text,text,text)
+  from public, anon, authenticated;
+grant execute on function public.payment_inbox_quarantine(uuid,text,text,text) to service_role;
 
 revoke all on function public.payment_inbox_record(text,text,text,text,text,text,text,text,bigint,text,timestamptz)
   from public, anon, authenticated;
@@ -696,6 +775,64 @@ revoke all on function public.payment_reconcile_complete(text,text,uuid,text,tex
 grant execute on function public.payment_reconcile_complete(text,text,uuid,text,text,integer)
   to service_role;
 
+-- THE RECONCILER NEEDS ITS OWN REAPER, and its absence was a silent hole.
+-- `payment_inbox_reap` covers the inbox only. A reconcile worker that dies
+-- holding the LAST attempt leaves `state = 'processing', attempts = 12`: the
+-- claim query requires `attempts < max`, so that row is never claimable again
+-- and never exhausted either — it simply sits there, with a purchase behind it
+-- that may well be paid. Fenced the same way the inbox is: an unexpired lease
+-- is somebody's live work and is left alone.
+create or replace function public.payment_reconcile_reap()
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_requeued integer := 0;
+  v_dead     integer := 0;
+  r          record;
+begin
+  for r in
+    select purchase_table, provider_order_id, attempts, user_id
+      from public.payment_reconcile_cursor
+     where state = 'processing'
+       and lease_expires_at is not null and lease_expires_at < now()
+     for update skip locked
+  loop
+    if r.attempts >= public.payment_recovery_max_attempts() then
+      update public.payment_reconcile_cursor
+         set state = 'exhausted', lease_token = null, lease_expires_at = null,
+             last_error = 'lease-expired-on-final-attempt', updated_at = now()
+       where purchase_table = r.purchase_table and provider_order_id = r.provider_order_id;
+
+      insert into public.payment_cases (case_type, provider_order_id, purchase_table, user_id,
+                                        open_reason)
+      values ('manual_review', r.provider_order_id, r.purchase_table, r.user_id,
+              'reconciliation-abandoned')
+      on conflict do nothing;
+
+      perform public.payment_ops_alert(
+        'payment_reconcile_exhausted', 1::smallint,
+        'A purchase reconciliation was abandoned on its final attempt and needs a person.',
+        jsonb_build_object('table', r.purchase_table, 'order', r.provider_order_id,
+                           'attempts', r.attempts, 'reason', 'lease-expired-on-final-attempt'));
+      v_dead := v_dead + 1;
+    else
+      update public.payment_reconcile_cursor
+         set state = 'pending', lease_token = null, lease_expires_at = null,
+             next_due_at = now() + make_interval(secs => 60 * least(r.attempts, 30)),
+             last_error = 'lease-expired', updated_at = now()
+       where purchase_table = r.purchase_table and provider_order_id = r.provider_order_id;
+      v_requeued := v_requeued + 1;
+    end if;
+  end loop;
+  return jsonb_build_object('requeued', v_requeued, 'exhausted', v_dead);
+end;
+$function$;
+revoke all on function public.payment_reconcile_reap() from public, anon, authenticated;
+grant execute on function public.payment_reconcile_reap() to service_role;
+
 -- ---------------------------------------------------------------------------
 -- 9. CASES. Atomic, monotonic, reopenable.
 --
@@ -704,12 +841,22 @@ grant execute on function public.payment_reconcile_complete(text,text,uuid,text,
 --    arrival order: the case goes to `needs_provider_refresh` and a person or a
 --    fresh provider read decides.
 -- ---------------------------------------------------------------------------
+-- Which events actually END something. Only these two can be in genuine
+-- disagreement at the same rank; `won` and `lost` are the pair that matters.
+create or replace function public.payment_case_terminal(p_event text)
+returns boolean language sql immutable as $function$
+  select coalesce(p_event, '') in ('payment.dispute.won','payment.dispute.lost',
+                                   'payment.dispute.closed','refund.processed','refund.failed')
+$function$;
+
 create or replace function public.payment_case_upsert(
   p_case_type text, p_case_id text, p_order text, p_payment text,
   p_event text, p_rank integer, p_amount bigint,
   p_user uuid default null, p_table text default null,
   p_open_reason text default 'policy-decision-outstanding',
-  p_material_adverse boolean default false
+  p_material_adverse boolean default false,
+  p_currency text default null,
+  p_verified_status text default null
 )
 returns jsonb
 language plpgsql
@@ -720,6 +867,7 @@ declare
   v_id       uuid;
   v_existing public.payment_cases%rowtype;
   v_rank     integer := coalesce(p_rank, -1);
+  v_reopen   boolean;
 begin
   if p_case_type not in ('refund','dispute','manual_review') then
     raise exception 'bad case type';
@@ -730,9 +878,13 @@ begin
   -- that both callers pass.
   insert into public.payment_cases (case_type, provider_case_id, provider_order_id,
                                     provider_payment_id, purchase_table, user_id,
-                                    current_event, current_rank, amount_minor, open_reason)
+                                    current_event, current_rank, amount_minor, currency,
+                                    provider_status_verified,
+                                    provider_status_verified_at, open_reason)
   values (p_case_type, p_case_id, p_order, p_payment, p_table, p_user,
-          p_event, v_rank, p_amount, p_open_reason)
+          p_event, v_rank, p_amount, upper(nullif(p_currency,'')),
+          p_verified_status,
+          case when p_verified_status is not null then now() end, p_open_reason)
   -- The index is PARTIAL, so inference has to repeat its predicate; without it
   -- Postgres refuses the statement rather than silently using another index.
   on conflict (provider_case_id) where provider_case_id is not null do nothing
@@ -747,11 +899,45 @@ begin
   select * into v_existing from public.payment_cases
    where provider_case_id = p_case_id for update;
 
+  -- A DIFFERING NON-NULL BINDING IS A REFUSAL, NOT A NO-OP. Keeping the old
+  -- user id while applying the new amount and status produces one case row
+  -- describing two purchases: the fields a person reads to decide come from
+  -- one of them and the money from the other. Coalescing hid it completely.
+  if (p_user  is not null and v_existing.user_id           is not null
+                          and v_existing.user_id           <> p_user)
+  or (p_table is not null and v_existing.purchase_table    is not null
+                          and v_existing.purchase_table    <> p_table)
+  or (p_order is not null and v_existing.provider_order_id is not null
+                          and v_existing.provider_order_id <> p_order)
+  or (p_payment is not null and v_existing.provider_payment_id is not null
+                            and v_existing.provider_payment_id <> p_payment) then
+    update public.payment_cases
+       set status = 'needs_provider_refresh', open_reason = 'linkage-conflict',
+           updated_at = now()
+     where id = v_existing.id;
+    insert into public.payment_case_events (case_id, kind, event_name, rank, detail)
+    values (v_existing.id, 'linkage_refused', p_event, v_rank,
+            jsonb_build_object('incoming', jsonb_build_object(
+                                 'user', p_user, 'table', p_table,
+                                 'order', p_order, 'payment', p_payment),
+                               'stored', jsonb_build_object(
+                                 'user', v_existing.user_id, 'table', v_existing.purchase_table,
+                                 'order', v_existing.provider_order_id,
+                                 'payment', v_existing.provider_payment_id)));
+    perform public.payment_ops_alert(
+      'payment_case_linkage_conflict', 2::smallint,
+      'A payment case received a binding that disagrees with the one it already holds.',
+      jsonb_build_object('case', v_existing.id, 'provider_case_id', p_case_id));
+    -- NOTHING ELSE IS APPLIED. Not the amount, not the status, not the rank.
+    return jsonb_build_object('outcome', 'linkage-conflict', 'id', v_existing.id);
+  end if;
+
   -- Linkage can arrive later than the first event, and only from a VERIFIED
   -- binding. Filled once, never overwritten.
   if (v_existing.user_id is null and p_user is not null)
      or (v_existing.purchase_table is null and p_table is not null)
-     or (v_existing.provider_order_id is null and p_order is not null) then
+     or (v_existing.provider_order_id is null and p_order is not null)
+     or (v_existing.provider_payment_id is null and p_payment is not null) then
     update public.payment_cases
        set user_id = coalesce(user_id, p_user),
            purchase_table = coalesce(purchase_table, p_table),
@@ -761,12 +947,39 @@ begin
      where id = v_existing.id;
     insert into public.payment_case_events (case_id, kind, detail)
     values (v_existing.id, 'linked',
-            jsonb_build_object('user', p_user, 'table', p_table, 'order', p_order));
+            jsonb_build_object('user', p_user, 'table', p_table, 'order', p_order,
+                               'payment', p_payment));
   end if;
 
-  -- Same rank, different terminal event: not ours to pick.
+  -- A FRESH PROVIDER READ IS ALWAYS RECORDED, whatever the event stream does.
+  -- It is the only thing that can settle a dispute that cycles between states,
+  -- and it is a different fact from `current_event` — so it is applied even on
+  -- a stale or conflicting delivery, and its absence leaves the case visibly
+  -- unverified rather than quietly agreed.
+  if p_verified_status is not null then
+    update public.payment_cases
+       set provider_status_verified = p_verified_status,
+           provider_status_verified_at = now(), updated_at = now()
+     where id = v_existing.id;
+    insert into public.payment_case_events (case_id, kind, event_name, detail)
+    values (v_existing.id, 'provider_refreshed', p_event,
+            jsonb_build_object('status', p_verified_status));
+  end if;
+
+  -- Currency fills once, beside the amount it qualifies.
+  if v_existing.currency is null and nullif(p_currency,'') is not null then
+    update public.payment_cases set currency = upper(p_currency), updated_at = now()
+     where id = v_existing.id;
+  end if;
+
+  -- SAME RANK, DIFFERENT EVENT, AND BOTH TERMINAL: not ours to pick. Limited to
+  -- terminal events on purpose — two non-terminal states sharing a rank are an
+  -- ordinary duplicate-ish delivery, and escalating those would fill the queue
+  -- with "conflicts" that need nobody.
   if v_rank >= 0 and v_rank = v_existing.current_rank
-     and v_existing.current_event is distinct from p_event then
+     and v_existing.current_event is distinct from p_event
+     and public.payment_case_terminal(p_event)
+     and public.payment_case_terminal(v_existing.current_event) then
     update public.payment_cases
        set status = 'needs_provider_refresh', open_reason = 'conflicting-terminal-events',
            updated_at = now()
@@ -786,40 +999,32 @@ begin
                               'current_event', v_existing.current_event);
   end if;
 
+  -- A resolved case that receives NEW material adverse news is reopened.
+  -- Leaving it closed would hide a chargeback behind yesterday's decision. The
+  -- resolution itself is kept in the history.
+  v_reopen := v_existing.status = 'resolved' and p_material_adverse;
+
   update public.payment_cases
      set current_event = p_event, current_rank = v_rank,
          amount_minor = coalesce(p_amount, amount_minor),
-         -- A resolved case that receives NEW material adverse news is reopened.
-         -- Leaving it closed would hide a chargeback behind yesterday's
-         -- decision. The resolution itself is kept in the history.
-         status = case when v_existing.status = 'resolved' and p_material_adverse
-                       then 'open' else v_existing.status end,
-         reopened_count = v_existing.reopened_count
-                          + case when v_existing.status = 'resolved' and p_material_adverse
-                                 then 1 else 0 end,
-         resolution = case when v_existing.status = 'resolved' and p_material_adverse
-                           then null else v_existing.resolution end,
-         resolved_at = case when v_existing.status = 'resolved' and p_material_adverse
-                            then null else v_existing.resolved_at end,
+         status = case when v_reopen then 'open' else v_existing.status end,
+         reopened_count = v_existing.reopened_count + case when v_reopen then 1 else 0 end,
+         resolution = case when v_reopen then null else v_existing.resolution end,
+         resolved_at = case when v_reopen then null else v_existing.resolved_at end,
          updated_at = now()
    where id = v_existing.id;
 
   insert into public.payment_case_events (case_id, kind, event_name, rank, detail)
-  values (v_existing.id,
-          case when v_existing.status = 'resolved' and p_material_adverse
-               then 'reopened' else 'advanced' end,
-          p_event, v_rank,
-          jsonb_build_object('from', v_existing.current_event));
+  values (v_existing.id, case when v_reopen then 'reopened' else 'advanced' end,
+          p_event, v_rank, jsonb_build_object('from', v_existing.current_event));
 
-  return jsonb_build_object(
-    'outcome', case when v_existing.status = 'resolved' and p_material_adverse
-                    then 'reopened' else 'advanced' end,
-    'id', v_existing.id);
+  return jsonb_build_object('outcome', case when v_reopen then 'reopened' else 'advanced' end,
+                            'id', v_existing.id);
 end;
 $function$;
-revoke all on function public.payment_case_upsert(text,text,text,text,text,integer,bigint,uuid,text,text,boolean)
+revoke all on function public.payment_case_upsert(text,text,text,text,text,integer,bigint,uuid,text,text,boolean,text,text)
   from public, anon, authenticated;
-grant execute on function public.payment_case_upsert(text,text,text,text,text,integer,bigint,uuid,text,text,boolean)
+grant execute on function public.payment_case_upsert(text,text,text,text,text,integer,bigint,uuid,text,text,boolean,text,text)
   to service_role;
 
 -- ---------------------------------------------------------------------------
@@ -848,7 +1053,9 @@ begin
                 from (select state, count(*) n from public.payment_reconcile_cursor group by state) r),
     'cases', (select coalesce(jsonb_agg(to_jsonb(c)), '[]'::jsonb)
                 from (select id, case_type, provider_case_id, provider_order_id,
-                             provider_payment_id, amount_minor, current_event, status,
+                             provider_payment_id, amount_minor, currency,
+                             provider_status_verified, provider_status_verified_at,
+                             current_event, status,
                              open_reason, resolution, resolution_note, reopened_count,
                              opened_at, updated_at
                         from public.payment_cases order by status, updated_at desc limit 100) c),
@@ -931,17 +1138,25 @@ security definer
 set search_path to 'public'
 as $function$
 declare
-  v_key text; v_req bigint; v_added integer; v_reaped jsonb;
+  v_key text; v_req bigint; v_added integer; v_aged integer; v_reaped jsonb; v_rreaped jsonb;
   v_url text := 'https://bqwttemnnoexadpwifcj.supabase.co/functions/v1/payment-recovery';
 begin
   perform pg_advisory_xact_lock(hashtext('payment_recovery_tick'));
-  v_reaped := public.payment_inbox_reap();
-  v_added  := public.payment_reconcile_enqueue(200);
+  v_reaped  := public.payment_inbox_reap();
+  -- BOTH reapers. The inbox one alone leaves an abandoned final reconcile
+  -- attempt stuck in `processing` for ever.
+  v_rreaped := public.payment_reconcile_reap();
+  v_added   := public.payment_reconcile_enqueue(200);
+  -- And the aged sweep is CALLED, not merely defined: a bounded backfill that
+  -- nothing invokes is a report nobody runs, and the rows it exists to surface
+  -- are by definition the ones already older than a month.
+  v_aged    := public.payment_reconcile_backfill_aged(200);
 
   v_key := public.ops_watch_pick_key();
   if v_key is null then
     raise warning 'payment_recovery_tick: no service credential available';
-    return jsonb_build_object('enqueued', v_added, 'reaped', v_reaped, 'dispatched', false);
+    return jsonb_build_object('enqueued', v_added, 'aged', v_aged, 'reaped', v_reaped,
+                              'reconcile_reaped', v_rreaped, 'dispatched', false);
   end if;
 
   select net.http_post(
@@ -951,7 +1166,8 @@ begin
            body := jsonb_build_object('source','cron'),
            timeout_milliseconds := 55000) into v_req;
 
-  return jsonb_build_object('enqueued', v_added, 'reaped', v_reaped,
+  return jsonb_build_object('enqueued', v_added, 'aged', v_aged, 'reaped', v_reaped,
+                            'reconcile_reaped', v_rreaped,
                             'dispatched', true, 'request_id', v_req);
 end;
 $function$;
