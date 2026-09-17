@@ -271,8 +271,8 @@ end $$;
 do $$
 declare cid uuid; r jsonb; st text;
 begin
-  cid := (public.payment_case_upsert('dispute','disp_2','order_11','pay_11','dispute.won',4,700)->>'id')::uuid;
-  r := public.payment_case_upsert('dispute','disp_2','order_11','pay_11','dispute.lost',4,700);
+  cid := (public.payment_case_upsert('dispute','disp_2','order_11','pay_11','payment.dispute.won',5,700)->>'id')::uuid;
+  r := public.payment_case_upsert('dispute','disp_2','order_11','pay_11','payment.dispute.lost',5,700);
   perform public.t_assert(r->>'outcome' = 'conflict', 'same-rank disagreement is a conflict: '||r::text);
   select status into st from public.payment_cases where id=cid;
   perform public.t_assert(st = 'needs_provider_refresh',
@@ -284,7 +284,7 @@ end $$;
 do $$
 declare cid uuid; r jsonb; st text; res text; n integer;
 begin
-  cid := (public.payment_case_upsert('dispute','disp_3','order_12','pay_12','dispute.created',1,800)->>'id')::uuid;
+  cid := (public.payment_case_upsert('dispute','disp_3','order_12','pay_12','payment.dispute.created',1,800)->>'id')::uuid;
   set local test.uid = '00000000-0000-0000-0000-0000000000aa';
   insert into public.profiles (id, is_admin) values ('00000000-0000-0000-0000-0000000000aa', true)
     on conflict (id) do update set is_admin = true;
@@ -292,7 +292,7 @@ begin
   perform public.t_assert((select status from public.payment_cases where id=cid) = 'resolved',
                           'the case closes');
 
-  r := public.payment_case_upsert('dispute','disp_3','order_12','pay_12','dispute.lost',4,800,
+  r := public.payment_case_upsert('dispute','disp_3','order_12','pay_12','payment.dispute.lost',5,800,
                                   null,null,'policy-decision-outstanding', true);
   perform public.t_assert(r->>'outcome' = 'reopened', 'material adverse news reopens: '||r::text);
   select status, resolution into st, res from public.payment_cases where id=cid;
