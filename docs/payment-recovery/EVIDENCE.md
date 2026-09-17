@@ -16,11 +16,11 @@ and reached at exactly:
 Two doors, one function, and neither one's authentication can be reached
 through the other:
 
-| URL                              | gate                                          |
-| -------------------------------- | --------------------------------------------- |
-| `?mode=recovery`                 | constant-time match against the service key    |
-| no mode (the provider's own URL) | raw HMAC over the unparsed bytes               |
-| any other mode                   | 400 before anything is read                    |
+| URL                              | gate                                        |
+| -------------------------------- | ------------------------------------------- |
+| `?mode=recovery`                 | constant-time match against the service key |
+| no mode (the provider's own URL) | raw HMAC over the unparsed bytes            |
+| any other mode                   | 400 before anything is read                 |
 
 A provider delivery carries no service key, so it cannot select the worker; a
 service key carries no signature, so it cannot skip the HMAC. Both are
@@ -71,7 +71,7 @@ never connected.
 **Two anchors were wrong on the first run and the script said so rather than
 printing a verdict.** M1 was `NOTAPPLIED` (a stale anchor). M2 reported
 `GREEN <- ESCAPED` while mutating the wrong line: it changed the branch
-*selector* while the *validator* one block above still rejected the bad mode,
+_selector_ while the _validator_ one block above still rejected the bad mode,
 so the mutation never opened the hole it named — defence in depth read as a
 hole in the tests. Both repointed; both RED.
 
