@@ -156,7 +156,9 @@ describe("extracting facts from a verified body", () => {
     const m = await mod();
     const f = m.extractEventFacts({
       event: "payment.captured",
-      payload: { payment: { entity: { id: PAY, order_id: ORDER, amount: 4900, status: "captured" } } },
+      payload: {
+        payment: { entity: { id: PAY, order_id: ORDER, amount: 4900, status: "captured" } },
+      },
     });
     expect(f).toMatchObject({
       eventClass: "paid",
@@ -190,7 +192,9 @@ describe("extracting facts from a verified body", () => {
     ).toBe("2023-11-14T22:13:20.000Z");
     expect((m.extractEventFacts({ event: "x".repeat(500) }).eventName as string).length).toBe(64);
     expect(m.extractEventFacts({}).eventClass).toBe("other");
-    expect(m.extractEventFacts({ event: "refund.created", payload: "nope" }).amountMinor).toBeNull();
+    expect(
+      m.extractEventFacts({ event: "refund.created", payload: "nope" }).amountMinor,
+    ).toBeNull();
   });
 
   it("keeps nothing that identifies a person", async () => {
@@ -363,10 +367,8 @@ describe("the one outbound call", () => {
     // A dropped item reads downstream as "no captured payment", which is
     // retryable, so a shape change would look like the provider being slow.
     expect(
-      (
-        ((await m.fetchOrderPayments(creds, ORDER, respond('{"items":["x"]}'))) as Rec)
-          .error as Rec
-      ).code,
+      (((await m.fetchOrderPayments(creds, ORDER, respond('{"items":["x"]}'))) as Rec).error as Rec)
+        .code,
     ).toBe("provider-bad-item");
     expect(
       (((await m.fetchOrderPayments(creds, "not-an-order", respond("{}"))) as Rec).error as Rec)

@@ -200,8 +200,7 @@ export function extractEventFacts(event: Record<string, unknown>): EventFacts {
   const refund = entityOf(payload.refund);
   const dispute = entityOf(payload.dispute);
 
-  const subject =
-    eventClass === "refund" ? refund : eventClass === "dispute" ? dispute : payment;
+  const subject = eventClass === "refund" ? refund : eventClass === "dispute" ? dispute : payment;
 
   const providerOrderId =
     (isProviderId(payment.order_id, "order") ? payment.order_id : null) ??
