@@ -385,7 +385,7 @@ begin
     'public.payment_inbox_record(text,text,text,text,text,text,text,text,bigint,text,timestamptz)','execute'),
     'authenticated cannot record a webhook');
   perform public.t_assert(not has_function_privilege('authenticated',
-    'public.payment_case_upsert(text,text,text,text,text,integer,bigint,uuid,text,text,boolean)','execute'),
+    'public.payment_case_upsert(text,text,text,text,text,integer,bigint,uuid,text,text,boolean,text,text)','execute'),
     'authenticated cannot write a case directly');
   perform public.t_assert(not has_function_privilege('authenticated',
     'public.payment_recovery_tick()','execute'), 'authenticated cannot run the tick');
@@ -417,6 +417,206 @@ begin
   perform public.t_assert(to_regclass('cron.job') is null,
     'and nothing in this file created a cron schema or job');
   raise notice 'T10 ok  tick defined, schedule NOT created';
+end $$;
+
+
+-- ===========================================================================
+-- T14  CROSSED EVENT IDS AND BODIES. The review's own repro: (E1,H1) and
+--      (E2,H2) are stored, then E1 arrives carrying H2. Matching on the body
+--      first answered `duplicate` and never wrote the conflict down.
+-- ===========================================================================
+do $$
+declare h1 text := repeat('a',64); h2 text := repeat('b',64); r jsonb; v_row record;
+begin
+  perform public.payment_inbox_record('evt_E1', h1, 'payment.captured','paid',
+            'order_x1','pay_x1',null,null,100,'captured',now());
+  perform public.payment_inbox_record('evt_E2', h2, 'payment.captured','paid',
+            'order_x2','pay_x2',null,null,200,'captured',now());
+
+  r := public.payment_inbox_record('evt_E1', h2, 'payment.captured','paid',
+         'order_x2','pay_x2',null,null,200,'captured',now());
+  perform public.t_assert(r->>'outcome' = 'conflict',
+    'a crossed id/body pair is quarantined, got ' || coalesce(r->>'outcome','null'));
+
+  select * into v_row from public.payment_webhook_events where body_sha256 = h1;
+  perform public.t_assert(v_row.state = 'conflict',
+    'and it is the row that OWNS evt_E1 that is quarantined, got ' || v_row.state);
+  perform public.t_assert(v_row.conflict_sha256 = h2, 'with the rival body kept as evidence');
+  perform public.t_assert(
+    (select count(*) from public.ops_alerts
+      where signal='payment_inbox_conflict' and resolved_at is null) = 1,
+    'and an ops alert is PERSISTED, not merely logged');
+
+  -- The row that legitimately holds h2 is untouched.
+  perform public.t_assert(
+    (select state from public.payment_webhook_events where body_sha256=h2) = 'pending',
+    'the innocent row keeps its state');
+  raise notice 'T14 ok  crossed id/body quarantines the id owner and alerts';
+end $$;
+
+-- ===========================================================================
+-- T15  A SECOND EVENT ID FOR A BODY WE ALREADY HOLD IS REMEMBERED, so a LATER
+--      changed body under that alias is still detectable. Under the old single
+--      nullable column it was not, and the conflict was invisible for ever.
+-- ===========================================================================
+do $$
+declare h3 text := repeat('c',64); h4 text := repeat('d',64); r jsonb;
+begin
+  -- Headerless first.
+  perform public.payment_inbox_record(null, h3, 'payment.captured','paid',
+            'order_x3','pay_x3',null,null,300,'captured',now());
+  perform public.t_assert(
+    (select provider_event_id from public.payment_webhook_events where body_sha256=h3) is null,
+    'a headerless delivery stores no id');
+
+  -- Adopted under E3.
+  r := public.payment_inbox_record('evt_E3', h3, 'payment.captured','paid',
+         'order_x3','pay_x3',null,null,300,'captured',now());
+  perform public.t_assert(r->>'outcome' = 'duplicate', 'the same bytes are a duplicate');
+  perform public.t_assert(
+    (select provider_event_id from public.payment_webhook_events where body_sha256=h3) = 'evt_E3',
+    'and the late header is adopted');
+
+  -- A SECOND id for the same bytes. Nothing to adopt into the column; the
+  -- alias table is what remembers it.
+  r := public.payment_inbox_record('evt_E4', h3, 'payment.captured','paid',
+         'order_x3','pay_x3',null,null,300,'captured',now());
+  perform public.t_assert(r->>'outcome' = 'duplicate', 'still a duplicate');
+  perform public.t_assert(
+    (select count(*) from public.payment_webhook_event_ids where body_sha256=h3) = 2,
+    'both delivery identities are remembered');
+  perform public.t_assert(
+    (select provider_event_id from public.payment_webhook_events where body_sha256=h3) = 'evt_E3',
+    'and the first id is NOT relabelled');
+
+  -- Now the payload under E4 changes. This is the case the alias exists for.
+  r := public.payment_inbox_record('evt_E4', h4, 'payment.captured','paid',
+         'order_x9','pay_x9',null,null,999,'captured',now());
+  perform public.t_assert(r->>'outcome' = 'conflict',
+    'a changed body under the SECOND alias is caught, got ' || coalesce(r->>'outcome','null'));
+  perform public.t_assert(
+    (select state from public.payment_webhook_events where body_sha256=h3) = 'conflict',
+    'and the body that alias named is quarantined');
+  perform public.t_assert(
+    not exists (select 1 from public.payment_webhook_events where body_sha256=h4),
+    'the rival body is NOT written as an ordinary new event');
+  raise notice 'T15 ok  alias mapping survives headerless adoption and a second id';
+end $$;
+
+-- ===========================================================================
+-- T16  A RECONCILE WORKER THAT DIES ON ITS LAST ATTEMPT. Without a reconcile
+--      reaper the row is `processing` at attempts = max for ever: the claim
+--      query needs attempts < max, so nothing ever touches it again.
+-- ===========================================================================
+do $$
+declare v record; v_max integer := public.payment_recovery_max_attempts(); r jsonb;
+begin
+  insert into public.payment_reconcile_cursor (purchase_table, provider_order_id, user_id,
+                                               state, attempts, lease_token, lease_expires_at)
+  values ('story_purchases','order_dead','11111111-1111-1111-1111-111111111111',
+          'processing', v_max, gen_random_uuid(), now() - interval '5 minutes');
+
+  perform public.t_assert(
+    (select count(*) from public.payment_reconcile_claim(10, 60)) = 0,
+    'it is not claimable — which is the trap, not the fix');
+
+  r := public.payment_reconcile_reap();
+  perform public.t_assert((r->>'exhausted')::int = 1, 'the reaper takes the final attempt');
+  select * into v from public.payment_reconcile_cursor where provider_order_id='order_dead';
+  perform public.t_assert(v.state = 'exhausted', 'it is exhausted, got ' || v.state);
+  perform public.t_assert(v.lease_token is null, 'and the dead lease is released');
+  perform public.t_assert(
+    exists (select 1 from public.payment_cases
+             where provider_order_id='order_dead' and case_type='manual_review'
+               and open_reason='reconciliation-abandoned'),
+    'a person has a case to look at');
+  perform public.t_assert(
+    exists (select 1 from public.ops_alerts
+             where signal='payment_reconcile_exhausted' and resolved_at is null),
+    'and the alert is persisted');
+
+  -- An UNEXPIRED lease is somebody live; the reaper must not take it.
+  insert into public.payment_reconcile_cursor (purchase_table, provider_order_id,
+                                               state, attempts, lease_token, lease_expires_at)
+  values ('story_purchases','order_live','processing', v_max, gen_random_uuid(),
+          now() + interval '5 minutes');
+  perform public.payment_reconcile_reap();
+  perform public.t_assert(
+    (select state from public.payment_reconcile_cursor where provider_order_id='order_live')
+      = 'processing',
+    'a live lease is left alone');
+  raise notice 'T16 ok  reconcile reaper is fenced, exhausts, cases and alerts';
+end $$;
+
+-- ===========================================================================
+-- T17  A CASE MAY NOT SILENTLY ADOPT A DIFFERENT BINDING.
+-- ===========================================================================
+do $$
+declare u1 uuid := '11111111-1111-1111-1111-111111111111';
+        u2 uuid := '22222222-2222-2222-2222-222222222222';
+        r jsonb; v record;
+begin
+  perform public.payment_case_upsert('refund','rfnd_link','order_L','pay_L',
+            'refund.created',1,1000,u1,'story_purchases','policy-decision-outstanding',
+            false,'INR');
+
+  r := public.payment_case_upsert('refund','rfnd_link','order_L','pay_L',
+         'refund.processed',3,9999,u2,'story_purchases');
+  perform public.t_assert(r->>'outcome' = 'linkage-conflict',
+    'a different user is refused, got ' || coalesce(r->>'outcome','null'));
+
+  select * into v from public.payment_cases where provider_case_id='rfnd_link';
+  perform public.t_assert(v.amount_minor = 1000,
+    'AND NOTHING ELSE IS APPLIED: the amount is untouched, got ' || v.amount_minor);
+  perform public.t_assert(v.current_event = 'refund.created', 'the event is untouched');
+  perform public.t_assert(v.status = 'needs_provider_refresh', 'the case is flagged');
+  perform public.t_assert(v.currency = 'INR', 'currency is stored beside the amount');
+  perform public.t_assert(
+    exists (select 1 from public.payment_case_events
+             where case_id=v.id and kind='linkage_refused'),
+    'and the refusal is in the history');
+  raise notice 'T17 ok  differing bindings are refused, not merged';
+end $$;
+
+-- ===========================================================================
+-- T18  SAME-RANK CONFLICT ONLY FOR TERMINAL EVENTS, and a fresh provider read
+--      is recorded whatever the stream does.
+-- ===========================================================================
+do $$
+declare r jsonb; v record;
+begin
+  -- won and lost share a rank and are both terminal: not ours to pick.
+  perform public.payment_case_upsert('dispute','disp_T','order_T','pay_T',
+            'payment.dispute.won',5,500);
+  r := public.payment_case_upsert('dispute','disp_T','order_T','pay_T',
+         'payment.dispute.lost',5,500);
+  perform public.t_assert(r->>'outcome' = 'conflict', 'two terminal verdicts escalate');
+
+  -- A non-terminal pair sharing a rank is ordinary and must NOT escalate.
+  perform public.payment_case_upsert('dispute','disp_N','order_N','pay_N',
+            'payment.dispute.under_review',2,500);
+  r := public.payment_case_upsert('dispute','disp_N','order_N','pay_N',
+         'payment.dispute.reopened_review',2,500);
+  perform public.t_assert(r->>'outcome' = 'stale',
+    'a non-terminal same-rank pair is ordinary, got ' || coalesce(r->>'outcome','null'));
+  perform public.t_assert(
+    (select status from public.payment_cases where provider_case_id='disp_N') = 'open',
+    'and the case is not flagged for a person');
+
+  -- A cycling dispute: the stream is stale, the fresh read is still recorded.
+  r := public.payment_case_upsert('dispute','disp_N','order_N','pay_N',
+         'payment.dispute.created',1,500,null,null,'policy-decision-outstanding',
+         false,null,'under_review');
+  perform public.t_assert(r->>'outcome' = 'stale', 'the stale delivery is still dropped');
+  select * into v from public.payment_cases where provider_case_id='disp_N';
+  perform public.t_assert(v.provider_status_verified = 'under_review',
+    'but the fresh provider truth is kept');
+  perform public.t_assert(v.provider_status_verified_at is not null, 'and stamped');
+  perform public.t_assert(
+    (select provider_status_verified from public.payment_cases where provider_case_id='disp_T')
+      is null,
+    'a case nobody has re-read shows UNVERIFIED rather than agreed');
+  raise notice 'T18 ok  terminal-only conflicts, fresh provider truth always recorded';
 end $$;
 
 select 'ALL SQL TESTS PASSED' as result;
