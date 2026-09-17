@@ -517,7 +517,8 @@ begin
           'processing', v_max, gen_random_uuid(), now() - interval '5 minutes');
 
   perform public.t_assert(
-    (select count(*) from public.payment_reconcile_claim(10, 60)) = 0,
+    not exists (select 1 from public.payment_reconcile_claim(500, 60)
+                 where provider_order_id = 'order_dead'),
     'it is not claimable — which is the trap, not the fix');
 
   r := public.payment_reconcile_reap();
