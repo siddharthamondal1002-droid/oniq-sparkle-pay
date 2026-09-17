@@ -635,15 +635,17 @@ begin
   set local test.uid = '00000000-0000-0000-0000-0000000000aa';
   cid := (public.payment_case_upsert('refund','rfnd_ver','order_ver','pay_ver',
             'refund.created',1,700,null,null,'policy-decision-outstanding')->>'id')::uuid;
-  stale := (select updated_at from public.payment_cases where id=cid);
-
-  -- The refund advances while the admin's tab is open.
-  perform pg_sleep(0.01);
+  -- THE ADVANCE CANNOT BE STAGED WITH now() INSIDE ONE TRANSACTION: `now()` is
+  -- the transaction's start instant, so every write in this block stamps the
+  -- identical timestamp and a real advance would look like no change at all.
+  -- The stale read is therefore constructed directly, which is what an admin
+  -- holding a page loaded a minute ago actually has.
   perform public.payment_case_upsert('refund','rfnd_ver','order_ver','pay_ver',
             'refund.processed',5,700,null,null,'policy-decision-outstanding', true);
+  stale := (select updated_at from public.payment_cases where id=cid) - interval '1 minute';
   perform public.t_assert(
     (select updated_at from public.payment_cases where id=cid) <> stale,
-    'the case moved under the admin');
+    'the admin is holding an older version than the row');
 
   r := public.payment_case_resolve(cid, 'no_action', 'closing on what I read earlier', stale);
   perform public.t_assert(r->>'ok' = 'false' and r->>'reason' = 'stale',
