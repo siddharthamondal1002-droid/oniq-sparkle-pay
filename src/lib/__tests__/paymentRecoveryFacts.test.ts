@@ -251,7 +251,10 @@ describe("picking the payment that settles our row", () => {
       [{ refund_status: "partial" }, "payment-refunded"],
     ] as [Rec, string][]) {
       const e = (m.pickCapturedPayment([captured(over)], binding) as Rec).error as Rec;
-      expect([code, e.retryable]).toEqual([e.code, false]);
+      // `expect([code, e.retryable]).toEqual([e.code, false])` was the first
+      // form of this and compared e.code with ITSELF — green whatever the code.
+      expect(e.code).toBe(code);
+      expect(e.retryable).toBe(false);
     }
   });
 
