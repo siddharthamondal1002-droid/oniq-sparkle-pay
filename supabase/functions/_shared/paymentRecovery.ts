@@ -217,7 +217,7 @@ export function extractEventFacts(event: Record<string, unknown>): EventFacts {
     providerPaymentId,
     providerRefundId: idOrNull(refund.id, "rfnd"),
     providerDisputeId: idOrNull(dispute.id, "disp"),
-    amountMinor: minorOrNull(payment.amount) ?? minorOrNull(subject.amount),
+    amountMinor: minorOrNull(subject.amount) ?? minorOrNull(payment.amount),
     providerStatus: statusOrNull(subject.status) ?? statusOrNull(payment.status),
     providerCreatedAt: isoOrNull(subject.created_at) ?? isoOrNull(payment.created_at),
   };
