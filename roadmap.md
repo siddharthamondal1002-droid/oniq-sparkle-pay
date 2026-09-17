@@ -373,17 +373,17 @@ scheduled, and no charge, refund or payout is ever issued.
 - [x] pure module `paymentRecovery.ts` + executed module tests
 - [x] reviewable SQL `docs/payment-recovery/migration.sql` + executed tests in a
       throwaway PostgreSQL cluster (multi-session concurrency, ACL, fairness)
-- [ ] R1 `pickCapturedPayment` must reuse `parsePaymentEntity` + `evidenceMatches`
+- [x] R1 `pickCapturedPayment` must reuse `parsePaymentEntity` + `evidenceMatches`
       rather than a second, weaker parser; reject a storedPaymentId conflict
-- [ ] R2 `extractEventFacts` must NOT fall back to the payment's amount/status for a
+- [x] R2 `extractEventFacts` must NOT fall back to the payment's amount/status for a
       refund/dispute fact — unknown stays unknown
-- [ ] R3 durable provider event-id ALIAS mapping: crossed id/body pairs must quarantine,
+- [x] R3 durable provider event-id ALIAS mapping: crossed id/body pairs must quarantine,
       and a headerless body adopted under a second id must stay detectable
-- [ ] R4 reconcile reaper (fenced exhaustion + case + alert); the tick must CALL the
+- [x] R4 reconcile reaper (fenced exhaustion + case + alert); the tick must CALL the
       bounded aged backfill
-- [ ] R5 case linkage must refuse a differing non-null binding; same-rank conflict limited
+- [x] R5 case linkage must refuse a differing non-null binding; same-rank conflict limited
       to terminal events; case rows carry currency and a verified provider status
-- [ ] R6 harness: unique private temp dir, own cleanup, no repurposed HOME
+- [x] R6 harness: unique private temp dir, own cleanup, no repurposed HOME
 - [ ] next cycle (separate, DB): mark_order_paid failed->captured, mark_payment_failed
       refunded downgrade, settle_watermark_purchase applied-on-failed-grant,
       grant_subscription first-grant race, stored-payment-id conflict checks in all five
