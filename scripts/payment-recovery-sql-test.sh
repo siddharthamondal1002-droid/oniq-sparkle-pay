@@ -48,11 +48,18 @@ echo "== behavioural tests =="
 echo "== concurrency: 12 sessions, one body =="
 START=$(( $(date +%s) + 3 ))
 for i in $(seq 1 12); do
-  "${PSQL[@]}" -tAc "
+  # EACH IN ITS OWN OPEN TRANSACTION, holding it past the call. Without that,
+  # the first writer commits inside the microsecond spread and everyone else
+  # merely READS the committed row — which a select-then-insert passes too, so
+  # the test would be green against the shape it exists to catch.
+  "${PSQL[@]}" -tA -v ON_ERROR_STOP=0 <<SQL >"$DIR/race.$i" 2>&1 &
     select pg_sleep(greatest(0, $START - extract(epoch from clock_timestamp())));
+    begin;
     select public.payment_inbox_record('evt_race', repeat('9',64), 'payment.captured',
              'paid','order_race','pay_race',null,null, 1500,'captured', now())->>'outcome';
-  " >"$DIR/race.$i" 2>&1 &
+    select pg_sleep(2);
+    commit;
+SQL
 done
 wait
 # `grep -c` over several files prints one count PER FILE, which reads as a
@@ -60,7 +67,8 @@ wait
 RECORDED=$(cat "$DIR"/race.* | grep -c '^recorded$' || true)
 DUPES=$(cat "$DIR"/race.* | grep -c '^duplicate$' || true)
 ROWS=$("${PSQL[@]}" -tAc "select count(*) from public.payment_webhook_events where body_sha256=repeat('9',64);")
-echo "   recorded=$RECORDED duplicate=$DUPES rows=$ROWS"
+ERRS=$(cat "$DIR"/race.* | grep -ci 'error' || true)
+echo "   recorded=$RECORDED duplicate=$DUPES rows=$ROWS errors=$ERRS"
 [ "$RECORDED" = "1" ] && [ "$DUPES" = "11" ] && [ "$ROWS" = "1" ] \
   || { echo "FAIL: concurrent dedup is not atomic"; exit 1; }
 echo "   T11 ok  exactly one row survived twelve simultaneous deliveries"
