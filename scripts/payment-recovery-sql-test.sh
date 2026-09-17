@@ -87,7 +87,7 @@ echo "   T11 ok  exactly one row survived twelve simultaneous deliveries"
 
 echo "== concurrency: two claimers cannot hold one row =="
 "${PSQL[@]}" -q -o /dev/null -c "
-  select public.payment_inbox_record('evt_c'||g, md5(g::text)||md5((g+1)::text),
+  select public.payment_inbox_record('evt_dlv_c'||g, md5(g::text)||md5((g+1)::text),
            'payment.captured','paid','order_c'||g,'pay_c'||g,null,null,100,'captured',now())
     from generate_series(1,20) g;"
 START=$(( $(date +%s) + 3 ))
