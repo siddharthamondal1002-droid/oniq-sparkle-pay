@@ -396,15 +396,22 @@ Routing decision, owner-directed: the worker FOLDS INTO the existing
 refuses to create new edge functions in this project, and a TanStack route was
 declined.
 
-- [ ] `_shared/paymentRecoveryWorker.ts` exporting `handlePaymentRecovery(req)`
+- [x] `_shared/paymentRecoveryWorker.ts` exporting `handlePaymentRecovery(req)`
       — no second `Deno.serve`
-- [ ] `_shared/razorpayCaseRead.ts` — provider CURRENT-state refund/dispute reads
-- [ ] `razorpay-webhook`: durable inbox persistence before any 2xx; exact
+- [x] `_shared/razorpayCaseRead.ts` — provider CURRENT-state refund/dispute reads
+- [x] `razorpay-webhook`: durable inbox persistence before any 2xx; exact
       `?mode=recovery` branch gated by constant-time service-credential match
-- [ ] bounded fetch threaded through `resolveBinding` / `callGrantRpc` / every
+- [x] bounded fetch threaded through `resolveBinding` / `callGrantRpc` / every
       provider call so the total worker deadline is real
-- [ ] executed entrypoint tests (both URL modes) + raw evidence in
-      `docs/payment-recovery/`
-- [ ] draft cron tick repointed at the same function + recovery mode, STILL
-      DISABLED until reviewed, deployed and an authenticated probe succeeds
+- [x] executed entrypoint tests (both URL modes) + raw evidence in
+      `docs/payment-recovery/EVIDENCE.md` — 63 worker + 118 webhook/callback,
+      whole suite 423 files / 7581, 24 SQL assertions, 6/6 mutations RED
+- [x] draft cron tick repointed at the same function + recovery mode, STILL
+      DISABLED — `setup_schedule` is defined and not called by the file
+- [ ] OPEN, not mine to close: review -> deploy -> authenticated probe returns
+      ok -> only then enable the schedule. The migration stays unapplied.
+- [ ] one unexplained intermittent: the 12-session race twice reported
+      `errors=2` / once `errors=8` with `rows=1` and `recorded=1` intact, i.e.
+      sessions that never answered rather than a dedup fault. Not reproduced
+      since; the harness now prints the sessions' own error text on failure.
 - [ ] queued UI request runs after this
