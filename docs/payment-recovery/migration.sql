@@ -1072,8 +1072,14 @@ $function$;
 revoke all on function public.payment_recovery_overview() from public, anon, authenticated;
 grant execute on function public.payment_recovery_overview() to authenticated, service_role;
 
+-- THE OLD THREE-ARGUMENT FORM IS DROPPED, NOT DEFAULTED. A defaulted fourth
+-- parameter creates a second callable signature, and a three-argument call is
+-- then ambiguous — which fails in production at call time rather than here.
+-- Dropping it also means no caller can quietly keep the unguarded version.
+drop function if exists public.payment_case_resolve(uuid, text, text);
+
 create or replace function public.payment_case_resolve(
-  p_case_id uuid, p_resolution text, p_note text
+  p_case_id uuid, p_resolution text, p_note text, p_expected_updated_at timestamptz
 )
 returns jsonb
 language plpgsql
@@ -1083,7 +1089,7 @@ as $function$
 declare
   v_uid  uuid := auth.uid();
   v_note text := btrim(coalesce(p_note, ''));
-  v_rows integer;
+  v_case public.payment_cases%rowtype;
 begin
   if v_uid is null or not public.is_admin(v_uid) then
     raise exception 'forbidden' using errcode = '42501';
@@ -1096,24 +1102,119 @@ begin
   if length(v_note) < 8 or length(v_note) > 500 then
     raise exception 'a note of 8 to 500 characters is required';
   end if;
+  if p_expected_updated_at is null then
+    raise exception 'the version of the case being closed is required';
+  end if;
+
+  -- ═══ THE VERSION CHECK IS UNDER THE LOCK, AND THE LOCK COMES FIRST ═══
+  -- An admin reads a case, a refund advances to `lost` while the tab is open,
+  -- and the save would otherwise close a case describing money that has since
+  -- moved. Comparing `updated_at` BEFORE taking the row lock is the same race
+  -- one level down: the writer can land between the read and the update.
+  select * into v_case from public.payment_cases where id = p_case_id for update;
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'not-found');
+  end if;
+
+  -- Compared as an instant, never as text: two renderings of one moment differ
+  -- by offset and by digits of precision, so a string compare would reject
+  -- every honest save from a client that formats its timestamps differently.
+  if v_case.updated_at is distinct from p_expected_updated_at then
+    return jsonb_build_object('ok', false, 'reason', 'stale',
+                              'current_updated_at', v_case.updated_at);
+  end if;
+  if v_case.status not in ('open','needs_provider_refresh') then
+    return jsonb_build_object('ok', false, 'reason', 'not-open');
+  end if;
 
   -- THIS RECORDS A DECISION, IT DOES NOT TAKE AN ACTION. Nothing here issues a
   -- refund, revokes an entitlement or moves money.
   update public.payment_cases
      set status = 'resolved', resolution = p_resolution, resolution_note = v_note,
          resolved_by = v_uid, resolved_at = now(), updated_at = now()
-   where id = p_case_id and status in ('open','needs_provider_refresh');
-  get diagnostics v_rows = row_count;
-  if v_rows = 0 then return jsonb_build_object('ok', false, 'reason', 'not-open'); end if;
+   where id = p_case_id;
 
   insert into public.payment_case_events (case_id, kind, actor, detail)
   values (p_case_id, 'resolved', v_uid,
-          jsonb_build_object('resolution', p_resolution, 'note', v_note));
+          jsonb_build_object('resolution', p_resolution, 'note', v_note,
+                             'closed_version', p_expected_updated_at));
   return jsonb_build_object('ok', true);
 end;
 $function$;
-revoke all on function public.payment_case_resolve(uuid,text,text) from public, anon, authenticated;
-grant execute on function public.payment_case_resolve(uuid,text,text) to authenticated, service_role;
+revoke all on function public.payment_case_resolve(uuid,text,text,timestamptz)
+  from public, anon, authenticated;
+grant execute on function public.payment_case_resolve(uuid,text,text,timestamptz)
+  to authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- 10b. THE AUDIT TRAIL, READ BACK. `payment_case_events` is append-only by
+--      trigger, so this is the durable history of every decision — including
+--      the ones a later reopening superseded. Admin-gated in SQL like its
+--      neighbours; the client's own check is a convenience, never the control.
+-- ---------------------------------------------------------------------------
+create or replace function public.payment_case_history(p_case_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_uid uuid := auth.uid();
+  v_out jsonb;
+begin
+  if v_uid is null or not public.is_admin(v_uid) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  select coalesce(jsonb_agg(to_jsonb(h) order by h.id), '[]'::jsonb) into v_out
+    from (select id, kind, event_name, rank, detail, actor, created_at
+            from public.payment_case_events
+           where case_id = p_case_id
+           order by id limit 200) h;
+  return v_out;
+end;
+$function$;
+revoke all on function public.payment_case_history(uuid) from public, anon, authenticated;
+grant execute on function public.payment_case_history(uuid) to authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- 10c. THE CUSTOMER'S OWN VIEW. Filtered by ownership IN SQL, and minimal.
+--
+--      WHAT IS DELIBERATELY ABSENT: `resolution_note` and every
+--      `payment_case_events` row. Those are ONIQ's internal review notes and
+--      the person they are about is not their audience — a note naming another
+--      order, a colleague or an internal reference would leak through a screen
+--      built to reassure.
+--
+--      A case with a NULL `user_id` belongs to nobody here and is returned to
+--      nobody. Cases opened by the exhaustion reaper carry no user id, so they
+--      are invisible to this function by construction rather than by a filter
+--      somebody could drop.
+-- ---------------------------------------------------------------------------
+create or replace function public.payment_cases_mine()
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_uid uuid := auth.uid();
+  v_out jsonb;
+begin
+  if v_uid is null then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  select coalesce(jsonb_agg(to_jsonb(c) order by c.opened_at desc), '[]'::jsonb) into v_out
+    from (select id, case_type, status, amount_minor, currency,
+                 provider_status_verified, provider_status_verified_at,
+                 provider_order_id, opened_at, updated_at
+            from public.payment_cases
+           where user_id = v_uid
+           order by opened_at desc limit 20) c;
+  return v_out;
+end;
+$function$;
+revoke all on function public.payment_cases_mine() from public, anon;
+grant execute on function public.payment_cases_mine() to authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- 11. THE TICK, AND THE SCHEDULE AS A SEPARATE STEP.

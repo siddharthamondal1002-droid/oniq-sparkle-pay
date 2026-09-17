@@ -288,7 +288,8 @@ begin
   set local test.uid = '00000000-0000-0000-0000-0000000000aa';
   insert into public.profiles (id, is_admin) values ('00000000-0000-0000-0000-0000000000aa', true)
     on conflict (id) do update set is_admin = true;
-  perform public.payment_case_resolve(cid, 'no_action', 'closed after review with the provider');
+  perform public.payment_case_resolve(cid, 'no_action', 'closed after review with the provider',
+                                      (select updated_at from public.payment_cases where id=cid));
   perform public.t_assert((select status from public.payment_cases where id=cid) = 'resolved',
                           'the case closes');
 
@@ -361,15 +362,18 @@ declare cid uuid; ok boolean := false;
 begin
   set local test.uid = '00000000-0000-0000-0000-0000000000aa';
   cid := (public.payment_case_upsert('refund','rfnd_9','order_13','pay_13','refund.created',1,100)->>'id')::uuid;
-  begin perform public.payment_case_resolve(cid, 'no_action', 'short');
+  begin perform public.payment_case_resolve(cid, 'no_action', 'short',
+           (select updated_at from public.payment_cases where id=cid));
   exception when others then ok := true; end;
   perform public.t_assert(ok, 'a one-word note is refused');
   ok := false;
-  begin perform public.payment_case_resolve(cid, 'no_action', repeat('x', 501));
+  begin perform public.payment_case_resolve(cid, 'no_action', repeat('x', 501),
+           (select updated_at from public.payment_cases where id=cid));
   exception when others then ok := true; end;
   perform public.t_assert(ok, 'an unbounded note is refused');
   ok := false;
-  begin perform public.payment_case_resolve(cid, 'issue_refund', 'a plausible sounding note');
+  begin perform public.payment_case_resolve(cid, 'issue_refund', 'a plausible sounding note',
+           (select updated_at from public.payment_cases where id=cid));
   exception when others then ok := true; end;
   perform public.t_assert(ok, 'a resolution outside the closed list is refused');
   raise notice 'T9b ok  resolution notes bounded, resolutions closed';
@@ -618,6 +622,147 @@ begin
       is null,
     'a case nobody has re-read shows UNVERIFIED rather than agreed');
   raise notice 'T18 ok  terminal-only conflicts, fresh provider truth always recorded';
+end $$;
+
+
+-- ===========================================================================
+-- T19 THE VERSION CHECK. An admin reading an old case may not close newly
+--     arrived adverse information.
+-- ===========================================================================
+do $$
+declare cid uuid; stale timestamptz; r jsonb; ok boolean := false;
+begin
+  set local test.uid = '00000000-0000-0000-0000-0000000000aa';
+  cid := (public.payment_case_upsert('refund','rfnd_ver','order_ver','pay_ver',
+            'refund.created',1,700,null,null,'policy-decision-outstanding')->>'id')::uuid;
+  -- THE ADVANCE CANNOT BE STAGED WITH now() INSIDE ONE TRANSACTION: `now()` is
+  -- the transaction's start instant, so every write in this block stamps the
+  -- identical timestamp and a real advance would look like no change at all.
+  -- The stale read is therefore constructed directly, which is what an admin
+  -- holding a page loaded a minute ago actually has.
+  perform public.payment_case_upsert('refund','rfnd_ver','order_ver','pay_ver',
+            'refund.processed',5,700,null,null,'policy-decision-outstanding', true);
+  stale := (select updated_at from public.payment_cases where id=cid) - interval '1 minute';
+  perform public.t_assert(
+    (select updated_at from public.payment_cases where id=cid) <> stale,
+    'the admin is holding an older version than the row');
+
+  r := public.payment_case_resolve(cid, 'no_action', 'closing on what I read earlier', stale);
+  perform public.t_assert(r->>'ok' = 'false' and r->>'reason' = 'stale',
+                          'a stale version is refused: '||r::text);
+  perform public.t_assert(r ? 'current_updated_at', 'and the refusal says what the case is now');
+  perform public.t_assert((select status from public.payment_cases where id=cid) <> 'resolved',
+                          'and the case is still open');
+
+  -- Re-reading and saving again works.
+  r := public.payment_case_resolve(cid, 'no_action', 'closing on the current state',
+         (select updated_at from public.payment_cases where id=cid));
+  perform public.t_assert(r->>'ok' = 'true', 'the current version closes: '||r::text);
+
+  -- A second save of the same version is refused rather than closing twice.
+  r := public.payment_case_resolve(cid, 'no_action', 'closing it a second time',
+         (select updated_at from public.payment_cases where id=cid));
+  perform public.t_assert(r->>'ok' = 'false' and r->>'reason' = 'not-open',
+                          'an already-closed case is refused: '||r::text);
+
+  begin
+    perform public.payment_case_resolve(cid, 'no_action', 'no version supplied at all', null);
+    ok := false;
+  exception when others then ok := true; end;
+  perform public.t_assert(ok, 'a missing version is refused');
+
+  -- The three-argument form is GONE, not merely unused: a defaulted parameter
+  -- would leave an unguarded call path alive.
+  perform public.t_assert(
+    (select count(*) from pg_proc where proname = 'payment_case_resolve'
+       and pronargs = 3) = 0,
+    'the unguarded three-argument signature no longer exists');
+  raise notice 'T19 ok  optimistic version check under lock, old signature dropped';
+end $$;
+
+-- ===========================================================================
+-- T20 THE AUDIT TRAIL is readable, admin-gated, and keeps superseded decisions.
+-- ===========================================================================
+do $$
+declare cid uuid; h jsonb; ok boolean := false; code text;
+begin
+  set local test.uid = '00000000-0000-0000-0000-0000000000aa';
+  cid := (public.payment_case_upsert('dispute','disp_h','order_h','pay_h',
+            'payment.dispute.created',1,900)->>'id')::uuid;
+  perform public.payment_case_resolve(cid, 'no_action', 'first review, nothing owed',
+            (select updated_at from public.payment_cases where id=cid));
+  perform public.payment_case_upsert('dispute','disp_h','order_h','pay_h',
+            'payment.dispute.lost',5,900,null,null,'policy-decision-outstanding', true);
+
+  h := public.payment_case_history(cid);
+  perform public.t_assert(jsonb_array_length(h) >= 3,
+    'opened, resolved and reopened are all kept: '||h::text);
+  -- THE SUPERSEDED DECISION SURVIVES THE REOPENING. The case row's
+  -- `resolution` was cleared; the history is what still says it was closed.
+  perform public.t_assert(
+    exists (select 1 from jsonb_array_elements(h) e where e->>'kind' = 'resolved'),
+    'the superseded resolution is still in the trail');
+  perform public.t_assert(
+    (select status from public.payment_cases where id=cid) = 'open'
+      and (select resolution from public.payment_cases where id=cid) is null,
+    'even though the case row no longer carries it');
+
+  set local test.uid = '00000000-0000-0000-0000-0000000000bb';
+  begin perform public.payment_case_history(cid);
+  exception when others then get stacked diagnostics code = returned_sqlstate;
+    ok := (code = '42501'); end;
+  perform public.t_assert(ok, 'a non-admin cannot read the trail');
+  raise notice 'T20 ok  audit trail readable by admins, superseded decisions kept';
+end $$;
+
+-- ===========================================================================
+-- T21 THE CUSTOMER VIEW. Ownership is enforced in SQL and the notes never leave.
+-- ===========================================================================
+do $$
+declare mine uuid; theirs uuid; orphan uuid; v jsonb; ok boolean := false;
+begin
+  insert into public.profiles (id, is_admin) values
+    ('00000000-0000-0000-0000-0000000000c1', false),
+    ('00000000-0000-0000-0000-0000000000c2', false)
+    on conflict (id) do nothing;
+
+  set local test.uid = '00000000-0000-0000-0000-0000000000aa';
+  mine := (public.payment_case_upsert('refund','rfnd_c1','order_c1','pay_c1','refund.created',
+             1,500,'00000000-0000-0000-0000-0000000000c1'::uuid,'story_purchases')->>'id')::uuid;
+  theirs := (public.payment_case_upsert('refund','rfnd_c2','order_c2','pay_c2','refund.created',
+             1,600,'00000000-0000-0000-0000-0000000000c2'::uuid,'story_purchases')->>'id')::uuid;
+  -- No user id at all: the shape the exhaustion reaper opens.
+  orphan := (public.payment_case_upsert('refund','rfnd_c3','order_c3','pay_c3','refund.created',
+             1,700)->>'id')::uuid;
+  perform public.payment_case_resolve(mine, 'no_action',
+            'internal note naming an unrelated order and a colleague',
+            (select updated_at from public.payment_cases where id=mine));
+
+  set local test.uid = '00000000-0000-0000-0000-0000000000c1';
+  v := public.payment_cases_mine();
+  perform public.t_assert(jsonb_array_length(v) = 1, 'exactly the caller''s own case: '||v::text);
+  perform public.t_assert(v->0->>'id' = mine::text, 'and it is theirs');
+  perform public.t_assert(not (v::text like '%colleague%'),
+    'THE ADMIN NOTE NEVER LEAVES: '||v::text);
+  perform public.t_assert(not (v->0 ? 'resolution_note'), 'the note field is absent entirely');
+  perform public.t_assert(not (v->0 ? 'resolved_by'), 'and so is who closed it');
+  perform public.t_assert(v->0 ? 'currency' and v->0 ? 'provider_status_verified',
+    'the customer still sees the verified facts');
+
+  set local test.uid = '00000000-0000-0000-0000-0000000000c2';
+  v := public.payment_cases_mine();
+  perform public.t_assert(jsonb_array_length(v) = 1 and v->0->>'id' = theirs::text,
+    'the other person sees only their own');
+
+  reset test.uid;
+  begin perform public.payment_cases_mine();
+  exception when others then ok := true; end;
+  perform public.t_assert(ok, 'an unauthenticated caller is refused');
+  perform public.t_assert(orphan is not null, 'the ownerless case exists');
+  set local test.uid = '00000000-0000-0000-0000-0000000000c1';
+  perform public.t_assert(not (public.payment_cases_mine()::text like '%order_c3%'),
+    'and belongs to nobody, so it reaches nobody');
+  raise notice 'T21 ok  ownership enforced in SQL, admin notes never exposed';
 end $$;
 
 select 'ALL SQL TESTS PASSED' as result;
