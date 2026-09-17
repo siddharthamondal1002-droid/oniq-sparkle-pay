@@ -82,7 +82,15 @@ ROWS=$("${PSQL[@]}" -tAc "select count(*) from public.payment_webhook_events whe
 ERRS=$(cat "$DIR"/out/race.* | grep -ci 'error' || true)
 echo "   recorded=$RECORDED duplicate=$DUPES rows=$ROWS errors=$ERRS"
 [ "$RECORDED" = "1" ] && [ "$DUPES" = "11" ] && [ "$ROWS" = "1" ] \
-  || { echo "FAIL: concurrent dedup is not atomic"; exit 1; }
+  || {
+       # PRINT WHAT THE SESSIONS ACTUALLY SAID. A bare "not atomic" cannot
+       # separate a dedup fault from a session that never connected, and the
+       # first observed failure here was the second kind — `rows` was still 1.
+       echo "FAIL: concurrent dedup is not atomic"
+       echo "--- session output ---"
+       cat "$DIR"/out/race.* | grep -i 'error\|fatal\|could not' | sort | uniq -c
+       exit 1
+     }
 echo "   T11 ok  exactly one row survived twelve simultaneous deliveries"
 
 echo "== concurrency: two claimers cannot hold one row =="

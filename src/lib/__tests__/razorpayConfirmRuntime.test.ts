@@ -63,6 +63,11 @@ type Scenario = {
   /** A raw body for the RPC, for the void contract. */
   rpcBody?: string;
   rpcStatus?: number;
+  /** What `payment_inbox_record` answers — the durable write's verdict. */
+  inboxOutcome?: string;
+  inboxStatus?: number;
+  inboxBody?: string;
+  inboxThrows?: boolean;
   user?: string | null;
   env?: Record<string, string>;
 };
@@ -103,6 +108,19 @@ function router(): typeof fetch {
     const rpc = url.match(/\/rest\/v1\/rpc\/(\w+)$/);
     if (rpc) {
       rpcCalls.push({ fn: rpc[1], args: JSON.parse(String(init?.body ?? "{}")) });
+      // The durable inbox answers a shape of its own — `{outcome}`, not
+      // `{ok}` — and the webhook's whole acknowledgement rule now turns on it,
+      // so it is arranged separately from the grant RPCs.
+      if (rpc[1] === "payment_inbox_record") {
+        if (scenario.inboxThrows) throw new Error("socket");
+        if (scenario.inboxBody !== undefined) {
+          return new Response(scenario.inboxBody, { status: scenario.inboxStatus ?? 200 });
+        }
+        if (scenario.inboxStatus && scenario.inboxStatus !== 200) {
+          return new Response("boom", { status: scenario.inboxStatus });
+        }
+        return jsonResponse({ outcome: scenario.inboxOutcome ?? "recorded", id: "row-1" });
+      }
       if (scenario.rpcBody !== undefined) {
         return new Response(scenario.rpcBody, { status: scenario.rpcStatus ?? 200 });
       }
@@ -560,159 +578,175 @@ describe("razorpay-verify — the callback path", () => {
   });
 });
 
-describe("razorpay-webhook — the provider path", () => {
-  it("grants on a captured event that matches our row", async () => {
+/**
+ * ═══ THE WEBHOOK'S CONTRACT CHANGED, AND THESE ASSERTIONS CHANGED WITH IT ═══
+ *
+ * It used to confirm and grant INLINE, and answer a retryable non-2xx whenever
+ * it could not — correct, and it handed the whole durability problem to
+ * Razorpay's retry window. Once that window closes a captured payment nobody
+ * granted is simply gone.
+ *
+ * It is a durable queue now: verify, record, acknowledge. So the assertions
+ * below are about PERSISTENCE, and the grant behaviour they used to cover has
+ * not been dropped — it moved to `paymentRecoveryRuntime.test.ts`, which
+ * exercises the same committed code through the worker. The one case that
+ * still refuses a 2xx is the one where the write did not happen.
+ *
+ * INSTANT CREDIT IS UNAFFECTED AND STILL ASSERTED ABOVE: `razorpay-verify`
+ * grants on the customer's callback exactly as before, and every one of its
+ * regressions is untouched.
+ */
+describe("razorpay-webhook — the provider path, now a durable queue", () => {
+  it("records a captured event and acknowledges it", async () => {
     const res = await callWebhook(capturedEvent());
     expect(res.status).toBe(200);
-    expect(grants().map((c) => c.fn)).toEqual(["credit_story_purchase"]);
+    expect(await res.json()).toMatchObject({ ok: true, queued: "recorded" });
+    expect(rpcCalls.map((c) => c.fn)).toEqual(["payment_inbox_record"]);
   });
 
-  it("cannot be routed to another product by the notes", async () => {
-    scenario.tables = { video_purchases: [storyRow()] };
-    const res = await callWebhook(capturedEvent({ notes: { kind: "story_seconds" } }));
-    expect(res.status).toBe(200);
-    expect(grants().map((c) => c.fn)).toEqual(["credit_video_purchase"]);
+  // THE DIGEST IS OVER THE VERIFIED BYTES AND THE PAYLOAD IS NEVER STORED.
+  it("persists ids, class and digest — and nothing that could carry a payer's details", async () => {
+    await callWebhook(capturedEvent());
+    const args = rpcCalls[0]!.args;
+    expect(args.p_event_name).toBe("payment.captured");
+    expect(args.p_event_class).toBe("paid");
+    expect(args.p_provider_order_id).toBe(ORDER);
+    expect(args.p_provider_payment_id).toBe(PAY);
+    expect(String(args.p_body_sha256)).toMatch(/^[0-9a-f]{64}$/);
+    // Every argument is an id, a class, a number or a digest. If the raw body
+    // ever leaks into this call it will be as a long non-id string.
+    const raw = JSON.stringify(capturedEvent());
+    expect(JSON.stringify(args)).not.toContain(raw);
   });
 
-  it("refuses a forged signature", async () => {
+  it("does not call the provider or grant anything on this path", async () => {
+    await callWebhook(capturedEvent());
+    // Named explicitly rather than through `grants()`: that helper is
+    // "everything that is not a failure RPC", which now includes the inbox
+    // write itself — so it would report a grant on a path that made none.
+    expect(rpcCalls.map((c) => c.fn)).toEqual(["payment_inbox_record"]);
+    expect(rpcCalls.some((c) => c.fn.startsWith("credit_"))).toBe(false);
+  });
+
+  it("refuses a forged signature before anything is parsed or written", async () => {
     const res = await callWebhook(capturedEvent(), { signature: "c".repeat(64) });
     expect(res.status).toBe(401);
     expect(rpcCalls).toEqual([]);
   });
 
-  // ═══ THE ACKNOWLEDGEMENT RULE ═══
-  // There is no durable event inbox and no quarantine table, so a 2xx on a
-  // handled event that was not processed is a payment nobody will ever grant.
+  it("refuses a missing signature", async () => {
+    const handler = await loadHandler(WEBHOOK_MOD);
+    const res = await handler(
+      new Request("https://fn.test/razorpay-webhook", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(capturedEvent()),
+      }),
+    );
+    expect(res.status).toBe(401);
+    expect(rpcCalls).toEqual([]);
+  });
+
+  it("refuses a signature over different bytes", async () => {
+    const other = await hmacHex(ENV.RAZORPAY_WEBHOOK_SECRET, JSON.stringify(failedEvent()));
+    const res = await callWebhook(capturedEvent(), { signature: other });
+    expect(res.status).toBe(401);
+    expect(rpcCalls).toEqual([]);
+  });
+
+  // ═══ THE ONLY NON-2xx LEFT ON A VERIFIED EVENT ═══
+  // Acknowledging an event we failed to write down is exactly the loss the
+  // inbox exists to prevent, so every failure of the durable write is a retry.
   it.each([
-    [
-      "not captured yet",
-      () => void (scenario.payment = capturedPayment({ status: "authorized", captured: false })),
-    ],
-    ["refunded", () => void (scenario.payment = capturedPayment({ amount_refunded: 4900 }))],
-    ["amount mismatch", () => void (scenario.payment = capturedPayment({ amount: 1 }))],
-    ["provider 401", () => void (scenario.paymentStatus = 401)],
-    ["provider 403", () => void (scenario.paymentStatus = 403)],
-    ["provider 404", () => void (scenario.paymentStatus = 404)],
-    ["provider redirect", () => void (scenario.paymentStatus = 302)],
-    ["provider unreachable", () => void (scenario.paymentThrows = true)],
-    ["malformed provider body", () => void (scenario.paymentBody = "[]")],
-    ["our database read fails", () => void (scenario.tableStatus = 500)],
-    ["a malformed database response", () => void (scenario.tableBody = '{"message":"denied"}')],
-    ["an order we have not written yet", () => void (scenario.tables = {})],
-    [
-      "an ambiguous order",
-      () =>
-        void (scenario.tables = { story_purchases: [storyRow()], plan_purchases: [storyRow()] }),
-    ],
-    ["the grant RPC erroring", () => void (scenario.rpcStatus = 500)],
-    ["the grant RPC semantically refusing", () => void (scenario.rpcResult = { ok: false })],
-  ])("does not acknowledge a handled event it could not process: %s", async (_label, arrange) => {
+    ["the inbox RPC erroring", () => void (scenario.inboxStatus = 500)],
+    ["the inbox unreachable", () => void (scenario.inboxThrows = true)],
+    ["the inbox answering malformed JSON", () => void (scenario.inboxBody = "not json")],
+    ["the inbox answering a shape with no outcome", () => void (scenario.inboxBody = "{}")],
+    ["the inbox answering an array", () => void (scenario.inboxBody = "[]")],
+    ["the inbox asking for a resend", () => void (scenario.inboxOutcome = "retry")],
+  ])("does not acknowledge an event it could not record: %s", async (_label, arrange) => {
     arrange();
     const res = await callWebhook(capturedEvent());
     expect(succeeded(res)).toBe(false);
-    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(res.status).toBe(503);
   });
 
-  it("does not acknowledge a handled event with no usable order id", async () => {
-    const res = await callWebhook({ event: "payment.captured", payload: {} });
-    expect(succeeded(res)).toBe(false);
-    expect(rpcCalls).toEqual([]);
+  // A DUPLICATE IS DURABLE, SO IT IS ACKNOWLEDGED. Asking Razorpay to send it
+  // again cannot improve a row that is already in the inbox.
+  it("acknowledges a redelivery without queueing a second copy", async () => {
+    scenario.inboxOutcome = "duplicate";
+    const res = await callWebhook(capturedEvent());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ queued: "duplicate" });
   });
 
-  it("does not acknowledge order.paid with no payment entity", async () => {
+  it("acknowledges a quarantined event-id conflict rather than asking for it again", async () => {
+    scenario.inboxOutcome = "conflict";
+    const res = await callWebhook(capturedEvent());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ queued: "conflict" });
+  });
+
+  it("sends the same digest for the same bytes and a different one for different bytes", async () => {
+    await callWebhook(capturedEvent());
+    await callWebhook(capturedEvent());
+    await callWebhook(failedEvent());
+    const shas = rpcCalls.map((c) => c.args.p_body_sha256);
+    expect(shas[0]).toBe(shas[1]);
+    expect(shas[2]).not.toBe(shas[0]);
+  });
+
+  it("passes the provider event id through when the header carries one", async () => {
+    const handler = await loadHandler(WEBHOOK_MOD);
+    const raw = JSON.stringify(capturedEvent());
+    await handler(
+      new Request("https://fn.test/razorpay-webhook", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-razorpay-signature": await hmacHex(ENV.RAZORPAY_WEBHOOK_SECRET, raw),
+          "x-razorpay-event-id": "evt_ABCdef123456",
+        },
+        body: raw,
+      }),
+    );
+    expect(rpcCalls[0]!.args.p_provider_event_id).toBe("evt_ABCdef123456");
+  });
+
+  it("records an event class it does not act on, rather than dropping it", async () => {
     const res = await callWebhook({
-      event: "order.paid",
-      payload: { order: { entity: { id: ORDER } } },
-    });
-    expect(succeeded(res)).toBe(false);
-    expect(grants()).toEqual([]);
-  });
-
-  it("grants on order.paid when the event does carry the payment", async () => {
-    const res = await callWebhook({
-      event: "order.paid",
+      event: "refund.processed",
       payload: {
-        order: { entity: { id: ORDER } },
         payment: { entity: { id: PAY, order_id: ORDER } },
+        refund: { entity: { id: "rfnd_ABCdef123456", amount: 100, status: "processed" } },
       },
     });
     expect(res.status).toBe(200);
-    expect(grants().map((c) => c.fn)).toEqual(["credit_story_purchase"]);
+    expect(rpcCalls[0]!.args.p_event_class).toBe("refund");
+    expect(rpcCalls[0]!.args.p_provider_refund_id).toBe("rfnd_ABCdef123456");
   });
 
-  it("still acknowledges an event type it does not handle", async () => {
-    const res = await callWebhook({
-      event: "refund.processed",
-      payload: { payment: { entity: { id: PAY, order_id: ORDER } } },
-    });
-    expect(res.status).toBe(200);
-    expect(rpcCalls).toEqual([]);
-  });
-
+  // A MALFORMED **VERIFIED** BODY IS STILL WRITTEN DOWN. Razorpay signed it, so
+  // either their shape moved or ours is wrong; a 400 would destroy the trace.
   it.each([
     ["an array root", "[]"],
     ["a null root", "null"],
-  ])("refuses an event body that is not a JSON object: %s", async (_label, raw) => {
+    ["not JSON at all", "{oops"],
+  ])("records a verified body it could not parse: %s", async (_label, raw) => {
     const res = await callWebhook(raw);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    expect(rpcCalls.map((c) => c.fn)).toEqual(["payment_inbox_record"]);
+    expect(rpcCalls[0]!.args.p_event_class).toBe("other");
+    expect(rpcCalls[0]!.args.p_event_name).toBe("unparsable");
+    // Its digest is still the digest of the exact verified bytes, which is the
+    // only handle anybody will have on it later.
+    expect(String(rpcCalls[0]!.args.p_body_sha256)).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("refuses an unverified malformed body without recording it", async () => {
+    const res = await callWebhook("{oops", { signature: "c".repeat(64) });
+    expect(res.status).toBe(401);
     expect(rpcCalls).toEqual([]);
-  });
-
-  it("is idempotent-safe on a duplicate delivery: same RPC, same arguments", async () => {
-    await callWebhook(capturedEvent());
-    await callWebhook(capturedEvent());
-    expect(grants().map((c) => c.fn)).toEqual(["credit_story_purchase", "credit_story_purchase"]);
-    expect(grants()[0].args).toEqual(grants()[1].args);
-  });
-
-  it.each([
-    ["payments", "mark_payment_failed", { amount_minor: 4900 }],
-    ["story_purchases", "fail_story_purchase", {}],
-    ["plan_purchases", "fail_plan_purchase", {}],
-    ["video_purchases", "fail_video_purchase", {}],
-  ])("records a failure against %s through the ledger our row names", async (table, rpc, extra) => {
-    const row = storyRow(extra);
-    if (table === "payments") delete (row as Record<string, unknown>).price_paise;
-    scenario.tables = { [table]: [row] };
-    const res = await callWebhook(failedEvent({ notes: { kind: "story_seconds" } }));
-    expect(res.status).toBe(200);
-    expect(rpcCalls.map((c) => c.fn)).toEqual([rpc]);
-    expect(grants()).toEqual([]);
-  });
-
-  // fail_watermark_purchase is declared `returns void` in the live catalogue,
-  // so PostgREST answers 200 with an empty body. Demanding {ok:true} made every
-  // successful watermark failure look broken.
-  it.each([
-    ["an empty body", ""],
-    ["a literal null", "null"],
-  ])("accepts the void failure contract for watermark removal: %s", async (_label, raw) => {
-    scenario.tables = { watermark_purchases: [storyRow()] };
-    scenario.rpcBody = raw;
-    const res = await callWebhook(failedEvent());
-    expect(res.status).toBe(200);
-    expect(rpcCalls.map((c) => c.fn)).toEqual(["fail_watermark_purchase"]);
-  });
-
-  it("does not acknowledge a void failure RPC that answered non-2xx", async () => {
-    scenario.tables = { watermark_purchases: [storyRow()] };
-    scenario.rpcBody = "";
-    scenario.rpcStatus = 500;
-    const res = await callWebhook(failedEvent());
-    expect(succeeded(res)).toBe(false);
-  });
-
-  it("does not acknowledge a JSON failure RPC that semantically refused", async () => {
-    scenario.rpcResult = { ok: false, reason: "already settled" };
-    const res = await callWebhook(failedEvent());
-    expect(succeeded(res)).toBe(false);
-    expect(rpcCalls.map((c) => c.fn)).toEqual(["fail_story_purchase"]);
-  });
-
-  it("does not acknowledge a JSON failure RPC that returned an empty body", async () => {
-    scenario.rpcBody = "";
-    const res = await callWebhook(failedEvent());
-    expect(succeeded(res)).toBe(false);
   });
 });
 

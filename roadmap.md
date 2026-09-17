@@ -388,3 +388,30 @@ scheduled, and no charge, refund or payout is ever issued.
       refunded downgrade, settle_watermark_purchase applied-on-failed-grant,
       grant_subscription first-grant race, stored-payment-id conflict checks in all five
       grant RPCs, no regrant from refunded
+
+### Worker + webhook wiring (2026-09-17, in progress)
+
+Routing decision, owner-directed: the worker FOLDS INTO the existing
+`razorpay-webhook` function behind an explicit `?mode=recovery`. The platform
+refuses to create new edge functions in this project, and a TanStack route was
+declined.
+
+- [x] `_shared/paymentRecoveryWorker.ts` exporting `handlePaymentRecovery(req)`
+      — no second `Deno.serve`
+- [x] `_shared/razorpayCaseRead.ts` — provider CURRENT-state refund/dispute reads
+- [x] `razorpay-webhook`: durable inbox persistence before any 2xx; exact
+      `?mode=recovery` branch gated by constant-time service-credential match
+- [x] bounded fetch threaded through `resolveBinding` / `callGrantRpc` / every
+      provider call so the total worker deadline is real
+- [x] executed entrypoint tests (both URL modes) + raw evidence in
+      `docs/payment-recovery/EVIDENCE.md` — 63 worker + 118 webhook/callback,
+      whole suite 423 files / 7581, 24 SQL assertions, 6/6 mutations RED
+- [x] draft cron tick repointed at the same function + recovery mode, STILL
+      DISABLED — `setup_schedule` is defined and not called by the file
+- [ ] OPEN, not mine to close: review -> deploy -> authenticated probe returns
+      ok -> only then enable the schedule. The migration stays unapplied.
+- [ ] one unexplained intermittent: the 12-session race twice reported
+      `errors=2` / once `errors=8` with `rows=1` and `recorded=1` intact, i.e.
+      sessions that never answered rather than a dedup fault. Not reproduced
+      since; the harness now prints the sessions' own error text on failure.
+- [ ] queued UI request runs after this
