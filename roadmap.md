@@ -415,3 +415,61 @@ declined.
       sessions that never answered rather than a dedup fault. Not reproduced
       since; the harness now prints the sessions' own error text on failure.
 - [ ] queued UI request runs after this
+
+## Cycle 3 — checkout concurrency and the grant contract (QUEUED, not started)
+
+Runs only after the recovery finishing pass is reported. Code and tests only:
+no production apply, no deploy, no cron, no subagents.
+
+- [ ] Durable server-owned checkout attempt before any provider POST: atomic
+      reserve/create per product (food order, watermark job, story seconds,
+      monthly plan, video minutes) bound to a stable attempt.
+- [ ] Ownership + request fingerprint on the attempt key; a reused key with a
+      different user or different input may NOT rebind. Natural food/watermark
+      resources scoped against concurrent attempts. A legitimate second digital
+      purchase must still be possible. No localStorage/sessionStorage.
+- [ ] Receipt (<= 40 ASCII), authoritative amount/currency, purchase link and
+      dispatch state persisted BEFORE the provider POST; one claimed creator
+      dispatches. A lost response stays UNCERTAIN — never a second POST under a
+      fresh receipt.
+- [ ] Recovery by bounded fixed-origin `GET /v1/orders?receipt=` with exact
+      receipt/amount/currency/entity/id validation and a singular match; the
+      documented filter is a CONTAINS filter and a duplicate receipt POST is
+      rejected rather than replayed. Ambiguous/unknown -> linked manual case
+      after bounded retries; unknown attempts swept by the existing worker.
+- [ ] Attach/finalize enforces null-or-same provider order id, checks semantic
+      RPC outcomes (including the void watermark attachment contract), never
+      overwrites an earlier binding. Bounded method/body/network/logging,
+      positive safe-integer server amounts, redacted provider errors. Every
+      server sale gate re-checked on resumed checkouts too.
+- [ ] Grant SQL defects in the SAME draft package: created/failed -> paid only
+      on strict provider proof; no regrant from refunded; paid duplicates need
+      the same stored payment id under lock; stale failures cannot downgrade
+      paid/refunded; mark_order_paid preserves fulfillment status and flags
+      duplicate/cancelled fulfillment for manual review; nested watermark grant
+      refusal rolls back and never marks applied; first subscription grants for
+      one user serialize even with no subscription row.
+- [ ] `payments_confirmed_by_check` currently permits only client/webhook —
+      constraint AND function must accept the worker attribution consistently,
+      so reconciliation is attributed truthfully instead of as a customer
+      callback. The worker's present refusal stays until this lands.
+- [ ] Service-only ACLs and fixed search paths preserved throughout.
+- [ ] RazorpayX stays SEPARATE and INACTIVE. Do not promote the parked patch:
+      it reads any payout id as paid, including queued/processing. No secrets,
+      no products, no money writes. Any safety gate must preserve existing
+      allocation records and program settings, and state exactly what is
+      contained and what provider qualification remains open.
+- [ ] Tests: isolated real-Postgres concurrency + actual handler/network
+      intercept — two simultaneous creators, different key same natural
+      resource, reused key changed input, lost provider response, attach
+      false/timeout, exact receipt recovery vs partial/ambiguous, failed then
+      captured, duplicate capture/payment-id race, refunded row rejection,
+      missing watermark job refusal, concurrent first plan grants. No real
+      provider POSTs; no test-mode or provider-qualification claims from mocks.
+- [ ] Gates: lint:ci, Prettier, typecheck, `deno check`, the payment regression
+      suites, with raw evidence recorded.
+
+Unchanged constraints: protected auth/generated routes, existing prices, sale
+gates, Play routing, admin free-watermark behaviour and payout allocation all
+preserved. The whole package stays a runnable additive draft OUTSIDE
+`supabase/migrations` until release review.

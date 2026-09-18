@@ -93,6 +93,34 @@ echo "   recorded=$RECORDED duplicate=$DUPES rows=$ROWS errors=$ERRS"
      }
 echo "   T11 ok  exactly one row survived twelve simultaneous deliveries"
 
+echo "== concurrency: one event id, eight different bodies =="
+# THE RACE THE `on conflict (body_sha256)` CLAUSE DOES NOT COVER. Every session
+# passes step 1 (no alias exists yet) and then collides on the EVENT-ID unique
+# index, which that clause does not name — the second writer used to raise
+# unique_violation, 5xx the provider, and leave the conflict unrecorded.
+START=$(( $(date +%s) + 3 ))
+for i in $(seq 1 8); do
+  "${PSQL[@]}" -tA -v ON_ERROR_STOP=0 <<SQL >"$DIR/out/cross.$i" 2>&1 &
+    select pg_sleep(greatest(0, $START - extract(epoch from clock_timestamp())));
+    select public.payment_inbox_record('evt_cross', md5('cross$i')||md5('body$i'),
+             'payment.captured','paid','order_cross','pay_cross',null,null,
+             100,'captured', now())->>'outcome';
+SQL
+done
+wait
+XREC=$(cat "$DIR"/out/cross.* | grep -c '^recorded$' || true)
+XCON=$(cat "$DIR"/out/cross.* | grep -c '^conflict$' || true)
+XERR=$(cat "$DIR"/out/cross.* | grep -ci 'error\|fatal' || true)
+XSTATE=$("${PSQL[@]}" -tAc "select state from public.payment_webhook_events where provider_event_id='evt_cross';")
+echo "   recorded=$XREC conflict=$XCON errors=$XERR state=$XSTATE"
+[ "$XREC" = "1" ] && [ "$XCON" = "7" ] && [ "$XERR" = "0" ] && [ "$XSTATE" = "conflict" ] \
+  || {
+       echo "FAIL: a crossed event id raised instead of quarantining"
+       cat "$DIR"/out/cross.* | grep -i 'error\|fatal\|could not' | sort | uniq -c
+       exit 1
+     }
+echo "   T14c ok  one id, eight bodies: one recorded, seven durably quarantined"
+
 echo "== concurrency: two claimers cannot hold one row =="
 "${PSQL[@]}" -q -o /dev/null -c "
   select public.payment_inbox_record('evt_dlv_c'||g, md5(g::text)||md5((g+1)::text),
