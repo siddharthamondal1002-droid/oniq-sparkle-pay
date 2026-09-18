@@ -130,3 +130,55 @@ hole in the tests. Both repointed; both RED.
   returns `ok` → only then enable the schedule.
 - **Nothing has processed a real event.** Every result above is an executed
   test against the committed code, not a production observation.
+
+## Recovery finishing pass — final verification
+
+Source and draft SQL only. Nothing applied to production, nothing deployed,
+cron still disabled, generated types untouched.
+
+Changed in this pass:
+- `supabase/functions/_shared/razorpayCaseRead.ts` — the parsed case id must
+  EQUAL the id that was asked for (refund and dispute); an unanchored case
+  (no event payment id and no stored one) is refused rather than "matched";
+  case amount must be a positive safe integer not exceeding the payment; case
+  amount/currency are never filled in from the payment when the body omits
+  them.
+- `supabase/functions/_shared/paymentRecoveryWorker.ts` — `conflict` and
+  `linkage-conflict` are handled-but-not-done, an unrecognised outcome is a
+  retry rather than a success, heartbeat before the work.
+- `docs/payment-recovery/migration.sql` — identical concurrent redeliveries of
+  one event id resolve to `duplicate`; only a differing body quarantines.
+- `docs/payment-recovery/test/tests.sql`, `scripts/payment-recovery-sql-test.sh`
+  — T22..T26 plus an eight-session crossed-identity race.
+- `src/lib/__tests__/paymentRecoveryRuntime.test.ts` — regressions for all of
+  the above.
+- `scripts/payment-recovery-worker-mutate.sh` — M7..M11.
+
+Raw results:
+
+    vitest paymentRecoveryRuntime          71 passed  (71)
+    vitest razorpayConfirmRuntime         118 passed (118)
+    vitest, whole suite                 7,587 passed, 2 failed
+       the 2 are arapStep11dDiagnosis, unrelated and timing-sensitive;
+       alone: 6 passed (6)
+    mutations                    baseline GREEN, M1..M11 all RED, none GREEN,
+                                 none NOTAPPLIED
+    isolated Postgres            ALL SQL TESTS PASSED (cluster discarded)
+       recorded=1 duplicate=11 rows=1 errors=0
+       claimed=22 duplicated=0
+       recorded=1 conflict=7 errors=0 state=conflict   (one id, eight bodies)
+    tsgo --noEmit                clean
+    lint:ci                      clean
+    prettier                     clean
+    deno check                   paymentRecoveryWorker, razorpayCaseRead,
+                                 razorpay-webhook — all Check
+
+Gaps carried forward, stated as gaps:
+- No real provider POST has ever been made; every provider answer in these
+  tests is a mock. Nothing here claims provider or test-mode qualification.
+- The live `payments_confirmed_by_check` still permits only client/webhook, so
+  the worker keeps REFUSING food reconciliation rows as visible retries and
+  manual cases. Fixing the constraint and the function together is the next
+  cycle's work; no row is silently relabelled as a customer confirmation.
+- The isolated SQL harness has occasionally shown session instability under
+  the heaviest concurrency block; the final run above was clean.
