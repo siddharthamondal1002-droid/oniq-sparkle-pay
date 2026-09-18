@@ -307,18 +307,43 @@ begin
   end if;
 
   -- 2. THE CANONICAL BODY ROW. One row per distinct set of verified bytes.
-  insert into public.payment_webhook_events (
-    provider_event_id, body_sha256, event_name, event_class,
-    provider_order_id, provider_payment_id, provider_refund_id, provider_dispute_id,
-    amount_minor, provider_status, provider_created_at, state
-  ) values (
-    p_provider_event_id, p_body_sha256, left(coalesce(p_event_name,''), 64), p_event_class,
-    p_provider_order_id, p_provider_payment_id, p_provider_refund_id, p_provider_dispute_id,
-    p_amount_minor, p_provider_status, p_provider_created_at,
-    case when p_event_class = 'other' then 'ignored' else 'pending' end
-  )
-  on conflict (body_sha256) do nothing
-  returning id into v_id;
+  --
+  --    THE EVENT-ID INDEX CAN FIRE HERE AND `on conflict (body_sha256)` DOES
+  --    NOT CATCH IT. Two sessions delivering the SAME event id with DIFFERENT
+  --    bodies both pass step 1 (neither alias exists yet), both insert, and the
+  --    second blocks on the event-id unique index and then raises
+  --    `unique_violation` — a 5xx to the provider, and the conflict this table
+  --    exists to record never written down. Handled rather than raised.
+  begin
+    insert into public.payment_webhook_events (
+      provider_event_id, body_sha256, event_name, event_class,
+      provider_order_id, provider_payment_id, provider_refund_id, provider_dispute_id,
+      amount_minor, provider_status, provider_created_at, state
+    ) values (
+      p_provider_event_id, p_body_sha256, left(coalesce(p_event_name,''), 64), p_event_class,
+      p_provider_order_id, p_provider_payment_id, p_provider_refund_id, p_provider_dispute_id,
+      p_amount_minor, p_provider_status, p_provider_created_at,
+      case when p_event_class = 'other' then 'ignored' else 'pending' end
+    )
+    on conflict (body_sha256) do nothing
+    returning id into v_id;
+  exception when unique_violation then
+    -- The only other unique constraint on this table is the event id, so the
+    -- winner of that race owns this id now. WHETHER IT IS A CONFLICT DEPENDS ON
+    -- ITS BODY, and getting that backwards is worse than the fault being fixed:
+    -- twelve simultaneous deliveries of the SAME bytes under the same id also
+    -- land here (both indexes are violated and Postgres may report either), and
+    -- quarantining those would turn an ordinary redelivery into an incident.
+    select * into v_row from public.payment_webhook_events
+     where provider_event_id = p_provider_event_id for update;
+    if not found then return jsonb_build_object('outcome', 'retry'); end if;
+    if v_row.body_sha256 = p_body_sha256 then
+      return jsonb_build_object('outcome', 'duplicate', 'id', v_row.id,
+                                'state', v_row.state);
+    end if;
+    return public.payment_inbox_quarantine(
+      v_row.id, p_provider_event_id, v_row.body_sha256, p_body_sha256);
+  end;
 
   if v_id is null then
     v_duplicate := true;
@@ -330,6 +355,7 @@ begin
     end if;
     v_id := v_row.id;
   end if;
+
 
   -- 3. THE ALIAS, REMEMBERED WHETHER OR NOT IT IS THE FIRST ONE. A second id
   --    for a body we already hold is not noise: it is what makes a LATER
@@ -564,7 +590,19 @@ begin
     values ('manual_review', r.provider_order_id, r.provider_payment_id,
             'webhook-event-exhausted', r.event_name)
     on conflict do nothing;
+  else
+    -- AN UNKNOWN ORDER IS THE CASE MOST WORTH OPENING, not the one to skip. A
+    -- signed, actionable event whose subject we could never resolve exhausts
+    -- with an alert and, before this, no row anybody could resolve. The case is
+    -- keyed by the INBOX ID so repeats dedupe, and it is deliberately left
+    -- UNLINKED: an order guessed here would be a binding nothing verified.
+    insert into public.payment_cases (case_type, provider_case_id, open_reason,
+                                      current_event, amount_minor)
+    values ('manual_review', 'inbox:' || p_id::text, 'webhook-event-exhausted-unbound',
+            r.event_name, r.amount_minor)
+    on conflict (provider_case_id) where provider_case_id is not null do nothing;
   end if;
+
 
   perform public.payment_ops_alert(
     'payment_inbox_exhausted', 1::smallint,
@@ -868,6 +906,8 @@ declare
   v_existing public.payment_cases%rowtype;
   v_rank     integer := coalesce(p_rank, -1);
   v_reopen   boolean;
+  v_reopened boolean := false;
+
 begin
   if p_case_type not in ('refund','dispute','manual_review') then
     raise exception 'bad case type';
@@ -966,6 +1006,42 @@ begin
             jsonb_build_object('status', p_verified_status));
   end if;
 
+  -- REOPENING FOLLOWS THE FACT, NOT THE EVENT ORDER. Measured on the previous
+  -- draft: a case resolved while the provider said `under_review` (rank 20)
+  -- stayed RESOLVED when a fresh read came back `lost` under a lower-ranked
+  -- delivery, because the only reopen test sat below the stale early return. A
+  -- verified adverse state is not a delivery and cannot be stale.
+  --
+  -- CHANGED, not merely adverse: re-reading the same `lost` an admin has
+  -- already seen and closed must not reopen the case for ever. The comparison
+  -- is against the verified status the row held BEFORE this call.
+  if v_existing.status = 'resolved' and p_material_adverse
+     and p_verified_status is not null
+     and p_verified_status is distinct from v_existing.provider_status_verified then
+    update public.payment_cases
+       set status = 'open', open_reason = 'verified-adverse-after-resolution',
+           resolution = null, resolved_at = null,
+           reopened_count = reopened_count + 1, updated_at = now()
+     where id = v_existing.id;
+    insert into public.payment_case_events (case_id, kind, event_name, rank, detail)
+    values (v_existing.id, 'reopened', p_event, v_rank,
+            jsonb_build_object('verified_status', p_verified_status,
+                               'previous_verified', v_existing.provider_status_verified,
+                               'closed_resolution', v_existing.resolution));
+    perform public.payment_ops_alert(
+      'payment_case_reopened', 2::smallint,
+      'A resolved payment case reopened: the provider''s own state turned against us.',
+      jsonb_build_object('case', v_existing.id, 'verified_status', p_verified_status));
+    -- The local copy follows, so the rank-driven branch below cannot count the
+    -- same reopening a second time and the history stays one event per fact.
+    v_existing.status := 'open';
+    v_existing.resolution := null;
+    v_existing.resolved_at := null;
+    v_existing.reopened_count := v_existing.reopened_count + 1;
+    v_reopened := true;
+  end if;
+
+
   -- Currency fills once, beside the amount it qualifies.
   if v_existing.currency is null and nullif(p_currency,'') is not null then
     update public.payment_cases set currency = upper(p_currency), updated_at = now()
@@ -987,21 +1063,26 @@ begin
     insert into public.payment_case_events (case_id, kind, event_name, rank, detail)
     values (v_existing.id, 'conflict', p_event, v_rank,
             jsonb_build_object('previous', v_existing.current_event));
-    return jsonb_build_object('outcome', 'conflict', 'id', v_existing.id);
+    return jsonb_build_object('outcome', 'conflict', 'id', v_existing.id,
+                              'reopened', v_reopened);
   end if;
 
   -- Out-of-order is ORDINARY: Razorpay does not guarantee ordering, so an
-  -- earlier event arriving later is dropped rather than applied.
+  -- earlier event arriving later is dropped rather than applied. The DELIVERY
+  -- is stale; a reopening done above on a verified fact is not, and travels
+  -- back beside it so a caller cannot read "stale" as "nothing happened".
   if v_rank <= v_existing.current_rank then
     insert into public.payment_case_events (case_id, kind, event_name, rank)
     values (v_existing.id, 'stale', p_event, v_rank);
     return jsonb_build_object('outcome', 'stale', 'id', v_existing.id,
-                              'current_event', v_existing.current_event);
+                              'current_event', v_existing.current_event,
+                              'reopened', v_reopened);
   end if;
 
   -- A resolved case that receives NEW material adverse news is reopened.
   -- Leaving it closed would hide a chargeback behind yesterday's decision. The
-  -- resolution itself is kept in the history.
+  -- resolution itself is kept in the history. (Already false when the verified
+  -- read above reopened it: the local copy was updated there.)
   v_reopen := v_existing.status = 'resolved' and p_material_adverse;
 
   update public.payment_cases
@@ -1018,8 +1099,10 @@ begin
   values (v_existing.id, case when v_reopen then 'reopened' else 'advanced' end,
           p_event, v_rank, jsonb_build_object('from', v_existing.current_event));
 
-  return jsonb_build_object('outcome', case when v_reopen then 'reopened' else 'advanced' end,
-                            'id', v_existing.id);
+  return jsonb_build_object('outcome',
+                            case when v_reopen or v_reopened then 'reopened' else 'advanced' end,
+                            'id', v_existing.id, 'reopened', v_reopen or v_reopened);
+
 end;
 $function$;
 revoke all on function public.payment_case_upsert(text,text,text,text,text,integer,bigint,uuid,text,text,boolean,text,text)
@@ -1241,14 +1324,204 @@ grant execute on function public.payment_cases_mine() to authenticated, service_
 --     of them billable and each one of them claiming rows. `maintain` is the
 --     half that touches only our own tables; `tick` is `maintain` plus exactly
 --     one dispatch, and only cron calls it.
-create or replace function public.payment_recovery_maintain()
+-- ---------------------------------------------------------------------------
+-- 11a. THE ALERT LIFECYCLE.
+--
+--     `ops_watch_tick` resolves only its OWN story/budget signals, so a payment
+--     alert opened here would stay open for ever once the incident behind it
+--     was dealt with — and an alert that never clears is an alert nobody reads,
+--     which is the same outcome as no alert.
+--
+--     HISTORY IS PRESERVED AND `notified_at` IS NEVER WRITTEN. Resolving stamps
+--     `resolved_at` on the row that already exists; the watchdog's own delivery
+--     pass then sends the recovery notice, exactly as it does for its signals.
+-- ---------------------------------------------------------------------------
+create or replace function public.payment_ops_resolve(p_signal text)
+returns integer
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare v_rows integer;
+begin
+  update public.ops_alerts set resolved_at = now()
+   where signal = p_signal and resolved_at is null;
+  get diagnostics v_rows = row_count;
+  return v_rows;
+end;
+$function$;
+revoke all on function public.payment_ops_resolve(text) from public, anon, authenticated;
+grant execute on function public.payment_ops_resolve(text) to service_role;
+
+-- Each signal's condition, re-derived from the tables rather than remembered.
+-- A signal is resolved only when the thing it named is actually gone, so an
+-- admin closing one case out of three does not silence the other two.
+create or replace function public.payment_recovery_alert_sweep()
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare v_closed integer := 0;
+begin
+  if not exists (select 1 from public.payment_webhook_events where state = 'conflict') then
+    v_closed := v_closed + public.payment_ops_resolve('payment_inbox_conflict');
+  end if;
+
+  -- An exhausted event is addressed when the case it opened is resolved. The
+  -- inbox row itself stays `exhausted` for ever — it is the record that this
+  -- happened — so the row's own state cannot be the condition.
+  if not exists (
+    select 1 from public.payment_webhook_events e
+     where e.state = 'exhausted'
+       and exists (select 1 from public.payment_cases c
+                    where c.status <> 'resolved'
+                      and (c.provider_order_id = e.provider_order_id
+                           or c.provider_case_id = 'inbox:' || e.id::text))
+  ) then
+    v_closed := v_closed + public.payment_ops_resolve('payment_inbox_exhausted');
+  end if;
+
+  if not exists (select 1 from public.payment_cases
+                  where status <> 'resolved' and open_reason = 'linkage-conflict') then
+    v_closed := v_closed + public.payment_ops_resolve('payment_case_linkage_conflict');
+  end if;
+
+  if not exists (select 1 from public.payment_cases
+                  where status <> 'resolved'
+                    and open_reason = 'verified-adverse-after-resolution') then
+    v_closed := v_closed + public.payment_ops_resolve('payment_case_reopened');
+  end if;
+
+  return jsonb_build_object('alerts_resolved', v_closed);
+end;
+$function$;
+revoke all on function public.payment_recovery_alert_sweep() from public, anon, authenticated;
+grant execute on function public.payment_recovery_alert_sweep() to service_role;
+
+-- ---------------------------------------------------------------------------
+-- 11b. IS THE WORKER ALIVE?
+--
+--     A tick that POSTs and never looks is a tick that reports success while a
+--     wrong credential 401s every two minutes and the queue grows for ever.
+--     Two independent facts are kept, because either alone can lie: the
+--     RESPONSE the dispatch got (the worker answered, and how), and the
+--     HEARTBEAT the worker itself writes (it ran, and got as far as its own
+--     first statement). A missing response and a missing heartbeat mean
+--     different things — cron did not fire versus the worker refused entry.
+--
+--     NO BODIES AND NO SECRETS ARE STORED. A status code and two timestamps.
+-- ---------------------------------------------------------------------------
+create table if not exists public.payment_recovery_dispatches (
+  id            bigserial   primary key,
+  request_id    bigint,
+  dispatched_at timestamptz not null default now(),
+  status_code   integer,
+  observed_at   timestamptz
+);
+create index if not exists payment_recovery_dispatches_recent
+  on public.payment_recovery_dispatches (dispatched_at desc);
+alter table public.payment_recovery_dispatches enable row level security;
+revoke all on public.payment_recovery_dispatches from public, anon, authenticated;
+grant select, insert, update on public.payment_recovery_dispatches to service_role;
+grant usage, select on sequence public.payment_recovery_dispatches_id_seq to service_role;
+
+create table if not exists public.payment_recovery_heartbeat (
+  id        boolean     primary key default true check (id),
+  last_run_at timestamptz not null default now()
+);
+alter table public.payment_recovery_heartbeat enable row level security;
+revoke all on public.payment_recovery_heartbeat from public, anon, authenticated;
+grant select, insert, update on public.payment_recovery_heartbeat to service_role;
+
+-- Called by the worker at the top of a run, before any claim: it records that
+-- the credential was accepted and the handler entered, which is precisely what
+-- a 401 or an undeployed function does not do.
+create or replace function public.payment_recovery_beat()
+returns void
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+begin
+  insert into public.payment_recovery_heartbeat (id, last_run_at) values (true, now())
+  on conflict (id) do update set last_run_at = now();
+end;
+$function$;
+revoke all on function public.payment_recovery_beat() from public, anon, authenticated;
+grant execute on function public.payment_recovery_beat() to service_role;
+
+-- Reads the PREVIOUS dispatch's outcome. Run at the start of a tick rather than
+-- the end of the last one, because a tick cannot observe a response it has not
+-- waited for and waiting is what a cron minute must not do.
+create or replace function public.payment_recovery_observe_dispatch()
 returns jsonb
 language plpgsql
 security definer
 set search_path to 'public'
 as $function$
 declare
-  v_added integer; v_aged integer; v_reaped jsonb; v_rreaped jsonb;
+  r        public.payment_recovery_dispatches%rowtype;
+  v_status integer;
+  v_beat   timestamptz;
+  v_pending integer;
+begin
+  select * into r from public.payment_recovery_dispatches
+   where observed_at is null and request_id is not null
+   order by dispatched_at asc limit 1;
+  if not found then return jsonb_build_object('observed', false); end if;
+
+  -- A response that has not arrived yet is not a failure: only one that is
+  -- overdue is. `net._http_response` is pruned by pg_net, so an absent row for
+  -- an OLD request is indistinguishable from a pruned one and is reported as
+  -- `absent` rather than as a specific fault.
+  begin
+    execute 'select status_code from net._http_response where id = $1'
+      into v_status using r.request_id;
+  exception when others then
+    v_status := null;
+  end;
+
+  if v_status is null and r.dispatched_at > now() - interval '5 minutes' then
+    return jsonb_build_object('observed', false, 'reason', 'too-soon');
+  end if;
+
+  update public.payment_recovery_dispatches
+     set status_code = v_status, observed_at = now() where id = r.id;
+
+  select last_run_at into v_beat from public.payment_recovery_heartbeat where id;
+  select count(*) into v_pending from public.payment_webhook_events
+   where state in ('pending','processing');
+
+  if v_status = 200 then
+    perform public.payment_ops_resolve('payment_recovery_worker_unhealthy');
+  else
+    perform public.payment_ops_alert(
+      'payment_recovery_worker_unhealthy', 1::smallint,
+      'The payment recovery worker did not answer its scheduled dispatch.',
+      jsonb_build_object('status_code', v_status,
+                         'dispatched_at', r.dispatched_at,
+                         'last_worker_run_at', v_beat,
+                         'pending_events', v_pending));
+  end if;
+
+  return jsonb_build_object('observed', true, 'status_code', v_status,
+                            'last_worker_run_at', v_beat, 'pending_events', v_pending);
+end;
+$function$;
+revoke all on function public.payment_recovery_observe_dispatch()
+  from public, anon, authenticated;
+grant execute on function public.payment_recovery_observe_dispatch() to service_role;
+
+create or replace function public.payment_recovery_maintain()
+
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_added integer; v_aged integer; v_reaped jsonb; v_rreaped jsonb; v_alerts jsonb;
 begin
   -- One maintainer at a time. Taken here rather than in the tick so a worker
   -- invocation and a cron minute that overlap cannot both reap and enqueue.
@@ -1262,8 +1535,13 @@ begin
   -- nothing invokes is a report nobody runs, and the rows it exists to surface
   -- are by definition the ones already older than a month.
   v_aged    := public.payment_reconcile_backfill_aged(200);
+  -- And the alerts are CLOSED here too, for the same reason: an open row whose
+  -- incident is over is noise that trains whoever reads it to stop looking.
+  v_alerts  := public.payment_recovery_alert_sweep();
   return jsonb_build_object('enqueued', v_added, 'aged', v_aged,
-                            'reaped', v_reaped, 'reconcile_reaped', v_rreaped);
+                            'reaped', v_reaped, 'reconcile_reaped', v_rreaped,
+                            'alerts', v_alerts);
+
 end;
 $function$;
 revoke all on function public.payment_recovery_maintain() from public, anon, authenticated;
@@ -1276,19 +1554,28 @@ security definer
 set search_path to 'public'
 as $function$
 declare
-  v_key text; v_req bigint; v_maint jsonb;
+  v_key text; v_req bigint; v_maint jsonb; v_health jsonb;
   -- THE WORKER HAS NO FUNCTION OF ITS OWN. This project cannot add edge
   -- functions, so it is an explicit, credential-gated MODE on the webhook that
   -- already exists. The mode is matched exactly; a missing or misspelt one is
   -- refused rather than falling through to the provider branch.
   v_url text := 'https://bqwttemnnoexadpwifcj.supabase.co/functions/v1/razorpay-webhook?mode=recovery';
 begin
-  v_maint := public.payment_recovery_maintain();
+  -- BEFORE dispatching again: did the last one land? Otherwise a wrong
+  -- credential or an undeployed worker is a silent 401 every two minutes.
+  v_health := public.payment_recovery_observe_dispatch();
+  v_maint  := public.payment_recovery_maintain();
 
   v_key := public.ops_watch_pick_key();
   if v_key is null then
     raise warning 'payment_recovery_tick: no service credential available';
-    return v_maint || jsonb_build_object('dispatched', false);
+    -- AND IT IS AN ALERT, not only a warning nobody reads. A missing credential
+    -- is the exact failure that leaves work pending for ever with no attempts.
+    perform public.payment_ops_alert(
+      'payment_recovery_worker_unhealthy', 1::smallint,
+      'The payment recovery tick has no service credential and dispatched nothing.',
+      jsonb_build_object('reason', 'no-credential'));
+    return v_maint || jsonb_build_object('dispatched', false, 'health', v_health);
   end if;
 
   select net.http_post(
@@ -1298,7 +1585,13 @@ begin
            body := jsonb_build_object('source','cron','action','run'),
            timeout_milliseconds := 55000) into v_req;
 
-  return v_maint || jsonb_build_object('dispatched', true, 'request_id', v_req);
+  -- The request id is what makes the NEXT tick able to say whether this one was
+  -- answered. Recorded before returning; no header, body or key goes with it.
+  insert into public.payment_recovery_dispatches (request_id) values (v_req);
+
+  return v_maint || jsonb_build_object('dispatched', true, 'request_id', v_req,
+                                       'health', v_health);
+
 end;
 $function$;
 revoke all on function public.payment_recovery_tick() from public, anon, authenticated;

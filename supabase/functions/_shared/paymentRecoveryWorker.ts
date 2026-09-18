@@ -179,6 +179,13 @@ export async function handlePaymentRecovery(
   };
 
   try {
+    // THE HEARTBEAT IS FIRST, AND IT IS A DIFFERENT FACT FROM THE RESPONSE. A
+    // dispatch that 401s and one that never left cron look identical from the
+    // database; this row says the credential was accepted and the handler ran.
+    // Its failure is not fatal — a worker that cannot write a heartbeat can
+    // still do the work, and refusing to would turn an observability gap into
+    // an outage.
+    await rpc(ctx, "payment_recovery_beat", {});
     // MAINTAIN, NEVER `payment_recovery_tick`. The tick POSTs this worker, so
     // calling it from here is a worker that summons a worker: one cron minute
     // fans out without bound. `payment_recovery_maintain` is the half that
@@ -186,6 +193,7 @@ export async function handlePaymentRecovery(
     // and it runs at the top of every invocation so a crashed worker's rows
     // are requeued now rather than at the next scheduled minute.
     const tick = await rpc(ctx, "payment_recovery_maintain", {});
+
     const inbox = await runInbox(ctx);
     const reconcile = await runReconcile(ctx);
     return reply({
@@ -428,7 +436,17 @@ async function settleCase(
 
   const written = await writeCase(ctx, binding, facts, eventName);
   if ("error" in written) return { outcome: "retry", code: redact(written.error) };
-  return { outcome: "done", code: "case-recorded", caseWritten: true };
+  // A SEMANTIC REFUSAL IS NOT A SUCCESS. `linkage-conflict` means the case row
+  // refused this binding and applied NOTHING; `conflict` means two terminal
+  // events disagree and a person must look. Both already wrote durable history
+  // and an ops alert, so retrying spends attempts on a decision no retry can
+  // make — but calling them `done` would report the event as processed when its
+  // content was discarded.
+  if (written.outcome === "linkage-conflict" || written.outcome === "conflict") {
+    return { outcome: "ignored", code: `case-${written.outcome}`, caseWritten: true };
+  }
+  return { outcome: "done", code: `case-${written.outcome}`, caseWritten: true };
+
 }
 
 async function writeCase(
@@ -436,7 +454,8 @@ async function writeCase(
   binding: PurchaseBinding,
   facts: CaseFacts,
   eventName: string,
-): Promise<{ ok: true } | { error: string }> {
+): Promise<{ ok: true; outcome: string } | { error: string }> {
+
   const called = await rpc(ctx, "payment_case_upsert", {
     p_case_type: facts.kind,
     p_case_id: facts.caseId,
@@ -461,7 +480,17 @@ async function writeCase(
   });
   if ("error" in called) return { error: called.error.code };
   if (!isPlainRecord(called.value)) return { error: "case-bad-result" };
-  return { ok: true };
+  // The RPC's own verdict travels back. An unrecognised one is a contract drift
+  // and is treated as a failure rather than assumed benign.
+  const outcome = called.value.outcome;
+  if (
+    typeof outcome !== "string" ||
+    !["opened", "advanced", "reopened", "stale", "conflict", "linkage-conflict"].includes(outcome)
+  ) {
+    return { error: "case-unknown-outcome" };
+  }
+  return { ok: true, outcome };
+
 }
 
 /** A provider/evidence failure, mapped onto an inbox outcome. */

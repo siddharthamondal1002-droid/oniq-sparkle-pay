@@ -67,4 +67,26 @@ echo "M6 the stale-failure guard is removed"
 save "$W"; mutate "$W" 'mayRecordFailure(binding)' '{ ok: true } as ReturnType<typeof mayRecordFailure>'
 verdict "M6"; restore "$W"
 
+C="supabase/functions/_shared/razorpayCaseRead.ts"
+
+echo "M7 the case body need not be about the case that was asked for"
+save "$C"; mutate "$C" 'if (parsed.facts.caseId !== id)' 'if (false)'
+verdict "M7"; restore "$C"
+
+echo "M8 a case with no payment to check against is accepted"
+save "$C"; mutate "$C" 'if (!eventPaymentId && !binding.storedPaymentId) return refuse("case-payment-unverifiable");' ''
+verdict "M8"; restore "$C"
+
+echo "M9 a refused case outcome counts as done"
+save "$W"; mutate "$W" 'written.outcome === "linkage-conflict" || written.outcome === "conflict"' 'false'
+verdict "M9"; restore "$W"
+
+echo "M10 an unrecognised case outcome is taken for success"
+save "$W"; mutate "$W" '!["opened", "advanced", "reopened", "stale", "conflict", "linkage-conflict"].includes(outcome)' 'false'
+verdict "M10"; restore "$W"
+
+echo "M11 the heartbeat is stamped after the work instead of before"
+save "$W"; mutate "$W" '"payment_recovery_beat"' '"payment_recovery_maintain"'
+verdict "M11"; restore "$W"
+
 echo "done"

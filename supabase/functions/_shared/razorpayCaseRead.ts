@@ -196,7 +196,18 @@ async function readCase(
   const segment = kind === "refund" ? "refunds" : "disputes";
   const got = await providerGet(creds, `${segment}/${encodeURIComponent(id)}`, doFetch);
   if ("error" in got) return got;
-  return parseCase(kind, got.body);
+  const parsed = parseCase(kind, got.body);
+  if ("error" in parsed) return parsed;
+  // THE DOCUMENT MUST BE THE ONE WE ASKED FOR. A well-formed body naming a
+  // DIFFERENT valid case id is not this case: parsing it as one files another
+  // person's refund against this purchase. Measured — both readers accepted a
+  // substituted id, because the shape check passes on any valid id and nothing
+  // compared it back to the request.
+  if (parsed.facts.caseId !== id) {
+    return { error: { code: `${kind}-id-mismatch`, retryable: false } };
+  }
+  return parsed;
+
 }
 
 /**
@@ -213,6 +224,11 @@ export function caseMatchesBinding(
   eventPaymentId: string | null,
 ): { ok: true } | { ok: false; error: ConfirmFailure } {
   const refuse = (code: string) => ({ ok: false as const, error: { code, retryable: false } });
+  // AN ANCHOR IS REQUIRED. With neither the event's payment id nor a payment id
+  // already stored on the purchase, nothing ties this document to this row —
+  // "the amounts are compatible" is not attribution, and filing it would credit
+  // one person's refund to another's order.
+  if (!eventPaymentId && !binding.storedPaymentId) return refuse("case-payment-unverifiable");
   if (eventPaymentId && facts.paymentId !== eventPaymentId) return refuse("case-payment-mismatch");
   if (binding.storedPaymentId && binding.storedPaymentId !== facts.paymentId) {
     return refuse("case-payment-mismatch");
@@ -221,8 +237,12 @@ export function caseMatchesBinding(
     return refuse("case-currency-mismatch");
   }
   // Equal is ordinary (a full refund); more than the purchase is not.
+  if (!Number.isSafeInteger(facts.amountMinor) || facts.amountMinor <= 0) {
+    return refuse("case-amount-invalid");
+  }
   if (facts.amountMinor > binding.amountMinor) return refuse("case-amount-exceeds-payment");
   return { ok: true };
+
 }
 
 /**

@@ -765,4 +765,243 @@ begin
   raise notice 'T21 ok  ownership enforced in SQL, admin notes never exposed';
 end $$;
 
+-- ===========================================================================
+-- T22  ONE EVENT ID, TWO BODIES, ARRIVING TOGETHER. The canonical row carries a
+--      unique provider_event_id while the INSERT names only (body_sha256), so
+--      the second writer used to raise unique_violation — a 5xx to the provider
+--      and no record of the conflict at all. It must quarantine durably.
+-- ===========================================================================
+do $$
+declare v jsonb; ok boolean := false; st text;
+begin
+  -- First body under the id, recorded normally.
+  v := public.payment_inbox_record('evt_x1', md5('t22a')||md5('t22b'), 'payment.captured','paid',
+         'order_x1','pay_x1',null,null,100,'captured', now());
+  perform public.t_assert(v->>'outcome' = 'recorded', 'first body recorded: '||v::text);
+
+  -- A DIFFERENT body under the SAME id. Step 1's alias lock catches this one.
+  v := public.payment_inbox_record('evt_x1', md5('t22c')||md5('t22d'), 'payment.captured','paid',
+         'order_x1','pay_x1',null,null,999,'captured', now());
+  perform public.t_assert(v->>'outcome' = 'conflict', 'crossed body quarantined: '||v::text);
+  select state into st from public.payment_webhook_events where body_sha256 = md5('t22a')||md5('t22b');
+  perform public.t_assert(st = 'conflict', 'and the stored row is durably conflict: '||st);
+  perform public.t_assert(exists (select 1 from public.payment_webhook_events
+    where body_sha256 = md5('t22a')||md5('t22b') and conflict_sha256 = md5('t22c')||md5('t22d')),
+    'the incoming digest is kept as the evidence');
+  perform public.t_assert(exists (select 1 from public.ops_alerts
+    where signal = 'payment_inbox_conflict' and resolved_at is null),
+    'and somebody is told');
+
+  -- SAME BODY, DIFFERENT ID: an ordinary relabelled redelivery, not a conflict.
+  v := public.payment_inbox_record('evt_x2', md5('t22a')||md5('t22b'), 'payment.captured','paid',
+         'order_x1','pay_x1',null,null,100,'captured', now());
+  perform public.t_assert(v->>'outcome' = 'duplicate', 'same bytes under a new id: '||v::text);
+
+  -- A conflict row is NOT claimable: the worker cannot complete it into done.
+  perform public.t_assert(not exists (
+    select 1 from public.payment_inbox_claim(10, 60) c
+     join public.payment_webhook_events e on e.id = c.id
+    where e.body_sha256 = md5('t22a')||md5('t22b')), 'a quarantined row is never leased');
+  ok := true;
+  perform public.t_assert(ok, 'reached the end');
+  raise notice 'T22 ok  crossed ids quarantine durably, same-body-new-id is a duplicate';
+end $$;
+
+-- ===========================================================================
+-- T23  REOPENING FOLLOWS THE VERIFIED FACT, NOT THE EVENT RANK. Measured on the
+--      previous draft: resolved at `under_review` (rank 20) stayed RESOLVED when
+--      a fresh read said `lost` under a lower-ranked delivery.
+-- ===========================================================================
+do $$
+declare cid uuid; v jsonb; st text; n integer;
+begin
+  set local test.uid = '00000000-0000-0000-0000-0000000000aa';
+  cid := (public.payment_case_upsert('dispute','disp_r1','order_r1','pay_r1',
+            'payment.dispute.under_review', 20, 5000, null, null,
+            'policy-decision-outstanding', false, 'INR', 'under_review')->>'id')::uuid;
+  perform public.payment_case_resolve(cid, 'no_action', 'looked at it, nothing to do',
+            (select updated_at from public.payment_cases where id = cid));
+  perform public.t_assert(
+    (select status from public.payment_cases where id = cid) = 'resolved', 'closed first');
+
+  -- A LOWER-RANKED delivery carrying a fresh, adverse read.
+  v := public.payment_case_upsert('dispute','disp_r1','order_r1','pay_r1',
+         'payment.dispute.created', 10, 5000, null, null,
+         'policy-decision-outstanding', true, 'INR', 'lost');
+  select status into st from public.payment_cases where id = cid;
+  perform public.t_assert(st = 'open', 'THE ADVERSE VERIFIED FACT REOPENS IT: '||st);
+  perform public.t_assert((v->>'reopened')::boolean, 'and says so: '||v::text);
+  perform public.t_assert(v->>'outcome' = 'stale',
+    'while the DELIVERY is still reported stale — the history stays truthful');
+  perform public.t_assert(exists (select 1 from public.payment_case_events
+    where case_id = cid and kind = 'reopened'), 'the reopening is in the history');
+  perform public.t_assert(exists (select 1 from public.payment_case_events
+    where case_id = cid and kind = 'resolved'), 'and so is the decision it overrode');
+  perform public.t_assert(
+    (select resolution is null from public.payment_cases where id = cid),
+    'the stale resolution is cleared');
+
+  -- IDENTICAL REPEATS MUST NOT REOPEN FOR EVER.
+  perform public.payment_case_resolve(cid, 'other', 'reviewed the loss and accepted it',
+            (select updated_at from public.payment_cases where id = cid));
+  select reopened_count into n from public.payment_cases where id = cid;
+  perform public.payment_case_upsert('dispute','disp_r1','order_r1','pay_r1',
+    'payment.dispute.created', 10, 5000, null, null,
+    'policy-decision-outstanding', true, 'INR', 'lost');
+  perform public.payment_case_upsert('dispute','disp_r1','order_r1','pay_r1',
+    'payment.dispute.created', 10, 5000, null, null,
+    'policy-decision-outstanding', true, 'INR', 'lost');
+  perform public.t_assert(
+    (select status from public.payment_cases where id = cid) = 'resolved',
+    'the SAME verified status an admin already closed does not reopen it again');
+  perform public.t_assert(
+    (select reopened_count from public.payment_cases where id = cid) = n,
+    'and nothing is counted');
+  raise notice 'T23 ok  reopen on CHANGED adverse verified facts, independent of rank';
+end $$;
+
+-- ===========================================================================
+-- T24  AN EXHAUSTED EVENT WITH NO ORDER STILL GETS A CASE SOMEBODY CAN RESOLVE.
+-- ===========================================================================
+do $$
+declare eid uuid; c record;
+begin
+  eid := (public.payment_inbox_record('evt_orphan', md5('t24a')||md5('t24b'), 'refund.created','refund',
+            null, null, 'rfnd_orphan', null, 100, 'pending', now())->>'id')::uuid;
+  -- Drive it to the end of its retry budget. Other fixtures' pending rows are
+  -- pushed out of the due window so the claim takes exactly this one.
+  update public.payment_webhook_events set next_due_at = now() + interval '1 day'
+   where id <> eid and state = 'pending';
+  update public.payment_webhook_events
+     set attempts = public.payment_recovery_max_attempts() - 1,
+         next_due_at = now() - interval '1 minute'
+   where id = eid;
+  perform public.payment_inbox_claim(10, 60);
+  perform public.payment_inbox_complete(eid,
+    (select lease_token from public.payment_webhook_events where id = eid),
+    'retry', 'no-order-id', 1);
+  perform public.t_assert(
+    (select state from public.payment_webhook_events where id = eid) = 'exhausted',
+    'it exhausted');
+  select * into c from public.payment_cases where provider_case_id = 'inbox:'||eid::text;
+  perform public.t_assert(c.id is not null, 'A CASE EXISTS DESPITE THE UNKNOWN ORDER');
+  perform public.t_assert(c.case_type = 'manual_review', 'and it is a manual review');
+  perform public.t_assert(c.provider_order_id is null,
+    'DELIBERATELY UNLINKED: a guessed order is a binding nothing verified');
+  perform public.t_assert(c.open_reason = 'webhook-event-exhausted-unbound', 'reason names it');
+  raise notice 'T24 ok  an unbound exhausted event is still resolvable by a person';
+end $$;
+
+-- ===========================================================================
+-- T25  ALERTS CLOSE WHEN THE THING THEY NAMED IS GONE — and not before.
+-- ===========================================================================
+do $$
+declare v jsonb; cid uuid;
+begin
+  set local test.uid = '00000000-0000-0000-0000-0000000000aa';
+  perform public.payment_ops_alert('payment_inbox_conflict', 1::smallint, 's', '{}'::jsonb);
+  -- T22 left a real conflict row behind, so the sweep must NOT close this.
+  v := public.payment_recovery_alert_sweep();
+  perform public.t_assert(exists (select 1 from public.ops_alerts
+    where signal = 'payment_inbox_conflict' and resolved_at is null),
+    'an alert whose incident is still live stays open');
+
+  update public.payment_webhook_events set state = 'ignored' where state = 'conflict';
+  v := public.payment_recovery_alert_sweep();
+  perform public.t_assert(not exists (select 1 from public.ops_alerts
+    where signal = 'payment_inbox_conflict' and resolved_at is null),
+    'and closes once it is not');
+  perform public.t_assert(exists (select 1 from public.ops_alerts
+    where signal = 'payment_inbox_conflict' and resolved_at is not null),
+    'THE ROW IS KEPT: resolving is not deleting');
+  perform public.t_assert(not exists (select 1 from public.ops_alerts
+    where signal = 'payment_inbox_conflict' and notified_at is not null),
+    'and notified_at is NEVER invented');
+
+  -- A linkage conflict clears only when the case is actually dealt with.
+  cid := (public.payment_case_upsert('refund','rfnd_l1','order_l1','pay_l1','refund.created',
+            1, 100, '00000000-0000-0000-0000-0000000000d1'::uuid,'story_purchases')->>'id')::uuid;
+  perform public.payment_case_upsert('refund','rfnd_l1','order_OTHER','pay_l1','refund.created',
+            1, 100, '00000000-0000-0000-0000-0000000000d1'::uuid,'story_purchases');
+  perform public.payment_recovery_alert_sweep();
+  perform public.t_assert(exists (select 1 from public.ops_alerts
+    where signal = 'payment_case_linkage_conflict' and resolved_at is null),
+    'the linkage alert stays open while the case does');
+  -- ONE CASE OUT OF SEVERAL IS NOT THE END OF THE INCIDENT. Earlier fixtures
+  -- left their own linkage conflicts open, so dealing with this one must NOT
+  -- silence the others — which is exactly what a remembered signal would do.
+  update public.payment_cases set status = 'resolved', resolution = 'other',
+         resolved_at = now(), updated_at = now()
+   where id = cid;
+  perform public.payment_recovery_alert_sweep();
+  perform public.t_assert(exists (select 1 from public.ops_alerts
+    where signal = 'payment_case_linkage_conflict' and resolved_at is null),
+    'the OTHER open linkage conflicts keep it open');
+
+  update public.payment_cases set status = 'resolved', resolution = 'other',
+         resolved_at = now(), updated_at = now()
+   where status <> 'resolved' and open_reason = 'linkage-conflict';
+  perform public.payment_recovery_alert_sweep();
+  perform public.t_assert(not exists (select 1 from public.ops_alerts
+    where signal = 'payment_case_linkage_conflict' and resolved_at is null),
+    'AND CLOSES ONCE THEY ARE ALL DEALT WITH — never stuck open for ever');
+  raise notice 'T25 ok  payment alerts have a lifecycle of their own';
+end $$;
+
+-- ===========================================================================
+-- T26  THE DISPATCH IS OBSERVED. A tick that POSTs and never looks reports
+--      success while a wrong credential 401s every two minutes.
+-- ===========================================================================
+do $$
+declare v jsonb; req bigint;
+begin
+  -- No credential: dispatch nothing, and SAY SO in the ledger rather than only
+  -- in a warning nobody reads.
+  v := public.payment_recovery_tick();
+  perform public.t_assert((v->>'dispatched')::boolean is false, 'nothing was dispatched');
+  perform public.t_assert(exists (select 1 from public.ops_alerts
+    where signal = 'payment_recovery_worker_unhealthy' and resolved_at is null),
+    'a missing credential is an ALERT: '||v::text);
+
+  -- With one, the request id is recorded so the NEXT tick can judge it.
+  create or replace function public.ops_watch_pick_key() returns text
+    language sql stable as $f$ select 'k.k.k'::text $f$;
+  v := public.payment_recovery_tick();
+  perform public.t_assert((v->>'dispatched')::boolean, 'dispatched: '||v::text);
+  req := (v->>'request_id')::bigint;
+  perform public.t_assert(exists (select 1 from public.payment_recovery_dispatches
+    where request_id = req and observed_at is null), 'and recorded, unobserved');
+
+  -- A response that has not landed yet is not a failure.
+  v := public.payment_recovery_observe_dispatch();
+  perform public.t_assert(v->>'reason' = 'too-soon', 'a fresh dispatch is not judged: '||v::text);
+
+  -- A refusal is.
+  insert into net._http_response (id, status_code) values (req, 401);
+  v := public.payment_recovery_observe_dispatch();
+  perform public.t_assert((v->>'status_code')::int = 401, 'the code is read: '||v::text);
+  perform public.t_assert(exists (select 1 from public.ops_alerts
+    where signal = 'payment_recovery_worker_unhealthy' and resolved_at is null),
+    'and alerted');
+  perform public.t_assert(not (v::text like '%k.k.k%'), 'NO CREDENTIAL IS EVER STORED OR RETURNED');
+  perform public.t_assert(not exists (select 1 from public.payment_recovery_dispatches
+    where observed_at is not null and status_code is null and request_id = req),
+    'the observation is durable');
+
+  -- A healthy answer closes it.
+  v := public.payment_recovery_tick();
+  insert into net._http_response (id, status_code) values ((v->>'request_id')::bigint, 200);
+  perform public.payment_recovery_beat();
+  v := public.payment_recovery_observe_dispatch();
+  perform public.t_assert((v->>'status_code')::int = 200, '200: '||v::text);
+  perform public.t_assert(v->>'last_worker_run_at' is not null, 'the heartbeat is reported too');
+  perform public.t_assert(not exists (select 1 from public.ops_alerts
+    where signal = 'payment_recovery_worker_unhealthy' and resolved_at is null),
+    'and the unhealthy alert closes');
+  create or replace function public.ops_watch_pick_key() returns text
+    language sql stable as $f$ select null::text $f$;
+  raise notice 'T26 ok  the worker is observed, not assumed';
+end $$;
+
 select 'ALL SQL TESTS PASSED' as result;
+

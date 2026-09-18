@@ -56,6 +56,8 @@ type Scenario = {
   refund?: Record<string, unknown> | null;
   refundStatus?: number;
   dispute?: Record<string, unknown> | null;
+  /** What `payment_case_upsert` says it DID. `advanced` unless a test says otherwise. */
+  caseOutcome?: unknown;
   grantResult?: unknown;
   grantStatus?: number;
   /** `{ok:false}` from a completion RPC means the lease is gone. */
@@ -151,7 +153,9 @@ function router(): typeof fetch {
     if (rpc === "payment_reconcile_complete") {
       return jsonResponse({ ok: scenario.reconcileCompleteOk ?? true });
     }
-    if (rpc === "payment_case_upsert") return jsonResponse({ ok: true, id: "case-1" });
+    if (rpc === "payment_case_upsert") {
+      return jsonResponse({ outcome: scenario.caseOutcome ?? "advanced", id: "case-1" });
+    }
     if (rpc) {
       return jsonResponse(scenario.grantResult ?? { ok: true }, scenario.grantStatus ?? 200);
     }
@@ -398,7 +402,11 @@ describe("the probe — authenticated, and it may not write", () => {
 describe("the inbox — a recorded event finished afterwards", () => {
   it("reaps and tops up before claiming anything", async () => {
     await callRecovery();
-    expect(rpcNames()[0]).toBe("payment_recovery_maintain");
+    // THE HEARTBEAT IS FIRST, and before anything that can fail. A run that
+    // only stamped itself once it had finished would read as "never ran" for
+    // exactly the runs whose silence is worth an alert.
+    expect(rpcNames().slice(0, 2)).toEqual(["payment_recovery_beat", "payment_recovery_maintain"]);
+    expect(rpcNames().indexOf("payment_inbox_claim")).toBeGreaterThan(1);
   });
 
   // THE WORKER MUST NOT CALL THE TICK. The tick POSTs this worker, so a worker
@@ -621,6 +629,161 @@ describe("refunds and disputes become cases, read fresh from the provider", () =
     // A dispute cycles, so conflating them is how a reopened dispute reads as
     // settled.
     expect(argsOf("payment_case_upsert").p_verified_status).toBe("under_review");
+  });
+
+  // ---------------------------------------------------------------------
+  // THE PROVIDER'S ANSWER MUST BE ABOUT THE THING THAT WAS ASKED FOR. A probe
+  // of the source found readCase accepting a DIFFERENT valid-shaped id in the
+  // body for both refunds and disputes: the shape was parsed, the identity was
+  // never compared, so another customer's refund could be filed against this
+  // order.
+  // ---------------------------------------------------------------------
+  it("refuses a refund body that answers about a different refund", async () => {
+    scenario.inboxRows = [refundRow()];
+    scenario.refund = {
+      entity: "refund",
+      id: "rfnd_SOMEONEelse99",
+      payment_id: PAY,
+      amount: 100,
+      currency: "INR",
+      status: "processed",
+    };
+    await callRecovery();
+    expect(rpcNames()).not.toContain("payment_case_upsert");
+    expect(argsOf("payment_inbox_complete").p_error).toBe("refund-id-mismatch");
+  });
+
+  it("refuses a dispute body that answers about a different dispute", async () => {
+    scenario.inboxRows = [
+      inboxRow({ event_class: "dispute", event_name: "dispute.lost", provider_dispute_id: DISP }),
+    ];
+    scenario.dispute = {
+      entity: "dispute",
+      id: "disp_SOMEONEelse9",
+      payment_id: PAY,
+      amount: 4900,
+      currency: "INR",
+      status: "lost",
+    };
+    await callRecovery();
+    expect(rpcNames()).not.toContain("payment_case_upsert");
+    expect(argsOf("payment_inbox_complete").p_error).toBe("dispute-id-mismatch");
+  });
+
+  it("refuses a case amount that is not a positive whole number of paise", async () => {
+    for (const amount of [0, -100, 1.5, Number.MAX_SAFE_INTEGER + 2]) {
+      calls = [];
+      scenario.inboxRows = [refundRow()];
+      scenario.refund = {
+        entity: "refund",
+        id: RFND,
+        payment_id: PAY,
+        amount,
+        currency: "INR",
+        status: "processed",
+      };
+      await callRecovery();
+      expect(rpcNames()).not.toContain("payment_case_upsert");
+      // Two guards refuse these, and which one speaks first is not the point:
+      // the parser's own bound catches most, the binding check catches the
+      // rest. What matters is that NEITHER lets it through.
+      expect(["provider-bad-amount", "case-amount-invalid"]).toContain(
+        argsOf("payment_inbox_complete").p_error,
+      );
+    }
+  });
+
+  // A CASE WITH NOTHING TO CHECK IT AGAINST IS NOT VERIFIED. With neither an
+  // event payment id nor a stored one there is no anchor, and "it matched"
+  // would mean "nothing contradicted it". The binding read refuses this row
+  // first, which is the same answer one guard earlier — what is asserted is
+  // that an unanchored case never reaches the case routine.
+  it("never files a case it has no payment to check against", async () => {
+    scenario.inboxRows = [
+      inboxRow({
+        event_class: "refund",
+        event_name: "refund.processed",
+        provider_refund_id: RFND,
+        provider_payment_id: null,
+      }),
+    ];
+    // A purchase that is otherwise perfectly readable and has simply never
+    // recorded a payment id. Everything else about this refund lines up, so
+    // only the anchor rule stands between it and being filed.
+    scenario.tables = { story_purchases: [purchaseRow({ provider_payment_id: null })] };
+    scenario.refund = {
+      entity: "refund",
+      id: RFND,
+      payment_id: PAY,
+      amount: 100,
+      currency: "INR",
+      status: "processed",
+    };
+    await callRecovery();
+    expect(rpcNames()).not.toContain("payment_case_upsert");
+    expect(argsOf("payment_inbox_complete").p_outcome).not.toBe("done");
+  });
+
+  // ---------------------------------------------------------------------
+  // THE DATABASE'S OWN VERDICT DECIDES, NOT THE HTTP STATUS. A 200 carrying
+  // `linkage-conflict` means the content was REFUSED; counting it as done
+  // would report a discarded fact as processed, and retrying it would spend
+  // the budget on a decision no retry can change.
+  // ---------------------------------------------------------------------
+  it.each([
+    ["linkage-conflict", "case-linkage-conflict"],
+    ["conflict", "case-conflict"],
+  ])("files a %s as handled-but-not-done", async (outcome, code) => {
+    scenario.inboxRows = [refundRow()];
+    scenario.caseOutcome = outcome;
+    scenario.refund = {
+      entity: "refund",
+      id: RFND,
+      payment_id: PAY,
+      amount: 100,
+      currency: "INR",
+      status: "processed",
+    };
+    await callRecovery();
+    const done = argsOf("payment_inbox_complete");
+    expect(done.p_outcome).toBe("ignored");
+    expect(done.p_error).toBe(code);
+  });
+
+  it("carries the routine's own outcome through on success", async () => {
+    scenario.inboxRows = [refundRow()];
+    scenario.caseOutcome = "reopened";
+    scenario.refund = {
+      entity: "refund",
+      id: RFND,
+      payment_id: PAY,
+      amount: 100,
+      currency: "INR",
+      status: "processed",
+    };
+    await callRecovery();
+    expect(argsOf("payment_inbox_complete")).toMatchObject({
+      p_outcome: "done",
+      p_error: "case-reopened",
+    });
+  });
+
+  it("retries rather than guesses when the routine answers something unknown", async () => {
+    scenario.inboxRows = [refundRow()];
+    scenario.caseOutcome = "whatever-comes-next";
+    scenario.refund = {
+      entity: "refund",
+      id: RFND,
+      payment_id: PAY,
+      amount: 100,
+      currency: "INR",
+      status: "processed",
+    };
+    await callRecovery();
+    expect(argsOf("payment_inbox_complete")).toMatchObject({
+      p_outcome: "retry",
+      p_error: "case-unknown-outcome",
+    });
   });
 
   it("retries an actionable event whose case id is unusable", async () => {

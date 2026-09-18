@@ -81,3 +81,16 @@ returns void language plpgsql as $$
 begin
   if cond is not true then raise exception 'ASSERT FAILED: %', msg; end if;
 end $$;
+
+-- pg_net, stubbed. The tick dispatches through `net.http_post` and the health
+-- observer reads `net._http_response`; both exist here so the dispatch/observe
+-- lifecycle is EXECUTED rather than reasoned about. Nothing leaves the cluster:
+-- the stub returns an id and records nothing but that id.
+create schema if not exists net;
+create sequence if not exists net.request_seq;
+create table if not exists net._http_response (
+  id bigint primary key, status_code integer, created timestamptz default now());
+create or replace function net.http_post(
+  url text, body jsonb default '{}'::jsonb, params jsonb default '{}'::jsonb,
+  headers jsonb default '{}'::jsonb, timeout_milliseconds integer default 5000)
+returns bigint language sql as $$ select nextval('net.request_seq') $$;
