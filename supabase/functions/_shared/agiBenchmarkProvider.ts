@@ -104,7 +104,14 @@ export function makeE003BGeminiModel(opts: {
       };
     }
     const quote = estimate(req);
-    if (quote === null || !Number.isFinite(quote) || quote <= 0) {
+    if (
+      quote === null ||
+      !Number.isFinite(quote) ||
+      quote <= 0 ||
+      !Number.isFinite(req.maxCostUsd) ||
+      req.maxCostUsd <= 0 ||
+      quote > req.maxCostUsd
+    ) {
       return {
         ok: false,
         text: "",
@@ -113,7 +120,12 @@ export function makeE003BGeminiModel(opts: {
         outputTokens: 0,
         costUsd: 0,
         model: TEXT_DIRECT_STANDARD.id,
-        reason: "unpriced-benchmark-model",
+        reason:
+          quote === null
+            ? "unpriced-benchmark-model"
+            : quote > req.maxCostUsd
+              ? "remaining-execution-budget-insufficient"
+              : "invalid-benchmark-budget",
       };
     }
 
