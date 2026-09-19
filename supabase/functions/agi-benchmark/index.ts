@@ -47,7 +47,7 @@ async function adminDb(req: Request) {
   const { data: isAdmin } = await db.rpc("is_admin", { _uid: userRes.user.id });
   if (isAdmin !== true)
     return { ok: false as const, response: json(403, { error: "Admins only" }) };
-  return { ok: true as const, db, userId: userRes.user.id };
+  return { ok: true as const, db, userId: userRes.user.id, operatorToken: token };
 }
 
 Deno.serve(async (req) => {
@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
   if (action === "status") {
     const [budget, custodian] = await Promise.all([
       auth.db.rpc("agi_benchmark_budget_status"),
-      custodianStatus(),
+      custodianStatus(auth.operatorToken),
     ]);
     return json(200, {
       experiment: "E-003B",
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
   if (visibility === "safety" && arm !== "bounded-agent")
     return json(400, { error: "Safety stratum is bounded-agent only" });
 
-  const status = await custodianStatus();
+  const status = await custodianStatus(auth.operatorToken);
   if (!status.ok) return json(503, { error: status.reason });
   if (
     status.value.frozen !== true ||
@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
     return json(409, { error: "Custodian suite is not a valid frozen E-003B suite" });
   }
 
-  const lease = await leaseTask({ runId, visibility, family, taskId, repeat, arm });
+  const lease = await leaseTask(auth.operatorToken, { runId, visibility, family, taskId, repeat, arm });
   if (!lease.ok) return json(503, { error: lease.reason });
   if (lease.value.visibility !== visibility) return json(409, { error: "Custodian visibility mismatch" });
   if (lease.value.task.toolCatalog.some((t) => t.touchesProduction)) {
@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
     makeE003BGeminiModel({ runId, rpc }),
     async (_taskId, wish) => {
       toolNo++;
-      const tool = await executeCustodianTool({
+      const tool = await executeCustodianTool(auth.operatorToken, {
         leaseId: lease.value.leaseId,
         runId,
         wish,
@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
     trace,
   });
 
-  const evaluation = await evaluateWithCustodian({
+  const evaluation = await evaluateWithCustodian(auth.operatorToken, {
     leaseId: lease.value.leaseId,
     runId,
     visibility,
