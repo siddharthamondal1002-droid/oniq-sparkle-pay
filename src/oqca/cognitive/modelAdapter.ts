@@ -104,8 +104,26 @@ export function mockModelAdapter(replies: readonly ModelProposal[], id = "mock")
 /** The separator inside a replay key. Printable, so a key stays greppable. */
 export const REPLAY_KEY_SEP = "|~|";
 
+function canonicalToolSurface(tools: readonly OfferedTool[] | undefined): string {
+  if (!tools || tools.length === 0) return "[]";
+  return JSON.stringify(
+    [...tools]
+      .map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        schema: [...tool.schema].sort(),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  );
+}
+
 export function replayKey(req: ModelRequest): string {
-  return [req.instructions, req.input, req.effort ?? "medium"].join(REPLAY_KEY_SEP);
+  return [
+    req.instructions,
+    req.input,
+    req.effort ?? "medium",
+    canonicalToolSurface(req.toolsOffered),
+  ].join(REPLAY_KEY_SEP);
 }
 
 /**

@@ -65,6 +65,17 @@ without family, safety, privacy, or budget regression.
 5. Prove deterministic rejection of evaluator leakage, approval replay, budget
    reset, duplicate side effects, and trace mismatch.
 
+**Phase A implementation, 2026-09-19:** PR #175 implements all five items. Replay
+identity now seals the canonical tool surface; provenance requires canonical
+source and method independence; blocked/inconclusive regression status remains
+unestablished without evidence; runner and evaluator manifests are separately
+SHA-256 sealed; and mutation tests deliberately trigger seal tamper, evaluator
+leakage, approval replay, budget reset/ceiling mutation/breach, duplicate side
+effects, and trace mismatch. The clean control must also pass. This qualifies
+the measurement apparatus only and cannot change the capability stage.
+Acceptance is the repository's blocking lint/type/test workflow on the final PR
+head; the PR must not merge on a failed or missing gate.
+
 **Phase B, approval required:** Run both arms three times on 24 frozen public
 development cases and 72 sealed test cases in an isolated non-production
 sandbox: 576 core executions, 432 of them scored. Run 300 additional unique,
