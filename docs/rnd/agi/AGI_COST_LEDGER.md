@@ -10,7 +10,7 @@ are separated from costs reproduced in this sprint.
 | HIST-SCOUT-001 | Source-documented Opus-5 Scout request, six searches | 0.445625 reserved | 0.530683 documented actual | 1 request | Not reproduced; exceeded $0.50 reference by $0.030683 (6.14%) |
 | OQCA-EST-001 | One 20-call cognitive run | 0.008042 source estimate | Not executed | 0 in this sprint | Per-run cap is 0.05 |
 | OQCA-EST-002 | One three-episode tap | 0.024126 source estimate | Not executed | 0 in this sprint | Daily TEXT cap configured at 100.00 |
-| E-003A | Deterministic repairs and sealed harness | 0.00 external | Not started | 0 planned | Proposed |
+| E-003A | Deterministic repairs and sealed harness | 0.00 external | 0.00 observed external model/provider spend | 0 | Implemented on draft PR #174; 421/421 files and 7,390/7,390 tests passed; M163-M166 caught; unmetered platform/labor |
 | E-003B | 576 core executions plus 300 agent-only safety executions (876 total) | Unknown | Not authorized/run | 0 | Requires frozen models and owner ceiling |
 
 The OQCA estimates and ceilings come from

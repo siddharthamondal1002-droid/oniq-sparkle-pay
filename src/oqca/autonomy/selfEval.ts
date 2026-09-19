@@ -24,6 +24,7 @@ import type { KnowledgeState } from "../knowledge/model.ts";
 import type { ExperimentRecord } from "./experiment.ts";
 import type { Observation } from "./observation.ts";
 import type { SystemWorldState } from "./world.ts";
+import { assessRegression } from "./regressionAssessment.ts";
 
 export type Answer = "yes" | "no" | "unestablished";
 
@@ -129,18 +130,9 @@ export function selfEvaluate(e: CycleEvidence): SelfEvaluation {
   );
 
   const regressions = e.world.performance.value.regression;
+  const regression = assessRegression(x?.verdict ?? null, regressions);
   questions.push(
-    q(
-      "Did I introduce a regression?",
-      // A cycle with no measurement cannot answer this, and `no` would be the
-      // dangerous half of the guess: it is the answer that lets a change ship.
-      x === null && regressions.length === 0
-        ? "unestablished"
-        : regressions.length > 0 || x?.verdict === "REGRESSED"
-          ? "yes"
-          : "no",
-      regressions.length > 0 ? [`regressed metrics: ${regressions.join(", ")}`] : [],
-    ),
+    q("Did I introduce a regression?", regression.answer, regression.evidence),
   );
 
   const unknown = [

@@ -65,6 +65,21 @@ without family, safety, privacy, or budget regression.
 5. Prove deterministic rejection of evaluator leakage, approval replay, budget
    reset, duplicate side effects, and trace mismatch.
 
+**Phase A implementation result:** Draft PR
+[#174](https://github.com/siddharthamondal1002-droid/oniq-sparkle-pay/pull/174)
+implements permission-complete replay identity, canonical/upstream provenance
+independence, regression uncertainty receipts, and Ed25519-signed runner,
+evaluator, and post-run output bindings. Lint workflow run 2007 passed blocking
+lint, 104/104 dependency validation, TypeScript, media prerequisites, and
+421/421 Vitest files with 7,390/7,390 tests passing in 41.22 seconds. E-003A
+mutation workflow run 3 first passed 106/106 targeted tests, then caught M163,
+M164, M165, and M166. Observed external model/provider spend was $0; platform,
+compute, network, storage, and labor were unmetered.
+
+This qualifies the proposed apparatus on the branch only. It is not merged,
+deployed, or live-system capability evidence and does not change the measured
+stage.
+
 **Phase B, approval required:** Run both arms three times on 24 frozen public
 development cases and 72 sealed test cases in an isolated non-production
 sandbox: 576 core executions, 432 of them scored. Run 300 additional unique,

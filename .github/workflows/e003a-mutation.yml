@@ -1,0 +1,30 @@
+name: E-003A mutation qualification
+
+on:
+  pull_request:
+    paths:
+      - "src/oqca/cognitive/modelAdapter.ts"
+      - "src/oqca/cognitive/provenance.ts"
+      - "src/oqca/autonomy/regressionAssessment.ts"
+      - "src/oqca/benchmarks/e003a/**"
+      - "src/oqca/**/__tests__/**"
+      - "scripts/e003a-mutate.sh"
+      - ".github/workflows/e003a-mutation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mutate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Require E-003A mutants to turn tests red
+        run: bash scripts/e003a-mutate.sh

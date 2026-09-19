@@ -38,6 +38,10 @@ export type OfferedTool = {
   readonly description: string;
   /** Argument names the tool reads. Empty means it takes none. */
   readonly schema: readonly string[];
+  /** Version of the callable contract, not the provider implementation. */
+  readonly version: string;
+  /** Immutable permission scopes required to offer the tool. */
+  readonly scopes: readonly string[];
 };
 
 export type ModelRequest = {
@@ -101,11 +105,36 @@ export function mockModelAdapter(replies: readonly ModelProposal[], id = "mock")
   };
 }
 
-/** The separator inside a replay key. Printable, so a key stays greppable. */
+/** Retained for callers importing the legacy constant. V2 keys are canonical JSON. */
 export const REPLAY_KEY_SEP = "|~|";
+export const REPLAY_KEY_VERSION = 2;
 
+function canonicalTool(tool: OfferedTool) {
+  return {
+    name: tool.name,
+    description: tool.description,
+    schema: [...tool.schema].sort(),
+    version: tool.version,
+    scopes: [...tool.scopes].sort(),
+  };
+}
+
+/**
+ * Replay identity binds the complete offered permission surface. Catalog,
+ * schema, and scope ordering are canonicalized because order does not change
+ * authority. Versioning intentionally invalidates incomplete v1 transcripts.
+ */
 export function replayKey(req: ModelRequest): string {
-  return [req.instructions, req.input, req.effort ?? "medium"].join(REPLAY_KEY_SEP);
+  const tools = [...(req.toolsOffered ?? [])]
+    .map(canonicalTool)
+    .sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
+  return JSON.stringify({
+    version: REPLAY_KEY_VERSION,
+    instructions: req.instructions,
+    input: req.input,
+    effort: req.effort ?? "medium",
+    tools,
+  });
 }
 
 /**

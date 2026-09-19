@@ -8,7 +8,7 @@ risk, and expected external cost are estimates; they are not measured outcomes.
 
 | Rank | Work item | Value | Evidence | Effort | Risk | Expected external cost |
 |---:|---|---:|---:|---:|---:|---:|
-| 1 | Repair replay-key scope, provenance independence, and self-evaluation uncertainty; add regression tests | 5 | 5 | 2 | 2 | $0 |
+| 1 | Review and merge E-003A replay, provenance, regression, seal, and mutation controls from draft PR #174 | 5 | 5 | 1 | 2 | $0 |
 | 2 | Implement the 24-dev/72-sealed-task baseline and independent custody pipeline | 5 | 5 | 4 | 3 | $0 harness; inference pending approval |
 | 3 | Integrate one reversible sandbox tool through router, Safety Kernel, read-back verifier, and settlement | 5 | 4 | 3 | 3 | <= approved experiment ceiling |
 | 4 | Reconcile OQCA observer `$0` documentation with the actual `$0.05`/50,000-token run bounds | 4 | 5 | 1 | 2 | $0 |
@@ -33,9 +33,10 @@ risk, and expected external cost are estimates; they are not measured outcomes.
 
 ## Selected Next Step
 
-Execute Experiment E-003 Phase A in `AGI_EXPERIMENTS.md`: repair the three
-deterministic integrity defects and build the sealed runner/evaluator path at
-zero external spend. Proceed to paid Phase B only after the owner approves the
+Review and merge Experiment E-003A from draft PR #174, then freeze the signed
+runner/evaluator manifests and fail-closed Phase B preflight. The branch has
+passed the full repository and focused mutation gates at zero external spend.
+Proceed to paid Phase B only after the owner approves the
 model/provider set, sandbox, custodian, representative workflows, red-team
 scope, and hard cost ceiling.
 
