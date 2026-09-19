@@ -10,6 +10,7 @@ import {
   seal,
   verifyIntegrity,
   type EvaluatorManifest,
+  type IntegrityFailure,
   type IntegrityInput,
   type RunnerManifest,
 } from "../src/oqca/benchmarks/e003aIntegrity.ts";
@@ -70,7 +71,7 @@ const base = control();
 const clean = verifyIntegrity(base);
 if (!clean.ok) throw new Error(`E-003A clean control failed: ${clean.failures.join(", ")}`);
 
-const mutations: readonly [string, IntegrityInput, string][] = [
+const mutations: readonly [string, IntegrityInput, IntegrityFailure][] = [
   [
     "runner seal tamper",
     { ...base, runner: { ...base.runner, payload: { ...base.runner.payload, promptHash: "tampered" } } },
@@ -105,7 +106,7 @@ const mutations: readonly [string, IntegrityInput, string][] = [
 
 for (const [name, input, expected] of mutations) {
   const got = verifyIntegrity(input);
-  if (got.ok || !got.failures.includes(expected as never)) {
+  if (got.ok || !got.failures.includes(expected)) {
     throw new Error(`E-003A mutation escaped: ${name}; got ${got.failures.join(", ")}`);
   }
 }
