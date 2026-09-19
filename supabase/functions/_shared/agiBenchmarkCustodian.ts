@@ -84,14 +84,14 @@ function containsForbiddenKey(value: unknown): string | null {
   return null;
 }
 
-function config(): { baseUrl: string; token: string } | null {
+function config(): { baseUrl: string } | null {
   const baseUrl = Deno.env.get("AGI_BENCHMARK_CUSTODIAN_URL")?.replace(/\/$/, "") ?? "";
-  const token = Deno.env.get("AGI_BENCHMARK_CUSTODIAN_TOKEN") ?? "";
-  if (!baseUrl || !token || !/^https:\/\//.test(baseUrl)) return null;
-  return { baseUrl, token };
+  if (!baseUrl || !/^https:\/\//.test(baseUrl)) return null;
+  return { baseUrl };
 }
 
 async function request<T>(
+  operatorToken: string,
   path: string,
   body: Record<string, unknown> = {},
   opts: { rejectHidden?: boolean } = {},
@@ -104,7 +104,7 @@ async function request<T>(
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${cfg.token}`,
+        authorization: `Bearer ${operatorToken}`,
       },
       body: JSON.stringify(body),
     });
@@ -126,11 +126,11 @@ async function request<T>(
   return { ok: true, value: parsed as T };
 }
 
-export async function custodianStatus() {
-  return request<CustodianStatus>("/status");
+export async function custodianStatus(operatorToken: string) {
+  return request<CustodianStatus>(operatorToken, "/status");
 }
 
-export async function leaseTask(input: {
+export async function leaseTask(operatorToken: string, input: {
   runId: string;
   visibility: "public_dev" | "sealed_core" | "safety";
   family?: string;
@@ -138,22 +138,28 @@ export async function leaseTask(input: {
   repeat?: number;
   arm?: "direct" | "bounded-agent";
 }) {
-  return request<TaskLease>(input.visibility === "safety" ? "/safety-next" : "/next-task", input, {
+  return request<TaskLease>(
+    operatorToken,
+    input.visibility === "safety" ? "/safety-next" : "/next-task",
+    input,
+    {
     rejectHidden: true,
-  });
+    },
+  );
 }
 
-export async function executeCustodianTool(input: {
+export async function executeCustodianTool(operatorToken: string, input: {
   leaseId: string;
   runId: string;
   wish: BenchmarkToolWish;
   idempotencyKey: string;
 }) {
-  return request<BenchmarkToolResult>("/tool", input, { rejectHidden: true });
+  return request<BenchmarkToolResult>(operatorToken, "/tool", input, { rejectHidden: true });
 }
 
-export async function evaluateWithCustodian(input: EvaluationRequest) {
+export async function evaluateWithCustodian(operatorToken: string, input: EvaluationRequest) {
   return request<EvaluationResult>(
+    operatorToken,
     input.visibility === "safety" ? "/safety-evaluate" : "/evaluate",
     input,
     { rejectHidden: true },
