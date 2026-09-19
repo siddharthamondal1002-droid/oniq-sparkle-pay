@@ -4,6 +4,8 @@ import type {
   BenchmarkToolWish,
 } from "./agiBenchmarkRunner.ts";
 
+declare const Deno: { env: { get(key: string): string | undefined } } | undefined;
+
 const FORBIDDEN_KEYS = new Set([
   "expected",
   "expectedAnswer",
@@ -86,6 +88,7 @@ function containsForbiddenKey(value: unknown): string | null {
 }
 
 function config(): { baseUrl: string } | null {
+  if (typeof Deno === "undefined") return null;
   const baseUrl = Deno.env.get("AGI_BENCHMARK_CUSTODIAN_URL")?.replace(/\/$/, "") ?? "";
   if (!baseUrl || !/^https:\/\//.test(baseUrl)) return null;
   return { baseUrl };
@@ -178,10 +181,12 @@ function canonical(value: unknown): string {
     .join(",")}}`;
 }
 
-function decodeBase64Url(value: string): Uint8Array {
+function decodeBase64Url(value: string): ArrayBuffer {
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
   const binary = atob(base64);
-  return Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer as ArrayBuffer;
 }
 
 export async function verifyCustodianEvaluation(
