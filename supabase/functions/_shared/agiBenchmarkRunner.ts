@@ -22,6 +22,7 @@ export type BenchmarkModelRequest = {
   readonly transcript: readonly { readonly role: "user" | "assistant" | "tool"; readonly content: string }[];
   readonly tools: readonly BenchmarkToolSpec[];
   readonly maxOutputTokens: number;
+  readonly maxCostUsd: number;
 };
 
 export type BenchmarkToolWish = {
@@ -170,6 +171,7 @@ export async function runE003BArm(
         transcript,
         tools: task.toolCatalog,
         maxOutputTokens: remainingOut,
+        maxCostUsd: Math.max(0, limits.maxCostUsd - costUsd),
       });
     } catch (e) {
       if (arm === "bounded-agent" && retries < limits.maxRetries) {
