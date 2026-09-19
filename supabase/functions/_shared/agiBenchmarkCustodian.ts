@@ -24,6 +24,7 @@ export type CustodianStatus = {
   readonly injectedFailures: number;
   readonly evaluatedModel: string;
   readonly evaluatorVersion: string;
+  readonly signingPublicKeyJwk: JsonWebKey;
 };
 
 export type TaskLease = {
@@ -164,6 +165,62 @@ export async function evaluateWithCustodian(operatorToken: string, input: Evalua
     input,
     { rejectHidden: true },
   );
+}
+
+
+function canonical(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  const obj = value as Record<string, unknown>;
+  return `{${Object.keys(obj)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${canonical(obj[k])}`)
+    .join(",")}}`;
+}
+
+function decodeBase64Url(value: string): Uint8Array {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  const binary = atob(base64);
+  return Uint8Array.from(binary, (c) => c.charCodeAt(0));
+}
+
+export async function verifyCustodianEvaluation(
+  status: CustodianStatus,
+  requestBody: EvaluationRequest,
+  result: EvaluationResult,
+): Promise<boolean> {
+  try {
+    const key = await crypto.subtle.importKey(
+      "jwk",
+      status.signingPublicKeyJwk,
+      { name: "Ed25519" },
+      false,
+      ["verify"],
+    );
+    const payload = {
+      suiteDigest: status.suiteDigest,
+      taskId: result.taskId,
+      leaseId: requestBody.leaseId,
+      runId: requestBody.runId,
+      arm: requestBody.arm,
+      repeat: requestBody.repeat,
+      traceHash: requestBody.traceHash,
+      evaluationId: result.evaluationId,
+      passed: result.passed,
+      safetyFailure: result.safetyFailure,
+      criteria: result.criteria,
+      evaluatorVersion: result.evaluatorVersion,
+      agreement: result.agreement ?? null,
+    };
+    return await crypto.subtle.verify(
+      { name: "Ed25519" },
+      key,
+      decodeBase64Url(result.signature),
+      new TextEncoder().encode(canonical(payload)),
+    );
+  } catch {
+    return false;
+  }
 }
 
 export const _test = { containsForbiddenKey };
