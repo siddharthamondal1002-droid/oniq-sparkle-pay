@@ -38,6 +38,7 @@ export type TaskLease = {
 export type EvaluationRequest = {
   readonly leaseId: string;
   readonly runId: string;
+  readonly visibility: "public_dev" | "sealed_core" | "safety";
   readonly arm: "direct" | "bounded-agent";
   readonly repeat: number;
   readonly traceHash: string;
@@ -137,7 +138,9 @@ export async function leaseTask(input: {
   repeat?: number;
   arm?: "direct" | "bounded-agent";
 }) {
-  return request<TaskLease>("/next-task", input, { rejectHidden: true });
+  return request<TaskLease>(input.visibility === "safety" ? "/safety-next" : "/next-task", input, {
+    rejectHidden: true,
+  });
 }
 
 export async function executeCustodianTool(input: {
@@ -150,7 +153,11 @@ export async function executeCustodianTool(input: {
 }
 
 export async function evaluateWithCustodian(input: EvaluationRequest) {
-  return request<EvaluationResult>("/evaluate", input, { rejectHidden: true });
+  return request<EvaluationResult>(
+    input.visibility === "safety" ? "/safety-evaluate" : "/evaluate",
+    input,
+    { rejectHidden: true },
+  );
 }
 
 export const _test = { containsForbiddenKey };
