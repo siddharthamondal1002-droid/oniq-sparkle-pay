@@ -134,7 +134,8 @@ export function selfEvaluate(e: CycleEvidence): SelfEvaluation {
       "Did I introduce a regression?",
       // A cycle with no measurement cannot answer this, and `no` would be the
       // dangerous half of the guess: it is the answer that lets a change ship.
-      x === null && regressions.length === 0
+      (x === null || x.verdict === "INCONCLUSIVE" || x.verdict === "BLOCKED") &&
+      regressions.length === 0
         ? "unestablished"
         : regressions.length > 0 || x?.verdict === "REGRESSED"
           ? "yes"
