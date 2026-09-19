@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
 
   const settled = await auth.db.rpc("settle_agi_benchmark_execution", {
     _run_id: runId,
-    _actual_usd: Math.min(E003B_LIMITS.maxCostUsd, Math.max(0, trace.costUsd)),
+    _actual_usd: Math.max(0, trace.costUsd),
     _trace_hash: traceHash,
     _evaluation_id: evaluation.ok ? evaluation.value.evaluationId : null,
     _failure: experimentFailure,
