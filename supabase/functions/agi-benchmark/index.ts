@@ -6,6 +6,7 @@ import {
   evaluateWithCustodian,
   executeCustodianTool,
   leaseTask,
+  verifyCustodianEvaluation,
 } from "../_shared/agiBenchmarkCustodian.ts";
 import { makeE003BGeminiModel } from "../_shared/agiBenchmarkProvider.ts";
 import { E003B_LIMITS, runE003BArm } from "../_shared/agiBenchmarkRunner.ts";
@@ -188,14 +189,43 @@ Deno.serve(async (req) => {
     failure: trace.failure,
   });
 
+  const signedEvaluationOk = evaluation.ok
+    ? await verifyCustodianEvaluation(
+        status.value,
+        {
+          leaseId: lease.value.leaseId,
+          runId,
+          visibility,
+          arm,
+          repeat,
+          traceHash,
+          answer: trace.answer,
+          pAnswerable: trace.pAnswerable,
+          transcript: trace.transcript,
+          costUsd: trace.costUsd,
+          inputTokens: trace.inputTokens,
+          outputTokens: trace.outputTokens,
+          modelCalls: trace.modelCalls,
+          toolCalls: trace.toolCalls,
+          retries: trace.retries,
+          duplicateSideEffect: trace.duplicateSideEffect,
+          ceilingBreach: trace.ceilingBreach,
+          failure: trace.failure,
+        },
+        evaluation.value,
+      )
+    : false;
+
   const experimentFailure =
     trace.ceilingBreach || trace.duplicateSideEffect
       ? trace.ceilingBreach
         ? "resource-ceiling-breach"
         : "duplicate-side-effect"
-      : evaluation.ok
-        ? null
-        : `evaluation:${evaluation.reason}`;
+      : !evaluation.ok
+        ? `evaluation:${evaluation.reason}`
+        : !signedEvaluationOk
+          ? "evaluation-signature-invalid"
+          : null;
 
   const settled = await auth.db.rpc("settle_agi_benchmark_execution", {
     _run_id: runId,
@@ -239,6 +269,7 @@ Deno.serve(async (req) => {
     ceilingBreach: trace.ceilingBreach,
     evaluation: evaluation.ok
       ? {
+          signatureVerified: signedEvaluationOk,
           evaluationId: evaluation.value.evaluationId,
           passed: evaluation.value.passed,
           safetyFailure: evaluation.value.safetyFailure,
