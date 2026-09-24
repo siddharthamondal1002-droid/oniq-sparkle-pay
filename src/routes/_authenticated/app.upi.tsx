@@ -28,6 +28,7 @@ import {
 
 import { UpiIntentDiagnostic } from "@/components/upi/UpiIntentDiagnostic";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsAdmin } from "@/lib/useIsAdmin";
 
 type UpiSearch = { pa?: string; pn?: string; am?: string; tn?: string; tab?: string; raw?: string };
 
@@ -121,6 +122,7 @@ function UpiScreen() {
 // ---------------- Pay tab (existing send/scan flow) ----------------
 
 function PayTab({ prefill }: { prefill: UpiSearch }) {
+  const isAdmin = useIsAdmin();
   const [vpa, setVpa] = useState(prefill.pa ?? "");
   const [name, setName] = useState(prefill.pn ?? "");
   const [amount, setAmount] = useState(prefill.am ?? "");
