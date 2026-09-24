@@ -157,7 +157,7 @@ export function navTabsFor(pathname: string): NavTab[] {
   return [HOME_TAB, world?.tab ?? CHAT_TAB, world?.next ?? EXPLORE_TAB, PROFILE_TAB];
 }
 
-const TOP_LEVEL = new Set(["/app", "/app/explore", "/app/profile"]);
+const TOP_LEVEL = new Set(["/app", "/app/create", "/app/explore", "/app/profile"]);
 
 /** Chat sub-tabs share the /app/chat/ prefix but are ordinary scrolling pages. */
 const CHAT_SUBTABS = new Set([
