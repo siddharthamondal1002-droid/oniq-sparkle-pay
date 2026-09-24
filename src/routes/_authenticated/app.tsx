@@ -31,7 +31,7 @@ import { MiniAppReturnWatcher } from "@/components/miniapps/MiniAppReturnWatcher
 import { MessageNotifier } from "@/components/chat/MessageNotifier";
 import { usePresenceTracker } from "@/hooks/usePresence";
 import { useEffect, type CSSProperties } from "react";
-import { initPush } from "@/lib/push";
+import { initPush, refreshPushIfAllowed } from "@/lib/push";
 import { syncSystemBarsOnBoot } from "@/lib/theme";
 import { PermissionsOnboarding } from "@/components/onboarding/PermissionsOnboarding";
 import { FullScreenIntentPrompt } from "@/components/onboarding/FullScreenIntentPrompt";
@@ -195,7 +195,25 @@ function AppShell() {
   });
   usePresenceTracker(me?.id ?? null);
   useEffect(() => {
-    if (me?.id) void initPush();
+    if (!me?.id) return;
+    let ready = false;
+    let refreshing = false;
+    void initPush().finally(() => {
+      ready = true;
+    });
+    const onReturn = () => {
+      if (!ready || refreshing || document.visibilityState !== "visible") return;
+      refreshing = true;
+      void refreshPushIfAllowed().finally(() => {
+        refreshing = false;
+      });
+    };
+    window.addEventListener("focus", onReturn);
+    document.addEventListener("visibilitychange", onReturn);
+    return () => {
+      window.removeEventListener("focus", onReturn);
+      document.removeEventListener("visibilitychange", onReturn);
+    };
   }, [me?.id]);
   // The status/nav bar icons are transparent-over-app-content now, so Android
   // needs telling which way to paint them. The pre-paint script in <head>

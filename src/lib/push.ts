@@ -194,17 +194,14 @@ export async function initPush(): Promise<PushInitResult> {
     // session — the onboarding screen's retry calls initPush() again.
     if (!granted) return "denied";
 
-    // Already registered in this session: re-bind the stored token to the
-    // CURRENT user. On a shared device, sign-out → sign-in used to leave the
-    // token row pointing at the previous account, ringing user A's calls on
-    // user B's phone.
-    if (registered) {
-      if (currentToken) {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (user && user.id !== boundUserId) await upsertToken(currentToken);
-      }
+    // A successful register() call does not guarantee that its asynchronous
+    // token event arrived. Retry on the next foreground visit if it did not.
+    // If a token exists but its database write failed, retry the binding too.
+    if (registered && currentToken) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user && user.id !== boundUserId) await upsertToken(currentToken);
       return "granted";
     }
 
@@ -222,6 +219,7 @@ export async function initPush(): Promise<PushInitResult> {
       PushNotifications.addListener("registrationError", () => {
         // Allow a later initPush() to retry the whole registration.
         registered = false;
+        reportClientError("push-register", "native registration failed", { platform: "android" });
       });
 
       PushNotifications.addListener(
@@ -243,6 +241,21 @@ export async function initPush(): Promise<PushInitResult> {
   } catch {
     // native module not available — silently no-op
     return "unavailable";
+  }
+}
+
+/** Recheck a previously granted permission after the app returns to the foreground. */
+export async function refreshPushIfAllowed(): Promise<void> {
+  try {
+    const { Capacitor } = await import("@capacitor/core");
+    if (Capacitor.isNativePlatform()) {
+      const { PushNotifications } = await import("@capacitor/push-notifications" as string);
+      if ((await PushNotifications.checkPermissions()).receive === "granted") await initPush();
+    } else if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      await initPush();
+    }
+  } catch {
+    // Permission and plugin availability are best-effort; the next visit retries.
   }
 }
 

@@ -60,6 +60,7 @@ import { sendPush } from "@/lib/push";
 import { AttachmentSheet, useAttachmentContext } from "@/components/attach/AttachmentSheet";
 import { reportClientError } from "@/lib/errorReport";
 import { AUDIO_BPS, videoBitrateFor } from "@/lib/callCapacity";
+import { CallIceBuffer } from "@/lib/callIceBuffer";
 import {
   FACE_FX,
   FACE_LENSES,
@@ -509,6 +510,7 @@ type PeerEntry = {
    */
   offersSent: number;
   offerRetryTimer: number | null;
+  answerFailureReported: boolean;
 };
 
 /**
@@ -722,6 +724,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   // ---- refs (session-scoped state) ----
   const peerPoolRef = useRef<Map<string, PeerEntry>>(new Map());
+  const earlyIceRef = useRef(new CallIceBuffer());
   const peerNamesRef = useRef<Map<string, string>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -1061,7 +1064,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       peerName: hintedName || peerNamesRef.current.get(peerId) || "",
       pc,
       remoteStream: null,
-      pendingIce: [],
+      pendingIce: earlyIceRef.current.take(peerId),
       hasRemoteDesc: false,
       connState: "new",
       reachedConnected: false,
@@ -1072,6 +1075,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       disconnectedTimer: null,
       offersSent: 0,
       offerRetryTimer: null,
+      answerFailureReported: false,
     };
     peerPoolRef.current.set(peerId, entry);
     // The room just grew, so every stream this phone sends should shrink.
@@ -1317,12 +1321,13 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   };
 
   const flushPendingIce = async (entry: PeerEntry) => {
-    for (const c of entry.pendingIce) {
+    const pending = entry.pendingIce;
+    entry.pendingIce = [];
+    for (const c of pending) {
       try {
         await entry.pc.addIceCandidate(c);
       } catch {}
     }
-    entry.pendingIce = [];
   };
 
   /**
@@ -1438,6 +1443,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       }
       peerPoolRef.current.delete(peerId);
     }
+    earlyIceRef.current.clear();
     clearConnectTimeout();
     stopAllCallSounds();
     stopUserRingBroadcast();
@@ -1590,6 +1596,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     activeRef.current = true;
     isCallerRef.current = true;
     callIdRef.current = genId();
+    const startingCallId = callIdRef.current;
     setCallTypeBoth(type);
     setStatus("outgoing");
     ensureNotificationPermission();
@@ -1629,8 +1636,13 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
     try {
       const stream = await acquireMediaAndIce(type);
+      if (!activeRef.current || callIdRef.current !== startingCallId) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       attachLocal(stream, type);
     } catch (e) {
+      if (!activeRef.current || callIdRef.current !== startingCallId) return;
       if (e instanceof IceUnavailableError) handleIceUnavailable(e);
       else endEveryone(false);
       return;
@@ -1911,7 +1923,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       }
       let entry = peerPoolRef.current.get(p.from) ?? null;
       if (!entry) {
-        if (!localStreamRef.current) await waitForLocalMedia();
+        // A pending/denied camera prompt must not create a peer with zero
+        // senders. Another offer or hello can retry once media is available.
+        if (!localStreamRef.current && !(await waitForLocalMedia())) return;
+        if (!activeRef.current || !matchesCall(p)) return;
         entry = createPeerEntry(p.from);
       }
       // The room was full, so no connection was built. Dropping the offer on
@@ -1948,6 +1963,15 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         await flushPendingIce(entry);
       } catch (err) {
         console.warn("[mesh] answer handling failed", err);
+        if (!entry.answerFailureReported) {
+          entry.answerFailureReported = true;
+          reportClientError("call-answer-rejected", "remote answer could not be applied", {
+            errorName: err instanceof Error ? err.name : "UnknownError",
+            signalingState: entry.pc.signalingState,
+            offersSent: entry.offersSent,
+            callType: callTypeRef.current,
+          });
+        }
       }
     });
 
@@ -1961,7 +1985,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       };
       if (!forMe(p) || !matchesCall(p) || !p.candidate) return;
       const entry = peerPoolRef.current.get(p.from);
-      if (!entry) return;
+      if (!entry) {
+        // Trickle ICE can overtake an offer while media or TURN is loading.
+        // Discarding it leaves the connection unable to form on relay networks.
+        earlyIceRef.current.add(p.from, p.candidate);
+        return;
+      }
       if (entry.hasRemoteDesc) {
         try {
           await entry.pc.addIceCandidate(p.candidate);
@@ -2070,8 +2099,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
     const onAcceptEvent = (e: Event) => {
       const detail = (e as CustomEvent).detail as
-        | { callId?: string; callType?: CallType; conversationId?: string }
-        | undefined;
+        { callId?: string; callType?: CallType; conversationId?: string } | undefined;
       if (!detail?.callId) return;
       if (detail.conversationId && detail.conversationId !== conversationId) return;
       autoAcceptTriedRef.current = false;
@@ -2091,16 +2119,22 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const accept = async (force = false) => {
     if (!force && statusRef.current !== "incoming") return;
     if (statusRef.current !== "incoming" && statusRef.current !== "connecting" && !force) return;
+    const acceptedCallId = callIdRef.current;
     setStatus("connecting");
     statusRef.current = "connecting";
     armConnectTimeout();
     stopAllCallSounds();
     try {
       const stream = await acquireMediaAndIce(callTypeRef.current);
+      if (!activeRef.current || callIdRef.current !== acceptedCallId) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       attachLocal(stream, callTypeRef.current);
       // Announce presence — existing members will offer to us.
       sendSig("hello", null, { fromName: meName });
     } catch (e) {
+      if (!activeRef.current || callIdRef.current !== acceptedCallId) return;
       if (e instanceof IceUnavailableError) {
         sendSig("decline", null);
         handleIceUnavailable(e);
