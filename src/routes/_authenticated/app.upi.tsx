@@ -355,7 +355,7 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
         app, whatever's installed.
       </p>
 
-      {prefill.raw ? (
+      {prefill.raw && isAdmin ? (
         <UpiIntentDiagnostic raw={prefill.raw} finalUri={payloadFor(preferred)} />
       ) : null}
 
