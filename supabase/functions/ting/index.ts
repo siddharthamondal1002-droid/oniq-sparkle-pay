@@ -323,6 +323,9 @@ Deno.serve(async (req) => {
     // ---------------------------------------------------------------- 2. Gemini
     async function legGemini(): Promise<LegResult> {
       if (!geminiKey) return { kind: "unconfigured" };
+      // A turn that needs live sources must not be answered by a leg that
+      // sends no search tool — it would invent shops and links.
+      if (budget.maxSearches > 0) return { kind: "provider-failed" };
       const guarded = await withSearchSpendGuard(
         rpc,
         {
@@ -440,6 +443,13 @@ Deno.serve(async (req) => {
       if (r.kind === "answered") {
         console.info(`Ting answered via ${r.servedBy}`);
         return json({ reply: r.answer.reply, sources: r.answer.sources });
+      }
+      if (r.kind === "refused" && r.reason === "over-request-cap") {
+        // A per-REQUEST cap refusal means this leg's worst case is too large
+        // for one turn — not that money ran out. The next leg reserves against
+        // the same cap, so trying it spends nothing the cap forbids.
+        refused = r.reason;
+        continue;
       }
       if (r.kind === "refused") {
         // A CEILING IS NOT A REASON TO SPEND ELSEWHERE. Stop the ladder.
