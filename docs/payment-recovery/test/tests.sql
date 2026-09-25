@@ -1,0 +1,1007 @@
+-- Behavioural tests for docs/payment-recovery/migration.sql. These EXECUTE the
+-- SQL; nothing here matches strings against the file. Concurrency is exercised
+-- from real parallel sessions by the runner, not from this script.
+\set ON_ERROR_STOP on
+
+-- ===========================================================================
+-- T1  DEDUP BY BODY, WHATEVER THE HEADER SAID
+-- ===========================================================================
+do $$
+declare a jsonb; b jsonb; c jsonb; n integer;
+begin
+  a := public.payment_inbox_record('evt_dlv_1', repeat('a',64), 'payment.captured', 'paid',
+                                   'order_1','pay_1',null,null, 4900, 'captured', now());
+  b := public.payment_inbox_record('evt_dlv_1', repeat('a',64), 'payment.captured', 'paid',
+                                   'order_1','pay_1',null,null, 4900, 'captured', now());
+  -- Same bytes, no event-id header at all. A single dedup_key would have made
+  -- this a second row and paid the order twice.
+  c := public.payment_inbox_record(null,    repeat('a',64), 'payment.captured', 'paid',
+                                   'order_1','pay_1',null,null, 4900, 'captured', now());
+  perform public.t_assert(a->>'outcome' = 'recorded',  'first delivery records: '||a::text);
+  perform public.t_assert(b->>'outcome' = 'duplicate', 'same id+body is a duplicate: '||b::text);
+  perform public.t_assert(c->>'outcome' = 'duplicate', 'same body, no header, is a duplicate: '||c::text);
+  select count(*) into n from public.payment_webhook_events where body_sha256 = repeat('a',64);
+  perform public.t_assert(n = 1, 'exactly one row for one body, got '||n);
+  raise notice 'T1 ok  dedup by body across header presence';
+end $$;
+
+-- A body first seen WITHOUT an id, then redelivered WITH one: the id is filled
+-- in rather than a second row created.
+do $$
+declare a jsonb; b jsonb; v text;
+begin
+  a := public.payment_inbox_record(null, repeat('b',64), 'payment.captured','paid',
+                                   'order_b','pay_b',null,null, 100,'captured', now());
+  b := public.payment_inbox_record('evt_dlv_b', repeat('b',64), 'payment.captured','paid',
+                                   'order_b','pay_b',null,null, 100,'captured', now());
+  perform public.t_assert(b->>'outcome' = 'duplicate', 'still a duplicate');
+  select provider_event_id into v from public.payment_webhook_events where body_sha256 = repeat('b',64);
+  perform public.t_assert(v = 'evt_dlv_b', 'the late header is adopted, got '||coalesce(v,'null'));
+  raise notice 'T1b ok  late event id adopted without a second row';
+end $$;
+
+-- ===========================================================================
+-- T2  ONE EVENT ID, TWO BODIES -> DURABLE CONFLICT + ALERT
+-- ===========================================================================
+do $$
+declare r jsonb; st text; stored text; n integer;
+begin
+  r := public.payment_inbox_record('evt_dlv_1', repeat('c',64), 'payment.captured','paid',
+                                   'order_1','pay_X',null,null, 9900,'captured', now());
+  perform public.t_assert(r->>'outcome' = 'conflict', 'mismatched body conflicts: '||r::text);
+  select state, conflict_sha256 into st, stored
+    from public.payment_webhook_events where provider_event_id = 'evt_dlv_1';
+  perform public.t_assert(st = 'conflict', 'the original row is marked conflict, got '||st);
+  perform public.t_assert(stored = repeat('c',64), 'the incoming digest is kept as evidence');
+  select count(*) into n from public.ops_alerts
+   where signal = 'payment_inbox_conflict' and resolved_at is null;
+  perform public.t_assert(n = 1, 'one open conflict alert, got '||n);
+  perform public.t_assert(
+    (select notified_at is null from public.ops_alerts where signal='payment_inbox_conflict'),
+    'opening an alert does not claim it was delivered');
+  raise notice 'T2 ok  conflict recorded, alerted, not claimed as delivered';
+end $$;
+
+-- ===========================================================================
+-- T3  A LEASED WORKER CANNOT UNDO A CONFLICT
+-- ===========================================================================
+do $$
+declare v_id uuid; v_lease uuid; r jsonb;
+begin
+  perform public.payment_inbox_record('evt_dlv_3', repeat('d',64), 'payment.captured','paid',
+                                      'order_3','pay_3',null,null, 100,'captured', now());
+  select id into v_id from public.payment_webhook_events where provider_event_id='evt_dlv_3';
+  select lease_token into v_lease from public.payment_inbox_claim(10, 120) where id = v_id;
+  perform public.t_assert(v_lease is not null, 'the row was claimed');
+
+  -- A second body arrives under the same id while the worker is mid-flight.
+  perform public.payment_inbox_record('evt_dlv_3', repeat('e',64), 'payment.captured','paid',
+                                      'order_3','pay_3',null,null, 100,'captured', now());
+  r := public.payment_inbox_complete(v_id, v_lease, 'done', null, 60);
+  perform public.t_assert(r->>'ok' = 'false', 'the stale completion is refused: '||r::text);
+  perform public.t_assert((select state from public.payment_webhook_events where id=v_id) = 'conflict',
+                          'the conflict stands');
+  raise notice 'T3 ok  conflict survives a worker that was already holding the row';
+end $$;
+
+-- ===========================================================================
+-- T4  THE FENCE: state + token + UNEXPIRED lease, and attempts spent at claim
+-- ===========================================================================
+do $$
+declare v_id uuid; v_lease uuid; v_att integer; r jsonb;
+begin
+  perform public.payment_inbox_record('evt_dlv_4', repeat('f',64), 'payment.captured','paid',
+                                      'order_4','pay_4',null,null, 100,'captured', now());
+  select id into v_id from public.payment_webhook_events where provider_event_id='evt_dlv_4';
+  perform public.t_assert((select attempts from public.payment_webhook_events where id=v_id) = 0,
+                          'a recorded row starts at zero attempts');
+
+  select lease_token, attempts into v_lease, v_att from public.payment_inbox_claim(10,120) where id=v_id;
+  perform public.t_assert(v_att = 1, 'the attempt is spent at CLAIM, got '||v_att);
+
+  r := public.payment_inbox_complete(v_id, gen_random_uuid(), 'done', null, 60);
+  perform public.t_assert(r->>'reason' = 'lease-lost', 'a wrong token is refused');
+
+  update public.payment_webhook_events set lease_expires_at = now() - interval '1 minute'
+   where id = v_id;
+  r := public.payment_inbox_complete(v_id, v_lease, 'done', null, 60);
+  perform public.t_assert(r->>'reason' = 'lease-lost',
+                          'the right token with an EXPIRED lease is refused: '||r::text);
+  raise notice 'T4 ok  completion fenced on all three of state, token, expiry';
+end $$;
+
+-- A crashing worker cannot retry for ever: every claim costs an attempt, and
+-- the claim query itself refuses a row at the bound.
+do $$
+declare v_id uuid; i integer; n integer;
+begin
+  perform public.payment_inbox_record('evt_dlv_5', repeat('1',64), 'payment.captured','paid',
+                                      'order_5','pay_5',null,null, 100,'captured', now());
+  select id into v_id from public.payment_webhook_events where provider_event_id='evt_dlv_5';
+  for i in 1..20 loop
+    perform public.payment_inbox_claim(10, 1);                      -- claim and "crash"
+    update public.payment_webhook_events
+       set lease_expires_at = now() - interval '1 second', next_due_at = now() where id = v_id;
+  end loop;
+  select attempts into n from public.payment_webhook_events where id = v_id;
+  perform public.t_assert(n <= public.payment_recovery_max_attempts(),
+                          'attempts stop at the bound, got '||n);
+  raise notice 'T4b ok  a crashing worker is bounded at % attempts', n;
+end $$;
+
+-- ===========================================================================
+-- T5  THE REAPER: requeue below the bound, exhaust on the final attempt
+-- ===========================================================================
+do $$
+declare v_id uuid; v_last uuid; r jsonb; st text; n integer;
+begin
+  perform public.payment_inbox_record('evt_dlv_6', repeat('2',64), 'payment.captured','paid',
+                                      'order_6','pay_6',null,null, 100,'captured', now());
+  select id into v_id from public.payment_webhook_events where provider_event_id='evt_dlv_6';
+  perform public.payment_inbox_claim(10, 120);
+  update public.payment_webhook_events set lease_expires_at = now() - interval '1 s' where id=v_id;
+  r := public.payment_inbox_reap();
+  select state into st from public.payment_webhook_events where id=v_id;
+  perform public.t_assert(st = 'pending', 'an early expiry is requeued, got '||st);
+  perform public.t_assert((select next_due_at > now() from public.payment_webhook_events where id=v_id),
+                          'requeue backs off rather than spinning');
+
+  -- Final attempt, then the worker vanishes.
+  update public.payment_webhook_events
+     set attempts = public.payment_recovery_max_attempts(), state='processing',
+         lease_token = gen_random_uuid(), lease_expires_at = now() - interval '1 s'
+   where id = v_id;
+  r := public.payment_inbox_reap();
+  select state into st from public.payment_webhook_events where id=v_id;
+  perform public.t_assert(st = 'exhausted', 'the final expiry exhausts, got '||st);
+  select count(*) into n from public.ops_alerts
+   where signal='payment_inbox_exhausted' and resolved_at is null;
+  perform public.t_assert(n = 1, 'exhaustion raises one open alert, got '||n);
+  select count(*) into n from public.payment_cases
+   where provider_order_id='order_6' and case_type='manual_review';
+  perform public.t_assert(n = 1, 'exhaustion opens a manual review case, got '||n);
+  raise notice 'T5 ok  reaper requeues, then exhausts with an alert and a case';
+end $$;
+
+-- ===========================================================================
+-- T6  ENQUEUE FAIRNESS ACROSS MORE ROWS THAN ONE BATCH
+-- ===========================================================================
+do $$
+declare v1 integer; v2 integer; v3 integer; n integer;
+begin
+  insert into public.story_purchases (user_id, provider, provider_order_id, status, created_at)
+  select gen_random_uuid(), 'razorpay', 'ord_'||g, 'created', now() - interval '1 hour'
+    from generate_series(1,250) g;
+
+  v1 := public.payment_reconcile_enqueue(200);
+  v2 := public.payment_reconcile_enqueue(200);
+  v3 := public.payment_reconcile_enqueue(200);
+  perform public.t_assert(v1 = 200, 'first batch takes 200, got '||v1);
+  -- Without the anti-join this is 0 for ever and rows 201..250 never reconcile.
+  perform public.t_assert(v2 = 50,  'the second batch reaches the REST, got '||v2);
+  perform public.t_assert(v3 = 0,   'nothing is left to enqueue, got '||v3);
+  select count(*) into n from public.payment_reconcile_cursor where purchase_table='story_purchases';
+  perform public.t_assert(n = 250, 'every purchase is queued exactly once, got '||n);
+  raise notice 'T6 ok  250 rows fully enqueued in two batches, none starved';
+end $$;
+
+-- A failed-looking purchase is exactly the missed-delivery shape, so it is
+-- included; a paid one is not.
+do $$
+declare n integer;
+begin
+  insert into public.plan_purchases (user_id, provider, provider_order_id, status, created_at)
+  values (gen_random_uuid(),'razorpay','ord_failed','failed', now()-interval '1 hour');
+  insert into public.plan_purchases (user_id, provider, provider_order_id,
+                                     provider_payment_id, status, created_at)
+  values (gen_random_uuid(),'razorpay','ord_paid','pay_ok','paid', now()-interval '1 hour');
+  perform public.payment_reconcile_enqueue(200);
+  select count(*) into n from public.payment_reconcile_cursor where provider_order_id='ord_failed';
+  perform public.t_assert(n = 1, 'a failed attempt is still reconciled');
+  select count(*) into n from public.payment_reconcile_cursor where provider_order_id='ord_paid';
+  perform public.t_assert(n = 0, 'a bound purchase is left alone');
+  raise notice 'T6b ok  failed included, already-bound excluded';
+end $$;
+
+-- ===========================================================================
+-- T7  AGED ROWS GET VISIBILITY RATHER THAN VANISHING
+-- ===========================================================================
+do $$
+declare v integer; n integer;
+begin
+  insert into public.video_purchases (user_id, provider, provider_order_id, status, created_at)
+  values (gen_random_uuid(),'razorpay','ord_old','created', now() - interval '90 days');
+  perform public.payment_reconcile_enqueue(200);
+  select count(*) into n from public.payment_reconcile_cursor where provider_order_id='ord_old';
+  perform public.t_assert(n = 0, 'outside the window, the reconciler leaves it');
+
+  v := public.payment_reconcile_backfill_aged(500);
+  select count(*) into n from public.payment_cases
+   where provider_order_id='ord_old' and case_type='manual_review';
+  perform public.t_assert(n = 1, 'but it becomes a manual review case, got '||n);
+  perform public.payment_reconcile_backfill_aged(500);
+  select count(*) into n from public.payment_cases where provider_order_id='ord_old';
+  perform public.t_assert(n = 1, 'and a second pass does not duplicate it, got '||n);
+  raise notice 'T7 ok  aged unresolved purchase retained as manual review';
+end $$;
+
+-- ===========================================================================
+-- T8  CASES: opened, advanced, out-of-order, conflicting, reopened
+-- ===========================================================================
+do $$
+declare a jsonb; b jsonb; c jsonb; cid uuid; st text; n integer;
+begin
+  a := public.payment_case_upsert('refund','rfnd_1','order_9','pay_9','refund.created',1,2500);
+  perform public.t_assert(a->>'outcome' = 'opened', 'first event opens: '||a::text);
+  cid := (a->>'id')::uuid;
+
+  b := public.payment_case_upsert('refund','rfnd_1','order_9','pay_9','refund.processed',3,2500);
+  perform public.t_assert(b->>'outcome' = 'advanced', 'a later rank advances: '||b::text);
+
+  -- Razorpay does not guarantee order; the earlier event arriving second must
+  -- not walk the case backwards.
+  c := public.payment_case_upsert('refund','rfnd_1','order_9','pay_9','refund.created',1,2500);
+  perform public.t_assert(c->>'outcome' = 'stale', 'the out-of-order event is dropped: '||c::text);
+  perform public.t_assert(
+    (select current_event from public.payment_cases where id=cid) = 'refund.processed',
+    'the case still holds the later event');
+
+  select count(*) into n from public.payment_case_events where case_id = cid;
+  perform public.t_assert(n = 3, 'every event is in the history, got '||n);
+  raise notice 'T8 ok  opened, advanced, out-of-order dropped but recorded';
+end $$;
+
+-- Linkage arrives later, and only fills what is empty.
+do $$
+declare cid uuid; u uuid := gen_random_uuid(); v uuid;
+begin
+  cid := (public.payment_case_upsert('dispute','disp_1',null,'pay_10','dispute.created',1,500)->>'id')::uuid;
+  perform public.payment_case_upsert('dispute','disp_1','order_10','pay_10','dispute.under_review',2,500,
+                                     u, 'story_purchases');
+  select user_id into v from public.payment_cases where id=cid;
+  perform public.t_assert(v = u, 'the verified binding fills the empty user');
+  perform public.payment_case_upsert('dispute','disp_1','order_10','pay_10','dispute.won',3,500,
+                                     gen_random_uuid(), 'plan_purchases');
+  select user_id into v from public.payment_cases where id=cid;
+  perform public.t_assert(v = u, 'a later claim cannot overwrite an established link');
+  raise notice 'T8b ok  linkage filled once, never rewritten';
+end $$;
+
+-- Two terminal events of the SAME rank are not a race to be settled by arrival.
+do $$
+declare cid uuid; r jsonb; st text;
+begin
+  cid := (public.payment_case_upsert('dispute','disp_2','order_11','pay_11','payment.dispute.won',5,700)->>'id')::uuid;
+  r := public.payment_case_upsert('dispute','disp_2','order_11','pay_11','payment.dispute.lost',5,700);
+  perform public.t_assert(r->>'outcome' = 'conflict', 'same-rank disagreement is a conflict: '||r::text);
+  select status into st from public.payment_cases where id=cid;
+  perform public.t_assert(st = 'needs_provider_refresh',
+                          'and it waits for a person or a fresh read, got '||st);
+  raise notice 'T8c ok  won/lost at one rank is not decided by delivery order';
+end $$;
+
+-- A resolved case reopens on material adverse news, keeping its history.
+do $$
+declare cid uuid; r jsonb; st text; res text; n integer;
+begin
+  cid := (public.payment_case_upsert('dispute','disp_3','order_12','pay_12','payment.dispute.created',1,800)->>'id')::uuid;
+  set local test.uid = '00000000-0000-0000-0000-0000000000aa';
+  insert into public.profiles (id, is_admin) values ('00000000-0000-0000-0000-0000000000aa', true)
+    on conflict (id) do update set is_admin = true;
+  perform public.payment_case_resolve(cid, 'no_action', 'closed after review with the provider',
+                                      (select updated_at from public.payment_cases where id=cid));
+  perform public.t_assert((select status from public.payment_cases where id=cid) = 'resolved',
+                          'the case closes');
+
+  r := public.payment_case_upsert('dispute','disp_3','order_12','pay_12','payment.dispute.lost',5,800,
+                                  null,null,'policy-decision-outstanding', true);
+  perform public.t_assert(r->>'outcome' = 'reopened', 'material adverse news reopens: '||r::text);
+  select status, resolution into st, res from public.payment_cases where id=cid;
+  perform public.t_assert(st = 'open' and res is null, 'and clears the stale resolution');
+  select count(*) into n from public.payment_case_events where case_id=cid and kind='resolved';
+  perform public.t_assert(n = 1, 'while the resolution stays in the history, got '||n);
+  raise notice 'T8d ok  reopened, with the previous decision preserved';
+end $$;
+
+-- The history is append-only even to the owner.
+do $$
+declare failed boolean := false;
+begin
+  begin
+    update public.payment_case_events set detail = '{"tampered":true}'::jsonb where id > 0;
+  exception when others then failed := true; end;
+  perform public.t_assert(failed, 'case history refuses an UPDATE');
+  failed := false;
+  begin
+    delete from public.payment_case_events where id > 0;
+  exception when others then failed := true; end;
+  perform public.t_assert(failed, 'case history refuses a DELETE');
+  raise notice 'T8e ok  case history is append-only';
+end $$;
+
+-- ===========================================================================
+-- T9  ACCESS. NULL subject fails closed, and it fails BEFORE is_admin is asked.
+-- ===========================================================================
+do $$
+declare code text; ok boolean := false;
+begin
+  reset test.uid;
+  begin
+    perform public.payment_recovery_overview();
+  exception when others then get stacked diagnostics code = returned_sqlstate;
+    ok := (code = '42501');
+  end;
+  perform public.t_assert(ok, 'an unauthenticated overview is forbidden, got '||coalesce(code,'none'));
+end $$;
+
+do $$
+declare ok boolean := false; code text;
+begin
+  set local test.uid = '00000000-0000-0000-0000-0000000000bb';
+  insert into public.profiles (id, is_admin) values ('00000000-0000-0000-0000-0000000000bb', false)
+    on conflict (id) do nothing;
+  begin
+    perform public.payment_recovery_overview();
+  exception when others then get stacked diagnostics code = returned_sqlstate; ok := (code='42501');
+  end;
+  perform public.t_assert(ok, 'a signed-in non-admin is forbidden');
+end $$;
+
+do $$
+declare v jsonb;
+begin
+  set local test.uid = '00000000-0000-0000-0000-0000000000aa';
+  v := public.payment_recovery_overview();
+  perform public.t_assert(v ? 'inbox' and v ? 'cases' and v ? 'stuck', 'an admin gets the overview');
+  raise notice 'T9 ok  overview: null forbidden, non-admin forbidden, admin allowed';
+end $$;
+
+-- A resolution needs a reason, and a bounded one.
+do $$
+declare cid uuid; ok boolean := false;
+begin
+  set local test.uid = '00000000-0000-0000-0000-0000000000aa';
+  cid := (public.payment_case_upsert('refund','rfnd_9','order_13','pay_13','refund.created',1,100)->>'id')::uuid;
+  begin perform public.payment_case_resolve(cid, 'no_action', 'short',
+           (select updated_at from public.payment_cases where id=cid));
+  exception when others then ok := true; end;
+  perform public.t_assert(ok, 'a one-word note is refused');
+  ok := false;
+  begin perform public.payment_case_resolve(cid, 'no_action', repeat('x', 501),
+           (select updated_at from public.payment_cases where id=cid));
+  exception when others then ok := true; end;
+  perform public.t_assert(ok, 'an unbounded note is refused');
+  ok := false;
+  begin perform public.payment_case_resolve(cid, 'issue_refund', 'a plausible sounding note',
+           (select updated_at from public.payment_cases where id=cid));
+  exception when others then ok := true; end;
+  perform public.t_assert(ok, 'a resolution outside the closed list is refused');
+  raise notice 'T9b ok  resolution notes bounded, resolutions closed';
+end $$;
+
+-- The GRANT lines, checked by asking the catalogue rather than reading the file.
+do $$
+begin
+  perform public.t_assert(not has_function_privilege('anon',
+    'public.payment_inbox_record(text,text,text,text,text,text,text,text,bigint,text,timestamptz)','execute'),
+    'anon cannot record a webhook');
+  perform public.t_assert(not has_function_privilege('authenticated',
+    'public.payment_inbox_record(text,text,text,text,text,text,text,text,bigint,text,timestamptz)','execute'),
+    'authenticated cannot record a webhook');
+  perform public.t_assert(not has_function_privilege('authenticated',
+    'public.payment_case_upsert(text,text,text,text,text,integer,bigint,uuid,text,text,boolean,text,text)','execute'),
+    'authenticated cannot write a case directly');
+  perform public.t_assert(not has_function_privilege('authenticated',
+    'public.payment_recovery_tick()','execute'), 'authenticated cannot run the tick');
+  perform public.t_assert(has_function_privilege('authenticated',
+    'public.payment_recovery_overview()','execute'), 'the admin RPC is reachable and re-checks inside');
+  perform public.t_assert(not has_table_privilege('authenticated','public.payment_webhook_events','select'),
+    'no direct read of the inbox');
+  perform public.t_assert(not has_table_privilege('anon','public.payment_cases','select'),
+    'no direct read of cases');
+  perform public.t_assert(has_table_privilege('service_role','public.payment_cases','insert'),
+    'the worker can write');
+  perform public.t_assert(
+    (select relrowsecurity from pg_class where oid='public.payment_webhook_events'::regclass),
+    'RLS is on');
+  perform public.t_assert(
+    (select count(*) from pg_policies where tablename='payment_webhook_events') = 0,
+    'and no policy opens it');
+  raise notice 'T9c ok  grants, RLS and the absence of policies';
+end $$;
+
+-- ===========================================================================
+-- T10  NO SCHEDULE IS CREATED BY LOADING THIS FILE
+-- ===========================================================================
+do $$
+begin
+  perform public.t_assert(
+    (select count(*) from pg_proc where proname='payment_recovery_setup_schedule') = 1,
+    'the setup step exists');
+  perform public.t_assert(to_regclass('cron.job') is null,
+    'and nothing in this file created a cron schema or job');
+  raise notice 'T10 ok  tick defined, schedule NOT created';
+end $$;
+
+
+-- ===========================================================================
+-- T14  CROSSED EVENT IDS AND BODIES. The review's own repro: (E1,H1) and
+--      (E2,H2) are stored, then E1 arrives carrying H2. Matching on the body
+--      first answered `duplicate` and never wrote the conflict down.
+-- ===========================================================================
+do $$
+declare h1 text := repeat('7',64); h2 text := repeat('8',64); r jsonb; v_row record;
+begin
+  perform public.payment_inbox_record('evt_dlv_E1', h1, 'payment.captured','paid',
+            'order_x1','pay_x1',null,null,100,'captured',now());
+  perform public.payment_inbox_record('evt_dlv_E2', h2, 'payment.captured','paid',
+            'order_x2','pay_x2',null,null,200,'captured',now());
+
+  r := public.payment_inbox_record('evt_dlv_E1', h2, 'payment.captured','paid',
+         'order_x2','pay_x2',null,null,200,'captured',now());
+  perform public.t_assert(r->>'outcome' = 'conflict',
+    'a crossed id/body pair is quarantined, got ' || coalesce(r->>'outcome','null'));
+
+  select * into v_row from public.payment_webhook_events where body_sha256 = h1;
+  perform public.t_assert(v_row.state = 'conflict',
+    'and it is the row that OWNS evt_E1 that is quarantined, got ' || v_row.state);
+  perform public.t_assert(v_row.conflict_sha256 = h2, 'with the rival body kept as evidence');
+  perform public.t_assert(
+    (select count(*) from public.ops_alerts
+      where signal='payment_inbox_conflict' and resolved_at is null) = 1,
+    'and an ops alert is PERSISTED, not merely logged');
+
+  -- The row that legitimately holds h2 is untouched.
+  perform public.t_assert(
+    (select state from public.payment_webhook_events where body_sha256=h2) = 'pending',
+    'the innocent row keeps its state');
+  raise notice 'T14 ok  crossed id/body quarantines the id owner and alerts';
+end $$;
+
+-- ===========================================================================
+-- T15  A SECOND EVENT ID FOR A BODY WE ALREADY HOLD IS REMEMBERED, so a LATER
+--      changed body under that alias is still detectable. Under the old single
+--      nullable column it was not, and the conflict was invisible for ever.
+-- ===========================================================================
+do $$
+declare h3 text := repeat('5',64); h4 text := repeat('6',64); r jsonb;
+begin
+  -- Headerless first.
+  perform public.payment_inbox_record(null, h3, 'payment.captured','paid',
+            'order_x3','pay_x3',null,null,300,'captured',now());
+  perform public.t_assert(
+    (select provider_event_id from public.payment_webhook_events where body_sha256=h3) is null,
+    'a headerless delivery stores no id');
+
+  -- Adopted under E3.
+  r := public.payment_inbox_record('evt_dlv_E3', h3, 'payment.captured','paid',
+         'order_x3','pay_x3',null,null,300,'captured',now());
+  perform public.t_assert(r->>'outcome' = 'duplicate', 'the same bytes are a duplicate');
+  perform public.t_assert(
+    (select provider_event_id from public.payment_webhook_events where body_sha256=h3) = 'evt_dlv_E3',
+    'and the late header is adopted');
+
+  -- A SECOND id for the same bytes. Nothing to adopt into the column; the
+  -- alias table is what remembers it.
+  r := public.payment_inbox_record('evt_dlv_E4', h3, 'payment.captured','paid',
+         'order_x3','pay_x3',null,null,300,'captured',now());
+  perform public.t_assert(r->>'outcome' = 'duplicate', 'still a duplicate');
+  perform public.t_assert(
+    (select count(*) from public.payment_webhook_event_ids where body_sha256=h3) = 2,
+    'both delivery identities are remembered');
+  perform public.t_assert(
+    (select provider_event_id from public.payment_webhook_events where body_sha256=h3) = 'evt_dlv_E3',
+    'and the first id is NOT relabelled');
+
+  -- Now the payload under E4 changes. This is the case the alias exists for.
+  r := public.payment_inbox_record('evt_dlv_E4', h4, 'payment.captured','paid',
+         'order_x9','pay_x9',null,null,999,'captured',now());
+  perform public.t_assert(r->>'outcome' = 'conflict',
+    'a changed body under the SECOND alias is caught, got ' || coalesce(r->>'outcome','null'));
+  perform public.t_assert(
+    (select state from public.payment_webhook_events where body_sha256=h3) = 'conflict',
+    'and the body that alias named is quarantined');
+  perform public.t_assert(
+    not exists (select 1 from public.payment_webhook_events where body_sha256=h4),
+    'the rival body is NOT written as an ordinary new event');
+  raise notice 'T15 ok  alias mapping survives headerless adoption and a second id';
+end $$;
+
+-- ===========================================================================
+-- T16  A RECONCILE WORKER THAT DIES ON ITS LAST ATTEMPT. Without a reconcile
+--      reaper the row is `processing` at attempts = max for ever: the claim
+--      query needs attempts < max, so nothing ever touches it again.
+-- ===========================================================================
+do $$
+declare v record; v_max integer := public.payment_recovery_max_attempts(); r jsonb;
+begin
+  insert into public.payment_reconcile_cursor (purchase_table, provider_order_id, user_id,
+                                               state, attempts, lease_token, lease_expires_at)
+  values ('story_purchases','order_dead','11111111-1111-1111-1111-111111111111',
+          'processing', v_max, gen_random_uuid(), now() - interval '5 minutes');
+
+  perform public.t_assert(
+    not exists (select 1 from public.payment_reconcile_claim(500, 60)
+                 where provider_order_id = 'order_dead'),
+    'it is not claimable — which is the trap, not the fix');
+
+  r := public.payment_reconcile_reap();
+  perform public.t_assert((r->>'exhausted')::int = 1, 'the reaper takes the final attempt');
+  select * into v from public.payment_reconcile_cursor where provider_order_id='order_dead';
+  perform public.t_assert(v.state = 'exhausted', 'it is exhausted, got ' || v.state);
+  perform public.t_assert(v.lease_token is null, 'and the dead lease is released');
+  perform public.t_assert(
+    exists (select 1 from public.payment_cases
+             where provider_order_id='order_dead' and case_type='manual_review'
+               and open_reason='reconciliation-abandoned'),
+    'a person has a case to look at');
+  perform public.t_assert(
+    exists (select 1 from public.ops_alerts
+             where signal='payment_reconcile_exhausted' and resolved_at is null),
+    'and the alert is persisted');
+
+  -- An UNEXPIRED lease is somebody live; the reaper must not take it.
+  insert into public.payment_reconcile_cursor (purchase_table, provider_order_id,
+                                               state, attempts, lease_token, lease_expires_at)
+  values ('story_purchases','order_live','processing', v_max, gen_random_uuid(),
+          now() + interval '5 minutes');
+  perform public.payment_reconcile_reap();
+  perform public.t_assert(
+    (select state from public.payment_reconcile_cursor where provider_order_id='order_live')
+      = 'processing',
+    'a live lease is left alone');
+  raise notice 'T16 ok  reconcile reaper is fenced, exhausts, cases and alerts';
+end $$;
+
+-- ===========================================================================
+-- T17  A CASE MAY NOT SILENTLY ADOPT A DIFFERENT BINDING.
+-- ===========================================================================
+do $$
+declare u1 uuid := '11111111-1111-1111-1111-111111111111';
+        u2 uuid := '22222222-2222-2222-2222-222222222222';
+        r jsonb; v record;
+begin
+  perform public.payment_case_upsert('refund','rfnd_link','order_L','pay_L',
+            'refund.created',1,1000,u1,'story_purchases','policy-decision-outstanding',
+            false,'INR');
+
+  r := public.payment_case_upsert('refund','rfnd_link','order_L','pay_L',
+         'refund.processed',3,9999,u2,'story_purchases');
+  perform public.t_assert(r->>'outcome' = 'linkage-conflict',
+    'a different user is refused, got ' || coalesce(r->>'outcome','null'));
+
+  select * into v from public.payment_cases where provider_case_id='rfnd_link';
+  perform public.t_assert(v.amount_minor = 1000,
+    'AND NOTHING ELSE IS APPLIED: the amount is untouched, got ' || v.amount_minor);
+  perform public.t_assert(v.current_event = 'refund.created', 'the event is untouched');
+  perform public.t_assert(v.status = 'needs_provider_refresh', 'the case is flagged');
+  perform public.t_assert(v.currency = 'INR', 'currency is stored beside the amount');
+  perform public.t_assert(
+    exists (select 1 from public.payment_case_events
+             where case_id=v.id and kind='linkage_refused'),
+    'and the refusal is in the history');
+  raise notice 'T17 ok  differing bindings are refused, not merged';
+end $$;
+
+-- ===========================================================================
+-- T18  SAME-RANK CONFLICT ONLY FOR TERMINAL EVENTS, and a fresh provider read
+--      is recorded whatever the stream does.
+-- ===========================================================================
+do $$
+declare r jsonb; v record;
+begin
+  -- won and lost share a rank and are both terminal: not ours to pick.
+  perform public.payment_case_upsert('dispute','disp_T','order_T','pay_T',
+            'payment.dispute.won',5,500);
+  r := public.payment_case_upsert('dispute','disp_T','order_T','pay_T',
+         'payment.dispute.lost',5,500);
+  perform public.t_assert(r->>'outcome' = 'conflict', 'two terminal verdicts escalate');
+
+  -- A non-terminal pair sharing a rank is ordinary and must NOT escalate.
+  perform public.payment_case_upsert('dispute','disp_N','order_N','pay_N',
+            'payment.dispute.under_review',2,500);
+  r := public.payment_case_upsert('dispute','disp_N','order_N','pay_N',
+         'payment.dispute.reopened_review',2,500);
+  perform public.t_assert(r->>'outcome' = 'stale',
+    'a non-terminal same-rank pair is ordinary, got ' || coalesce(r->>'outcome','null'));
+  perform public.t_assert(
+    (select status from public.payment_cases where provider_case_id='disp_N') = 'open',
+    'and the case is not flagged for a person');
+
+  -- A cycling dispute: the stream is stale, the fresh read is still recorded.
+  r := public.payment_case_upsert('dispute','disp_N','order_N','pay_N',
+         'payment.dispute.created',1,500,null,null,'policy-decision-outstanding',
+         false,null,'under_review');
+  perform public.t_assert(r->>'outcome' = 'stale', 'the stale delivery is still dropped');
+  select * into v from public.payment_cases where provider_case_id='disp_N';
+  perform public.t_assert(v.provider_status_verified = 'under_review',
+    'but the fresh provider truth is kept');
+  perform public.t_assert(v.provider_status_verified_at is not null, 'and stamped');
+  perform public.t_assert(
+    (select provider_status_verified from public.payment_cases where provider_case_id='disp_T')
+      is null,
+    'a case nobody has re-read shows UNVERIFIED rather than agreed');
+  raise notice 'T18 ok  terminal-only conflicts, fresh provider truth always recorded';
+end $$;
+
+
+-- ===========================================================================
+-- T19 THE VERSION CHECK. An admin reading an old case may not close newly
+--     arrived adverse information.
+-- ===========================================================================
+do $$
+declare cid uuid; stale timestamptz; r jsonb; ok boolean := false;
+begin
+  set local test.uid = '00000000-0000-0000-0000-0000000000aa';
+  cid := (public.payment_case_upsert('refund','rfnd_ver','order_ver','pay_ver',
+            'refund.created',1,700,null,null,'policy-decision-outstanding')->>'id')::uuid;
+  -- THE ADVANCE CANNOT BE STAGED WITH now() INSIDE ONE TRANSACTION: `now()` is
+  -- the transaction's start instant, so every write in this block stamps the
+  -- identical timestamp and a real advance would look like no change at all.
+  -- The stale read is therefore constructed directly, which is what an admin
+  -- holding a page loaded a minute ago actually has.
+  perform public.payment_case_upsert('refund','rfnd_ver','order_ver','pay_ver',
+            'refund.processed',5,700,null,null,'policy-decision-outstanding', true);
+  stale := (select updated_at from public.payment_cases where id=cid) - interval '1 minute';
+  perform public.t_assert(
+    (select updated_at from public.payment_cases where id=cid) <> stale,
+    'the admin is holding an older version than the row');
+
+  r := public.payment_case_resolve(cid, 'no_action', 'closing on what I read earlier', stale);
+  perform public.t_assert(r->>'ok' = 'false' and r->>'reason' = 'stale',
+                          'a stale version is refused: '||r::text);
+  perform public.t_assert(r ? 'current_updated_at', 'and the refusal says what the case is now');
+  perform public.t_assert((select status from public.payment_cases where id=cid) <> 'resolved',
+                          'and the case is still open');
+
+  -- Re-reading and saving again works.
+  r := public.payment_case_resolve(cid, 'no_action', 'closing on the current state',
+         (select updated_at from public.payment_cases where id=cid));
+  perform public.t_assert(r->>'ok' = 'true', 'the current version closes: '||r::text);
+
+  -- A second save of the same version is refused rather than closing twice.
+  r := public.payment_case_resolve(cid, 'no_action', 'closing it a second time',
+         (select updated_at from public.payment_cases where id=cid));
+  perform public.t_assert(r->>'ok' = 'false' and r->>'reason' = 'not-open',
+                          'an already-closed case is refused: '||r::text);
+
+  begin
+    perform public.payment_case_resolve(cid, 'no_action', 'no version supplied at all', null);
+    ok := false;
+  exception when others then ok := true; end;
+  perform public.t_assert(ok, 'a missing version is refused');
+
+  -- The three-argument form is GONE, not merely unused: a defaulted parameter
+  -- would leave an unguarded call path alive.
+  perform public.t_assert(
+    (select count(*) from pg_proc where proname = 'payment_case_resolve'
+       and pronargs = 3) = 0,
+    'the unguarded three-argument signature no longer exists');
+  raise notice 'T19 ok  optimistic version check under lock, old signature dropped';
+end $$;
+
+-- ===========================================================================
+-- T20 THE AUDIT TRAIL is readable, admin-gated, and keeps superseded decisions.
+-- ===========================================================================
+do $$
+declare cid uuid; h jsonb; ok boolean := false; code text;
+begin
+  set local test.uid = '00000000-0000-0000-0000-0000000000aa';
+  cid := (public.payment_case_upsert('dispute','disp_h','order_h','pay_h',
+            'payment.dispute.created',1,900)->>'id')::uuid;
+  perform public.payment_case_resolve(cid, 'no_action', 'first review, nothing owed',
+            (select updated_at from public.payment_cases where id=cid));
+  perform public.payment_case_upsert('dispute','disp_h','order_h','pay_h',
+            'payment.dispute.lost',5,900,null,null,'policy-decision-outstanding', true);
+
+  h := public.payment_case_history(cid);
+  perform public.t_assert(jsonb_array_length(h) >= 3,
+    'opened, resolved and reopened are all kept: '||h::text);
+  -- THE SUPERSEDED DECISION SURVIVES THE REOPENING. The case row's
+  -- `resolution` was cleared; the history is what still says it was closed.
+  perform public.t_assert(
+    exists (select 1 from jsonb_array_elements(h) e where e->>'kind' = 'resolved'),
+    'the superseded resolution is still in the trail');
+  perform public.t_assert(
+    (select status from public.payment_cases where id=cid) = 'open'
+      and (select resolution from public.payment_cases where id=cid) is null,
+    'even though the case row no longer carries it');
+
+  set local test.uid = '00000000-0000-0000-0000-0000000000bb';
+  begin perform public.payment_case_history(cid);
+  exception when others then get stacked diagnostics code = returned_sqlstate;
+    ok := (code = '42501'); end;
+  perform public.t_assert(ok, 'a non-admin cannot read the trail');
+  raise notice 'T20 ok  audit trail readable by admins, superseded decisions kept';
+end $$;
+
+-- ===========================================================================
+-- T21 THE CUSTOMER VIEW. Ownership is enforced in SQL and the notes never leave.
+-- ===========================================================================
+do $$
+declare mine uuid; theirs uuid; orphan uuid; v jsonb; ok boolean := false;
+begin
+  insert into public.profiles (id, is_admin) values
+    ('00000000-0000-0000-0000-0000000000c1', false),
+    ('00000000-0000-0000-0000-0000000000c2', false)
+    on conflict (id) do nothing;
+
+  set local test.uid = '00000000-0000-0000-0000-0000000000aa';
+  mine := (public.payment_case_upsert('refund','rfnd_c1','order_c1','pay_c1','refund.created',
+             1,500,'00000000-0000-0000-0000-0000000000c1'::uuid,'story_purchases')->>'id')::uuid;
+  theirs := (public.payment_case_upsert('refund','rfnd_c2','order_c2','pay_c2','refund.created',
+             1,600,'00000000-0000-0000-0000-0000000000c2'::uuid,'story_purchases')->>'id')::uuid;
+  -- No user id at all: the shape the exhaustion reaper opens.
+  orphan := (public.payment_case_upsert('refund','rfnd_c3','order_c3','pay_c3','refund.created',
+             1,700)->>'id')::uuid;
+  perform public.payment_case_resolve(mine, 'no_action',
+            'internal note naming an unrelated order and a colleague',
+            (select updated_at from public.payment_cases where id=mine));
+
+  set local test.uid = '00000000-0000-0000-0000-0000000000c1';
+  v := public.payment_cases_mine();
+  perform public.t_assert(jsonb_array_length(v) = 1, 'exactly the caller''s own case: '||v::text);
+  perform public.t_assert(v->0->>'id' = mine::text, 'and it is theirs');
+  perform public.t_assert(not (v::text like '%colleague%'),
+    'THE ADMIN NOTE NEVER LEAVES: '||v::text);
+  perform public.t_assert(not (v->0 ? 'resolution_note'), 'the note field is absent entirely');
+  perform public.t_assert(not (v->0 ? 'resolved_by'), 'and so is who closed it');
+  perform public.t_assert(v->0 ? 'currency' and v->0 ? 'provider_status_verified',
+    'the customer still sees the verified facts');
+
+  set local test.uid = '00000000-0000-0000-0000-0000000000c2';
+  v := public.payment_cases_mine();
+  perform public.t_assert(jsonb_array_length(v) = 1 and v->0->>'id' = theirs::text,
+    'the other person sees only their own');
+
+  reset test.uid;
+  begin perform public.payment_cases_mine();
+  exception when others then ok := true; end;
+  perform public.t_assert(ok, 'an unauthenticated caller is refused');
+  perform public.t_assert(orphan is not null, 'the ownerless case exists');
+  set local test.uid = '00000000-0000-0000-0000-0000000000c1';
+  perform public.t_assert(not (public.payment_cases_mine()::text like '%order_c3%'),
+    'and belongs to nobody, so it reaches nobody');
+  raise notice 'T21 ok  ownership enforced in SQL, admin notes never exposed';
+end $$;
+
+-- ===========================================================================
+-- T22  ONE EVENT ID, TWO BODIES, ARRIVING TOGETHER. The canonical row carries a
+--      unique provider_event_id while the INSERT names only (body_sha256), so
+--      the second writer used to raise unique_violation — a 5xx to the provider
+--      and no record of the conflict at all. It must quarantine durably.
+-- ===========================================================================
+do $$
+declare v jsonb; ok boolean := false; st text;
+begin
+  -- First body under the id, recorded normally.
+  v := public.payment_inbox_record('evt_x1', md5('t22a')||md5('t22b'), 'payment.captured','paid',
+         'order_x1','pay_x1',null,null,100,'captured', now());
+  perform public.t_assert(v->>'outcome' = 'recorded', 'first body recorded: '||v::text);
+
+  -- A DIFFERENT body under the SAME id. Step 1's alias lock catches this one.
+  v := public.payment_inbox_record('evt_x1', md5('t22c')||md5('t22d'), 'payment.captured','paid',
+         'order_x1','pay_x1',null,null,999,'captured', now());
+  perform public.t_assert(v->>'outcome' = 'conflict', 'crossed body quarantined: '||v::text);
+  select state into st from public.payment_webhook_events where body_sha256 = md5('t22a')||md5('t22b');
+  perform public.t_assert(st = 'conflict', 'and the stored row is durably conflict: '||st);
+  perform public.t_assert(exists (select 1 from public.payment_webhook_events
+    where body_sha256 = md5('t22a')||md5('t22b') and conflict_sha256 = md5('t22c')||md5('t22d')),
+    'the incoming digest is kept as the evidence');
+  perform public.t_assert(exists (select 1 from public.ops_alerts
+    where signal = 'payment_inbox_conflict' and resolved_at is null),
+    'and somebody is told');
+
+  -- SAME BODY, DIFFERENT ID: an ordinary relabelled redelivery, not a conflict.
+  v := public.payment_inbox_record('evt_x2', md5('t22a')||md5('t22b'), 'payment.captured','paid',
+         'order_x1','pay_x1',null,null,100,'captured', now());
+  perform public.t_assert(v->>'outcome' = 'duplicate', 'same bytes under a new id: '||v::text);
+
+  -- A conflict row is NOT claimable: the worker cannot complete it into done.
+  perform public.t_assert(not exists (
+    select 1 from public.payment_inbox_claim(10, 60) c
+     join public.payment_webhook_events e on e.id = c.id
+    where e.body_sha256 = md5('t22a')||md5('t22b')), 'a quarantined row is never leased');
+  ok := true;
+  perform public.t_assert(ok, 'reached the end');
+  raise notice 'T22 ok  crossed ids quarantine durably, same-body-new-id is a duplicate';
+end $$;
+
+-- ===========================================================================
+-- T23  REOPENING FOLLOWS THE VERIFIED FACT, NOT THE EVENT RANK. Measured on the
+--      previous draft: resolved at `under_review` (rank 20) stayed RESOLVED when
+--      a fresh read said `lost` under a lower-ranked delivery.
+-- ===========================================================================
+do $$
+declare cid uuid; v jsonb; st text; n integer;
+begin
+  set local test.uid = '00000000-0000-0000-0000-0000000000aa';
+  cid := (public.payment_case_upsert('dispute','disp_r1','order_r1','pay_r1',
+            'payment.dispute.under_review', 20, 5000, null, null,
+            'policy-decision-outstanding', false, 'INR', 'under_review')->>'id')::uuid;
+  perform public.payment_case_resolve(cid, 'no_action', 'looked at it, nothing to do',
+            (select updated_at from public.payment_cases where id = cid));
+  perform public.t_assert(
+    (select status from public.payment_cases where id = cid) = 'resolved', 'closed first');
+
+  -- A LOWER-RANKED delivery carrying a fresh, adverse read.
+  v := public.payment_case_upsert('dispute','disp_r1','order_r1','pay_r1',
+         'payment.dispute.created', 10, 5000, null, null,
+         'policy-decision-outstanding', true, 'INR', 'lost');
+  select status into st from public.payment_cases where id = cid;
+  perform public.t_assert(st = 'open', 'THE ADVERSE VERIFIED FACT REOPENS IT: '||st);
+  perform public.t_assert((v->>'reopened')::boolean, 'and says so: '||v::text);
+  perform public.t_assert(v->>'outcome' = 'stale',
+    'while the DELIVERY is still reported stale — the history stays truthful');
+  perform public.t_assert(exists (select 1 from public.payment_case_events
+    where case_id = cid and kind = 'reopened'), 'the reopening is in the history');
+  perform public.t_assert(exists (select 1 from public.payment_case_events
+    where case_id = cid and kind = 'resolved'), 'and so is the decision it overrode');
+  perform public.t_assert(
+    (select resolution is null from public.payment_cases where id = cid),
+    'the stale resolution is cleared');
+
+  -- IDENTICAL REPEATS MUST NOT REOPEN FOR EVER.
+  perform public.payment_case_resolve(cid, 'other', 'reviewed the loss and accepted it',
+            (select updated_at from public.payment_cases where id = cid));
+  select reopened_count into n from public.payment_cases where id = cid;
+  perform public.payment_case_upsert('dispute','disp_r1','order_r1','pay_r1',
+    'payment.dispute.created', 10, 5000, null, null,
+    'policy-decision-outstanding', true, 'INR', 'lost');
+  perform public.payment_case_upsert('dispute','disp_r1','order_r1','pay_r1',
+    'payment.dispute.created', 10, 5000, null, null,
+    'policy-decision-outstanding', true, 'INR', 'lost');
+  perform public.t_assert(
+    (select status from public.payment_cases where id = cid) = 'resolved',
+    'the SAME verified status an admin already closed does not reopen it again');
+  perform public.t_assert(
+    (select reopened_count from public.payment_cases where id = cid) = n,
+    'and nothing is counted');
+  raise notice 'T23 ok  reopen on CHANGED adverse verified facts, independent of rank';
+end $$;
+
+-- ===========================================================================
+-- T24  AN EXHAUSTED EVENT WITH NO ORDER STILL GETS A CASE SOMEBODY CAN RESOLVE.
+-- ===========================================================================
+do $$
+declare eid uuid; c record;
+begin
+  eid := (public.payment_inbox_record('evt_orphan', md5('t24a')||md5('t24b'), 'refund.created','refund',
+            null, null, 'rfnd_orphan', null, 100, 'pending', now())->>'id')::uuid;
+  -- Drive it to the end of its retry budget. Other fixtures' pending rows are
+  -- pushed out of the due window so the claim takes exactly this one.
+  update public.payment_webhook_events set next_due_at = now() + interval '1 day'
+   where id <> eid and state = 'pending';
+  update public.payment_webhook_events
+     set attempts = public.payment_recovery_max_attempts() - 1,
+         next_due_at = now() - interval '1 minute'
+   where id = eid;
+  perform public.payment_inbox_claim(10, 60);
+  perform public.payment_inbox_complete(eid,
+    (select lease_token from public.payment_webhook_events where id = eid),
+    'retry', 'no-order-id', 1);
+  perform public.t_assert(
+    (select state from public.payment_webhook_events where id = eid) = 'exhausted',
+    'it exhausted');
+  select * into c from public.payment_cases where provider_case_id = 'inbox:'||eid::text;
+  perform public.t_assert(c.id is not null, 'A CASE EXISTS DESPITE THE UNKNOWN ORDER');
+  perform public.t_assert(c.case_type = 'manual_review', 'and it is a manual review');
+  perform public.t_assert(c.provider_order_id is null,
+    'DELIBERATELY UNLINKED: a guessed order is a binding nothing verified');
+  perform public.t_assert(c.open_reason = 'webhook-event-exhausted-unbound', 'reason names it');
+  raise notice 'T24 ok  an unbound exhausted event is still resolvable by a person';
+end $$;
+
+-- ===========================================================================
+-- T25  ALERTS CLOSE WHEN THE THING THEY NAMED IS GONE — and not before.
+-- ===========================================================================
+do $$
+declare v jsonb; cid uuid;
+begin
+  set local test.uid = '00000000-0000-0000-0000-0000000000aa';
+  perform public.payment_ops_alert('payment_inbox_conflict', 1::smallint, 's', '{}'::jsonb);
+  -- T22 left a real conflict row behind, so the sweep must NOT close this.
+  v := public.payment_recovery_alert_sweep();
+  perform public.t_assert(exists (select 1 from public.ops_alerts
+    where signal = 'payment_inbox_conflict' and resolved_at is null),
+    'an alert whose incident is still live stays open');
+
+  update public.payment_webhook_events set state = 'ignored' where state = 'conflict';
+  v := public.payment_recovery_alert_sweep();
+  perform public.t_assert(not exists (select 1 from public.ops_alerts
+    where signal = 'payment_inbox_conflict' and resolved_at is null),
+    'and closes once it is not');
+  perform public.t_assert(exists (select 1 from public.ops_alerts
+    where signal = 'payment_inbox_conflict' and resolved_at is not null),
+    'THE ROW IS KEPT: resolving is not deleting');
+  perform public.t_assert(not exists (select 1 from public.ops_alerts
+    where signal = 'payment_inbox_conflict' and notified_at is not null),
+    'and notified_at is NEVER invented');
+
+  -- A linkage conflict clears only when the case is actually dealt with.
+  cid := (public.payment_case_upsert('refund','rfnd_l1','order_l1','pay_l1','refund.created',
+            1, 100, '00000000-0000-0000-0000-0000000000d1'::uuid,'story_purchases')->>'id')::uuid;
+  perform public.payment_case_upsert('refund','rfnd_l1','order_OTHER','pay_l1','refund.created',
+            1, 100, '00000000-0000-0000-0000-0000000000d1'::uuid,'story_purchases');
+  perform public.payment_recovery_alert_sweep();
+  perform public.t_assert(exists (select 1 from public.ops_alerts
+    where signal = 'payment_case_linkage_conflict' and resolved_at is null),
+    'the linkage alert stays open while the case does');
+  -- ONE CASE OUT OF SEVERAL IS NOT THE END OF THE INCIDENT. Earlier fixtures
+  -- left their own linkage conflicts open, so dealing with this one must NOT
+  -- silence the others — which is exactly what a remembered signal would do.
+  update public.payment_cases set status = 'resolved', resolution = 'other',
+         resolved_at = now(), updated_at = now()
+   where id = cid;
+  perform public.payment_recovery_alert_sweep();
+  perform public.t_assert(exists (select 1 from public.ops_alerts
+    where signal = 'payment_case_linkage_conflict' and resolved_at is null),
+    'the OTHER open linkage conflicts keep it open');
+
+  update public.payment_cases set status = 'resolved', resolution = 'other',
+         resolved_at = now(), updated_at = now()
+   where status <> 'resolved' and open_reason = 'linkage-conflict';
+  perform public.payment_recovery_alert_sweep();
+  perform public.t_assert(not exists (select 1 from public.ops_alerts
+    where signal = 'payment_case_linkage_conflict' and resolved_at is null),
+    'AND CLOSES ONCE THEY ARE ALL DEALT WITH — never stuck open for ever');
+  raise notice 'T25 ok  payment alerts have a lifecycle of their own';
+end $$;
+
+-- ===========================================================================
+-- T26  THE DISPATCH IS OBSERVED. A tick that POSTs and never looks reports
+--      success while a wrong credential 401s every two minutes.
+-- ===========================================================================
+do $$
+declare v jsonb; req bigint;
+begin
+  -- No credential: dispatch nothing, and SAY SO in the ledger rather than only
+  -- in a warning nobody reads.
+  v := public.payment_recovery_tick();
+  perform public.t_assert((v->>'dispatched')::boolean is false, 'nothing was dispatched');
+  perform public.t_assert(exists (select 1 from public.ops_alerts
+    where signal = 'payment_recovery_worker_unhealthy' and resolved_at is null),
+    'a missing credential is an ALERT: '||v::text);
+
+  -- With one, the request id is recorded so the NEXT tick can judge it.
+  create or replace function public.ops_watch_pick_key() returns text
+    language sql stable as $f$ select 'k.k.k'::text $f$;
+  v := public.payment_recovery_tick();
+  perform public.t_assert((v->>'dispatched')::boolean, 'dispatched: '||v::text);
+  req := (v->>'request_id')::bigint;
+  perform public.t_assert(exists (select 1 from public.payment_recovery_dispatches
+    where request_id = req and observed_at is null), 'and recorded, unobserved');
+
+  -- A response that has not landed yet is not a failure.
+  v := public.payment_recovery_observe_dispatch();
+  perform public.t_assert(v->>'reason' = 'too-soon', 'a fresh dispatch is not judged: '||v::text);
+
+  -- A refusal is.
+  insert into net._http_response (id, status_code) values (req, 401);
+  v := public.payment_recovery_observe_dispatch();
+  perform public.t_assert((v->>'status_code')::int = 401, 'the code is read: '||v::text);
+  perform public.t_assert(exists (select 1 from public.ops_alerts
+    where signal = 'payment_recovery_worker_unhealthy' and resolved_at is null),
+    'and alerted');
+  perform public.t_assert(not (v::text like '%k.k.k%'), 'NO CREDENTIAL IS EVER STORED OR RETURNED');
+  perform public.t_assert(not exists (select 1 from public.payment_recovery_dispatches
+    where observed_at is not null and status_code is null and request_id = req),
+    'the observation is durable');
+
+  -- A healthy answer closes it.
+  v := public.payment_recovery_tick();
+  insert into net._http_response (id, status_code) values ((v->>'request_id')::bigint, 200);
+  perform public.payment_recovery_beat();
+  v := public.payment_recovery_observe_dispatch();
+  perform public.t_assert((v->>'status_code')::int = 200, '200: '||v::text);
+  perform public.t_assert(v->>'last_worker_run_at' is not null, 'the heartbeat is reported too');
+  perform public.t_assert(not exists (select 1 from public.ops_alerts
+    where signal = 'payment_recovery_worker_unhealthy' and resolved_at is null),
+    'and the unhealthy alert closes');
+  create or replace function public.ops_watch_pick_key() returns text
+    language sql stable as $f$ select null::text $f$;
+  raise notice 'T26 ok  the worker is observed, not assumed';
+end $$;
+
+select 'ALL SQL TESTS PASSED' as result;
+

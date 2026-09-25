@@ -1,6 +1,22 @@
 import { geminiOutputTokens } from "./searchBudget.ts";
 import { TEXT_DIRECT_HEAVY, TEXT_DIRECT_STANDARD } from "./modelRegistry.ts";
 import { readGrounding, requireGroundingEvidence, translateSearchTools } from "./geminiSearch.ts";
+import {
+  captureGatewaySpend,
+  providerReceiptFrom,
+  settleGatewaySpend,
+  tokensFromUsage,
+  type GatewayRpc,
+} from "./gatewayLedger.ts";
+
+/** What a caller must know to book its own gateway text call. See gatewayLedger.ts. */
+export type GatewaySpendBinding = {
+  rpc: GatewayRpc | null;
+  requestId: string;
+  jobId?: string | null;
+  attempt?: number | null;
+  userId?: string | null;
+};
 
 // Shared Anthropic (Claude) client for ONIQ edge functions.
 // Reuses the same secret + model that the ting function already relies on.
@@ -1169,7 +1185,16 @@ function translateOpenAIResponseToAnthropic(oai: any, model: string): any {
 
 /** One call to the gateway's chat endpoint, in the Anthropic result shape. */
 export async function callGatewayText(
-  opts: CallClaudeOpts & { tier?: "standard" | "heavy" },
+  opts: CallClaudeOpts & {
+    tier?: "standard" | "heavy";
+    /**
+     * CREDIT ACCOUNTING, opt-in and additive. Absent ⇒ nothing is recorded
+     * and this function behaves exactly as it did. Present ⇒ the attempt is
+     * captured before the request and settled after it, in CREDITS, in
+     * `gateway_spend_ledger` — never in dollars and never against a USD cap.
+     */
+    gatewaySpend?: GatewaySpendBinding;
+  },
 ): Promise<CallClaudeResult & { creditsExhausted?: boolean }> {
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) {
@@ -1198,6 +1223,26 @@ export async function callGatewayText(
   if (tools) payload.tools = tools;
   if (opts.toolChoice) payload.tool_choice = translateToolChoiceToOpenAI(opts.toolChoice);
 
+  // CAPTURED HERE, not at the top: everything above returns without reaching
+  // the gateway, so a row written earlier would record a call that never
+  // happened. The first line that can cost credits is the fetch below.
+  const spend = opts.gatewaySpend;
+  const spendRpc = spend?.rpc ?? null;
+  if (spend) {
+    await captureGatewaySpend(spendRpc, {
+      requestId: spend.requestId,
+      capability: "TEXT",
+      model,
+      unit: "tokens",
+      jobId: spend.jobId ?? null,
+      attempt: spend.attempt ?? null,
+      userId: spend.userId ?? null,
+    });
+  }
+  const settle = async (s: Parameters<typeof settleGatewaySpend>[2]) => {
+    if (spend) await settleGatewaySpend(spendRpc, spend.requestId, s);
+  };
+
   const timeoutMs = opts.timeoutMs ?? 12000;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -1209,14 +1254,36 @@ export async function callGatewayText(
       signal: ctrl.signal,
     });
     const text = await res.text().catch(() => "");
+    const receiptId = (body: unknown) => providerReceiptFrom(body, res.headers);
     if (res.status >= 200 && res.status < 300) {
       let body: any = null;
       try {
         body = text ? JSON.parse(text) : null;
       } catch {
+        // Served and billed regardless of our ability to read it.
+        await settle({
+          outcome: "FAILED",
+          providerReceiptId: receiptId(null),
+          detail: { phase: "read-body", status: res.status },
+        });
         return { ok: false, reason: "unparseable gateway response" };
       }
-      if (!body) return { ok: false, reason: "empty gateway response" };
+      if (!body) {
+        await settle({
+          outcome: "FAILED",
+          providerReceiptId: receiptId(null),
+          detail: { phase: "empty-body", status: res.status },
+        });
+        return { ok: false, reason: "empty gateway response" };
+      }
+      // TOKENS ARE ALL THE GATEWAY DISCLOSES. There is no price field, so
+      // `chargedCredits` is deliberately absent and the row stays
+      // PENDING_RECONCILIATION — a zero here would read as "this was free".
+      await settle({
+        outcome: "ACCEPTED",
+        unitsObserved: tokensFromUsage(body),
+        providerReceiptId: receiptId(body),
+      });
       return {
         ok: true,
         data: translateOpenAIResponseToAnthropic(body, model),
@@ -1227,12 +1294,38 @@ export async function callGatewayText(
       console.warn(
         `callGatewayText: gateway credits exhausted or rate limited (http ${res.status}) key=${mask(key)}`,
       );
+      // REJECTED, NOT `NOT_CALLED`. This branch used to claim the refusal
+      // "certainly cost nothing" — it cannot. A request DID reach the gateway
+      // and was answered by it; the absence of a disclosed charge is not
+      // evidence of a zero charge, and the gateway discloses no charge on ANY
+      // reply. So the outcome is the refusal that happened and the price stays
+      // null, which leaves the row PENDING_RECONCILIATION. `NOT_CALLED` is
+      // reserved for the local preflights above, which return before the
+      // capture and therefore write no row at all.
+      await settle({
+        outcome: "REJECTED",
+        providerReceiptId: receiptId(null),
+        detail: { phase: "gateway-refused", status: res.status },
+      });
       return { ok: false, reason: `http ${res.status}`, creditsExhausted: true };
     }
     console.warn(`callGatewayText: http ${res.status} key=${mask(key)} body=${text.slice(0, 200)}`);
+    await settle({
+      outcome: "FAILED",
+      providerReceiptId: receiptId(null),
+      detail: { phase: "gateway-error", status: res.status },
+    });
     return { ok: false, reason: `http ${res.status}` };
   } catch (e) {
     const reason = (e as Error)?.name === "AbortError" ? "timeout" : String(e).slice(0, 120);
+    // AMBIGUOUS, so it is recorded as spent. A timeout says nothing about
+    // whether the gateway served the request. The ledger detail carries the
+    // allowlisted phase only — `reason` is outside text and goes to the caller,
+    // not into a row an authenticated user can read.
+    await settle({
+      outcome: "FAILED",
+      detail: { phase: (e as Error)?.name === "AbortError" ? "timeout" : "transport" },
+    });
     return { ok: false, reason };
   } finally {
     clearTimeout(t);

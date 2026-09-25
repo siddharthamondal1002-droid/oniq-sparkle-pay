@@ -62,7 +62,9 @@ import { TEXT_DIRECT_STANDARD } from "../_shared/modelRegistry.ts";
 import { orchestratePlan } from "../_shared/planOrchestrator.ts";
 import { verifyJobToken } from "../_shared/jobToken.ts";
 
+import { FILM_CONTINUITY_RULES, filmPacingGuidance } from "../_shared/filmQuality.ts";
 import { MOVIE_RULES, MAX_DIALOGUE_WORDS } from "../_shared/movieGrammar.ts";
+import { serviceRoleRpc } from "../_shared/financialLedger.ts";
 import { storyIrRescue } from "../_shared/storyIrRescue.ts";
 import { paletteFor } from "../_shared/cinemaLexicon.ts";
 import { styleBlockFor } from "../_shared/directorStyles.ts";
@@ -247,8 +249,8 @@ const TOTAL_BUDGET_MS = 115_000;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const authFail = await requireAuth(req);
-    if (authFail) return authFail;
+    const caller = await requireAuth(req);
+    if (caller instanceof Response) return caller;
     // Tighter than Ting's ten a minute: a plot call is the front of a pipeline
     // that spends real money behind it, and nobody needs four films a minute.
     if (!_rateLimit(_subFromAuth(req), 4)) return json({ error: "slow down bestie 😅" }, 429);
@@ -260,6 +262,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
     const shots = Number(body?.shots);
+    const screenSeconds = Number(body?.screenSeconds);
     const lang = typeof body?.lang === "string" ? body.lang : "en";
     // The user's cast library, if the job carried one. Bounded hard: six
     // characters with short locks, or the reuse block crowds the plan prompt
@@ -299,6 +302,32 @@ Deno.serve(async (req) => {
     // argument every time. Empty string when nothing in the manifest matches.
     const houseCast = reuse.length > 0 ? "" : castBlock(prompt);
     const houseCastBlock = houseCast ? `\n\n${houseCast}` : "";
+    // VERBATIM MODE (owner directive, 2026-08-14): the worker supplies the
+    // narrations — the user's own text, pre-sliced — and Ting designs only
+    // what prose cannot carry: the frames, the locks, the sizes. The worker
+    // overwrites narration again after the reply, so this instruction is
+    // about QUALITY (frames that match the given words), not enforcement.
+    const narrations: string[] = Array.isArray(body?.narrations)
+      ? body.narrations.filter((n: unknown) => typeof n === "string" && n.trim().length > 0)
+      : [];
+    if (narrations.length > 0 && narrations.length !== shots) {
+      return json({ error: "Narration count must match the shot count." }, 400);
+    }
+    // The caps MAX_PROMPT exists to enforce, applied to the new field too:
+    // a chunk is bounded by the voice's own ceiling, and the total by the
+    // prompt cap it was sliced from — the review panel flagged the token
+    // spend this reopened when only the count was checked.
+    if (narrations.some((n) => n.length > 1200)) {
+      return json({ error: "A narration piece is too long." }, 400);
+    }
+    if (narrations.reduce((a, n) => a + n.length, 0) > MAX_PROMPT + 200) {
+      return json({ error: "The narrations are too long." }, 400);
+    }
+    const pacingBlock = filmPacingGuidance(
+      Number.isFinite(screenSeconds) ? screenSeconds : null,
+      shots,
+      narrations.length > 0,
+    );
 
     if (!prompt) return json({ error: "Tell me what happens in your story." }, 400);
     if (prompt.length > MAX_PROMPT) return json({ error: "That prompt is too long." }, 400);
@@ -359,27 +388,6 @@ Deno.serve(async (req) => {
       callGemini({ ...o, geminiModel: TEXT_DIRECT_STANDARD.id }),
     );
 
-    // VERBATIM MODE (owner directive, 2026-08-14): the worker supplies the
-    // narrations — the user's own text, pre-sliced — and Ting designs only
-    // what prose cannot carry: the frames, the locks, the sizes. The worker
-    // overwrites narration again after the reply, so this instruction is
-    // about QUALITY (frames that match the given words), not enforcement.
-    const narrations: string[] = Array.isArray(body?.narrations)
-      ? body.narrations.filter((n: unknown) => typeof n === "string" && n.trim().length > 0)
-      : [];
-    if (narrations.length > 0 && narrations.length !== shots) {
-      return json({ error: "Narration count must match the shot count." }, 400);
-    }
-    // The caps MAX_PROMPT exists to enforce, applied to the new field too:
-    // a chunk is bounded by the voice's own ceiling, and the total by the
-    // prompt cap it was sliced from — the review panel flagged the token
-    // spend this reopened when only the count was checked.
-    if (narrations.some((n) => n.length > 1200)) {
-      return json({ error: "A narration piece is too long." }, 400);
-    }
-    if (narrations.reduce((a, n) => a + n.length, 0) > MAX_PROMPT + 200) {
-      return json({ error: "The narrations are too long." }, 400);
-    }
     // TING IS THE CONTENT FILTER, ALWAYS (owner directive, 2026-08-14).
     //
     // Verbatim mode was the one path where user words reached the narrator
@@ -455,7 +463,7 @@ Deno.serve(async (req) => {
       // The tier is still a routing hint, not a model id: it is the router's
       // job to know which id each tier means, which is why the direct-Gemini
       // branches have to name the id themselves.
-      system: SYSTEM + storyLanguageInstruction(lang),
+      system: SYSTEM + (pacingBlock ? `\n\n${pacingBlock}` : "") + storyLanguageInstruction(lang),
       messages: [
         {
           role: "user" as const,
@@ -544,7 +552,9 @@ Deno.serve(async (req) => {
     if (!plan && shots > SINGLE_CALL_MAX_SHOTS && (hasClaude || hasGemini)) {
       const isVerbatim = narrations.length === shots;
       const spineSystem =
-        (isVerbatim ? SPINE_SYSTEM_VERBATIM : SPINE_SYSTEM) + storyLanguageInstruction(lang);
+        (isVerbatim ? SPINE_SYSTEM_VERBATIM : SPINE_SYSTEM) +
+        (pacingBlock ? `\n\n${pacingBlock}` : "") +
+        storyLanguageInstruction(lang);
       const spineUser = isVerbatim
         ? `Write ONLY the structure — title, logline, setting, and cast locks — for a ` +
           `${shots}-shot film of this story. The narration is already written; do NOT ` +
@@ -623,7 +633,10 @@ Deno.serve(async (req) => {
         const results = await Promise.all(
           groups.map(async (b) => {
             const res = await call({
-              system: BATCH_SYSTEM + storyLanguageInstruction(lang),
+              system:
+                BATCH_SYSTEM +
+                (pacingBlock ? `\n\n${pacingBlock}` : "") +
+                storyLanguageInstruction(lang),
               messages: [
                 {
                   role: "user",
@@ -832,6 +845,18 @@ Deno.serve(async (req) => {
         seed: `${shots}:${prompt.slice(0, 64)}`,
         grade: "classic",
         characters: reuse.map((c) => ({ name: c.name, description: c.lock })),
+        pacingGuidance: pacingBlock || undefined,
+        // CREDIT ACCOUNTING. This rung is the one path in story-plot that
+        // spends Lovable credits — rungs one and two are direct-provider calls
+        // metered elsewhere. The ids are the server's own: the job the signed
+        // token names, or the person the auth service identified. A ledger this
+        // function cannot reach does NOT withhold the film; the miss is
+        // announced by gatewayLedger and the row is simply absent.
+        spend: {
+          rpc: serviceRoleRpc(),
+          jobId: caller.jobId,
+          userId: caller.userId,
+        },
       });
       if ("plan" in r) {
         plan = r.plan;
@@ -988,6 +1013,8 @@ const SPINE_SYSTEM = [
   "You are Ting 🔮, ONIQ's built-in assistant, working as a story editor for ONIQ Lores.",
   "You turn one line from a user into the SKELETON of a short animated film.",
   "",
+  FILM_CONTINUITY_RULES,
+  "",
   "Return ONLY a JSON object. No prose, no markdown fence, no commentary.",
   "",
   "Shape:",
@@ -1024,6 +1051,8 @@ const SPINE_SYSTEM = [
 const SPINE_SYSTEM_VERBATIM = [
   "You are Ting 🔮, ONIQ's built-in assistant, working as a story editor for ONIQ Lores.",
   "You read a finished story and write ONLY its STRUCTURE — never its shots.",
+  "",
+  FILM_CONTINUITY_RULES,
   "",
   "Return ONLY a JSON object. No prose, no markdown fence, no commentary.",
   "",
@@ -1065,10 +1094,15 @@ const BATCH_SYSTEM = [
   "   paraphrase them and do not invent your own — other batches are drawing the",
   "   same film from the same text, and any difference becomes a different",
   "   person or a different place on screen.",
+  "   If mirrors, polished metal, glass, or water show reflections, those",
+  "   reflections must show ONLY the same cast already in frame — never extra",
+  "   reflected faces or people.",
   "3. `still` describes what the FRAME IS — a static image. No camera moves, no",
   "   'then', no cuts. One moment.",
   "4. `narration` is one or two spoken sentences. Write numbers as words. It is",
-  "   read aloud by a voice, not displayed.",
+  "   read aloud by a voice, not displayed. Keep pacing duration-aware:",
+  "   quick beats get short narration; longer beats may use fuller narration,",
+  "   but avoid front-loading exposition into a single shot.",
   "5. Say the shot size at the start of each `still`: establishing, wide, medium",
   "   or close. Vary them.",
   "",
@@ -1315,7 +1349,15 @@ function json(payload: unknown, status = 200) {
   });
 }
 
-async function requireAuth(req: Request): Promise<Response | null> {
+/**
+ * The caller, as the SERVER established it — never as the body claims it.
+ * A runner is identified by the job its signed token names; a person by the
+ * id the auth service returns for their session. Both are used only to label
+ * a gateway spend row, and a caller that supplies neither gets nulls.
+ */
+type PlotCaller = { userId: string | null; jobId: string | null };
+
+async function requireAuth(req: Request): Promise<Response | PlotCaller> {
   // A RUNNER IS NOT A USER. The Story worker holds a per-job capability token,
   // not a Supabase session, so /auth/v1/user would reject it — and passing the
   // service-role key here would not work either, because that is not a user
@@ -1326,7 +1368,8 @@ async function requireAuth(req: Request): Promise<Response | null> {
     const secret = Deno.env.get("STORY_JOB_SECRET");
     if (!secret) return json({ error: "Auth unavailable" }, 500);
     const verified = await verifyJobToken(jobToken, secret);
-    return verified.ok ? null : json({ error: `token ${verified.reason}` }, 401);
+    if (!verified.ok) return json({ error: `token ${verified.reason}` }, 401);
+    return { userId: null, jobId: verified.jobId ?? null };
   }
 
   const authHeader = req.headers.get("Authorization");
@@ -1338,5 +1381,6 @@ async function requireAuth(req: Request): Promise<Response | null> {
     headers: { Authorization: authHeader, apikey: anon },
   });
   if (!res.ok) return json({ error: "Unauthorized" }, 401);
-  return null;
+  const who = (await res.json().catch(() => null)) as { id?: unknown } | null;
+  return { userId: typeof who?.id === "string" ? who.id : null, jobId: null };
 }

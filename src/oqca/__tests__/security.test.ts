@@ -417,22 +417,27 @@ describe("brief section 18 — Security", () => {
     for (const g of GUARDS) expect(FILES).toContain(g);
   });
 
-  it("reads the filesystem in exactly one non-test file, and only to read", () => {
-    // `node:fs` is admitted ONCE in the kernel, in the loader, because a
-    // manifest has to come off a disk. Everything else — the runner, the arms,
-    // the statistics — is pure, so a future caller in a browser-shaped context
-    // cannot pull a filesystem in by importing the benchmark.
+  it("reads the filesystem only in exact benchmark reader files, and only to read", () => {
+    // Filesystem access is confined to the legacy manifest loader and the
+    // grounding loader/test fixture. Every admitted import is read-only.
     const fsUsers = offenders(/node:fs\b/).filter((f) => !f.includes("__tests__"));
-    expect(fsUsers).toEqual(["src/oqca/bench/loader.ts"]);
+    const readers = [
+      "src/oqca/bench/loader.ts",
+      "src/oqca/grounding/grounding.test.ts",
+      "src/oqca/grounding/loader.ts",
+    ];
+    expect(fsUsers).toEqual(readers);
 
-    const loader = SOURCE.get("src/oqca/bench/loader.ts")!;
-    const imported = /import\s*\{([^}]*)\}\s*from\s*["']node:fs["']/.exec(loader);
-    expect(imported).not.toBeNull();
-    for (const name of imported![1]
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean)) {
-      expect(["readdirSync", "readFileSync", "statSync"]).toContain(name);
+    for (const file of readers) {
+      const reader = SOURCE.get(file)!;
+      const imported = /import\s*\{([^}]*)\}\s*from\s*["']node:fs["']/.exec(reader);
+      expect(imported).not.toBeNull();
+      for (const name of imported![1]
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)) {
+        expect(["readdirSync", "readFileSync", "statSync"]).toContain(name);
+      }
     }
   });
 
@@ -461,7 +466,6 @@ describe("brief section 18 — Security", () => {
     expect(CLOCK.test("Date.UTC(2026, 8, 10)")).toBe(false);
   });
 });
-
 describe("the guard catches what it claims to — mutation checks, inline", () => {
   // A guard that has never been mutated has never been tested (CLAUDE.md,
   // 2026-09-08). These do not edit the tree: they run the SAME patterns over

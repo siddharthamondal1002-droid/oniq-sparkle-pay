@@ -670,7 +670,7 @@ function AuthPage() {
                       onChange={(e) => setDialCode(e.target.value)}
                       className="rounded-2xl border border-border bg-input/40 px-3 py-3 text-sm focus:border-primary focus:outline-none"
                     >
-                      {COUNTRIES.map((c) => (
+                      {COUNTRIES.filter((c) => c.iso === "IN").map((c) => (
                         <option key={c.dial} value={c.dial}>
                           {c.flag} {c.dial}
                         </option>

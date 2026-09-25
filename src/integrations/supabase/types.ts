@@ -2178,6 +2178,69 @@ export type Database = {
         }
         Relationships: []
       }
+      gateway_spend_ledger: {
+        Row: {
+          attempt: number | null
+          capability: string
+          charged_credits: number | null
+          created_at: string
+          currency: string
+          detail: Json | null
+          id: string
+          job_id: string | null
+          model: string
+          outcome: string | null
+          provider: string
+          provider_receipt_id: string | null
+          request_id: string
+          settlement_state: string
+          unit: string
+          units_observed: number | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          attempt?: number | null
+          capability: string
+          charged_credits?: number | null
+          created_at?: string
+          currency?: string
+          detail?: Json | null
+          id?: string
+          job_id?: string | null
+          model: string
+          outcome?: string | null
+          provider: string
+          provider_receipt_id?: string | null
+          request_id: string
+          settlement_state?: string
+          unit: string
+          units_observed?: number | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          attempt?: number | null
+          capability?: string
+          charged_credits?: number | null
+          created_at?: string
+          currency?: string
+          detail?: Json | null
+          id?: string
+          job_id?: string | null
+          model?: string
+          outcome?: string | null
+          provider?: string
+          provider_receipt_id?: string | null
+          request_id?: string
+          settlement_state?: string
+          unit?: string
+          units_observed?: number | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       gpu_video_jobs: {
         Row: {
           actual_cost_usd: number | null
@@ -6957,6 +7020,20 @@ export type Database = {
       }
       can_read_message: { Args: { _message_id: string }; Returns: boolean }
       cancel_my_subscription: { Args: never; Returns: Json }
+      capture_gateway_spend: {
+        Args: {
+          _attempt?: number
+          _capability: string
+          _detail?: Json
+          _job_id?: string
+          _model: string
+          _provider: string
+          _request_id: string
+          _unit: string
+          _user_id?: string
+        }
+        Returns: Json
+      }
       channel_monetize_status: { Args: { _channel_id: string }; Returns: Json }
       channel_views_series: {
         Args: { _channel_id: string; _days?: number }
@@ -7577,6 +7654,17 @@ export type Database = {
       }
       settle_creator_payout: {
         Args: { _attempt: string; _provider_payout_id: string }
+        Returns: Json
+      }
+      settle_gateway_spend: {
+        Args: {
+          _charged_credits?: number
+          _detail?: Json
+          _outcome: string
+          _provider_receipt_id?: string
+          _request_id: string
+          _units_observed?: number
+        }
         Returns: Json
       }
       settle_provider_spend: {

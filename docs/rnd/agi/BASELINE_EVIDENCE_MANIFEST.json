@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "baseline_started_at": "2026-09-15T17:37:00Z",
+  "generated_at": "2026-09-15T18:07:08Z",
+  "repository": "siddharthamondal1002-droid/oniq-sparkle-pay",
+  "requested_ref": "main",
+  "pinned_commit": "042dc46c0e94c97214377fd691df523b22e10519",
+  "tree_api_url": "https://api.github.com/repos/siddharthamondal1002-droid/oniq-sparkle-pay/git/trees/bb360791ebdfa313659eba07edba91072535c9a3?recursive=1",
+  "api_tree_sha": "bb360791ebdfa313659eba07edba91072535c9a3",
+  "api_truncated": false,
+  "canonical_rows": "JSON array sorted by path; each row is [path,type,mode,sha,size_or_null]",
+  "canonical_rows_sha256": "b7e66ae052e730d70953bb6105ec64b1303173ddc48145f3a7e431a417d137bc",
+  "counts": {
+    "entries": 2900,
+    "blobs": 2587,
+    "typescript_tests": 420,
+    "workflow_yaml": 13,
+    "migration_sql": 373,
+    "supabase_function_top_level_directories": 68
+  },
+  "filters": {
+    "typescript_tests": "/\\.(test|spec)\\.(ts|tsx)$/",
+    "workflow_yaml": "path starts .github/workflows/ and matches /\\.ya?ml$/",
+    "migration_sql": "path starts supabase/migrations/ and ends .sql",
+    "supabase_function_top_level_directories": "distinct first three path segments; includes _shared"
+  },
+  "ci_evidence": {
+    "pull_request_url": "https://github.com/siddharthamondal1002-droid/oniq-sparkle-pay/pull/172",
+    "pull_request_head": "03b288155d8b94d2fab1b1925009b3ef7a862d4a",
+    "validated_parent_commit": "b97f6b73a06c33a242b9122d94a73fdc82858d1a",
+    "workflow_run_url": "https://github.com/siddharthamondal1002-droid/oniq-sparkle-pay/actions/runs/34977652137",
+    "workflow_name": "lint",
+    "workflow_run_number": 1966,
+    "workflow_conclusion": "success",
+    "pinned_commit_pr_workflow_runs": 0,
+    "pinned_commit_note": "Main advanced during the sprint with an OpenAI/Gemini/Claude Ting ladder; no workflow run is attached to the pinned merge commit."
+  },
+  "limitations": [
+    "The canonical tree rows are summarized by SHA-256 rather than committed in full.",
+    "The workflow result is attached to the prior merged pull request head, not the pinned commit.",
+    "The test-file and test-case counts reported by the workflow are distinct measures."
+  ],
+  "commit_tree_sha": "bb360791ebdfa313659eba07edba91072535c9a3"
+}

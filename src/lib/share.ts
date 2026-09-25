@@ -166,7 +166,7 @@ export async function shareVideoFile(
   filename: string,
   p: SharePayload,
   onProgress?: (pct: number | null) => void,
-): Promise<"shared" | "cancelled" | "failed" | "unsupported"> {
+): Promise<"shared" | "download-started" | "cancelled" | "failed" | "unsupported"> {
   const native = await shareMediaFile(mediaUrl, filename, p, onProgress);
   if (native !== "unsupported") return native;
 
@@ -174,6 +174,20 @@ export async function shareVideoFile(
     lastDiag = baseDiag("web-share-absent");
     return "unsupported";
   }
+  // THE FILE FEATURE TEST, MOVED IN FRONT OF THE DOWNLOAD.
+  //
+  // `canShare` inspects the file's TYPE and SIZE class, not its bytes, so an
+  // empty probe answers the same question the real File would — and asking it
+  // first means a browser that cannot share files never pays for a
+  // multi-megabyte download it was always going to refuse. It does NOT fix
+  // activation (see below); it removes one avoidable download.
+  const probe = new File([], filename, { type: "video/mp4" });
+  if (typeof navigator.canShare !== "function" || !navigator.canShare({ files: [probe] })) {
+    lastDiag = baseDiag("web-cannot-share-files");
+    return "unsupported";
+  }
+
+  let downloaded: Blob | null = null;
   try {
     onProgress?.(null);
     const res = await fetch(mediaUrl);
@@ -182,11 +196,11 @@ export async function shareVideoFile(
       return "failed";
     }
     const blob = await res.blob();
+    downloaded = blob;
     const file = new File([blob], filename, { type: blob.type || "video/mp4" });
-    // canShare is the feature test for FILE payloads; navigator.share existing
-    // alone only proves link-sharing. Checked after the download because the
-    // File object itself is part of the question being asked.
-    if (typeof navigator.canShare !== "function" || !navigator.canShare({ files: [file] })) {
+    if (!navigator.canShare({ files: [file] })) {
+      // The real file can still be refused where the probe was not — a size
+      // ceiling is the usual reason. Asked again rather than assumed.
       lastDiag = baseDiag("web-cannot-share-files");
       return "unsupported";
     }
@@ -197,9 +211,197 @@ export async function shareVideoFile(
       lastDiag = baseDiag("web-cancelled");
       return "cancelled";
     }
+    // THE MEASURED FAILURE. Both recorded share-video reports (2026-09-04,
+    // 2026-09-11) are this exact throw:
+    //   NotAllowedError — "The request is not allowed by the user agent or the
+    //   platform in the current context, possibly because the user denied
+    //   permission."
+    // with `webShare:true, webShareFiles:true` in the same diagnostics — so the
+    // browser CAN share files and refused anyway.
+    //
+    // WHAT THIS FILE MUST NOT CLAIM: that the cause is known. A lost transient
+    // activation is the leading candidate, because the multi-megabyte `await
+    // fetch` above certainly spends the activation the sheet needs. It is NOT
+    // the only one — a `web-share` Permissions-Policy on the embedding
+    // document, an embedded WebView's own rules, and a user-agent refusal all
+    // raise the SAME NotAllowedError with the same message, and nothing
+    // reachable from here separates them. The earlier stage name
+    // ("web-activation-lost") asserted the diagnosis, which is how a
+    // hypothesis becomes a fact that later readers stop checking.
+    //
+    // THE FETCH ORDER IS NOT FIXED, and cannot be from inside this function: a
+    // File is required before `share` may be called, and the bytes take an
+    // await to obtain. An await does not UNCONDITIONALLY end the activation —
+    // transient activation expires on a timer, so a fast fetch can finish
+    // inside the window and a slow one cannot. That is exactly why the failure
+    // is intermittent and why "the await killed it" is a hypothesis rather
+    // than a rule. The remedy is a SECOND explicit tap on an already-prepared
+    // file — a UI change, at the call site, not here.
+
+    //
+    // The film is in hand either way, so the button is not a dead end: the
+    // bytes are offered as a download. A genuine cancel is caught above and
+    // must NEVER reach this fallback.
+    const shareRefused = e instanceof DOMException && e.name === "NotAllowedError";
+    if (shareRefused && downloaded) {
+      try {
+        const url = URL.createObjectURL(downloaded);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        // "STARTED", NOT "SAVED". A programmatic click REQUESTS a download; it
+        // cannot observe whether the browser wrote a file, whether the person
+        // dismissed the prompt, or whether a download manager refused it.
+        // Reporting a save this side cannot see is the same class of claim as
+        // reading FCM's 200 as a handset delivery.
+        lastDiag = {
+          ...baseDiag("web-share-refused-download-requested"),
+          error: "share refused; a download was requested",
+        };
+        return "download-started";
+      } catch (fallbackErr) {
+        lastDiag = {
+          ...baseDiag("web-download-fallback-failed"),
+          error: fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr),
+        };
+        return "failed";
+      }
+    }
     lastDiag = { ...baseDiag("web-threw"), error: e instanceof Error ? e.message : String(e) };
     return "failed";
   }
+}
+
+/**
+ * The two-step web share, which is the ONLY shape that keeps the activation.
+ *
+ * `shareVideoFile` above cannot avoid the refusal it documents: a File is
+ * required before `navigator.share` may be called, obtaining the bytes takes an
+ * await, and transient activation can EXPIRE while that await runs — not
+ * always, which is why the refusal is intermittent rather than certain. The
+ * remedy is structural rather than clever — prepare the file on the FIRST tap,
+ * then let a SECOND tap call `share` with nothing awaited in front of it.
+
+ *
+ * Step one. Native platforms still finish in one go (their sheet takes a URI,
+ * not a File, and has no activation rule), so this reports "done" for them and
+ * the caller never shows a second button.
+ */
+export type PreparedShare =
+  | { kind: "done"; outcome: "shared" | "cancelled" | "failed" | "unsupported" }
+  | { kind: "ready"; file: File };
+
+export async function prepareVideoShare(
+  mediaUrl: string,
+  filename: string,
+  p: SharePayload,
+  onProgress?: (pct: number | null) => void,
+): Promise<PreparedShare> {
+  const native = await shareMediaFile(mediaUrl, filename, p, onProgress);
+  if (native !== "unsupported") return { kind: "done", outcome: native };
+
+  if (typeof navigator === "undefined" || typeof navigator.share !== "function") {
+    lastDiag = baseDiag("web-share-absent");
+    return { kind: "done", outcome: "unsupported" };
+  }
+  // Asked BEFORE the download, so a browser that cannot share files never pays
+  // for megabytes it was always going to refuse.
+  const probe = new File([], filename, { type: "video/mp4" });
+  if (typeof navigator.canShare !== "function" || !navigator.canShare({ files: [probe] })) {
+    lastDiag = baseDiag("web-cannot-share-files");
+    return { kind: "done", outcome: "unsupported" };
+  }
+
+  try {
+    onProgress?.(null);
+    const res = await fetch(mediaUrl);
+    if (!res.ok) {
+      lastDiag = { ...baseDiag("web-fetch-failed"), error: `http ${res.status}` };
+      return { kind: "done", outcome: "failed" };
+    }
+    const blob = await res.blob();
+    const file = new File([blob], filename, { type: blob.type || "video/mp4" });
+    if (!navigator.canShare({ files: [file] })) {
+      // The real file can be refused where the empty probe was not — a size
+      // ceiling is the usual reason. Asked again rather than assumed.
+      lastDiag = baseDiag("web-cannot-share-files");
+      return { kind: "done", outcome: "unsupported" };
+    }
+    return { kind: "ready", file };
+  } catch (e) {
+    lastDiag = {
+      ...baseDiag("web-prepare-threw"),
+      error: e instanceof Error ? e.message : String(e),
+    };
+    return { kind: "done", outcome: "failed" };
+  }
+}
+
+/**
+ * Step two. MUST be called straight out of a click handler with nothing
+ * awaited in front of it — that is the whole point of the split, and an
+ * `await` added above this call silently restores the bug it exists to fix.
+ *
+ * A CANCEL NEVER BECOMES A DOWNLOAD. Someone who dismissed the sheet chose not
+ * to send it; handing them a file anyway is doing the opposite of what they
+ * asked. Only a platform REFUSAL falls back, and it reports the download as
+ * requested rather than saved, because this side cannot see the file land.
+ */
+export function shareReadyFile(
+  file: File,
+  p: SharePayload,
+): Promise<"shared" | "cancelled" | "download-started" | "failed"> {
+  let shared: Promise<void>;
+  try {
+    shared = navigator.share({ files: [file], title: p.title, text: p.text });
+  } catch (e) {
+    return Promise.resolve(afterShareThrew(e, file));
+  }
+  return shared.then(
+    () => "shared" as const,
+    (e: unknown) => afterShareThrew(e, file),
+  );
+}
+
+function afterShareThrew(e: unknown, file: File): "cancelled" | "download-started" | "failed" {
+  if (e instanceof DOMException && e.name === "AbortError") {
+    lastDiag = baseDiag("web-cancelled");
+    return "cancelled";
+  }
+  // NotAllowedError here is a genuine platform refusal — a Permissions-Policy,
+  // an embedded WebView's rules, or a user-agent decision. It is NOT "the
+  // activation was lost", because with this split nothing was awaited first.
+  if (e instanceof DOMException && e.name === "NotAllowedError") {
+    try {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      lastDiag = {
+        ...baseDiag("web-share-refused-download-requested"),
+        error: "share refused; a download was requested",
+      };
+      return "download-started";
+    } catch (fallbackErr) {
+      lastDiag = {
+        ...baseDiag("web-download-fallback-failed"),
+        error: fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr),
+      };
+      return "failed";
+    }
+  }
+  lastDiag = { ...baseDiag("web-threw"), error: e instanceof Error ? e.message : String(e) };
+  return "failed";
 }
 
 const enc = encodeURIComponent;

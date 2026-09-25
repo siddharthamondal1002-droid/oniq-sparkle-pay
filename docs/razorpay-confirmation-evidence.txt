@@ -1,0 +1,329 @@
++ echo $'=== razorpay confirmation \342\200\224 raw command output ==='
+=== razorpay confirmation — raw command output ===
+++ date -u +%FT%TZ
++ echo 'date: 2026-09-16T20:18:40Z'
+date: 2026-09-16T20:18:40Z
+++ git rev-parse HEAD
++ echo 'commit: 1f0959ba0d7d106a002029367b4dfe710c84484d'
+commit: 1f0959ba0d7d106a002029367b4dfe710c84484d
++ echo
+
++ echo '### 1. focused runtime tests'
+### 1. focused runtime tests
++ npx vitest run src/lib/__tests__/razorpayConfirmRuntime.test.ts
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/dev-server[39m
+
+ [32m✓[39m src/lib/__tests__/razorpayConfirmRuntime.test.ts [2m([22m[2m124 tests[22m[2m)[22m[33m 497[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m124 passed[39m[22m[90m (124)[39m
+[2m   Start at [22m 20:18:41
+[2m   Duration [22m 876ms[2m (transform 163ms, setup 0ms, import 127ms, tests 497ms, environment 0ms)[22m
+
++ echo
+
++ echo '### 2. related regressions'
+### 2. related regressions
++ npx vitest run src/lib/__tests__/classicWithdrawn.test.ts src/lib/__tests__/phase0Gate.test.ts src/lib/__tests__/storyStageGates.test.ts src/lib/creator/__tests__/payoutConcurrency.test.ts src/lib/__tests__/edgeImports.test.ts
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/dev-server[39m
+
+ [32m✓[39m src/lib/__tests__/classicWithdrawn.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/storyStageGates.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/creator/__tests__/payoutConcurrency.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/phase0Gate.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 257[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/edgeImports.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1525[2mms[22m[39m
+     [33m[2m✓[22m[39m imports every _shared name it uses [33m 1514[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m5 passed[39m[22m[90m (5)[39m
+[2m      Tests [22m [1m[32m71 passed[39m[22m[90m (71)[39m
+[2m   Start at [22m 20:18:43
+[2m   Duration [22m 2.07s[2m (transform 388ms, setup 0ms, import 672ms, tests 1.82s, environment 1ms)[22m
+
+
+### 3. controlled mutation M1 — the captured guard removed (expect RED)
+mutation: razorpayConfirm.ts:557  `if (payment.status !== "captured" || payment.captured !== true) {` -> `if (false) {`
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m src/lib/__tests__/razorpayConfirmRuntime.test.ts:[2m310:28[22m[39m
+    [90m308|[39m     scenario[33m.[39mpayment [33m=[39m [34mcapturedPayment[39m(over)[33m;[39m
+    [90m309|[39m     [35mconst[39m res [33m=[39m [35mawait[39m [34mcallVerify[39m([35mawait[39m [34msignedVerifyBody[39m())[33m;[39m
+    [90m310|[39m     [34mexpect[39m([34msucceeded[39m(res))[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   |[39m                            [31m^[39m
+    [90m311|[39m     [34mexpect[39m([34mgrants[39m())[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m312|[39m   })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lib/__tests__/razorpayConfirmRuntime.test.ts[2m > [22mrazorpay-webhook — the provider path[2m > [22mdoes not acknowledge a handled event it could not process: not captured yet
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m src/lib/__tests__/razorpayConfirmRuntime.test.ts:[2m598:28[22m[39m
+    [90m596|[39m     [34marrange[39m()[33m;[39m
+    [90m597|[39m     [35mconst[39m res [33m=[39m [35mawait[39m [34mcallWebhook[39m([34mcapturedEvent[39m())[33m;[39m
+    [90m598|[39m     [34mexpect[39m([34msucceeded[39m(res))[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   |[39m                            [31m^[39m
+    [90m599|[39m     [34mexpect[39m(res[33m.[39mstatus)[33m.[39m[34mtoBeGreaterThanOrEqual[39m([34m500[39m)[33m;[39m
+    [90m600|[39m   })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m4 failed[39m[22m[2m | [22m[1m[32m120 passed[39m[22m[90m (124)[39m
+[2m   Start at [22m 20:19:20
+[2m   Duration [22m 760ms[2m (transform 138ms, setup 0ms, import 109ms, tests 430ms, environment 0ms)[22m
+
+
+### 4. controlled mutation M2 — the webhook acknowledges unprocessed handled events again (expect RED)
+mutation: razorpay-webhook/index.ts:68  `const RETRY = 503;` -> `const RETRY = 200;`
+
+[41m[1m FAIL [22m[49m src/lib/__tests__/razorpayConfirmRuntime.test.ts[2m > [22mrazorpay-webhook — the provider path[2m > [22mdoes not acknowledge a JSON failure RPC that semantically refused
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m src/lib/__tests__/razorpayConfirmRuntime.test.ts:[2m694:28[22m[39m
+    [90m692|[39m     scenario[33m.[39mrpcResult [33m=[39m { ok[33m:[39m [35mfalse[39m[33m,[39m reason[33m:[39m [32m"already settled"[39m }[33m;[39m
+    [90m693|[39m     [35mconst[39m res [33m=[39m [35mawait[39m [34mcallWebhook[39m([34mfailedEvent[39m())[33m;[39m
+    [90m694|[39m     [34mexpect[39m([34msucceeded[39m(res))[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   |[39m                            [31m^[39m
+    [90m695|[39m     [34mexpect[39m(rpcCalls[33m.[39m[34mmap[39m((c) [33m=>[39m c[33m.[39mfn))[33m.[39m[34mtoEqual[39m([[32m"fail_story_purchase"[39m])[33m;[39m
+    [90m696|[39m   })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/20]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lib/__tests__/razorpayConfirmRuntime.test.ts[2m > [22mrazorpay-webhook — the provider path[2m > [22mdoes not acknowledge a JSON failure RPC that returned an empty body
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m src/lib/__tests__/razorpayConfirmRuntime.test.ts:[2m701:28[22m[39m
+    [90m699|[39m     scenario[33m.[39mrpcBody [33m=[39m [32m""[39m[33m;[39m
+    [90m700|[39m     [35mconst[39m res [33m=[39m [35mawait[39m [34mcallWebhook[39m([34mfailedEvent[39m())[33m;[39m
+    [90m701|[39m     [34mexpect[39m([34msucceeded[39m(res))[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   |[39m                            [31m^[39m
+    [90m702|[39m   })[33m;[39m
+    [90m703|[39m })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/20]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m20 failed[39m[22m[2m | [22m[1m[32m104 passed[39m[22m[90m (124)[39m
+[2m   Start at [22m 20:19:37
+[2m   Duration [22m 775ms[2m (transform 146ms, setup 0ms, import 113ms, tests 443ms, environment 0ms)[22m
+
+
+### 5. controlled mutation M3 — a malformed refund amount defaults to 0 again (expect RED)
+mutation: razorpayConfirm.ts:501  `const refunded = body.amount_refunded;` -> `... typeof body.amount_refunded === "number" ? body.amount_refunded : 0`
+     [32m✓[39m bounds a stalled stream instead of holding the function open[32m 23[2mms[22m[39m
+     [32m✓[39m surfaces a stream that errors mid-read as retryable[32m 2[2mms[22m[39m
+     [32m✓[39m keeps the bytes exact: a BOM survives and is not normalised[32m 2[2mms[22m[39m
+     [32m✓[39m refuses malformed bytes rather than replacing them[32m 1[2mms[22m[39m
+     [32m✓[39m joins a multi-byte character split across chunks[32m 1[2mms[22m[39m
+     [32m✓[39m reads an absent body as empty[32m 2[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/lib/__tests__/razorpayConfirmRuntime.test.ts[2m > [22mrazorpay-verify — the callback path[2m > [22mrejects a malformed provider payment rather than defaulting it: refund amount as a numeric string
+[41m[1m FAIL [22m[49m src/lib/__tests__/razorpayConfirmRuntime.test.ts[2m > [22mrazorpay-verify — the callback path[2m > [22mrejects a malformed provider payment rather than defaulting it: refund amount missing
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m src/lib/__tests__/razorpayConfirmRuntime.test.ts:[2m339:28[22m[39m
+    [90m337|[39m     scenario[33m.[39mpayment [33m=[39m body[33m;[39m
+    [90m338|[39m     [35mconst[39m res [33m=[39m [35mawait[39m [34mcallVerify[39m([35mawait[39m [34msignedVerifyBody[39m())[33m;[39m
+    [90m339|[39m     [34mexpect[39m([34msucceeded[39m(res))[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   |[39m                            [31m^[39m
+    [90m340|[39m     [34mexpect[39m([34mgrants[39m())[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m341|[39m   })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m122 passed[39m[22m[90m (124)[39m
+[2m   Start at [22m 20:19:54
+[2m   Duration [22m 812ms[2m (transform 149ms, setup 0ms, import 109ms, tests 471ms, environment 0ms)[22m
+
+
+### 6. controlled mutation M4 — the void failure contract removed, {ok:true} demanded of all (expect RED)
+mutation: razorpayConfirm.ts:630  `if (shape === "void") {` -> `if (false) {`
+     [32m✓[39m bounds a stalled stream instead of holding the function open[32m 22[2mms[22m[39m
+     [32m✓[39m surfaces a stream that errors mid-read as retryable[32m 1[2mms[22m[39m
+     [32m✓[39m keeps the bytes exact: a BOM survives and is not normalised[32m 2[2mms[22m[39m
+     [32m✓[39m refuses malformed bytes rather than replacing them[32m 1[2mms[22m[39m
+     [32m✓[39m joins a multi-byte character split across chunks[32m 1[2mms[22m[39m
+     [32m✓[39m reads an absent body as empty[32m 1[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/lib/__tests__/razorpayConfirmRuntime.test.ts[2m > [22mrazorpay-webhook — the provider path[2m > [22maccepts the void failure contract for watermark removal: an empty body
+[41m[1m FAIL [22m[49m src/lib/__tests__/razorpayConfirmRuntime.test.ts[2m > [22mrazorpay-webhook — the provider path[2m > [22maccepts the void failure contract for watermark removal: a literal null
+[31m[1mAssertionError[22m: expected 503 to be 200 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 200[39m
+[31m+ 503[39m
+
+[36m [2m❯[22m src/lib/__tests__/razorpayConfirmRuntime.test.ts:[2m679:24[22m[39m
+    [90m677|[39m     scenario[33m.[39mrpcBody [33m=[39m raw[33m;[39m
+    [90m678|[39m     [35mconst[39m res [33m=[39m [35mawait[39m [34mcallWebhook[39m([34mfailedEvent[39m())[33m;[39m
+    [90m679|[39m     [34mexpect[39m(res[33m.[39mstatus)[33m.[39m[34mtoBe[39m([34m200[39m)[33m;[39m
+    [90m   |[39m                        [31m^[39m
+    [90m680|[39m     expect(rpcCalls.map((c) => c.fn)).toEqual(["fail_watermark_purchas…
+    [90m681|[39m   })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m122 passed[39m[22m[90m (124)[39m
+[2m   Start at [22m 20:20:10
+[2m   Duration [22m 707ms[2m (transform 127ms, setup 0ms, import 102ms, tests 411ms, environment 0ms)[22m
+
+
+### 7. every mutation reverted; working tree back to the intended state
+ M docs/razorpay-confirmation-evidence.txt
+ M src/lib/__tests__/razorpayConfirmRuntime.test.ts
+
+### 8. focused runtime tests, restored tree
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/dev-server[39m
+
+ [32m✓[39m src/lib/__tests__/razorpayConfirmRuntime.test.ts [2m([22m[2m124 tests[22m[2m)[22m[33m 387[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m124 passed[39m[22m[90m (124)[39m
+[2m   Start at [22m 20:21:24
+[2m   Duration [22m 684ms[2m (transform 120ms, setup 0ms, import 97ms, tests 387ms, environment 0ms)[22m
+
+
+### 9. typecheck (tsgo --noEmit, whole program)
+tsgo exit: 0
+
+### 10. lint:ci
+
+> lint:ci
+> node scripts/lint-ci.mjs src/lib/__tests__/razorpayConfirmRuntime.test.ts
+
+lint exit: 0
+
+### 11. deno check of both handlers
+[0m[32mCheck[0m supabase/functions/razorpay-verify/index.ts
+[0m[32mCheck[0m supabase/functions/razorpay-webhook/index.ts
+deno exit: 0
+
+### 12. related regressions
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/dev-server[39m
+
+ [32m✓[39m src/lib/__tests__/classicWithdrawn.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/storyStageGates.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/creator/__tests__/payoutConcurrency.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/phase0Gate.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 229[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/edgeImports.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1498[2mms[22m[39m
+     [33m[2m✓[22m[39m imports every _shared name it uses [33m 1493[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m5 passed[39m[22m[90m (5)[39m
+[2m      Tests [22m [1m[32m71 passed[39m[22m[90m (71)[39m
+[2m   Start at [22m 20:21:36
+[2m   Duration [22m 1.87s[2m (transform 289ms, setup 0ms, import 532ms, tests 1.76s, environment 1ms)[22m
+
+
+============================================================
+APPENDED: final narrow correction (strict entity + required
+refund_status + non-blocking cancellation). All fixtures below
+are FICTIONAL; no provider was called and nothing was deployed.
+============================================================
+
+### 13. mutation M5 — entity check removed (raw stdout)
+
+mutation: `if (body.entity !== "payment") return bad(...)` -> `if (false) ...`
+
+ FAIL  src/lib/__tests__/razorpayConfirmRuntime.test.ts > razorpay-verify — the callback path > rejects a malformed provider payment rather than defaulting it: entity missing
+ FAIL  src/lib/__tests__/razorpayConfirmRuntime.test.ts > razorpay-verify — the callback path > rejects a malformed provider payment rather than defaulting it: entity wrong
+ FAIL  src/lib/__tests__/razorpayConfirmRuntime.test.ts > razorpay-verify — the callback path > rejects a malformed provider payment rather than defaulting it: entity not a string
+Failed Tests 3
+verdict: RED, then restored.
+
+### 14. mutation M6 — absent refund_status defaults to null (raw stdout)
+
+mutation: `if (refundStatusRaw === null) {` -> `if (refundStatusRaw === null || refundStatusRaw === undefined) {`
+
+ FAIL  src/lib/__tests__/razorpayConfirmRuntime.test.ts > razorpay-verify — the callback path > rejects a malformed provider payment rather than defaulting it: refund status missing
+Failed Tests 1
+verdict: RED, then restored.
+
+### 15. mutation M7 — cancellation awaited again (raw stdout)
+
+mutation: `abandon` made async and awaited at the declared-length and overflow sites
+
+ FAIL  src/lib/__tests__/razorpayConfirmRuntime.test.ts > bounded reads — the ceiling is enforced while streaming > returns promptly when cancellation never settles: an oversized chunked body
+ FAIL  src/lib/__tests__/razorpayConfirmRuntime.test.ts > bounded reads — the ceiling is enforced while streaming > returns promptly when cancellation never settles: a declared length over the ceiling
+Failed Tests 2
+verdict: RED, then restored.
+
+### 16. restored — focused tests (raw stdout)
+
+ [32m✓[39m src/lib/__tests__/razorpayConfirmRuntime.test.ts [2m([22m[2m131 tests[22m[2m)[22m[33m 347[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m131 passed[39m[22m[90m (131)[39m
+[2m   Start at [22m 20:31:18
+[2m   Duration [22m 626ms[2m (transform 116ms, setup 0ms, import 93ms, tests 347ms, environment 0ms)[22m
+
+
+### 17. restored — neighbouring suites (raw stdout)
+ [32m✓[39m src/lib/__tests__/deleteCreation.test.ts [2m([22m[2m31 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/storyLifecycle.test.ts [2m([22m[2m23 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m54 passed[39m[22m[90m (54)[39m
+[2m   Start at [22m 20:31:19
+[2m   Duration [22m 329ms[2m (transform 124ms, setup 0ms, import 189ms, tests 36ms, environment 0ms)[22m
+
+
+### 18. restored — tsgo --noEmit (raw stdout)
+tsgo exit: 0
+
+### 19. restored — npm run lint:ci (raw stdout)
+
+> lint:ci
+> node scripts/lint-ci.mjs src/lib/__tests__/razorpayConfirmRuntime.test.ts
+
+
+### 20. restored — prettier --check (raw stdout)
+Checking formatting...
+All matched files use Prettier code style!
+
+### 21. restored — deno check of both handlers (raw stdout)
+[0m[32mCheck[0m supabase/functions/razorpay-verify/index.ts
+[0m[32mCheck[0m supabase/functions/razorpay-webhook/index.ts
+deno exit: 0

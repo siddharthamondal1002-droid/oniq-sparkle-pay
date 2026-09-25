@@ -858,6 +858,31 @@ describe("v1.7 §19/§20 — self-evaluation answers from evidence, or not at al
     expect(perf?.evidence).toEqual([]);
   });
 
+  it("BLOCKED experiment without regression evidence stays unestablished", () => {
+    const d = design({
+      objectiveId: "o",
+      kind: "improvement",
+      hypothesis: "candidate improves the metric",
+      baselineArm: "baseline",
+      candidateArm: "candidate",
+      variables: ["candidate"],
+      controls: ["same fixture"],
+      metric: "score",
+      direction: "higher_is_better",
+      criterion: { minDelta: 0.01, minSamples: 2 },
+      seed: 1,
+      configuration: {},
+    });
+    const e = selfEvaluate({
+      ...base,
+      status: "blocked",
+      experiment: experimentBlocked(d, "runner unavailable", "t"),
+    });
+    expect(e.questions.find((q) => q.question.includes("introduce a regression"))?.answer).toBe(
+      "unestablished",
+    );
+  });
+
   it("confirming what was already held is settled and is NOT learning", () => {
     const e = selfEvaluate({ ...base, status: "success", settled: ["a", "b"] });
     expect(e.questions.find((q) => q.question.includes("learn"))?.answer).toBe("no");

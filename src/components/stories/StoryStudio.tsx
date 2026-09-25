@@ -74,6 +74,7 @@ import { PROGRESS, SETTLED, latestOpenJob, readJobRow } from "./storyJobsClient"
 import { PlanSheet, sayLeft } from "./PlanSheet";
 import { CinematicPanel } from "./CinematicPanel";
 import { attachIntentToPrompt, type ShotIntent } from "@/lib/videoEngineering";
+import { startVisiblePolling } from "@/lib/visiblePolling";
 
 /**
  * Lengths offered as one tap. Anything between the bounds is still allowed.
@@ -254,6 +255,7 @@ export function StoryStudio() {
   // Excluded in verbatim mode: there the prompt IS the narration.
   const [shotIntent, setShotIntent] = useState<ShotIntent>({});
   const [newCastName, setNewCastName] = useState("");
+
   const [newCastLock, setNewCastLock] = useState("");
   // THE PLATE — one image the film opens on, in place of the still the
   // pipeline would have drawn for shot 1. Held as the File until the job
@@ -321,12 +323,15 @@ export function StoryStudio() {
    * Six seconds. The step it is waiting on is measured in minutes, so a faster
    * tick would only add requests.
    */
+  // A derived boolean, not jobStatus itself: every intermediate transition
+  // would otherwise tear the poller down and start a fresh immediate read.
+  const isWatchingJob = !!jobId && !(jobStatus && SETTLED.has(jobStatus));
   useEffect(() => {
-    if (!jobId || (jobStatus && SETTLED.has(jobStatus))) return;
+    if (!jobId || !isWatchingJob) return;
     let cancelled = false;
     const tick = async () => {
       const row = await readJobRow(jobId);
-      if (cancelled || !row?.status) return;
+      if (cancelled || !row?.status) return true;
       setJobStatus(row.status);
       if (row.status === "failed") {
         // The seconds are already back — refund_story_seconds runs server-side
@@ -338,14 +343,16 @@ export function StoryStudio() {
           if (!cancelled) setQuota(readQuota(data));
         })();
       }
+      // A settled job stops the timer here rather than waiting for the state
+      // round trip to re-run this effect.
+      return !SETTLED.has(row.status);
     };
-    void tick();
-    const id = setInterval(() => void tick(), 6000);
+    const stop = startVisiblePolling(tick, 6000);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      stop();
     };
-  }, [jobId, jobStatus]);
+  }, [jobId, isWatchingJob]);
 
   /**
    * Pick up a Story already in flight.

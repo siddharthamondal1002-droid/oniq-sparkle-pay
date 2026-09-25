@@ -53,7 +53,26 @@ function readTool(name: string, summary: string, over: Partial<ToolSpec> = {}): 
 
 describe("provenance: a model can never verify itself", () => {
   it("two independent verifying sources reach VERIFIED", () => {
-    expect(promote([ev("database_query"), ev("repository_read")], [])).toBe("VERIFIED");
+    expect(promote([ev("database_query", "db:1"), ev("repository_read", "repo:1")], [])).toBe("VERIFIED");
+  });
+
+  it("duplicate readings from the same canonical source do not self-verify", () => {
+    expect(
+      promote(
+        [
+          ev("database_query", "db:jobs"),
+          ev("database_query", "db:jobs"),
+          ev("database_query", "db:jobs"),
+        ],
+        [],
+      ),
+    ).toBe("OBSERVED");
+  });
+
+  it("different locators of the same evidence kind are not treated as independent methods", () => {
+    expect(
+      promote([ev("repository_read", "repo:a"), ev("repository_read", "repo:b")], []),
+    ).toBe("OBSERVED");
   });
 
   it("a model alone is SUPPORTED however many times it speaks", () => {
@@ -211,6 +230,44 @@ describe("model adapter", () => {
     const a = replayModelAdapter({});
     const r = await a.reason({ instructions: "i", input: "x" });
     expect(r.ok).toBe(false);
+  });
+
+  it("replay keys differ when the permission/tool surface differs", () => {
+    const base = { instructions: "i", input: "x" } as const;
+    const a = replayKey({
+      ...base,
+      toolsOffered: [{ name: "read_a", description: "read a", schema: ["id"] }],
+    });
+    const b = replayKey({
+      ...base,
+      toolsOffered: [{ name: "read_b", description: "read b", schema: ["id"] }],
+    });
+    const c = replayKey({
+      ...base,
+      toolsOffered: [{ name: "read_a", description: "read a", schema: ["id", "scope"] }],
+    });
+    expect(a).not.toBe(b);
+    expect(a).not.toBe(c);
+  });
+
+  it("replay keys are stable under tool and schema ordering", () => {
+    const a = replayKey({
+      instructions: "i",
+      input: "x",
+      toolsOffered: [
+        { name: "b", description: "B", schema: ["y", "x"] },
+        { name: "a", description: "A", schema: [] },
+      ],
+    });
+    const b = replayKey({
+      instructions: "i",
+      input: "x",
+      toolsOffered: [
+        { name: "a", description: "A", schema: [] },
+        { name: "b", description: "B", schema: ["x", "y"] },
+      ],
+    });
+    expect(a).toBe(b);
   });
 
   it("replay returns the recorded reply for its exact key", async () => {

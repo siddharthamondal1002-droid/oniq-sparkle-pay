@@ -74,8 +74,8 @@ import { inferAudioMode, resolveAudioMode } from '../../supabase/functions/_shar
 import { selectSceneWeather, weatherConsistentSetting } from '../../src/lib/sceneWeather.ts';
 import { directShots } from '../../src/lib/shotDirector.ts';
 import { selectSheetPanel, scalePanel } from '../../src/lib/sheetPanel.ts';
-import { emotionFor } from '../../src/lib/expressionGrammar.ts';
-import { ambienceFor, ambienceGraph, scoreFor, scoreGraph } from '../../src/lib/soundStage.ts';
+import { ambienceGraph, scoreFor, scoreGraph } from '../../src/lib/soundStage.ts';
+import { sceneAmbienceFor, soundEmotionFor } from '../../src/lib/filmSound.ts';
 import { packNarrations, verbatimFits } from '../../src/lib/verbatimNarration.ts';
 import { validateFilmMotion } from '../../src/lib/motionValidate.ts';
 import { routeMotion } from '../../supabase/functions/_shared/inHouseMotion.ts';
@@ -1990,6 +1990,10 @@ if (offline) {
         planRes = await edge('story-plot', {
           prompt: job.prompt,
           shots,
+          // The film's paid length, so the planner writes to the screen time
+          // the person bought. `storySeconds` was never declared anywhere in
+          // this file — it threw ReferenceError on every movie-grade job.
+          ...(job.grade === 'movie' ? { screenSeconds: job.requestedSeconds } : {}),
           // Narration and dialogue in the film's language; image prompts stay
           // English inside story-plot. English sends nothing, as before.
           ...(job.language && job.language !== 'en' ? { lang: job.language } : {}),
@@ -2805,7 +2809,7 @@ if (offline) {
       // A synth failure drops the bed, never the film.
       let ambience = null;
       if (cinematic) {
-        const kind = ambienceFor(`${shot.still} ${shot.narration}`);
+        const kind = sceneAmbienceFor(shot.still, sceneWeather);
         if (kind) {
           try {
             const amb = path.join(assetRoot, `${stem}.amb.wav`);
@@ -3049,6 +3053,7 @@ if (offline) {
       // is the composition's data, so an unmeasured character silently
       // keeps the painted base head.
       let expression = null;
+      if (cinematic) expression = soundEmotionFor(shot);
       // RUNG 6 — the two-shot, movie grade only. When the shot's words put
       // a SECOND rigged cast member in the frame and the framing is full
       // or wider, the conversation shares one frame instead of cutting
@@ -3061,9 +3066,6 @@ if (offline) {
         // roads that run and suns that climb.
         const castNames = (plan.cast ?? []).map((m) => String(m.name ?? ''));
         const walk = walkFor(`${shot.still} ${shot.narration}`, castNames);
-        expression = emotionFor(
-          `${shot.still} ${shot.narration} ${shot.dialogue?.line ?? ''}`,
-        );
         // Rung 6: a second rigged face in this shot's own words, at a
         // framing wide enough to hold two figures. The mention scan mirrors
         // rigFor's matching exactly — same normalisation, same substring
@@ -3128,7 +3130,7 @@ if (offline) {
         ];
         console.log(`  body ${i + 1}: ${notes.join(', ')}`);
       }
-      shotEmotions.push(expression);
+      shotEmotions.push(cinematic ? soundEmotionFor(shot) : null);
       motionMeta.push(motionPlan ? { plan: motionPlan, clipError } : null);
 
       rendered.push({

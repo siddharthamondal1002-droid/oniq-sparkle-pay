@@ -79,6 +79,16 @@ export function promote(
   if (contradicting.length > 0) return "UNPROVEN";
   const verifying = supporting.filter((p) => !NON_VERIFYING_SOURCES.includes(p.source));
   if (verifying.length === 0) return "SUPPORTED";
-  if (verifying.length >= 2) return "VERIFIED";
-  return verifying[0].source === "model" ? "SUPPORTED" : "OBSERVED";
+
+  // Independence is established by canonical source identity, not row count.
+  // Re-reading the same locator or repeating the same evidence kind is not replication.
+  const independent = new Map<string, Provenance>();
+  for (const p of verifying) {
+    const canonical = `${p.source}:${p.locator.trim()}`;
+    if (!independent.has(canonical)) independent.set(canonical, p);
+  }
+
+  const distinctKinds = new Set([...independent.values()].map((p) => p.source));
+  if (independent.size >= 2 && distinctKinds.size >= 2) return "VERIFIED";
+  return "OBSERVED";
 }

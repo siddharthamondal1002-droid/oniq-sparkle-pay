@@ -29,6 +29,8 @@
 // stillRoute.ts, which is the whole of that decision and is pure so it can be
 // tested rather than reasoned about.
 
+import { providerReceiptFrom, withGatewayCostCapture, type GatewayRpc } from "./gatewayLedger.ts";
+
 /** Where the gateway serves images. */
 export const GATEWAY_IMAGE_URL = "https://ai.gateway.lovable.dev/v1/images/generations";
 
@@ -143,6 +145,24 @@ export type GatewayOpts = {
    */
   referenceDataUrl?: string;
   timeoutMs?: number;
+  /**
+   * CREDIT ACCOUNTING, opt-in. Absent ⇒ nothing is recorded and the call is
+   * byte-for-byte what it was before — a still drawn by a caller that has no
+   * database reach must not fail for want of a ledger. Present ⇒ the attempt
+   * is captured before the request and settled after it, in CREDITS, in
+   * `gateway_spend_ledger`. Never in dollars: see gatewayLedger.ts.
+   */
+  spend?: GatewaySpendBinding;
+};
+
+/** What a caller must know to book its own gateway draw. */
+export type GatewaySpendBinding = {
+  rpc: GatewayRpc | null;
+  /** Stable per ATTEMPT — a retried frame is a new id, not the same one. */
+  requestId: string;
+  jobId?: string | null;
+  attempt?: number | null;
+  userId?: string | null;
 };
 
 /** The shape a reference must have before it may be inlined. */
@@ -174,7 +194,44 @@ export async function drawStillViaGateway(
   deps: GatewayDeps,
   opts: GatewayOpts = {},
 ): Promise<GatewayStill> {
-  const ref = (opts.referenceDataUrl ?? "").trim();
+  // PREFLIGHT BEFORE THE CAPTURE, deliberately. A malformed or oversized
+  // reference is refused by THIS side and never reaches the gateway, so
+  // capturing it first would write a row for an attempt that was never made —
+  // and that row would then settle FAILED, over-counting a request the
+  // provider never saw. Local refusals leave no row at all.
+  assertReferenceUsable(opts.referenceDataUrl);
+  const spend = opts.spend;
+  if (!spend) return (await drawStillOnGateway(prompt, env, deps, opts)).still;
+  return withGatewayCostCapture(
+    spend.rpc,
+    {
+      requestId: spend.requestId,
+      capability: "IMAGE",
+      model: GATEWAY_IMAGE_MODEL,
+      unit: "images",
+      jobId: spend.jobId ?? null,
+      attempt: spend.attempt ?? null,
+      userId: spend.userId ?? null,
+      detail: { conditioned: Boolean((opts.referenceDataUrl ?? "").trim()) },
+    },
+    async () => {
+      // ONE image is the unit, and the gateway discloses no price for it —
+      // so `chargedCredits` stays absent and the row settles
+      // PENDING_RECONCILIATION rather than claiming the draw was free.
+      const drawn = await drawStillOnGateway(prompt, env, deps, opts);
+      return {
+        value: drawn.still,
+        outcome: "ACCEPTED" as const,
+        unitsObserved: 1,
+        providerReceiptId: drawn.receiptId,
+      };
+    },
+  );
+}
+
+/** The two local refusals, hoisted so they can run before any row is written. */
+export function assertReferenceUsable(referenceDataUrl?: string): void {
+  const ref = (referenceDataUrl ?? "").trim();
   if (ref && !REFERENCE_DATA_URL.test(ref)) {
     // Not a caller error by the time it reaches here — this side built it —
     // so it is a bug, and it fails loudly rather than drawing unconditioned.
@@ -183,6 +240,20 @@ export async function drawStillViaGateway(
   if (ref.length > MAX_REFERENCE_BYTES) {
     throw new GatewayError("upstream", "reference is too large to inline");
   }
+}
+
+/**
+ * The draw itself. A throw from here settles FAILED rather than NOT_CALLED:
+ * once the fetch has been made, the request may have been served and charged
+ * whatever this side managed to read back.
+ */
+async function drawStillOnGateway(
+  prompt: string,
+  env: GatewayEnv,
+  deps: GatewayDeps,
+  opts: GatewayOpts = {},
+): Promise<{ still: GatewayStill; receiptId: string | null }> {
+  const ref = (opts.referenceDataUrl ?? "").trim();
 
   const ask = composeAsk(prompt, opts.negativePrompt);
   // Multimodal content only when a reference rode along; otherwise the exact
@@ -221,26 +292,46 @@ export async function drawStillViaGateway(
     clearTimeout(timer);
   }
 
+  // THE STATUS RIDES ON THE THROW. `withGatewayCostCapture` reads a numeric
+  // `status` off the error and records that number and nothing else — the
+  // upstream's own text stays in the message, which goes to the worker's log
+  // and never into a ledger row.
+  //
+  // SO DOES THE RECEIPT. A 402, a 500 or a 200-with-no-image all REACHED the
+  // gateway, and the id it set on that response is the only handle a
+  // reconciliation has on whatever it charged. Reading it only on success is
+  // how the charges that most need tracing are the ones with no trace.
+  const withStatus = (e: GatewayError): GatewayError => {
+    const tagged = e as GatewayError & { status?: number; providerReceiptId?: string | null };
+    tagged.status = res.status;
+    tagged.providerReceiptId = providerReceiptFrom(null, res.headers);
+    return e;
+  };
+
   if (res.status === 401 || res.status === 403) {
-    throw new GatewayError("unconfigured", "the gateway rejected the credential");
+    throw withStatus(new GatewayError("unconfigured", "the gateway rejected the credential"));
   }
   // The pool itself running dry is ITS OWN failure, named plainly: the
   // worker's log must say "credits", not "the model refused the frame".
   if (res.status === 402 || res.status === 429) {
     const detail = await res.text().catch(() => "");
-    throw new GatewayError(
-      "credits",
-      `image credits exhausted or rate limited (${res.status} ${detail.slice(0, 200)})`,
+    throw withStatus(
+      new GatewayError(
+        "credits",
+        `image credits exhausted or rate limited (${res.status} ${detail.slice(0, 200)})`,
+      ),
     );
   }
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new GatewayError("upstream", `gateway ${res.status} ${detail.slice(0, 300)}`);
+    throw withStatus(new GatewayError("upstream", `gateway ${res.status} ${detail.slice(0, 300)}`));
   }
 
   const data = await res.json().catch(() => ({}));
   const image = firstImage(data);
-  if (image) return image;
+  // The receipt is read from what the gateway actually returned — its own id,
+  // or a request id it set on the response. Never synthesised.
+  if (image) return { still: image, receiptId: providerReceiptFrom(data, res.headers) };
 
   // A refusal comes back as a 200 with no image part rather than an error
   // status, so "ok but empty" has to be treated as a failure here or the
@@ -248,7 +339,9 @@ export async function drawStillViaGateway(
   // with it: the worker retries refused frames down a ladder of safer
   // prompts, and a bare "refused" left it guessing whether the trigger was
   // the wording, the safety filter, or the prompt being blocked outright.
-  throw new GatewayError("refused", `no image part (${refusalReason(data) || "unstated"})`);
+  throw withStatus(
+    new GatewayError("refused", `no image part (${refusalReason(data) || "unstated"})`),
+  );
 }
 
 /** Why the gateway answered 200 without an image, as far as it said. */

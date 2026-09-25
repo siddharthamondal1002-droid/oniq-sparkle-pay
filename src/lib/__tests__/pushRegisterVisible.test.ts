@@ -46,9 +46,9 @@ describe("registration failures are reported, not swallowed", () => {
     expect(CODE).toMatch(/reportClientError\(\s*"push-register"/);
   });
 
-  it("both the error branch and the throw are covered", () => {
+  it("upsert errors, throws, and FCM registration errors are covered", () => {
     const reports = CODE.match(/reportClientError\(\s*"push-register"/g) ?? [];
-    expect(reports.length, "one of the two silent paths is still silent").toBe(2);
+    expect(reports.length, "a native registration failure is still silent").toBe(3);
   });
 
   it("no bare catch is left swallowing the registration path", () => {

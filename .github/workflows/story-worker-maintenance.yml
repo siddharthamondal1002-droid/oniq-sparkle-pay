@@ -1,0 +1,217 @@
+name: story worker maintenance
+
+on:
+  workflow_dispatch:
+    inputs:
+      inspected_run_id:
+        description: Story worker run id to inspect
+        required: false
+        default: "34763132497"
+  schedule:
+    - cron: "17 6 * * *"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout main exactly
+        uses: actions/checkout@v5
+        with:
+          ref: refs/heads/main
+          fetch-depth: 1
+
+      - name: collect maintenance records
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INSPECTED_RUN_ID: ${{ github.event.inputs.inspected_run_id || '34763132497' }}
+        run: |
+          mkdir -p out
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          import urllib.request
+          from pathlib import Path
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          run_id = os.environ.get("INSPECTED_RUN_ID", "34763132497")
+          out = Path("out")
+          out.mkdir(exist_ok=True)
+
+          headers = {
+            "Authorization": "Bearer " + token,
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "story-worker-maintenance",
+          }
+
+          def request_json(path: str):
+            req = urllib.request.Request(f"https://api.github.com{path}", headers=headers)
+            with urllib.request.urlopen(req) as res:
+              return json.loads(res.read().decode("utf-8"))
+
+          def request_text(path: str, accept: str = "application/vnd.github.raw+json"):
+            text_headers = dict(headers)
+            text_headers["Accept"] = accept
+            req = urllib.request.Request(f"https://api.github.com{path}", headers=text_headers)
+            with urllib.request.urlopen(req) as res:
+              return res.read().decode("utf-8", errors="replace")
+
+          workflow_text = Path(".github/workflows/story-worker.yml").read_text("utf-8")
+          checkout_step = re.search(
+            r"(?ms)^\s*- uses: actions/checkout@v5\n(?P<body>(?:\s{8,}.*\n)*)",
+            workflow_text,
+          )
+          checkout_body = checkout_step.group("body") if checkout_step else ""
+          workflow_semantics = {
+            "path": ".github/workflows/story-worker.yml",
+            "has_repository_dispatch": "repository_dispatch:" in workflow_text,
+            "has_workflow_dispatch": "workflow_dispatch:" in workflow_text,
+            "checkout_uses": "actions/checkout@v5" if "actions/checkout@v5" in workflow_text else None,
+            "checkout_has_explicit_ref": bool(re.search(r"(?m)^\s+ref:\s+", checkout_body)),
+          }
+
+          run = request_json(f"/repos/{repo}/actions/runs/{run_id}")
+          jobs = request_json(f"/repos/{repo}/actions/runs/{run_id}/jobs?per_page=20")
+          branches = request_json(f"/repos/{repo}/branches?per_page=100")
+
+          log_excerpt = []
+          for job in jobs.get("jobs", []):
+            job_id = job.get("id")
+            if not isinstance(job_id, int):
+              continue
+            text = request_text(f"/repos/{repo}/actions/jobs/{job_id}/logs")
+            for line in text.splitlines():
+              if len(line) >= 400:
+                continue
+              if (
+                "storySeconds is not defined" in line
+                or "story worker failed" in line
+                or re.search(r"job [0-9a-f-]+ ready at ", line)
+                or re.search(r"job [0-9a-f-]+", line)
+              ):
+                log_excerpt.append(line)
+            if log_excerpt:
+              break
+
+          runbook_paths = [
+            "docs/incident-response.md",
+            "docs/legal-ops.md",
+            "docs/oqca/DISPATCH_INCIDENT.md",
+            "docs/sprint-notes.md",
+            "docs/video/ARAP_STEP_11B_REAL_CORPUS.md",
+            "docs/video/STORY_WORKER_MAINTENANCE_RECORD.md",
+            "docs/video/STORY_WORKER_MAINTENANCE_BACKLOG.md",
+          ]
+          runbooks = [{"path": p, "exists": Path(p).exists()} for p in runbook_paths]
+
+          checkout_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          checkout_ref = subprocess.check_output(["git", "branch", "--show-current"], text=True).strip()
+
+          records = {
+            "repository": repo,
+            "inspected_run_id": run_id,
+            "checked_out_main_sha": checkout_sha,
+            "checked_out_ref": checkout_ref,
+            "current_main": checkout_sha,
+            "inspected_run": {
+              "id": run.get("id"),
+              "event": run.get("event"),
+              "status": run.get("status"),
+              "conclusion": run.get("conclusion"),
+              "head_branch": run.get("head_branch"),
+              "head_sha": run.get("head_sha"),
+              "html_url": run.get("html_url"),
+            },
+            "workflow_semantics": workflow_semantics,
+            "jobs": [
+              {
+                "id": job.get("id"),
+                "name": job.get("name"),
+                "status": job.get("status"),
+                "conclusion": job.get("conclusion"),
+                "head_sha": job.get("head_sha"),
+                "steps": [
+                  {
+                    "number": step.get("number"),
+                    "name": step.get("name"),
+                    "status": step.get("status"),
+                    "conclusion": step.get("conclusion"),
+                  }
+                  for step in job.get("steps", [])
+                ],
+              }
+              for job in jobs.get("jobs", [])
+            ],
+            "branches": [
+              {
+                "name": branch.get("name"),
+                "sha": branch.get("commit", {}).get("sha"),
+                "protected": branch.get("protected"),
+              }
+              for branch in branches
+            ],
+            "runbooks": runbooks,
+            "log_excerpt": log_excerpt[:40],
+            "acceptance_backlog": [
+              "observe one post-fix product-supported synthetic worker execution only if existing authorization and budget already permit it",
+              "capture the actual checked-out SHA for that execution",
+              "prove terminal successful job state",
+              "prove retrievable and playable media",
+              "prove settled accounting",
+              "prove no duplicate execution and no duplicate charge",
+            ],
+          }
+
+          (out / "story-worker-maintenance.json").write_text(
+            json.dumps(records, indent=2) + "\n",
+            encoding="utf-8",
+          )
+
+          summary = "\n".join(
+            [
+              "# Story worker maintenance",
+              "",
+              f"- checked-out `main` SHA: `{checkout_sha}`",
+              f"- inspected run: `{run_id}` → `{run.get('status')}` / `{run.get('conclusion')}`",
+              f"- inspected run head SHA: `{run.get('head_sha')}`",
+              f"- story-worker checkout step: `{workflow_semantics['checkout_uses']}`",
+              f"- product workflow explicit checkout ref: `{workflow_semantics['checkout_has_explicit_ref']}`",
+              f"- relevant branches recorded: `{len(records['branches'])}`",
+              f"- runbooks/records recorded: `{len(runbooks)}`",
+              f"- log excerpt lines captured: `{len(records['log_excerpt'])}`",
+              "",
+              "## Failed job steps",
+              "",
+            ]
+          )
+
+          step_lines = []
+          for job in records["jobs"]:
+            for step in job["steps"]:
+              step_lines.append(
+                f"- job `{job['name']}` step {step['number']}: `{step['name']}` → `{step['conclusion']}`"
+              )
+
+          summary += "\n".join(step_lines[:30])
+          summary += "\n\n## Acceptance backlog\n\n"
+          summary += "\n".join(f"- {item}" for item in records["acceptance_backlog"])
+          summary += "\n"
+          (out / "summary.md").write_text(summary, encoding="utf-8")
+          PY
+
+      - name: publish summary
+        run: cat out/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: upload records
+        uses: actions/upload-artifact@v4
+        with:
+          name: story-worker-maintenance-records-${{ github.run_id }}
+          path: out/
+          if-no-files-found: error
