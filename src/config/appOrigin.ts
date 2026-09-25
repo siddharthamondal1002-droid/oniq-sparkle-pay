@@ -33,6 +33,46 @@
  * `www.oniqhub.com` cannot see the session stored under the old one.
  */
 
+/**
+ * MEASURED 2026-09-25, AND THE 2026-09-12 PREMISE IS GONE. The apex recovered
+ * while this branch sat unmerged, and the reading is the exact inverse of the
+ * one above — taken with `pg_net` from inside production, because both hosts
+ * are proxy-blocked from the dev container:
+ *
+ *     oniqhub.com/app      200  x-deployment-id psr2.18fbbbb2-…  CSP present
+ *     www.oniqhub.com/app  200  location: https://oniqhub.com/app
+ *                               no x-deployment-id, no CSP
+ *
+ * `net.http_get` follows redirects, so www's 200 IS the apex's response and
+ * the `location` header is the proof: **www does not serve ONIQ, it 302s to
+ * the apex.** By this file's own rule — an absent `x-deployment-id` means
+ * Cloudflare answered without reaching the Lovable origin — the apex is the
+ * host that serves and www is the one that does not.
+ *
+ * `authorizedDomains` was re-measured the same minute with the public web key
+ * and still reads [localhost, oniq-309bd.firebaseapp.com, oniq-309bd.web.app,
+ * oniqhub.com] — www is STILL not authorized, so reCAPTCHA phone sign-in
+ * refuses on any flow that genuinely runs on that origin.
+ *
+ * THE VALUE IS LEFT AT www BECAUSE THE DIRECTIVE SAID www, and changing it
+ * back is the owner's call now that the reason for it is gone. What the flip
+ * would cost TODAY is small and worth stating precisely, because the scary
+ * version is wrong: `server.url` is compiled into the APK, so a WEB publish
+ * cannot move an installed shell and therefore cannot sign anybody out. What
+ * a web publish on www actually costs is one redirect hop on every outbound
+ * link ONIQ hands out. The origin-keyed sign-out and the phone-sign-in gap
+ * arrive only with the next ANDROID build, which is where the decision
+ * really bites.
+ *
+ * SO THE FLIP IS TWO LINES HERE PLUS `server.url` IN capacitor.config.json,
+ * and the guard in appOrigin.test.ts refuses to let one move without the
+ * other — deliberately, because those two disagreeing is a handset-only
+ * failure discovered after a Play release. That guard is also the answer to
+ * why 2026-09-12 was worth doing whichever host wins: the three-way sort,
+ * `isAppHost` accepting both names, and the config/manifest pins are what
+ * make this a two-line decision instead of a hundred-site edit.
+ */
+
 /** The host ONIQ serves from and hands out links to. */
 export const APP_HOST = "www.oniqhub.com";
 
@@ -43,9 +83,11 @@ export const APP_ORIGIN = `https://${APP_HOST}`;
  * Every host that is ONIQ. Order matters only in that APP_HOST is first;
  * membership is what callers ask about.
  *
- * The apex stays listed even while it is down. An inbound link naming it is
- * still ONIQ's own link, and refusing it would break every QR code and shared
- * URL minted before today — permanently, not just while the apex is dark.
+ * BOTH stay listed whichever one APP_HOST names, and the reason is unchanged
+ * by the flip: an inbound link naming either is still ONIQ's own link, QR
+ * codes and deep links minted under both are already in the world, and www
+ * redirects rather than failing — so a stored `www` URL resolves and must not
+ * be refused on arrival.
  */
 export const APP_HOSTS: readonly string[] = [APP_HOST, "oniqhub.com"];
 
