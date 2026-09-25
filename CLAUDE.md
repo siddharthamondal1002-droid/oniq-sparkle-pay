@@ -7790,3 +7790,130 @@ reads the table under the row that becomes the receipt, so the price changed on
 the next read; the TS copy is display and is what `/pay/story` renders. The
 write was verified in a SEPARATE statement from the one that made it, per this
 file's own rule.
+### 2026-09-25 — "check the calling error and fix it": ten hellos that were never sent
+
+Measured on production before touching anything. `client_error_reports`,
+`surface = 'call-connect-timeout'`: **8 rows, 6 users, 2026-08-15 → 2026-09-19**,
+against 177 `answered` calls. Two distinct signatures, and **five of the eight
+are byte-identical apart from the timestamp**:
+
+    {"role":"callee","detail":[],"callType":"video",
+     "tally":{"helloTx":10,"helloRx":0,"offerRx":0,"answerRx":0},
+     "media":true,"state":"connecting","peers":[]}
+
+Ten hellos out, none back, no peer connection ever built, camera open, twenty
+seconds, dead. The tally's own header told the next reader how to read it:
+_"No hellos received means the other side's acceptance never arrived and the
+fault is in signalling."_
+
+**IT WAS NOT THE OTHER SIDE. NOTHING WAS EVER SENT.**
+
+    const sendSig = (event, to, payload = {}) => {
+      if (event === "hello") sigTallyRef.current.helloTx += 1;   // counted here
+      channelRef.current?.send({ … });                           // no-op if null
+    };
+
+`helloTx` was incremented one line ABOVE an optional call that does nothing
+when the channel is null. **A counter that a failure can increment is not a
+measurement of a success** — and this one pointed at the far side every time.
+
+**THE CHANNEL IS NULL WHENEVER `meId` IS UNDEFINED**, because the signalling
+effect returns at its first line (`if (!meId) return;`). And `meId` can be
+undefined at mount and STAY undefined for the life of the call: all three
+dispatchers of `oniq:start-call` pass `meId: me?.id` from their own
+react-query, `GlobalCallHost` falls back to another one, the value is FROZEN
+into the session object, and the overlay's `key` is `${conversationId}:${callId}`
+— it does not change when `me` later resolves. So the overlay never gets an
+identity, never subscribes, and every `sendSig` is silent.
+
+Every field of the signature falls out of that one mechanism and nothing else
+considered explained all of them: media true (the camera path never reads
+`meId`), state connecting (the status machine never reads it either), helloTx 10
+(the 2s accepter loop, counting no-ops), helloRx 0 (never subscribed), peers []
+(a peer is only built from an inbound hello), role callee 7 times out of 8 (the
+accept path is the one with two awaited queries in front of `setSession`).
+
+**FIXED AT THE LAYER THAT COVERS EVERY ENTRY POINT.** `CallOverlay` seeds
+`resolvedMeId` from the prop and falls back to `supabase.auth.getUser()` when
+the prop is absent; `const meId = resolvedMeId` means `isOffererFor`, every
+payload's `from`, and the effect dependency all follow. Seeding in `useState`'s
+initialiser keeps the healthy path render-identical — no extra render, no delay
+— and when the id does arrive late the effect re-runs, the channel subscribes,
+and the still-running hello loop lands well inside the 20s deadline. The
+early-returning effect registers no cleanup, so the re-run cannot fire a
+spurious `endEveryone`. Fixing this at the three dispatchers instead would have
+been three fixes and a fourth the day someone adds a fourth caller.
+
+`isOffererFor` is the other half of why an absent id is not merely inert:
+`(meId ?? "") < peerId` is TRUE for every peer, so a client with no identity
+believes it is the offerer for everyone.
+
+**AND THE TALLY NOW COUNTS SENDS RATHER THAN ATTEMPTS.** `sendSig` reads the
+channel into a local, refuses before counting, and records `sendsDropped` (no
+channel) and `sendsFailed` (the channel resolved anything but `"ok"` — a
+`timed out` loses the signal exactly as completely, and just as quietly). The
+report adds `hasChannel` and `haveMeId`. The next row says which side failed
+instead of implying one.
+
+Both prose claims that invited the wrong reading were corrected beside the
+code, because the sentence is what the next session acts on.
+
+`src/lib/__tests__/callSignalTally.test.ts` pins it, comments stripped — the new
+prose quotes `helloTx`, `channelRef.current?.send`, `sendsDropped` and `meId`
+repeatedly to explain them, which is the **fifteenth prose match in this repo**.
+Seven mutations, every one RED, none GREEN, none NOTAPPLIED
+(`scripts/call-signal-mutate.sh`), and **M1 restores the real defect verbatim**
+rather than inventing a hole: count the hello, then discover there is nowhere to
+send it.
+
+**AND THE MUTATION RUNNER REPORTED `NOTAPPLIED` SEVEN TIMES ON ITS FIRST RUN**,
+which is the only reason its own bug was caught: a python heredoc nested inside
+a shell heredoc, plus a `sys.exit()` that ended the mutator before it wrote. The
+payload is its own file now — the 2026-09-12 lesson, in a second place — and the
+runner copies aside and copies back rather than `git checkout --`.
+
+**WHAT IS NOT ESTABLISHED, AND IT IS THE ONLY THING THAT MATTERS.** Nothing here
+ran on a handset. The mechanism explains all five rows and the fix is reasoned
+from the code, not observed. **The gate is a call connecting, not a green
+build** — and the instrument that will settle it is now in the report: a future
+`call-connect-timeout` carrying `hasChannel: false` or `sendsDropped > 0` is
+this bug still live; one carrying `helloTx > 0, helloRx 0, hasChannel: true` is
+a genuinely silent far side and a different fault.
+
+#### The other signature, and what PR #176 already covers
+
+The 2026-09-19 row is a different animal and is NOT addressed here:
+`helloRx 2 / helloTx 2` (signalling healthy both ways), `amOfferer true`,
+`offersSent 4`, `answerRx 1`, and a `forceRelay: true` peer stuck at
+`ice: "new"`. PR #176 (merged 2026-09-24) added `CallIceBuffer` for trickle ICE
+that overtakes its offer, and a new `call-answer-rejected` report for an answer
+that cannot be applied — which is exactly this shape. **No `call-answer-rejected`
+row exists yet**, so that diagnostic is deployed and unexercised.
+
+#### CI on `main` was red, and it was not a calling fault
+
+`npm ci` failing since 2026-09-24 14:22 on `c83970c` ("Added budget/spend
+guard", a Lovable edit):
+
+    Invalid: lock file's @lovable.dev/vite-tanstack-config@2.13.1
+             does not satisfy @lovable.dev/vite-tanstack-config@2.23.1
+
+`package.json` was bumped and the lock was not. Resolved by the procedure
+`oniq-ship` prescribes rather than by relaxing anything: `npm view
+@lovable.dev/vite-tanstack-config@2.23.1 dist.integrity` compared against what
+`npm install --package-lock-only` wrote — MATCH — and the `resolved` URL stayed
+on the PUBLIC registry, so the Artifact-Registry-mirror trap did not recur. The
+diff is 8 insertions and 4 deletions: the version, the integrity, and one
+OPTIONAL peer dependency the new version declares. **`npm ci` exiting clean IS
+the proof**, because it verifies every tarball against the recorded hash.
+
+#### One orphan worth knowing about
+
+`supabase/functions/turn-creds/` is a dead duplicate of
+`get-turn-credentials`. Nothing in the repo calls it (grep: its own file only),
+and it is DEPLOYED — `POST` answers 401 against a 404 control. If anything ever
+did call it, **every call in ONIQ would fail**: the client requires
+`source === "metered"` in the response and `turn-creds` returns no `source`
+field at all, so `ensureIceServers` would throw `IceUnavailableError` on every
+attempt. Deleting the source would not undeploy it, so this is the owner's from
+the Supabase dashboard — the same position as the five MSG91 functions.

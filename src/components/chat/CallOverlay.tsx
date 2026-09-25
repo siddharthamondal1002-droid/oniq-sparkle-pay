@@ -581,9 +581,65 @@ type PeerTile = {
 };
 
 export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
-  { conversationId, meId, meName, peerName, isGroup, groupTitle, autoStart, autoAccept, onEnded },
+  {
+    conversationId,
+    meId: meIdProp,
+    meName,
+    peerName,
+    isGroup,
+    groupTitle,
+    autoStart,
+    autoAccept,
+    onEnded,
+  },
   ref,
 ) {
+  /**
+   * OUR OWN ID, RESOLVED — never just the prop.
+   *
+   * THIS IS WHAT PRODUCED THE FIVE IDENTICAL `call-connect-timeout` ROWS.
+   * Every dispatcher of `oniq:start-call` passes `meId: me?.id` from its own
+   * react-query, and GlobalCallHost falls back to another one; both are
+   * `undefined` until they resolve, and the value is FROZEN into the session
+   * at mount. A `key` keyed on the callId does not change when `me` lands, so
+   * an overlay that mounted without an id never got one.
+   *
+   * With `meId` undefined the signaling effect below returns at its first
+   * line, `channelRef.current` stays null, and every `sendSig` is a silent
+   * no-op — while the 2s hello loop, the camera and the "Connecting…" screen
+   * all run exactly as if the call were healthy. Twenty seconds later it
+   * reports a network failure. The measured shape, five times over:
+   *
+   *     helloTx 10   helloRx 0   offerRx 0   answerRx 0   peers []
+   *     media true   state "connecting"   role "callee"
+   *
+   * Reading `helloTx 10, helloRx 0` as "the other side never answered" is
+   * what that tally invited, and it was wrong: nothing was ever sent.
+   *
+   * Resolving it here rather than at the call sites fixes every entry point
+   * at once, and the effect dependency picks the channel up the moment the id
+   * arrives — well inside the 20s deadline, because the hello loop is still
+   * running.
+   */
+  const [resolvedMeId, setResolvedMeId] = useState<string | undefined>(meIdProp);
+  useEffect(() => {
+    if (meIdProp) {
+      setResolvedMeId(meIdProp);
+      return;
+    }
+    let cancelled = false;
+    void supabase.auth
+      .getUser()
+      .then(({ data }) => {
+        if (!cancelled) setResolvedMeId(data.user?.id ?? undefined);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [meIdProp]);
+  const meId = resolvedMeId;
+
   const [status, setStatus] = useState<Status>("idle");
   const [callType, setCallType] = useState<CallType>("audio");
   const [muted, setMuted] = useState(false);
@@ -828,23 +884,66 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
    * about it: `detail` maps over the peers, and there were none, so it was an
    * empty array describing an empty pool.
    *
-   * These four counters split every explanation apart. No hellos received
-   * means the other side's acceptance never arrived and the fault is in
-   * signalling. Hellos received with no local media means our own camera
-   * never opened, and the `hello` handler's early return is why no peer was
-   * ever built. Hellos and media both present with an empty pool means
-   * createPeerEntry refused. Offers and answers tell the same story from the
-   * other end, for the callee rows that sit at ice:new forever.
+   * These counters split every explanation apart. Hellos received with no
+   * local media means our own camera never opened, and the `hello` handler's
+   * early return is why no peer was ever built. Hellos and media both present
+   * with an empty pool means createPeerEntry refused. Offers and answers tell
+   * the same story from the other end, for the callee rows that sit at
+   * ice:new forever.
+   *
+   * THE ONE READING THIS TALLY DID NOT SUPPORT, and which five rows were read
+   * with anyway: "no hellos received means the other side's acceptance never
+   * arrived". `helloTx` was counted a line above a `channelRef.current?.send`
+   * that did nothing when the channel was null, so ten un-sent hellos looked
+   * identical to ten the far side ignored — and pointed at the far side. A
+   * counter that can be incremented by a failure is not a measurement of a
+   * success. `sendsDropped` and `sendsFailed` carry the two ways a signal is
+   * lost on THIS device, and the report adds `hasChannel`; read those before
+   * concluding anything about the other end.
    */
-  const sigTallyRef = useRef({ helloTx: 0, helloRx: 0, offerRx: 0, answerRx: 0 });
+  const sigTallyRef = useRef({
+    helloTx: 0,
+    helloRx: 0,
+    offerRx: 0,
+    answerRx: 0,
+    /** Signals we tried to send with no channel to send them on. */
+    sendsDropped: 0,
+    /** Signals handed to the channel that it did not acknowledge. */
+    sendsFailed: 0,
+  });
 
+  /**
+   * A SIGNAL WE COULD NOT SEND IS NOT A SIGNAL WE SENT.
+   *
+   * `channelRef.current?.send(...)` is a no-op when the channel is null, and
+   * `helloTx` used to be incremented one line ABOVE it — so ten hellos that
+   * never left the device were reported as ten the other side had ignored.
+   * That single mis-count is what made the five matching timeout rows read as
+   * a remote fault. Count the send where it happens, and count both ways of
+   * losing one, so the next report names the side that failed.
+   */
   const sendSig = (event: string, to: string | null, payload: Record<string, unknown> = {}) => {
+    const ch = channelRef.current;
+    if (!ch) {
+      sigTallyRef.current.sendsDropped += 1;
+      return;
+    }
     if (event === "hello") sigTallyRef.current.helloTx += 1;
-    channelRef.current?.send({
-      type: "broadcast",
-      event,
-      payload: { ...payload, from: meId, to, callId: callIdRef.current },
-    });
+    // `send` resolves "ok" | "timed out" | "error". A timeout loses the signal
+    // just as completely as a missing channel does, and just as quietly.
+    void Promise.resolve(
+      ch.send({
+        type: "broadcast",
+        event,
+        payload: { ...payload, from: meId, to, callId: callIdRef.current },
+      }),
+    )
+      .then((res) => {
+        if (res !== "ok") sigTallyRef.current.sendsFailed += 1;
+      })
+      .catch(() => {
+        sigTallyRef.current.sendsFailed += 1;
+      });
   };
 
   const clearConnectTimeout = () => {
@@ -902,11 +1001,22 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           // AND WHEN THERE ARE NO PEERS, `detail` ABOVE IS AN EMPTY ARRAY.
           // That is the whole report for a caller whose pool never filled —
           // the shape logged on 2026-08-17 — so the handshake is tallied
-          // separately and survives an empty pool. hello with no media says
-          // our own camera never opened; no hello at all says the acceptance
-          // never arrived; both present with an empty pool says the peer was
-          // refused a seat.
+          // separately and survives an empty pool.
+          //
+          // READ `sendsDropped` AND `hasChannel` FIRST. The original wording
+          // here said "no hello at all says the acceptance never arrived",
+          // and that inference is what five identical rows were read with —
+          // wrongly. `helloTx` was incremented before a `?.send()` that was a
+          // no-op whenever the channel was null, so the tally described sends
+          // that never left the device as sends the far side had ignored.
+          // Now: sendsDropped > 0 with hasChannel false is OUR signaling that
+          // never started, nothing to do with the far side; helloTx > 0 and
+          // helloRx 0 with a channel really is silence from them. hello with
+          // no media says our own camera never opened; hello and media both
+          // present with an empty pool says the peer was refused a seat.
           tally: { ...sigTallyRef.current },
+          hasChannel: !!channelRef.current,
+          haveMeId: !!meId,
           media: !!localStreamRef.current,
           state: statusRef.current,
           peers: peers.map((p) => ({
