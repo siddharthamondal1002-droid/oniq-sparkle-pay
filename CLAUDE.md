@@ -7790,6 +7790,7 @@ reads the table under the row that becomes the receipt, so the price changed on
 the next read; the TS copy is display and is what `/pay/story` renders. The
 write was verified in a SEPARATE statement from the one that made it, per this
 file's own rule.
+
 ### 2026-09-25 — "check the calling error and fix it": ten hellos that were never sent
 
 Measured on production before touching anything. `client_error_reports`,
@@ -7830,8 +7831,21 @@ Every field of the signature falls out of that one mechanism and nothing else
 considered explained all of them: media true (the camera path never reads
 `meId`), state connecting (the status machine never reads it either), helloTx 10
 (the 2s accepter loop, counting no-ops), helloRx 0 (never subscribed), peers []
-(a peer is only built from an inbound hello), role callee 7 times out of 8 (the
-accept path is the one with two awaited queries in front of `setSession`).
+(a peer is only built from an inbound hello).
+
+**AND THE 7-OF-8 CALLEE SKEW IS EXPLAINED BY THE CACHE, NOT BY THE AWAITS.** The
+first draft of this paragraph said the accept path is worse because it has two
+awaited Supabase queries in front of `setSession` — which is backwards, since
+awaiting LONGER gives `me` more time to resolve, not less. Measured instead:
+`queryKey: ["me"]` is shared by SEVEN components including `app.tsx`, the
+authenticated shell that mounts first, so on any warm app the cache answers
+synchronously and `meIdProp` is defined. The window is a COLD START — and the
+accept path is the one reached from a cold start, because a push notification
+wakes a killed app straight into `oniq:accept-call`. The caller path needs a
+person already looking at a rendered screen, where `["me"]` resolved long ago.
+That also explains the RATE: 8 reports against 177 answered calls is what a
+cold-start-only window should produce, and a mechanism that fired on every call
+would have been reported in a day rather than over six weeks.
 
 **FIXED AT THE LAYER THAT COVERS EVERY ENTRY POINT.** `CallOverlay` seeds
 `resolvedMeId` from the prop and falls back to `supabase.auth.getUser()` when
