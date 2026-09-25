@@ -100,7 +100,6 @@ const KNOWN_ORPHANS: readonly string[] = [
   "src/lib/storyCostModel.ts",
   "src/lib/storyLifecycle.ts",
   "src/lib/storyRenderer.ts",
-  "src/lib/useIsAdmin.ts",
   "src/oqca/backends/backend.ts",
   "src/oqca/backends/classicalSimulator.ts",
   "src/oqca/backends/qpu.ts",
