@@ -8104,8 +8104,10 @@ deploy `story-reference-publish` because the one-line change in the merged
 range would have moved a byte-proving fetch onto a redirect. That line is now
 back to `https://oniqhub.com` — byte-identical to the value at `c83970c`, the
 baseline production was built from — so the repo and the deployed function
-agree and **no edge deploy is outstanding at all**. A change withheld because
-it was wrong stopped existing when the thing it depended on was decided.
+agree and **that deploy is no longer pending**. A change withheld because it
+was wrong stopped existing when the thing it depended on was decided.
+(`story-sweep`'s six-hour abandoned-job clock is still undeployed and is a
+separate matter — two Lovable turns returned empty replies this morning.)
 
 **THE MUTATION THAT MATTERS NOW IS THE TIDY-UP THIS FLIP INVITES.** M2 deletes
 the four `www` App Link rows — which after today read as the leftovers of an
