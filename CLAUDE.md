@@ -7931,3 +7931,138 @@ did call it, **every call in ONIQ would fail**: the client requires
 field at all, so `ensureIceServers` would throw `IceUnavailableError` on every
 attempt. Deleting the source would not undeploy it, so this is the owner's from
 the Supabase dashboard — the same position as the five MSG91 functions.
+
+### 2026-09-28 — "check and deploy": the pending edge change is a REGRESSION, and the check is what said so
+
+Three days after the calling fix shipped. The publish is still live and current —
+measured, not assumed: `x-deployment-id psr2.e0f40115-…`, entry
+`index-D30DVn3B.js`, enforcing CSP, read from inside the database with `pg_net`.
+`main` == `origin/main` == `457f9c6`, Lovable's `latest_commit_sha` the same,
+working tree clean, no Lovable edit since 09-25.
+
+**THE ONE EDGE CHANGE IN THE MERGED RANGE IS THE HOST LITERAL, AND DEPLOYING IT
+WOULD MAKE THINGS WORSE.** `git diff c83970c..457f9c6 -- supabase/functions/` is
+exactly one file and one line: `ONIQ_ASSET_ORIGIN` from the apex to www. Measured
+on production:
+
+    GET https://oniqhub.com/        200  x-deployment-id PRESENT  CSP enforcing
+    GET https://www.oniqhub.com/    location: https://oniqhub.com/   no deployment id
+    GET <apex>/__l5e/assets-v1/…jpg 200  image/jpeg  content-length 507596
+    GET <www>/…the same path…       location: <apex>  content-length **0**
+
+**The apex is the origin; www is a pure redirect.** So the owner directive of
+2026-09-12 ("Use www.oniqhub.com"), given when the apex was dark, now points the
+app at a host that only bounces. That is the owner's to reverse — the host is
+user-visible policy — so it is recorded here and NOT flipped, for the second
+time.
+
+**AND A REDIRECT-FOLLOWING CLIENT JUST HANDED BACK `content-length: 0` ON THE
+EXACT URL THE GUARD MEASURES.** `story-reference-publish` fetches that URL and
+then PROVES the bytes — `declared > MAX` on the header, then `arrayBuffer()`.
+Moving that fetch onto a redirect buys nothing (the value it moves TO is a
+redirect to the value it moves FROM) and puts a byte-proving step behind a hop
+that demonstrably reports no length. **Not deployed, deliberately.**
+
+**NO HOST DRIFT IS POSSIBLE ANYWHERE, which is the finding that killed my own
+first hypothesis.** It looked like the published bundle (www) and the deployed
+function (apex) must already disagree. They cannot:
+
+    story-reference-publish  `const sourceUrl = assetUrl(actor)` — DERIVED
+                             server-side from its own copy. The caller sends a
+                             characterRefId, never a URL. The allowlist check
+                             compares the constant against itself; the function's
+                             own comment says it is unreachable.
+    story-still              takes characterRefId + version, builds a storage
+                             KEY. Reads the constant ZERO times; characterRef.ts
+                             imports only ACTOR_ASSETS and referenceEligible.
+    the worker               builds AND checks from the same main checkout.
+
+So the constant decides ONE thing: which host gets fetched. **Read what a
+constant is FOR before reasoning about a drift between two copies of it** — a
+value that is derived and checked on the same side cannot drift against anything.
+
+**`deno` IS NOT IN THIS CONTAINER, correcting the 2026-09-10 entry.** It says
+"DENO IS INSTALLED IN THIS CONTAINER"; `which deno` finds nothing and
+`deno.land` answers the proxy's 403 CONNECT, so the installer cannot be fetched
+either. A capability recorded of one container is not a capability of the next.
+The gate was recovered another way: `story-sweep`'s entire import closure is two
+files, BOTH frozen at `797dfc8` (2026-09-12) — the commit whose entry records
+`deno check` clean. **The gate was passed on exactly these bytes and they have
+not moved**, which is the honest substitute for re-running it.
+
+#### The Lovable monitoring agent found three real defects on 2026-09-24 and its plan was never executed
+
+Found by reading the message history, not by being told. Its turn ended on
+`plan--show requires-approval` and stopped. All three verified INDEPENDENTLY
+here rather than taken on its word — a second-hand claim is a catalogue:
+
+    1  payment_inbox_* functions absent from production
+       MEASURED: `select count(*) from pg_proc where proname like 'payment%'`
+       -> 0. Not one. The deployed razorpay-webhook path that needs them would
+       503 on every signed event.
+       EXPOSURE: NONE TODAY. `payments` has 0 rows EVER; `story_purchases` has
+       1, from 2026-08-10. There is no payment traffic to break — and it breaks
+       the moment there is.
+    2  in-house still retries refused as duplicates
+       MEASURED: `inHouseMotion.ts:797  requestId: \`still:${stillId}\`` —
+       deterministic per still, and the ledger refuses a request id it has seen.
+       EXPOSURE: none today; the GPU path needs motion_mode and a checkpoint
+       that currently throws.
+    3  JPG artwork cannot get a locked reference
+       MEASURED: `story-reference-publish:250  if (kind !== "png")`, against
+       ACTOR_ASSETS holding **37 png and 30 jpg** over 67 actors.
+       EXPOSURE: real whenever anyone locks a reference.
+
+**A HIGH-SEVERITY FINDING WITH NO TRAFFIC IS STILL A HIGH-SEVERITY FINDING**,
+and the reverse of this repo's usual error: here the code is broken and nobody
+has hit it, rather than working and unreachable. Both are worth the same
+sentence — say which one it is.
+
+#### The calling fix is STILL UNPROVEN, and the zero is not the evidence it looks like
+
+    call-connect-timeout reports since the 09-25 publish   0
+    calls placed since the 09-25 publish                   0   newest 2026-09-23
+
+Zero failures out of zero attempts. Reporting the first number without the
+second is exactly the "a test can stop testing without failing" trap this file
+already has a receipt for. **The gate is still a call connecting.** The
+instrument is in place: a future row carrying `hasChannel:false` or
+`sendsDropped>0` is the bug still live; one carrying `helloTx>0, helloRx 0,
+hasChannel:true` is a genuinely silent far side and a different fault.
+
+#### A Lovable turn ran, returned EMPTY, and its message id then 404'd
+
+The first `story-sweep` deploy message was `accepted` 16:10:07; the assistant
+reply arrived 16:10:54 as `completed` with content `<lov-code></lov-code>` — no
+greps, no deploy — and `get_message` on that id answered **404
+message_not_found**. Stable across two reads four minutes apart.
+
+That is the dropped-turn shape this file already records. **The rule that a
+timeout must not be resent is not a rule that a DROP must not be** — the two are
+distinguished by evidence, and the evidence here is an empty artifact plus a
+404, not an unanswered status. Resent as a much shorter message, ask first: this
+file's own note that "a long message is more fragile than a short one" was
+written down and then not applied to the first attempt.
+
+**THE RESEND RETURNED EMPTY TOO — 19 seconds, `completed`, content `""` — so
+`story-sweep` IS NOT DEPLOYED.** Two turns, two empty replies, one instruction
+executed zero times. Stopped there rather than sending a third: the owner capped
+Lovable credits, and two identical outcomes is a blocked path, not bad luck.
+
+**AND THE AGENT WAS BUSY WITH SOMETHING ELSE ENTIRELY.** `latest_commit_sha`
+moved `457f9c6` -> `4821346` during the first turn, and the two new commits are
+**one unrelated file**, `src/integrations/supabase/previewAuthStorage.ts`
+(+6/-1), which no test covers. The second commit is labelled _"Fixed Ting spend
+guard logic"_ and does not touch `ting/index.ts` at all — the net diff across
+both is that one preview-auth file. **A Lovable commit message is not evidence
+about its contents; read the stat.** Gated here anyway, since it landed on
+`main` untested: tsc 0, `lint:ci` clean, 428 files / 7,627 tests passing — the
+same numbers as before it, which is what "no coverage, breaks nothing" looks
+like.
+
+THE LIKELY CAUSE, labelled as a hypothesis: the 2026-09-24 turn ended on
+`plan--show requires-approval="true"` and has never been answered. The tool docs
+say only the user can clear that, in the Lovable editor, and that a new
+`send_message` supersedes rather than answers it. Two empty turns is consistent
+with messages being swallowed by that pending approval. **Clearing it is the
+owner's, in the editor** — and the same plan holds the three findings above.
