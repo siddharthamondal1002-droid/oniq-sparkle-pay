@@ -24,7 +24,7 @@
 // Kept as a LITERAL, not an import: this file's header requires it to stay
 // import-free so one copy serves Deno edge, the Node worker and Vite. Pinned
 // equal to src/config/appOrigin.ts APP_ORIGIN by storyActorAssets.test.ts.
-export const ONIQ_ASSET_ORIGIN = "https://www.oniqhub.com";
+export const ONIQ_ASSET_ORIGIN = "https://oniqhub.com";
 
 export type ActorAsset = {
   /** STORY_CHARACTER_REFS externalAssetId. */

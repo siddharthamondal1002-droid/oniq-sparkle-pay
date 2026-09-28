@@ -8066,3 +8066,61 @@ say only the user can clear that, in the Lovable editor, and that a new
 `send_message` supersedes rather than answers it. Two empty turns is consistent
 with messages being swallowed by that pending approval. **Clearing it is the
 owner's, in the editor** — and the same plan holds the three findings above.
+
+### Owner directive, 2026-09-28 — "Fix the host, point it back to the apex"
+
+Supersedes the 2026-09-12 "Use www.oniqhub.com", whose whole premise — the apex
+had stopped serving — is gone. `APP_HOST`, `capacitor.config.json`'s
+`server.url` and `_shared/storyActorAssets.ts`'s mirrored literal all move back
+to `oniqhub.com`; `APP_HOSTS` keeps BOTH names and the manifest keeps all eight
+App Link rows, so nothing already in the world stops resolving.
+
+    GET oniqhub.com/                 200  x-deployment-id psr2.e0f40115-…  CSP
+    GET www.oniqhub.com/                  location: https://oniqhub.com/
+                                          no x-deployment-id, no CSP
+    GET <apex>/__l5e/assets-v1/….jpg 200  image/jpeg  content-length 507596
+    GET <www>/… the same path …           location: <apex>  content-length 0
+
+**THE FLIP COSTS INSTALLED USERS NOTHING, AND THAT IS MEASURED RATHER THAN
+HOPED.** The scary version of this change is the one the 2026-09-12 entry
+warns about — an origin move orphans every localStorage session, and www is
+not on Firebase's `authorizedDomains`, so phone sign-in would die. Both are
+properties of moving TO www, and **no build ever made that move**: the Android
+Build workflow's newest run is **#37, 2026-08-18**, a month BEFORE the www
+directive, and `server.url` is baked into the APK. So every phone carrying
+ONIQ has been loading the apex this entire time. Pointing the repo back at it
+makes the config agree with the field rather than moving anybody — no
+sign-out, no Firebase gap, and one fewer redirect on every outbound link.
+
+**READ THE SHIP LOG, NOT THE SOURCE HISTORY, WHEN ASKING WHAT USERS ARE
+RUNNING.** `git log -- android/ capacitor.config.json` says when the VALUE
+changed; it cannot say whether a build carrying it ever shipped. The workflow
+run list is the artifact that answers it, and here the two disagree by a month
+— which is the whole difference between "this signs 126 people out" and "this
+costs nothing".
+
+**AND THE PENDING EDGE DEPLOY DISSOLVED.** This morning's entry refused to
+deploy `story-reference-publish` because the one-line change in the merged
+range would have moved a byte-proving fetch onto a redirect. That line is now
+back to `https://oniqhub.com` — byte-identical to the value at `c83970c`, the
+baseline production was built from — so the repo and the deployed function
+agree and **no edge deploy is outstanding at all**. A change withheld because
+it was wrong stopped existing when the thing it depended on was decided.
+
+**THE MUTATION THAT MATTERS NOW IS THE TIDY-UP THIS FLIP INVITES.** M2 deletes
+the four `www` App Link rows — which after today read as the leftovers of an
+abandoned move, and are exactly what someone would remove for neatness. www
+URLs are already printed on QR codes and already shared as deep links, and www
+still resolves, so dropping them is a link that opens a browser instead of
+ONIQ. M1 and M5 inverted with the values they guard (apex -> www now), because
+a mutation pointing at the value you just adopted is a no-op that reports
+`NOTAPPLIED` rather than a verdict.
+
+5 mutations, every one RED on a green baseline, none GREEN, none NOTAPPLIED.
+428 files / 7,627 tests, tsc 0, `lint:ci` clean, Prettier clean on all four
+changed sources.
+
+**COMMITTED AND PUSHED TO `claude/check-56jtg5` — NOT MERGED, NOT PUBLISHED.**
+`APP_ORIGIN` is inlined into the bundle, so until this reaches `main` and a
+publish runs, the served app keeps minting `www` links that pay a 302. Nothing
+is broken by waiting; nothing is fixed by it either.

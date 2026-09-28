@@ -1,8 +1,9 @@
 # Build a signed Android App Bundle (.aab) for ONIQ.
 #
 # Strategy: thin Capacitor wrapper — the AAB just points at the host in
-# capacitor.config.json (https://www.oniqhub.com since 2026-09-12, when the
-# apex stopped serving and the shell sat on its 404), so shipped builds always
+# capacitor.config.json (https://oniqhub.com — it moved to www on 2026-09-12
+# when the apex stopped serving, and back on 2026-09-28 when it recovered and
+# www became a pure redirect; no build ever shipped the www value), so builds
 # run the current production site. That host is baked into the APK at build
 # time, which is why a host change needs a release and not a publish. No local web assets
 # ship with the APK; the dist/ folder is a stub (.gitkeep) purely to satisfy

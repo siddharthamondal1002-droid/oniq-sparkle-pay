@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Mutation check for the www host switch (2026-09-12).
+# Mutation check for the host switch. Primary host: the apex (2026-09-28).
 #
 # THE UNDO IS A FILE COPY, NEVER `git checkout --`: git's undo is relative to a
 # COMMIT and a mutation is relative to the file it found, so on 2026-09-11 a
@@ -25,15 +25,18 @@ echo "== baseline =="
 green && echo "  baseline GREEN" || { echo "  BASELINE RED — stop, no verdict below counts"; exit 1; }
 save
 
-echo "== M1: the shell points back at the dead apex =="
+echo "== M1: the shell points at the host that only redirects =="
 python3 - <<'PYX'
 import pathlib
 p=pathlib.Path('capacitor.config.json')
-p.write_text(p.read_text().replace('https://www.oniqhub.com','https://oniqhub.com'))
+p.write_text(p.read_text().replace('"https://oniqhub.com"','"https://www.oniqhub.com"'))
 PYX
-verdict capacitor.config.json "capacitor server.url reverted to the apex"; restore
+verdict capacitor.config.json "capacitor server.url drifted to the redirect host"; restore
 
-echo "== M2: the www App Links are dropped =="
+# The www entries are the SECONDARY host now, which is exactly what a tidy-up
+# after the 2026-09-28 flip would delete — and www URLs are already in the
+# world, so dropping them is a deep link that opens a browser instead of ONIQ.
+echo "== M2: the now-secondary www App Links are tidied away =="
 python3 - <<'PYX'
 import pathlib, re
 p=pathlib.Path('android/app/src/main/AndroidManifest.xml'); s=p.read_text()
@@ -74,8 +77,8 @@ echo "== M5: the import-free asset origin drifts from the config =="
 python3 - <<'PYX'
 import pathlib
 p=pathlib.Path('supabase/functions/_shared/storyActorAssets.ts'); s=p.read_text()
-s=s.replace('export const ONIQ_ASSET_ORIGIN = "https://www.oniqhub.com";',
-            'export const ONIQ_ASSET_ORIGIN = "https://oniqhub.com";')
+s=s.replace('export const ONIQ_ASSET_ORIGIN = "https://oniqhub.com";',
+            'export const ONIQ_ASSET_ORIGIN = "https://www.oniqhub.com";')
 p.write_text(s)
 PYX
 verdict supabase/functions/_shared/storyActorAssets.ts "the mirror drifts and portraits 404"; restore

@@ -1,12 +1,42 @@
 /**
  * ONIQ'S OWN HOST — the one place the app's public origin is decided.
  *
- * Owner directive, 2026-09-12: "Use www.oniqhub.com". The apex `oniqhub.com`
- * stopped serving that afternoon — measured, every path 404 with no
- * `x-deployment-id`, i.e. Cloudflare answering without ever reaching the
- * Lovable origin, while `www` returned 200 and ONIQ's enforcing CSP. The
- * Capacitor shell loads `server.url` from capacitor.config.json, so the
- * WebView was fetching that 404 and the app would not open.
+ * Owner directive, 2026-09-28: "Fix the host, point it back to the apex."
+ * This SUPERSEDES the 2026-09-12 "Use www.oniqhub.com", whose whole premise was
+ * that the apex had stopped serving. It serves again, and www is now the one
+ * that does not.
+ *
+ * MEASURED with `pg_net` from inside production, because both hosts are
+ * proxy-blocked from the dev container:
+ *
+ *     GET oniqhub.com/                 200  x-deployment-id psr2.e0f40115-…
+ *                                           enforcing CSP
+ *     GET www.oniqhub.com/                  location: https://oniqhub.com/
+ *                                           no x-deployment-id, no CSP
+ *     GET <apex>/__l5e/assets-v1/….jpg 200  image/jpeg  content-length 507596
+ *     GET <www>/… the same path …           location: <apex>  content-length 0
+ *
+ * `net.http_get` follows redirects, so www's 200 IS the apex's response and the
+ * `location` header is the proof. By this file's own rule — an absent
+ * `x-deployment-id` means Cloudflare answered without ever reaching the Lovable
+ * origin — the apex is the host that serves and www only bounces to it.
+ *
+ * THE FLIP COSTS INSTALLED USERS NOTHING, and that is measured rather than
+ * hoped. `server.url` is baked into the APK, and the last Android build is run
+ * #37 of 2026-08-18 — a month BEFORE the www directive — so no shipped shell
+ * has ever pointed at www. Every phone carrying ONIQ already loads the apex, so
+ * this makes the repo agree with the field again rather than moving anybody:
+ *
+ *   no sign-out          no shell changes origin, so no localStorage session is
+ *                        orphaned. Moving TO www later is what would sign all
+ *                        126 accounts out, and that cost lands on the Android
+ *                        release, never on a web publish.
+ *   phone sign-in works  Firebase authorizedDomains re-measured on the public
+ *                        web key is [localhost, oniq-309bd.firebaseapp.com,
+ *                        oniq-309bd.web.app, oniqhub.com] — www is STILL
+ *                        absent, so reCAPTCHA refuses on any flow genuinely
+ *                        running there.
+ *   one less hop         every outbound ONIQ link stops paying a 302.
  *
  * WHY A CONSTANT AND NOT A FIND-AND-REPLACE. The host appears in ~100 places,
  * and they are not one kind of thing. Three groups, deliberately treated
@@ -14,67 +44,23 @@
  *
  *   BUILDS an outbound URL   -> APP_ORIGIN. A link ONIQ hands out must point
  *                               at a host that serves.
- *   VALIDATES an inbound URL -> isAppHost(). Must accept BOTH hosts: QR codes
- *                               already printed, deep links already shared and
- *                               reference URLs already stored all name the
- *                               apex, and they must keep working the day it
- *                               comes back. Widening here is safe because both
- *                               names are ONIQ's own.
+ *   VALIDATES an inbound URL -> isAppHost(). Accepts BOTH hosts whichever one
+ *                               is primary: QR codes already printed, deep
+ *                               links already shared and reference URLs already
+ *                               stored name both, and both are ONIQ's own.
  *   NAMES A CANONICAL PAGE   -> left alone on purpose. og:url, rel=canonical
- *                               and sitemap.xml still say the apex. Which host
- *                               is canonical is an SEO decision with its own
- *                               consequences, it is not what "the app will not
- *                               open" needed, and flipping it twice is worse
- *                               than flipping it once deliberately.
+ *                               and sitemap.xml say the apex, which this flip
+ *                               makes correct for free — they were never moved,
+ *                               precisely because flipping them twice is worse
+ *                               than flipping them once.
  *
- * THE ORIGIN CHANGE SIGNS EVERYONE OUT, and that is a property of the browser
- * rather than a bug here: the Supabase session lives in localStorage, which is
- * keyed by origin, so a shell that moves from `oniqhub.com` to
- * `www.oniqhub.com` cannot see the session stored under the old one.
- */
-
-/**
- * MEASURED 2026-09-25, AND THE 2026-09-12 PREMISE IS GONE. The apex recovered
- * while this branch sat unmerged, and the reading is the exact inverse of the
- * one above — taken with `pg_net` from inside production, because both hosts
- * are proxy-blocked from the dev container:
- *
- *     oniqhub.com/app      200  x-deployment-id psr2.18fbbbb2-…  CSP present
- *     www.oniqhub.com/app  200  location: https://oniqhub.com/app
- *                               no x-deployment-id, no CSP
- *
- * `net.http_get` follows redirects, so www's 200 IS the apex's response and
- * the `location` header is the proof: **www does not serve ONIQ, it 302s to
- * the apex.** By this file's own rule — an absent `x-deployment-id` means
- * Cloudflare answered without reaching the Lovable origin — the apex is the
- * host that serves and www is the one that does not.
- *
- * `authorizedDomains` was re-measured the same minute with the public web key
- * and still reads [localhost, oniq-309bd.firebaseapp.com, oniq-309bd.web.app,
- * oniqhub.com] — www is STILL not authorized, so reCAPTCHA phone sign-in
- * refuses on any flow that genuinely runs on that origin.
- *
- * THE VALUE IS LEFT AT www BECAUSE THE DIRECTIVE SAID www, and changing it
- * back is the owner's call now that the reason for it is gone. What the flip
- * would cost TODAY is small and worth stating precisely, because the scary
- * version is wrong: `server.url` is compiled into the APK, so a WEB publish
- * cannot move an installed shell and therefore cannot sign anybody out. What
- * a web publish on www actually costs is one redirect hop on every outbound
- * link ONIQ hands out. The origin-keyed sign-out and the phone-sign-in gap
- * arrive only with the next ANDROID build, which is where the decision
- * really bites.
- *
- * SO THE FLIP IS TWO LINES HERE PLUS `server.url` IN capacitor.config.json,
- * and the guard in appOrigin.test.ts refuses to let one move without the
- * other — deliberately, because those two disagreeing is a handset-only
- * failure discovered after a Play release. That guard is also the answer to
- * why 2026-09-12 was worth doing whichever host wins: the three-way sort,
- * `isAppHost` accepting both names, and the config/manifest pins are what
- * make this a two-line decision instead of a hundred-site edit.
+ * That three-way sort is what makes the host a two-line decision instead of a
+ * hundred-site edit, and it is why the 2026-09-12 work was worth doing
+ * whichever host ended up winning.
  */
 
 /** The host ONIQ serves from and hands out links to. */
-export const APP_HOST = "www.oniqhub.com";
+export const APP_HOST = "oniqhub.com";
 
 /** The origin every outbound ONIQ link is built from. */
 export const APP_ORIGIN = `https://${APP_HOST}`;
@@ -89,7 +75,7 @@ export const APP_ORIGIN = `https://${APP_HOST}`;
  * redirects rather than failing — so a stored `www` URL resolves and must not
  * be refused on arrival.
  */
-export const APP_HOSTS: readonly string[] = [APP_HOST, "oniqhub.com"];
+export const APP_HOSTS: readonly string[] = [APP_HOST, "www.oniqhub.com"];
 
 /**
  * Is this hostname ONIQ's?

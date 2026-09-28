@@ -1,9 +1,11 @@
 /**
  * THE HOST SWITCH, PINNED.
  *
- * Owner directive 2026-09-12: "Use www.oniqhub.com", after the apex stopped
- * serving and the Capacitor shell — which loads `server.url` out of
- * capacitor.config.json — sat on a 404 and would not open.
+ * Owner directive 2026-09-28: "Fix the host, point it back to the apex",
+ * superseding the 2026-09-12 "Use www.oniqhub.com". The apex serves again and
+ * www now only 302s to it, so the primary host moves back. Both names stay
+ * ONIQ's, which is what keeps already-printed QR codes and already-shared deep
+ * links working across the flip in either direction.
  *
  * Everything here is wiring a typechecker cannot see. capacitor.config.json is
  * JSON, so `tsc` never reads it; AndroidManifest.xml is XML, so nothing reads
@@ -21,9 +23,9 @@ const root = resolve(__dirname, "../../..");
 const read = (p: string) => readFileSync(resolve(root, p), "utf8");
 
 describe("the app's own origin", () => {
-  it("names www as the primary host, with the apex still ours", () => {
-    expect(APP_HOST).toBe("www.oniqhub.com");
-    expect(APP_ORIGIN).toBe("https://www.oniqhub.com");
+  it("names the apex as the primary host, with www still ours", () => {
+    expect(APP_HOST).toBe("oniqhub.com");
+    expect(APP_ORIGIN).toBe("https://oniqhub.com");
     expect(APP_HOSTS[0]).toBe(APP_HOST);
     expect([...APP_HOSTS].sort()).toEqual(["oniqhub.com", "www.oniqhub.com"]);
   });
@@ -85,6 +87,7 @@ describe("inbound URLs already in the world keep working", () => {
   it("still refuses a port, a lookalike and plain http", () => {
     // url.origin equality used to reject a port for free; host membership does
     // not, so the port check is explicit and this is what proves it is there.
+    expect(parseProfileQr(`https://oniqhub.com:8443/q/${TOKEN}`)).toBeNull();
     expect(parseProfileQr(`https://www.oniqhub.com:8443/q/${TOKEN}`)).toBeNull();
     expect(parseProfileQr(`http://oniqhub.com/q/${TOKEN}`)).toBeNull();
     expect(parseProfileQr(`https://oniqhub.com.evil.test/q/${TOKEN}`)).toBeNull();
